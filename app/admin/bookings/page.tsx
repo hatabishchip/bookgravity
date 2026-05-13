@@ -162,7 +162,7 @@ export default function BookingsPage() {
                           <div>
                             <div className="text-xs text-gray-400 mb-1">Additional Services</div>
                             {b.services.map((s, i) => (
-                              <div key={i} className="text-sm text-gray-700">{s.service.name} — {Math.round(s.service.price / 1000)}K IDR</div>
+                              <div key={i} className="text-sm text-gray-700">{s.service.name} — {Math.round(s.service.price / 1000)}k IDR</div>
                             ))}
                           </div>
                         )}

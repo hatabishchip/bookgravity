@@ -126,7 +126,7 @@ export default function ServicesPage() {
               </div>
             </div>
             <div className="text-lg font-bold text-[#2C6E49] flex-shrink-0">
-              {priceToK(service.price)}K
+              {priceToK(service.price)}k
             </div>
             <button
               type="button"
@@ -183,7 +183,7 @@ export default function ServicesPage() {
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
                     placeholder="50"
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-400 pointer-events-none">K</span>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-400 pointer-events-none">k</span>
                 </div>
                 <p className="text-xs text-gray-400 mt-1.5">
                   = Rp {(parseInt(form.priceK, 10) || 0).toLocaleString("id-ID")}.000

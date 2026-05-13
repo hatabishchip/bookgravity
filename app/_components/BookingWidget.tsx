@@ -585,7 +585,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
                         />
                         <span className="text-sm text-gray-700">{svc.name}</span>
                       </div>
-                      <span className="text-sm font-medium text-gray-600">{Math.round(svc.price / 1000)}K</span>
+                      <span className="text-sm font-medium text-gray-600">{Math.round(svc.price / 1000)}k</span>
                     </label>
                   ))}
                 </div>
