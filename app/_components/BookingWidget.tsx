@@ -294,9 +294,9 @@ export default function BookingWidget({ services }: { services: Service[] }) {
       <div className="fixed inset-0 bg-[#F5F4F0] z-50 flex items-center justify-center p-4 overflow-hidden">
         <div className="bg-white rounded-2xl shadow-xl p-5 sm:p-6 w-full max-w-sm text-center">
           {/* Brand */}
-          <div className="mb-3 pb-3 border-b border-gray-100">
-            <div className="text-base font-bold text-[#2C6E49] tracking-tight">Gravity Stretching</div>
-            <div className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-0.5">Canggu</div>
+          <div className="mb-4 pb-4 border-b border-gray-100">
+            <div className="text-2xl font-bold text-[#2C6E49] tracking-tight leading-tight">Gravity Stretching</div>
+            <div className="text-xs text-gray-500 uppercase tracking-[0.3em] mt-1.5 font-medium">Canggu</div>
           </div>
 
           {/* Confirmation header */}
