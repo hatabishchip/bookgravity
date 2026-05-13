@@ -166,11 +166,20 @@ export default function TrainersPage() {
           >
             {/* Header row */}
             <div className="flex items-start gap-3">
-              <div className="w-11 h-11 bg-white/70 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                <User size={20} className="text-gray-500" />
+              <div
+                className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm border-2"
+                style={{ backgroundColor: hexToRgba(trainer.color, 0.15), borderColor: trainer.color }}
+              >
+                <User size={20} style={{ color: trainer.color }} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-gray-900">{trainer.name}</div>
+                <div className="font-semibold text-gray-900 flex items-center gap-2">
+                  <span
+                    className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: trainer.color }}
+                  />
+                  {trainer.name}
+                </div>
                 <div className="text-sm text-gray-500 mt-0.5 truncate">{trainer.user.email}</div>
                 <input
                   type="tel"

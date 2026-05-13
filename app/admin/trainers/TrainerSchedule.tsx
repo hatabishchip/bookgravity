@@ -25,8 +25,15 @@ type Slot = {
   endTime: string
   maxCapacity: number
   price: number
-  trainer: { id: string; name: string } | null
+  trainer: { id: string; name: string; color: string } | null
   _count: { bookings: number }
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r},${g},${b},${alpha})`
 }
 
 function formatTime(time: string) {
@@ -180,7 +187,13 @@ export default function TrainerSchedule({
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{trainer.name}'s Schedule</h2>
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <span
+                className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                style={{ backgroundColor: trainer.color }}
+              />
+              {trainer.name}'s Schedule
+            </h2>
             <p className="text-sm text-gray-400 mt-0.5">
               {headerLabel} · {mySlots} sessions assigned
             </p>
@@ -287,18 +300,27 @@ export default function TrainerSchedule({
                   <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
                     {daySlots.map((slot) => {
                       const isMine = slot.trainer?.id === trainer.id
+                      const otherColor = slot.trainer && !isMine ? slot.trainer.color : null
                       const isLoading = toggling === slot.id
+
+                      const otherStyle = otherColor
+                        ? { backgroundColor: hexToRgba(otherColor, 0.12), borderColor: hexToRgba(otherColor, 0.4) }
+                        : {}
 
                       return (
                         <button
                           key={slot.id}
                           onClick={() => handleToggle(slot)}
                           disabled={isLoading}
-                          style={isMine ? { backgroundColor: trainer.color, borderColor: trainer.color } : {}}
+                          style={
+                            isMine
+                              ? { backgroundColor: trainer.color, borderColor: trainer.color }
+                              : otherStyle
+                          }
                           className={cn(
                             "w-full text-left rounded-lg transition-all border",
                             isMonthView ? "p-1" : "p-1.5",
-                            !isMine && "bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+                            !isMine && !otherColor && "bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50",
                             isLoading && "opacity-50"
                           )}
                         >
@@ -313,25 +335,34 @@ export default function TrainerSchedule({
                             </span>
 
                             <div className="min-w-0 flex-1">
-                              <div className={cn(
-                                "font-semibold leading-tight truncate",
-                                isMonthView ? "text-[9px]" : "text-xs",
-                                isMine ? "text-white" : "text-gray-700"
-                              )}>
+                              <div
+                                className={cn(
+                                  "font-semibold leading-tight truncate",
+                                  isMonthView ? "text-[9px]" : "text-xs",
+                                  isMine ? "text-white" : "text-gray-700"
+                                )}
+                                style={!isMine && otherColor ? { color: otherColor } : {}}
+                              >
                                 {formatTime(slot.startTime)}
                               </div>
                               {!isMonthView && (
-                                <div className={cn(
-                                  "text-[10px] truncate mt-0.5",
-                                  isMine ? "text-white/70" : "text-gray-400"
-                                )}>
+                                <div
+                                  className={cn(
+                                    "text-[10px] truncate mt-0.5",
+                                    isMine ? "text-white/70" : "text-gray-400"
+                                  )}
+                                  style={!isMine && otherColor ? { color: hexToRgba(otherColor, 0.85) } : {}}
+                                >
                                   {slot.trainer ? slot.trainer.name : "Unassigned"}
                                 </div>
                               )}
-                              <div className={cn(
-                                isMonthView ? "text-[8px]" : "text-[10px]",
-                                isMine ? "text-white/60" : "text-gray-400"
-                              )}>
+                              <div
+                                className={cn(
+                                  isMonthView ? "text-[8px]" : "text-[10px]",
+                                  isMine ? "text-white/60" : "text-gray-400"
+                                )}
+                                style={!isMine && otherColor ? { color: hexToRgba(otherColor, 0.7) } : {}}
+                              >
                                 {slot._count.bookings}/{slot.maxCapacity}
                               </div>
                             </div>
