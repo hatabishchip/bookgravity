@@ -338,7 +338,7 @@ export default function TrainerSchedule({
                           className={cn(
                             "w-full text-left rounded-lg transition-all border",
                             isMonthView ? "p-1" : "p-1.5",
-                            !isMine && !otherColor && "bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+                            !isMine && !otherColor && "bg-gray-200 border-gray-300 hover:border-gray-400 hover:bg-gray-300",
                             isLoading && "opacity-50"
                           )}
                         >
