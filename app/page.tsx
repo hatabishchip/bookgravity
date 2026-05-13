@@ -1,3 +1,5 @@
+import Link from "next/link"
+import { LogIn } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import BookingWidget from "./_components/BookingWidget"
 
@@ -15,9 +17,18 @@ export default async function HomePage() {
             <h1 className="text-xl font-bold text-[#2C6E49] tracking-tight">Gravity Stretching</h1>
             <p className="text-xs text-gray-400 mt-0.5">Changgu, Bali</p>
           </div>
-          <div className="text-right text-sm text-gray-400">
-            <div>Group classes</div>
-            <div className="text-xs">Up to 6 people</div>
+          <div className="flex items-center gap-4">
+            <div className="text-right text-sm text-gray-400 hidden sm:block">
+              <div>Group classes</div>
+              <div className="text-xs">Up to 6 people</div>
+            </div>
+            <Link
+              href="/trainer/login"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] transition-colors"
+            >
+              <LogIn size={16} />
+              Sign in
+            </Link>
           </div>
         </div>
       </header>
