@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
             </div>
             <p className="text-sm text-gray-700 font-medium mb-1">Check your email</p>
             <p className="text-sm text-gray-400 mb-4">A reset link has been sent to <strong>{email}</strong></p>
-            <Link href="/auth/signin" className="text-sm text-[#2C6E49] hover:underline">Back to sign in</Link>
+            <Link href="/login" className="text-sm text-[#2C6E49] hover:underline">Back to sign in</Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
               {loading ? "Sending..." : "Send reset link"}
             </button>
             <div className="text-center">
-              <Link href="/auth/signin" className="text-sm text-gray-400 hover:text-gray-600">Back to sign in</Link>
+              <Link href="/login" className="text-sm text-gray-400 hover:text-gray-600">Back to sign in</Link>
             </div>
           </form>
         )}

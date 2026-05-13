@@ -26,7 +26,7 @@ function ResetForm() {
     })
     if (res.ok) {
       setDone(true)
-      setTimeout(() => router.push("/auth/signin"), 2000)
+      setTimeout(() => router.push("/login"), 2000)
     } else {
       const data = await res.json()
       setError(data.error ?? "Something went wrong")
