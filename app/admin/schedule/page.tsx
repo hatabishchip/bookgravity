@@ -188,26 +188,60 @@ export default function SchedulePage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Schedule</h1>
-          <p className="text-gray-500 text-xs lg:text-sm mt-1">{headerLabel}</p>
-        </div>
-        <div className="flex items-center gap-2 lg:gap-3 flex-wrap">
-          <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
-            {(["week", "2weeks", "month"] as View[]).map((v) => (
-              <button key={v} onClick={() => setView(v)} className={cn("px-2 lg:px-3 py-1.5 rounded-lg text-xs lg:text-sm font-medium transition-all", view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>
-                {VIEW_LABELS[v]}
-              </button>
-            ))}
+      <div className="mb-4 space-y-3">
+        {/* Title row */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Schedule</h1>
+            <p className="text-gray-500 text-xs lg:text-sm mt-0.5 truncate">{headerLabel}</p>
           </div>
-          <div className="flex items-center gap-1 ml-auto lg:ml-0">
-            <button onClick={handlePrev} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft size={18} /></button>
-            <button onClick={() => setAnchor(startOfWeek(new Date(), { weekStartsOn: 1 }))} className="px-2 lg:px-3 py-1.5 text-xs lg:text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Today</button>
-            <button onClick={handleNext} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight size={18} /></button>
-          </div>
-          <button onClick={() => openCreate(selectedDate ?? todayStr)} className="flex items-center gap-2 bg-[#2C6E49] text-white px-3 lg:px-4 py-2 rounded-xl text-xs lg:text-sm font-medium hover:bg-[#1E4D34] transition-colors">
+          <button
+            onClick={() => openCreate(selectedDate ?? todayStr)}
+            className="flex items-center gap-2 bg-[#2C6E49] text-white px-3 lg:px-4 py-2 rounded-xl text-xs lg:text-sm font-medium hover:bg-[#1E4D34] transition-colors flex-shrink-0"
+          >
             <Plus size={16} /> <span className="hidden sm:inline">Add Session</span><span className="sm:hidden">Add</span>
+          </button>
+        </div>
+
+        {/* View switcher — full width on mobile */}
+        <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5 lg:inline-flex">
+          {(["week", "2weeks", "month"] as View[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={cn(
+                "flex-1 lg:flex-initial px-3 lg:px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              )}
+            >
+              {VIEW_LABELS[v]}
+            </button>
+          ))}
+        </div>
+
+        {/* Navigation row — clearly Prev / Today / Next */}
+        <div className="flex items-stretch gap-2">
+          <button
+            onClick={handlePrev}
+            aria-label={view === "month" ? "Previous month" : "Previous week"}
+            className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+          >
+            <ChevronLeft size={18} />
+            <span className="hidden sm:inline">Previous</span>
+          </button>
+          <button
+            onClick={() => setAnchor(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+            className="flex-1 lg:flex-initial px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+          >
+            Today
+          </button>
+          <button
+            onClick={handleNext}
+            aria-label={view === "month" ? "Next month" : "Next week"}
+            className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+          >
+            <span className="hidden sm:inline">Next</span>
+            <ChevronRight size={18} />
           </button>
         </div>
       </div>

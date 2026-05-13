@@ -204,7 +204,7 @@ export default function TrainerSchedule({
             </button>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
             {/* View toggle */}
             <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
               {(["week", "2weeks", "month"] as View[]).map((v) => (
@@ -212,7 +212,7 @@ export default function TrainerSchedule({
                   key={v}
                   onClick={() => setView(v)}
                   className={cn(
-                    "px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all",
+                    "flex-1 lg:flex-initial px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all",
                     view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
@@ -222,17 +222,27 @@ export default function TrainerSchedule({
             </div>
 
             {/* Navigation */}
-            <div className="flex items-center gap-1 ml-auto sm:ml-0">
-              <button onClick={handlePrev} className="p-2 hover:bg-gray-100 rounded-lg">
+            <div className="flex items-stretch gap-2">
+              <button
+                onClick={handlePrev}
+                aria-label="Previous"
+                className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+              >
                 <ChevronLeft size={18} />
+                <span className="hidden sm:inline">Previous</span>
               </button>
               <button
                 onClick={() => setAnchor(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-                className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="flex-1 lg:flex-initial px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
               >
                 Today
               </button>
-              <button onClick={handleNext} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button
+                onClick={handleNext}
+                aria-label="Next"
+                className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+              >
+                <span className="hidden sm:inline">Next</span>
                 <ChevronRight size={18} />
               </button>
             </div>

@@ -187,24 +187,34 @@ export default function TrainerSchedulePage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 space-y-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Schedule</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Schedule</h1>
+          <p className="text-gray-500 text-xs lg:text-sm mt-1">
             {format(weekStart, "MMMM d")} – {format(addDays(weekStart, 6), "MMMM d, yyyy")}
           </p>
         </div>
-        <div className="flex items-center gap-1">
-          <button onClick={() => setWeekStart(subWeeks(weekStart, 1))} className="p-2 hover:bg-gray-100 rounded-lg">
+        <div className="flex items-stretch gap-2">
+          <button
+            onClick={() => setWeekStart(subWeeks(weekStart, 1))}
+            aria-label="Previous week"
+            className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+          >
             <ChevronLeft size={18} />
+            <span className="hidden sm:inline">Previous</span>
           </button>
           <button
             onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+            className="flex-1 lg:flex-initial px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
           >
             Today
           </button>
-          <button onClick={() => setWeekStart(addWeeks(weekStart, 1))} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button
+            onClick={() => setWeekStart(addWeeks(weekStart, 1))}
+            aria-label="Next week"
+            className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+          >
+            <span className="hidden sm:inline">Next</span>
             <ChevronRight size={18} />
           </button>
         </div>
