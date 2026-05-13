@@ -212,15 +212,24 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* Day headers */}
-      <div className="grid grid-cols-7 gap-2 mb-1.5 px-0.5">
+      {/* Day headers — month view always 7 cols; week/2weeks responsive */}
+      <div className={cn(
+        "grid gap-2 mb-1.5 px-0.5",
+        isMonthView ? "grid-cols-7" : "hidden lg:grid lg:grid-cols-7"
+      )}>
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-          <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">{d}</div>
+          <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
+            <span className="hidden sm:inline">{d}</span>
+            <span className="sm:hidden">{d.charAt(0)}</span>
+          </div>
         ))}
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-7 gap-2">
+      <div className={cn(
+        "grid gap-2",
+        isMonthView ? "grid-cols-7" : "grid-cols-2 lg:grid-cols-7"
+      )}>
         {days.map((day) => {
           const dateStr = format(day, "yyyy-MM-dd")
           const isToday = dateStr === todayStr
@@ -243,6 +252,11 @@ export default function SchedulePage() {
             >
               {/* Date + lock */}
               <div className={cn("text-center relative", isMonthView ? "mb-1" : "mb-2.5")}>
+                {!isMonthView && (
+                  <div className="lg:hidden text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
+                    {format(day, "EEE")}
+                  </div>
+                )}
                 <div className={cn("font-bold mx-auto flex items-center justify-center rounded-full", isMonthView ? "text-sm w-6 h-6" : "text-lg w-8 h-8 mt-0.5",
                   isToday && !blocked ? "bg-[#2C6E49] text-white" : blocked ? "text-gray-400" : "text-gray-800"
                 )}>
