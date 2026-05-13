@@ -288,6 +288,60 @@ export default function BookingWidget({ services }: { services: Service[] }) {
   const days = Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1))
   const blanks = Array.from({ length: firstDayOfWeek })
 
+  // Compact full-screen ticket on done step
+  if (step === "done" && booking) {
+    return (
+      <div className="fixed inset-0 bg-[#F5F4F0] z-50 flex items-center justify-center p-4 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl p-5 sm:p-6 w-full max-w-sm text-center">
+          {/* Confirmation header */}
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <CheckCircle size={18} className="text-[#2C6E49]" />
+            <span className="text-sm font-medium text-gray-700">Spot confirmed for {booking.clientName}</span>
+          </div>
+
+          {/* Slot info */}
+          <div className="text-xs text-gray-400 mb-4">
+            {selectedDate && format(parseISO(selectedDate), "EEE, MMM d")} · {formatTime(booking.slot.startTime)}
+          </div>
+
+          {/* QR code */}
+          <div className="flex justify-center mb-3">
+            <div className="p-2 bg-white rounded-xl border border-gray-100">
+              <QRCodeSVG
+                value={`GRAVITY-${booking.ticketCode}`}
+                size={140}
+                fgColor="#1a1a1a"
+                bgColor="#ffffff"
+                level="M"
+              />
+            </div>
+          </div>
+
+          {/* Code */}
+          <div className="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Your code</div>
+          <div className="text-4xl font-bold tracking-[0.3em] text-gray-900 mb-3">{booking.ticketCode}</div>
+
+          <p className="text-xs text-gray-400 mb-4">See you on the mat 🌿</p>
+
+          <button
+            onClick={() => {
+              setStep("date")
+              setSelectedDate(null)
+              setSelectedSlot(null)
+              setForm({ clientName: "", clientEmail: "", clientPhone: "" })
+              setSelectedServices([])
+              setBooking(null)
+              fetchAvailableDates()
+            }}
+            className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            Book another session
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full max-w-2xl mx-auto">
       {/* Steps indicator */}
@@ -603,64 +657,6 @@ export default function BookingWidget({ services }: { services: Service[] }) {
         </div>
       )}
 
-      {/* Step: Done */}
-      {step === "done" && booking && (
-        <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
-          <div className="w-12 h-12 bg-[#2C6E49]/10 rounded-full flex items-center justify-center mx-auto mb-3">
-            <CheckCircle size={26} className="text-[#2C6E49]" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">You&apos;re booked!</h2>
-          <p className="text-gray-500 mb-5">
-            Spot confirmed for <span className="font-medium text-gray-700">{booking.clientName}</span>
-          </p>
-
-          <div className="bg-[#2C6E49]/5 rounded-xl p-4 text-left mb-6">
-            <div className="font-semibold text-gray-800">
-              {selectedDate && format(parseISO(selectedDate), "EEEE, MMMM d, yyyy")}
-            </div>
-            <div className="text-sm text-gray-500 mt-0.5">
-              {formatTime(booking.slot.startTime)} – {formatTime(booking.slot.endTime)} · Group class
-            </div>
-          </div>
-
-          {/* QR ticket */}
-          <div className="border border-gray-100 rounded-2xl p-6 mb-6">
-            <p className="text-sm font-medium text-gray-600 mb-4">Your class pass</p>
-            <div className="flex justify-center mb-5">
-              <div className="p-3 bg-white rounded-xl shadow-sm border border-gray-100">
-                <QRCodeSVG
-                  value={`GRAVITY-${booking.ticketCode}`}
-                  size={130}
-                  fgColor="#1a1a1a"
-                  bgColor="#ffffff"
-                  level="M"
-                />
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-1.5">
-              <span className="text-xs text-gray-400 uppercase tracking-widest">Your code</span>
-              <span className="text-5xl font-bold tracking-[0.3em] text-gray-900">{booking.ticketCode}</span>
-              <p className="text-xs text-gray-400 mt-1">Tell this number to your trainer when you arrive</p>
-            </div>
-          </div>
-
-          <p className="text-sm text-gray-400 mb-5">See you on the mat 🌿</p>
-          <button
-            onClick={() => {
-              setStep("date")
-              setSelectedDate(null)
-              setSelectedSlot(null)
-              setForm({ clientName: "", clientEmail: "", clientPhone: "" })
-              setSelectedServices([])
-              setBooking(null)
-              fetchAvailableDates()
-            }}
-            className="text-sm text-[#2C6E49] hover:underline"
-          >
-            Book another session
-          </button>
-        </div>
-      )}
     </div>
   )
 }
