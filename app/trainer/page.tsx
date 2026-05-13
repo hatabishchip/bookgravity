@@ -87,8 +87,9 @@ export default function TrainerSchedulePage() {
   }, [])
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
-  useEffect(() => { fetchSalary() }, [fetchSalary])
-  useEffect(() => { fetchServices() }, [fetchServices])
+  useEffect(() => {
+    Promise.all([fetchSalary(), fetchServices()])
+  }, [fetchSalary, fetchServices])
 
   const fetchBookingsForSlot = useCallback(async (slotId: string) => {
     const res = await fetch(`/api/trainer/bookings?slotId=${slotId}`)
