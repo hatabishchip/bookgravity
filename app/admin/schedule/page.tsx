@@ -188,26 +188,26 @@ export default function SchedulePage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
-          <p className="text-gray-500 text-sm mt-1">{headerLabel}</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Schedule</h1>
+          <p className="text-gray-500 text-xs lg:text-sm mt-1">{headerLabel}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 lg:gap-3 flex-wrap">
           <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
             {(["week", "2weeks", "month"] as View[]).map((v) => (
-              <button key={v} onClick={() => setView(v)} className={cn("px-3 py-1.5 rounded-lg text-sm font-medium transition-all", view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>
+              <button key={v} onClick={() => setView(v)} className={cn("px-2 lg:px-3 py-1.5 rounded-lg text-xs lg:text-sm font-medium transition-all", view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>
                 {VIEW_LABELS[v]}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 ml-auto lg:ml-0">
             <button onClick={handlePrev} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft size={18} /></button>
-            <button onClick={() => setAnchor(startOfWeek(new Date(), { weekStartsOn: 1 }))} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Today</button>
+            <button onClick={() => setAnchor(startOfWeek(new Date(), { weekStartsOn: 1 }))} className="px-2 lg:px-3 py-1.5 text-xs lg:text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Today</button>
             <button onClick={handleNext} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight size={18} /></button>
           </div>
-          <button onClick={() => openCreate(selectedDate ?? todayStr)} className="flex items-center gap-2 bg-[#2C6E49] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#1E4D34] transition-colors">
-            <Plus size={16} /> Add Session
+          <button onClick={() => openCreate(selectedDate ?? todayStr)} className="flex items-center gap-2 bg-[#2C6E49] text-white px-3 lg:px-4 py-2 rounded-xl text-xs lg:text-sm font-medium hover:bg-[#1E4D34] transition-colors">
+            <Plus size={16} /> <span className="hidden sm:inline">Add Session</span><span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>
