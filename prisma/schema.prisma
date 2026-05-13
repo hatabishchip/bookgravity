@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  password            String
+  role                String               @default("TRAINER")
+  trainer             Trainer?
+  passwordResetTokens PasswordResetToken[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Trainer {
+  id             String           @id @default(cuid())
+  name           String
+  whatsapp       String           @default("")
+  userId         String           @unique
+  user           User             @relation(fields: [userId], references: [id])
+  timeSlots      TimeSlot[]
+  assistedSlots  TimeSlot[]       @relation("SlotAssistant")
+  commissionRate Int              @default(15)
+  color          String           @default("#6366F1")
+  payments       TrainerPayment[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model BlockedDay {
+  id        String   @id @default(cuid())
+  date      String   @unique
+  reason    String?
+  createdAt DateTime @default(now())
+}
+
+model TrainerPayment {
+  id        String   @id @default(cuid())
+  trainerId String
+  trainer   Trainer  @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  amount    Float
+  month     String
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  amount      Float
+  category    String
+  description String?
+  date        String
+  createdAt   DateTime @default(now())
+}
+
+model TimeSlot {
+  id          String    @id @default(cuid())
+  date        String
+  startTime   String
+  endTime     String
+  trainerId   String?
+  trainer     Trainer?  @relation(fields: [trainerId], references: [id])
+  assistantId String?
+  assistant   Trainer?  @relation("SlotAssistant", fields: [assistantId], references: [id])
+  maxCapacity Int       @default(6)
+  price       Float     @default(0)
+  bookings    Booking[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Booking {
+  id             String           @id @default(cuid())
+  slotId         String
+  slot           TimeSlot         @relation(fields: [slotId], references: [id])
+  clientName     String
+  clientEmail    String
+  clientPhone    String
+  clientTelegram String?
+  status         String           @default("CONFIRMED")
+  paymentType    String           @default("PENDING")
+  paymentStatus  String           @default("UNPAID")
+  ticketCode     String           @default("")
+  checkedIn      Boolean          @default(false)
+  notes          String?
+  services       BookingService[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model AdditionalService {
+  id       String           @id @default(cuid())
+  name     String
+  price    Float
+  active   Boolean          @default(true)
+  bookings BookingService[]
+}
+
+model BookingService {
+  id        String            @id @default(cuid())
+  bookingId String
+  booking   Booking           @relation(fields: [bookingId], references: [id])
+  serviceId String
+  service   AdditionalService @relation(fields: [serviceId], references: [id])
+
+  @@unique([bookingId, serviceId])
+}
