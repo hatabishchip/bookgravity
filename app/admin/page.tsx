@@ -38,28 +38,28 @@ export default async function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
-      <p className="text-gray-500 text-sm mb-8">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
+      <h1 className="text-xl lg:text-2xl font-bold text-gray-900 mb-1 lg:mb-2">Dashboard</h1>
+      <p className="text-gray-500 text-xs lg:text-sm mb-6 lg:mb-8">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-8">
         {[
           { label: "Today's Bookings", value: todayTotal, icon: Calendar, color: "text-[#2C6E49]", bg: "bg-[#2C6E49]/10" },
           { label: "Total Bookings", value: totalBookings, icon: BookOpen, color: "text-blue-600", bg: "bg-blue-50" },
           { label: "Trainers", value: trainers, icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
           { label: "Sessions Today", value: todaySlots.length, icon: TrendingUp, color: "text-orange-600", bg: "bg-orange-50" },
         ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="bg-white rounded-2xl p-5 shadow-sm">
-            <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center mb-3`}>
-              <Icon size={20} className={color} />
+          <div key={label} className="bg-white rounded-2xl p-4 lg:p-5 shadow-sm">
+            <div className={`w-9 h-9 lg:w-10 lg:h-10 ${bg} rounded-xl flex items-center justify-center mb-2 lg:mb-3`}>
+              <Icon size={18} className={color} />
             </div>
-            <div className="text-2xl font-bold text-gray-900">{value}</div>
-            <div className="text-sm text-gray-500 mt-0.5">{label}</div>
+            <div className="text-xl lg:text-2xl font-bold text-gray-900">{value}</div>
+            <div className="text-xs lg:text-sm text-gray-500 mt-0.5">{label}</div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         {/* Today's Schedule */}
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
