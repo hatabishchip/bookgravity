@@ -240,26 +240,38 @@ export default function TrainerSchedulePage() {
                   </div>
 
                   <div className="space-y-2">
-                    {daySlots.map((slot) => (
+                    {daySlots.map((slot) => {
+                      const isSelected = selectedSlot?.id === slot.id
+                      const hasBookings = slot._count.bookings > 0
+                      return (
                       <button
                         key={slot.id}
                         onClick={() => handleSlotClick(slot)}
                         className={cn(
                           "w-full text-left rounded-lg p-2 transition-all border-2",
-                          selectedSlot?.id === slot.id
+                          isSelected
                             ? "bg-[#2C6E49] border-[#2C6E49] text-white"
-                            : "bg-[#2C6E49]/5 border-[#2C6E49]/20 hover:border-[#2C6E49]/50"
+                            : hasBookings
+                            ? "bg-[#2C6E49]/5 border-[#2C6E49]/20 hover:border-[#2C6E49]/50"
+                            : "bg-gray-100 border-gray-200 hover:border-gray-300"
                         )}
                       >
-                        <div className={cn("text-xs font-semibold", selectedSlot?.id === slot.id ? "text-white" : "text-[#2C6E49]")}>
+                        <div className={cn(
+                          "text-xs font-semibold",
+                          isSelected ? "text-white" : hasBookings ? "text-[#2C6E49]" : "text-gray-500"
+                        )}>
                           {formatTime(slot.startTime)}
                         </div>
-                        <div className={cn("text-xs mt-0.5 flex items-center gap-1", selectedSlot?.id === slot.id ? "text-white/80" : "text-gray-500")}>
+                        <div className={cn(
+                          "text-xs mt-0.5 flex items-center gap-1",
+                          isSelected ? "text-white/80" : hasBookings ? "text-gray-500" : "text-gray-400"
+                        )}>
                           <Users size={10} />
                           {slot._count.bookings}/{slot.maxCapacity}
                         </div>
                       </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )
