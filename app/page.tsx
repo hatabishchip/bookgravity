@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { LogIn } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import BookingWidget from "./_components/BookingWidget"
 
@@ -24,10 +23,10 @@ export default async function HomePage() {
             </div>
             <Link
               href="/trainer/login"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] transition-colors"
+              aria-label="Staff sign in"
+              className="text-gray-200 hover:text-gray-400 text-xs transition-colors"
             >
-              <LogIn size={16} />
-              Sign in
+              ·
             </Link>
           </div>
         </div>
