@@ -22,4 +22,5 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefi
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
+// Reuse the same client across hot reloads in dev AND across serverless invocations in prod
+globalForPrisma.prisma = prisma
