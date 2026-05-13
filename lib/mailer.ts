@@ -1,19 +1,13 @@
-import nodemailer from "nodemailer"
+import { Resend } from "resend"
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT ?? 587),
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-})
+const resend = new Resend(process.env.RESEND_API_KEY)
+
+const FROM = process.env.MAIL_FROM ?? "Gravity Stretching <noreply@bookgravity.com>"
 
 export async function sendPasswordResetEmail(email: string, token: string) {
   const url = `${process.env.NEXTAUTH_URL}/auth/reset-password?token=${token}`
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+  await resend.emails.send({
+    from: FROM,
     to: email,
     subject: "Password reset — Gravity Stretching",
     html: `
