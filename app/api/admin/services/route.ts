@@ -31,6 +31,21 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(service, { status: 201 })
 }
 
+const ServiceUpdateSchema = z.object({
+  id: z.string(),
+  name: z.string().min(2).optional(),
+  price: z.number().min(0).optional(),
+})
+
+export async function PATCH(request: NextRequest) {
+  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const body = await request.json()
+  const { id, ...data } = ServiceUpdateSchema.parse(body)
+  const service = await prisma.additionalService.update({ where: { id }, data })
+  return NextResponse.json(service)
+}
+
 export async function DELETE(request: NextRequest) {
   if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
