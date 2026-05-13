@@ -24,9 +24,9 @@ export default async function HomePage() {
             <Link
               href="/trainer/login"
               aria-label="Staff sign in"
-              className="text-gray-200 hover:text-gray-400 text-xs transition-colors"
+              className="text-gray-300 hover:text-[#2C6E49] text-xs transition-colors"
             >
-              ·
+              Sign in
             </Link>
           </div>
         </div>
