@@ -335,6 +335,18 @@ export default function BookingWidget({ services }: { services: Service[] }) {
       {/* Step: Date */}
       {step === "date" && (
         <div className="bg-white rounded-2xl shadow-sm p-6">
+          {/* Price banner */}
+          <div className="bg-[#2C6E49]/8 border border-[#2C6E49]/15 rounded-xl px-4 py-3 mb-5 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-[#2C6E49]/70 font-medium">Group class</div>
+              <div className="text-sm text-gray-700 mt-0.5">Up to 6 people · 1.5 hours</div>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <div className="text-2xl font-bold text-[#2C6E49] leading-none">300k</div>
+              <div className="text-[10px] text-gray-500 mt-1 uppercase tracking-wide">IDR / person</div>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={() => canGoPrev && setCurrentMonth(subMonths(currentMonth, 1))}
