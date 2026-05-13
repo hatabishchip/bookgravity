@@ -44,7 +44,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F4F0] flex items-center justify-center px-4">
+    <div className="h-[100svh] bg-[#F5F4F0] flex items-center justify-center px-4 overflow-hidden">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-[#2C6E49]">Gravity Stretching</h1>
