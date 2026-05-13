@@ -210,10 +210,10 @@ export default function TrainerSchedulePage() {
         </div>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         {/* Week grid */}
-        <div className="flex-1">
-          <div className="grid grid-cols-7 gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
             {weekDays.map((day) => {
               const dateStr = format(day, "yyyy-MM-dd")
               const isToday = dateStr === format(new Date(), "yyyy-MM-dd")
@@ -258,7 +258,7 @@ export default function TrainerSchedulePage() {
 
         {/* Booking list for selected slot */}
         {selectedSlot && (
-          <div className="w-80 bg-white rounded-2xl shadow-sm p-5 flex-shrink-0 h-fit">
+          <div className="w-full lg:w-80 bg-white rounded-2xl shadow-sm p-5 lg:flex-shrink-0 h-fit">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="font-semibold text-gray-800">

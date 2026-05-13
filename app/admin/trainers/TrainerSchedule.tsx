@@ -181,25 +181,30 @@ export default function TrainerSchedule({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex">
-      <div className="flex-1" onClick={onClose} />
+      <div className="hidden lg:block flex-1" onClick={onClose} />
 
       <div className="w-full max-w-5xl bg-gray-50 h-full overflow-y-auto flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <span
-                className="inline-block w-3 h-3 rounded-full flex-shrink-0"
-                style={{ backgroundColor: trainer.color }}
-              />
-              {trainer.name}'s Schedule
-            </h2>
-            <p className="text-sm text-gray-400 mt-0.5">
-              {headerLabel} · {mySlots} sessions assigned
-            </p>
+        <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sticky top-0 z-10">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2 truncate">
+                <span
+                  className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: trainer.color }}
+                />
+                {trainer.name}'s Schedule
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                {headerLabel} · {mySlots} sessions
+              </p>
+            </div>
+            <button onClick={onClose} className="sm:hidden p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
+              <X size={18} />
+            </button>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {/* View toggle */}
             <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
               {(["week", "2weeks", "month"] as View[]).map((v) => (
@@ -207,7 +212,7 @@ export default function TrainerSchedule({
                   key={v}
                   onClick={() => setView(v)}
                   className={cn(
-                    "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                    "px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all",
                     view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
@@ -217,13 +222,13 @@ export default function TrainerSchedule({
             </div>
 
             {/* Navigation */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 ml-auto sm:ml-0">
               <button onClick={handlePrev} className="p-2 hover:bg-gray-100 rounded-lg">
                 <ChevronLeft size={18} />
               </button>
               <button
                 onClick={() => setAnchor(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-                className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
               >
                 Today
               </button>
@@ -232,14 +237,14 @@ export default function TrainerSchedule({
               </button>
             </div>
 
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg ml-1">
+            <button onClick={onClose} className="hidden sm:block p-2 hover:bg-gray-100 rounded-lg ml-1">
               <X size={18} />
             </button>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="px-6 pt-4 pb-2 flex items-center gap-5 text-xs text-gray-500">
+        <div className="px-4 sm:px-6 pt-3 sm:pt-4 pb-2 hidden md:flex items-center gap-5 text-xs text-gray-500 flex-wrap">
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-sm bg-[#2C6E49] flex items-center justify-center">
               <Check size={8} className="text-white" strokeWidth={3} />
@@ -257,17 +262,18 @@ export default function TrainerSchedule({
         </div>
 
         {/* Calendar */}
-        <div className="px-6 pb-6 flex-1">
+        <div className="px-2 sm:px-6 pb-6 flex-1">
           {/* Day headers */}
-          <div className="grid grid-cols-7 gap-2 mb-1.5">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-1.5">
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-              <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
-                {d}
+              <div key={d} className="text-center text-[10px] sm:text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
+                <span className="hidden sm:inline">{d}</span>
+                <span className="sm:hidden">{d.charAt(0)}</span>
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {days.map((day) => {
               const dateStr = format(day, "yyyy-MM-dd")
               const isToday = dateStr === todayStr

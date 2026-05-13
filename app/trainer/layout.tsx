@@ -1,12 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { signOut } from "next-auth/react"
+import { useState, useEffect } from "react"
+import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, BookOpen, LogOut, KeyRound, X } from "lucide-react"
+import { Calendar, BookOpen, LogOut, KeyRound, X, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { SessionProvider } from "next-auth/react"
 
 const navItems = [
   { href: "/trainer", label: "My Schedule", icon: Calendar },
@@ -34,7 +33,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-gray-800">Change Password</h2>
@@ -68,57 +67,107 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-function TrainerNav() {
+function SidebarContent({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
   const [showChangePassword, setShowChangePassword] = useState(false)
 
+  useEffect(() => { onClose() }, [pathname])
+
   return (
     <>
-      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col min-h-screen">
-        <div className="p-6 border-b border-gray-100">
+      <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+        <div>
           <h1 className="font-bold text-[#2C6E49] text-lg">Gravity Stretching</h1>
           <p className="text-xs text-gray-400 mt-0.5">Trainer Portal</p>
         </div>
+        <button
+          onClick={onClose}
+          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+          aria-label="Close menu"
+        >
+          <X size={18} />
+        </button>
+      </div>
 
-        <nav className="flex-1 p-4 space-y-1">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href
-            return (
-              <Link key={href} href={href}
-                className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-                  active ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50"
-                )}>
-                <Icon size={18} />
-                {label}
-              </Link>
-            )
-          })}
-        </nav>
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {navItems.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href
+          return (
+            <Link key={href} href={href}
+              className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                active ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50"
+              )}>
+              <Icon size={18} />
+              {label}
+            </Link>
+          )
+        })}
+      </nav>
 
-        <div className="p-4 border-t border-gray-100 space-y-1">
-          <button onClick={() => setShowChangePassword(true)}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full transition-colors">
-            <KeyRound size={18} />
-            Change Password
-          </button>
-          <button onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full transition-colors">
-            <LogOut size={18} />
-            Sign Out
-          </button>
-        </div>
-      </aside>
+      <div className="p-4 border-t border-gray-100 space-y-1">
+        <button onClick={() => setShowChangePassword(true)}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full transition-colors">
+          <KeyRound size={18} />
+          Change Password
+        </button>
+        <button onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full transition-colors">
+          <LogOut size={18} />
+          Sign Out
+        </button>
+      </div>
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
     </>
   )
 }
 
+function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
+  const pathname = usePathname()
+  const activeLabel = navItems.find((n) => n.href === pathname)?.label ?? "Trainer"
+
+  return (
+    <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
+      <button
+        onClick={onMenuClick}
+        className="p-2 hover:bg-gray-100 rounded-lg"
+        aria-label="Open menu"
+      >
+        <Menu size={20} />
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="font-bold text-[#2C6E49] text-sm">Gravity Stretching</div>
+        <div className="text-xs text-gray-400">{activeLabel}</div>
+      </div>
+    </header>
+  )
+}
+
 export default function TrainerLayout({ children }: { children: React.ReactNode }) {
+  const [navOpen, setNavOpen] = useState(false)
+
   return (
     <SessionProvider>
       <div className="flex min-h-screen bg-[#F5F4F0]">
-        <TrainerNav />
-        <main className="flex-1 p-8 overflow-auto">{children}</main>
+        <aside
+          className={cn(
+            "fixed lg:static top-0 left-0 z-50 h-full lg:h-auto lg:min-h-screen w-64 bg-white border-r border-gray-100 flex flex-col transition-transform duration-200",
+            navOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          )}
+        >
+          <SidebarContent onClose={() => setNavOpen(false)} />
+        </aside>
+
+        {navOpen && (
+          <div
+            className="lg:hidden fixed inset-0 bg-black/40 z-40"
+            onClick={() => setNavOpen(false)}
+          />
+        )}
+
+        <div className="flex-1 flex flex-col min-w-0">
+          <MobileTopBar onMenuClick={() => setNavOpen(true)} />
+          <main className="flex-1 p-4 lg:p-8 overflow-x-auto">{children}</main>
+        </div>
       </div>
     </SessionProvider>
   )
