@@ -158,7 +158,8 @@ export default function BookingWidget({ services }: { services: Service[] }) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [slots, setSlots] = useState<Slot[]>([])
-  const [availableDates, setAvailableDates] = useState<Set<string>>(new Set())
+  const [allSlots, setAllSlots] = useState<Slot[]>([])
+  const [partySize, setPartySize] = useState(1)
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -184,9 +185,15 @@ export default function BookingWidget({ services }: { services: Service[] }) {
   const fetchAvailableDates = useCallback(async () => {
     const res = await fetch("/api/slots")
     const data: Slot[] = await res.json()
-    const dates = new Set(data.filter((s) => s.available).map((s) => s.date))
-    setAvailableDates(dates)
+    setAllSlots(data)
   }, [])
+
+  // Dates that have at least one slot with enough free seats for the party
+  const availableDates = new Set(
+    allSlots
+      .filter((s) => (s.maxCapacity - s.bookedCount) >= partySize)
+      .map((s) => s.date)
+  )
 
   useEffect(() => { fetchAvailableDates() }, [fetchAvailableDates])
 
@@ -255,6 +262,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
           slotId: selectedSlot.id,
           ...form,
           serviceIds: selectedServices,
+          partySize,
         }),
       })
 
@@ -337,6 +345,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
               setForm({ clientName: "", clientEmail: "", clientPhone: "" })
               setSelectedServices([])
               setBooking(null)
+              setPartySize(1)
               fetchAvailableDates()
             }}
             className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
@@ -395,7 +404,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
       {step === "date" && (
         <div className="bg-white rounded-2xl shadow-sm p-6">
           {/* Price banner */}
-          <div className="bg-[#2C6E49]/8 border border-[#2C6E49]/15 rounded-xl px-4 py-3 mb-5 flex items-center justify-between gap-3">
+          <div className="bg-[#2C6E49]/8 border border-[#2C6E49]/15 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
             <div>
               <div className="text-xs uppercase tracking-wide text-[#2C6E49]/70 font-medium">Group class</div>
               <div className="text-sm text-gray-700 mt-0.5">Up to 6 people · 1.5 hours</div>
@@ -403,6 +412,35 @@ export default function BookingWidget({ services }: { services: Service[] }) {
             <div className="text-right flex-shrink-0">
               <div className="text-2xl font-bold text-[#2C6E49] leading-none">300k</div>
               <div className="text-[10px] text-gray-500 mt-1 uppercase tracking-wide">IDR / person</div>
+            </div>
+          </div>
+
+          {/* Party size */}
+          <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 mb-5 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium text-gray-800">How many people?</div>
+              <div className="text-xs text-gray-400 mt-0.5">Including yourself · max 6 per class</div>
+            </div>
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl p-1 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setPartySize(Math.max(1, partySize - 1))}
+                disabled={partySize <= 1}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Decrease"
+              >
+                −
+              </button>
+              <span className="w-6 text-center font-bold text-base text-gray-900 tabular-nums">{partySize}</span>
+              <button
+                type="button"
+                onClick={() => setPartySize(Math.min(6, partySize + 1))}
+                disabled={partySize >= 6}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Increase"
+              >
+                +
+              </button>
             </div>
           </div>
 
@@ -489,21 +527,23 @@ export default function BookingWidget({ services }: { services: Service[] }) {
             <div className="space-y-3">
               {slots.map((slot) => {
                 const spotsLeft = slot.maxCapacity - slot.bookedCount
+                const enoughForParty = spotsLeft >= partySize
+                const canBook = slot.available && enoughForParty
                 return (
                   <button
                     key={slot.id}
-                    onClick={() => handleSlotSelect(slot)}
-                    disabled={!slot.available}
+                    onClick={() => canBook && handleSlotSelect(slot)}
+                    disabled={!canBook}
                     className={cn(
                       "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
-                      slot.available
+                      canBook
                         ? "border-gray-100 hover:border-[#2C6E49] hover:bg-[#2C6E49]/5 cursor-pointer"
                         : "border-gray-100 bg-gray-50 cursor-not-allowed opacity-60"
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", slot.available ? "bg-[#2C6E49]/10" : "bg-gray-100")}>
-                        <Clock size={18} className={slot.available ? "text-[#2C6E49]" : "text-gray-400"} />
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", canBook ? "bg-[#2C6E49]/10" : "bg-gray-100")}>
+                        <Clock size={18} className={canBook ? "text-[#2C6E49]" : "text-gray-400"} />
                       </div>
                       <div>
                         <div className="font-semibold text-gray-800">
@@ -513,12 +553,12 @@ export default function BookingWidget({ services }: { services: Service[] }) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={cn("flex items-center gap-1 text-sm font-medium", slot.available ? "text-[#2C6E49]" : "text-gray-400")}>
+                      <div className={cn("flex items-center gap-1 text-sm font-medium", canBook ? "text-[#2C6E49]" : "text-gray-400")}>
                         <Users size={14} />
                         {spotsLeft} / {slot.maxCapacity} spots
                       </div>
-                      <div className={cn("text-xs mt-0.5", slot.available ? "text-[#2C6E49]/70" : "text-gray-400")}>
-                        {slot.available ? "Available" : "Full"}
+                      <div className={cn("text-xs mt-0.5", canBook ? "text-[#2C6E49]/70" : "text-gray-400")}>
+                        {!slot.available ? "Full" : !enoughForParty ? `Only ${spotsLeft} left` : "Available"}
                       </div>
                     </div>
                   </button>

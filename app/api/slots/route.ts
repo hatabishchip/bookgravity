@@ -22,7 +22,15 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json(
-      slots.map((s) => ({ ...s, available: s._count.bookings < s.maxCapacity }))
+      slots.map((s) => ({
+        id: s.id,
+        date: s.date,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        maxCapacity: s.maxCapacity,
+        bookedCount: s._count.bookings,
+        available: s._count.bookings < s.maxCapacity,
+      }))
     )
   }
 

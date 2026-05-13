@@ -8,6 +8,7 @@ const BookingSchema = z.object({
   clientEmail: z.string().email().optional().or(z.literal("")),
   clientPhone: z.string().min(5),
   serviceIds: z.array(z.string()).optional(),
+  partySize: z.number().int().min(1).max(6).default(1),
 })
 
 async function generateUniqueCode(slotId: string): Promise<string> {
@@ -34,8 +35,10 @@ export async function POST(request: NextRequest) {
     })
 
     if (!slot) return NextResponse.json({ error: "Slot not found" }, { status: 404 })
-    if (slot._count.bookings >= slot.maxCapacity) {
-      return NextResponse.json({ error: "Slot is fully booked" }, { status: 409 })
+
+    const seatsLeft = slot.maxCapacity - slot._count.bookings
+    if (seatsLeft < data.partySize) {
+      return NextResponse.json({ error: `Only ${seatsLeft} spot(s) left, you requested ${data.partySize}` }, { status: 409 })
     }
 
     const existing = await prisma.booking.findFirst({
@@ -45,26 +48,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "You have already booked this slot" }, { status: 409 })
     }
 
-    const ticketCode = await generateUniqueCode(data.slotId)
+    // Create N bookings (one per person), all sharing the same lead's name+phone
+    const bookings = []
+    for (let i = 0; i < data.partySize; i++) {
+      const ticketCode = await generateUniqueCode(data.slotId)
+      const b = await prisma.booking.create({
+        data: {
+          slotId: data.slotId,
+          clientName: data.partySize > 1 ? `${data.clientName} (${i + 1}/${data.partySize})` : data.clientName,
+          clientEmail: data.clientEmail || "",
+          clientPhone: data.clientPhone,
+          ticketCode,
+          services: data.serviceIds?.length
+            ? { create: data.serviceIds.map((sid) => ({ serviceId: sid })) }
+            : undefined,
+        },
+        include: {
+          slot: { include: { trainer: { select: { name: true } } } },
+          services: { include: { service: true } },
+        },
+      })
+      bookings.push(b)
+    }
 
-    const booking = await prisma.booking.create({
-      data: {
-        slotId: data.slotId,
-        clientName: data.clientName,
-        clientEmail: data.clientEmail || "",
-        clientPhone: data.clientPhone,
-        ticketCode,
-        services: data.serviceIds?.length
-          ? { create: data.serviceIds.map((sid) => ({ serviceId: sid })) }
-          : undefined,
-      },
-      include: {
-        slot: { include: { trainer: { select: { name: true } } } },
-        services: { include: { service: true } },
-      },
-    })
-
-    return NextResponse.json(booking, { status: 201 })
+    // Return the lead booking (first one)
+    return NextResponse.json(bookings[0], { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues.map((e: { message: string }) => e.message).join("; ") }, { status: 400 })
