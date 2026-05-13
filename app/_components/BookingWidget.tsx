@@ -215,7 +215,6 @@ export default function BookingWidget({ services }: { services: Service[] }) {
   const validateForm = () => {
     const errors: Record<string, string> = {}
     if (form.clientName.trim().length < 2) errors.clientName = "Please enter your full name"
-    if (!form.clientEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) errors.clientEmail = "Enter a valid email address"
     const country = detectCountry(form.clientPhone)
     if (country) {
       const sub = subscriberDigits(form.clientPhone, country)
@@ -503,23 +502,6 @@ export default function BookingWidget({ services }: { services: Service[] }) {
                 )}
               />
               {fieldErrors.clientName && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientName}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-              <input
-                ref={fieldRefs.clientEmail}
-                type="email"
-                value={form.clientEmail}
-                onChange={(e) => { setForm({ ...form, clientEmail: e.target.value }); clearFieldError("clientEmail") }}
-                placeholder="your@email.com"
-                className={cn(
-                  "w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 transition-colors",
-                  fieldErrors.clientEmail
-                    ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
-                    : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                )}
-              />
-              {fieldErrors.clientEmail && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientEmail}</p>}
             </div>
             {(() => {
               const country = detectCountry(form.clientPhone)

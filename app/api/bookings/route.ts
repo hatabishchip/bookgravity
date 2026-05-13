@@ -5,7 +5,7 @@ import { z } from "zod"
 const BookingSchema = z.object({
   slotId: z.string(),
   clientName: z.string().min(2),
-  clientEmail: z.string().email(),
+  clientEmail: z.string().email().optional().or(z.literal("")),
   clientPhone: z.string().min(5),
   serviceIds: z.array(z.string()).optional(),
 })
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     const existing = await prisma.booking.findFirst({
-      where: { slotId: data.slotId, clientEmail: data.clientEmail, status: "CONFIRMED" },
+      where: { slotId: data.slotId, clientPhone: data.clientPhone, status: "CONFIRMED" },
     })
     if (existing) {
       return NextResponse.json({ error: "You have already booked this slot" }, { status: 409 })
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       data: {
         slotId: data.slotId,
         clientName: data.clientName,
-        clientEmail: data.clientEmail,
+        clientEmail: data.clientEmail || "",
         clientPhone: data.clientPhone,
         ticketCode,
         services: data.serviceIds?.length
