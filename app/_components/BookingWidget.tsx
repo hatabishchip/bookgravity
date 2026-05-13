@@ -180,7 +180,9 @@ export default function BookingWidget({ services }: { services: Service[] }) {
   })
 
   const today = startOfDay(new Date())
-  const maxDate = addMonths(today, 1)
+  // Allow booking through the end of next month
+  const nextMonthEnd = addMonths(startOfMonth(today), 2)
+  const maxDate = new Date(nextMonthEnd.getTime() - 1)
 
   const fetchAvailableDates = useCallback(async () => {
     const res = await fetch("/api/slots")
@@ -290,8 +292,11 @@ export default function BookingWidget({ services }: { services: Service[] }) {
   const daysInMonth = getDaysInMonth(currentMonth)
   const firstDayOfWeek = getDay(startOfMonth(currentMonth))
 
-  const canGoPrev = isAfter(currentMonth, today)
-  const canGoNext = isBefore(currentMonth, maxDate)
+  const currentMonthStart = startOfMonth(currentMonth)
+  const thisMonthStart = startOfMonth(today)
+  const nextMonthStart = startOfMonth(addMonths(today, 1))
+  const canGoPrev = isAfter(currentMonthStart, thisMonthStart)
+  const canGoNext = isBefore(currentMonthStart, nextMonthStart)
 
   const days = Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1))
   const blanks = Array.from({ length: firstDayOfWeek })
