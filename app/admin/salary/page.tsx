@@ -57,15 +57,15 @@ function SummaryCard({
     amber: "bg-amber-50 text-amber-600",
   }
   return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm">
-      <div className="flex items-center gap-3 mb-3">
-        <div className={cn("p-2 rounded-xl", colors[color])}>
-          <Icon size={18} />
+    <div className="bg-white rounded-2xl p-4 lg:p-5 shadow-sm">
+      <div className="flex items-center gap-2 lg:gap-3 mb-2 lg:mb-3">
+        <div className={cn("p-1.5 lg:p-2 rounded-xl", colors[color])}>
+          <Icon size={16} />
         </div>
-        <span className="text-sm text-gray-500">{label}</span>
+        <span className="text-xs lg:text-sm text-gray-500 truncate">{label}</span>
       </div>
-      <div className="text-xl font-bold text-gray-900">{value}</div>
-      {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+      <div className="text-base lg:text-xl font-bold text-gray-900 break-words">{value}</div>
+      {sub && <div className="text-[10px] lg:text-xs text-gray-400 mt-0.5 truncate">{sub}</div>}
     </div>
   )
 }
@@ -78,13 +78,11 @@ export default function SalaryPage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Payment modal
   const [payModal, setPayModal] = useState<TrainerSalary | null>(null)
   const [payAmount, setPayAmount] = useState("")
   const [payNote, setPayNote] = useState("")
   const [paying, setPaying] = useState(false)
 
-  // Expense modal
   const [showExpenseForm, setShowExpenseForm] = useState(false)
   const [expForm, setExpForm] = useState({
     amount: "",
@@ -165,7 +163,6 @@ export default function SalaryPage() {
     setDeletingExp(null)
   }
 
-  // Summary numbers
   const totalRevenue = trainers.reduce((s, t) => s + t.revenue, 0)
   const totalAccrued = trainers.reduce((s, t) => s + t.accrued, 0)
   const totalPaid = trainers.reduce((s, t) => s + t.paid, 0)
@@ -175,29 +172,40 @@ export default function SalaryPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 space-y-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Salary & Expenses</h1>
-          <p className="text-gray-500 text-sm mt-1">{format(monthDate, "MMMM yyyy")}</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Salary &amp; Expenses</h1>
+          <p className="text-gray-500 text-xs lg:text-sm mt-1">{format(monthDate, "MMMM yyyy")}</p>
         </div>
-        <div className="flex items-center gap-1">
-          <button onClick={() => setMonthDate(subMonths(monthDate, 1))} className="p-2 hover:bg-gray-100 rounded-lg">
+        {/* Month navigation */}
+        <div className="flex items-stretch gap-2">
+          <button
+            onClick={() => setMonthDate(subMonths(monthDate, 1))}
+            aria-label="Previous month"
+            className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+          >
             <ChevronLeft size={18} />
+            <span className="hidden sm:inline">Previous</span>
           </button>
           <button
             onClick={() => setMonthDate(new Date())}
-            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+            className="flex-1 lg:flex-initial px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
           >
             This month
           </button>
-          <button onClick={() => setMonthDate(addMonths(monthDate, 1))} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button
+            onClick={() => setMonthDate(addMonths(monthDate, 1))}
+            aria-label="Next month"
+            className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+          >
+            <span className="hidden sm:inline">Next</span>
             <ChevronRight size={18} />
           </button>
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-5 gap-4 mb-8">
+      {/* Summary cards: 2 on mobile, 5 on desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4 mb-8">
         <SummaryCard icon={TrendingUp} label="Revenue" value={formatIDR(totalRevenue)} sub="From paid bookings" color="green" />
         <SummaryCard icon={Wallet} label="Salaries accrued" value={formatIDR(totalAccrued)} sub={`${trainers.length} trainer(s)`} color="blue" />
         <SummaryCard icon={CreditCard} label="Salaries paid" value={formatIDR(totalPaid)} sub={`Balance: ${formatIDR(totalAccrued - totalPaid)}`} color="amber" />
@@ -206,92 +214,74 @@ export default function SalaryPage() {
           icon={DollarSign}
           label="Net profit"
           value={formatIDR(netProfit)}
-          sub="Revenue − salaries − expenses"
+          sub="Rev − salaries − exp"
           color={netProfit >= 0 ? "green" : "red"}
         />
       </div>
 
-      {/* Trainers salary table */}
-      <div className="bg-white rounded-2xl shadow-sm mb-6 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-800">Trainer Salaries</h2>
+      {/* Trainer salaries — card layout */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <h2 className="font-semibold text-gray-800 text-base lg:text-lg">Trainer Salaries</h2>
           <span className="text-xs text-gray-400">{format(monthDate, "MMMM yyyy")}</span>
         </div>
 
         {loading ? (
-          <div className="py-12 text-center text-gray-400 text-sm">Loading...</div>
+          <div className="bg-white rounded-2xl py-12 text-center text-gray-400 text-sm shadow-sm">Loading...</div>
         ) : trainers.length === 0 ? (
-          <div className="py-12 text-center text-gray-400 text-sm">No trainers found.</div>
+          <div className="bg-white rounded-2xl py-12 text-center text-gray-400 text-sm shadow-sm">No trainers found.</div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
             {trainers.map((t) => (
-              <div key={t.id} className="px-6 py-4">
-                <div className="grid grid-cols-8 gap-4 items-center">
-                  {/* Trainer */}
-                  <div className="col-span-2">
-                    <div className="font-medium text-gray-800">{t.name}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">{t.commissionRate}% commission</div>
+              <div key={t.id} className="bg-white rounded-2xl p-4 lg:p-5 shadow-sm">
+                {/* Trainer header */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 truncate">{t.name}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{t.commissionRate}% commission · {t.sessions} sessions</div>
                   </div>
-                  {/* Sessions */}
-                  <div className="text-center">
-                    <div className="text-sm font-medium text-gray-700">{t.sessions}</div>
-                    <div className="text-[10px] text-gray-400">sessions</div>
-                  </div>
-                  {/* Revenue */}
-                  <div className="text-center">
-                    <div className="text-sm font-medium text-gray-700">{formatIDR(t.revenue)}</div>
-                    <div className="text-[10px] text-gray-400">revenue</div>
-                  </div>
-                  {/* Accrued */}
-                  <div className="text-center">
-                    <div className="text-sm font-semibold text-[#2C6E49]">{formatIDR(t.accrued)}</div>
-                    <div className="text-[10px] text-gray-400">base + {formatIDR(t.commission)} comm.</div>
-                  </div>
-                  {/* Paid */}
-                  <div className="text-center">
-                    <div className="text-sm font-medium text-gray-700">{formatIDR(t.paid)}</div>
-                    <div className="text-[10px] text-gray-400">paid out</div>
-                  </div>
-                  {/* Balance */}
-                  <div className="text-center">
-                    <div className={cn(
-                      "text-sm font-semibold",
-                      t.balance > 0 ? "text-amber-600" : t.balance < 0 ? "text-red-500" : "text-gray-400"
-                    )}>
-                      {t.balance === 0 ? "Settled" : formatIDR(t.balance)}
-                    </div>
-                    <div className="text-[10px] text-gray-400">balance</div>
-                  </div>
-                  {/* Action */}
-                  <div className="text-right">
-                    <button
-                      onClick={() => { setPayModal(t); setPayAmount(String(t.balance > 0 ? t.balance : "")) }}
-                      disabled={t.balance <= 0}
-                      className="px-3 py-1.5 bg-[#2C6E49] text-white text-xs rounded-lg hover:bg-[#1E4D34] disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      Pay out
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => { setPayModal(t); setPayAmount(String(t.balance > 0 ? t.balance : "")) }}
+                    disabled={t.balance <= 0}
+                    className="px-3 py-2 bg-[#2C6E49] text-white text-xs font-medium rounded-lg hover:bg-[#1E4D34] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                  >
+                    Pay out
+                  </button>
+                </div>
+
+                {/* Stats grid 2x2 */}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <Stat label="Revenue" value={formatIDR(t.revenue)} />
+                  <Stat label="Accrued" value={formatIDR(t.accrued)} accent="brand" hint={`+${formatIDR(t.commission)} comm.`} />
+                  <Stat label="Paid out" value={formatIDR(t.paid)} />
+                  <Stat
+                    label="Balance"
+                    value={t.balance === 0 ? "Settled" : formatIDR(t.balance)}
+                    accent={t.balance > 0 ? "amber" : t.balance < 0 ? "red" : "muted"}
+                  />
                 </div>
 
                 {/* Payment history */}
                 {t.payments.length > 0 && (
-                  <div className="mt-3 ml-0 flex flex-wrap gap-2">
-                    {t.payments.map((p) => (
-                      <div key={p.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 text-xs">
-                        <span className="text-[#2C6E49] font-medium">{formatIDR(p.amount)}</span>
-                        {p.note && <span className="text-gray-400">· {p.note}</span>}
-                        <span className="text-gray-300">·</span>
-                        <span className="text-gray-400">{format(new Date(p.createdAt), "d MMM")}</span>
-                        <button
-                          onClick={() => handleDeletePayment(p.id)}
-                          disabled={deletingPay === p.id}
-                          className="ml-0.5 text-gray-300 hover:text-red-400 transition-colors"
-                        >
-                          <X size={11} />
-                        </button>
-                      </div>
-                    ))}
+                  <div className="pt-3 border-t border-gray-100">
+                    <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-2">Payments this month</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {t.payments.map((p) => (
+                        <div key={p.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 text-xs">
+                          <span className="text-[#2C6E49] font-medium">{formatIDR(p.amount)}</span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-gray-400">{format(new Date(p.createdAt), "d MMM")}</span>
+                          {p.note && <span className="text-gray-400 truncate max-w-[120px]" title={p.note}>· {p.note}</span>}
+                          <button
+                            onClick={() => handleDeletePayment(p.id)}
+                            disabled={deletingPay === p.id}
+                            className="ml-0.5 text-gray-300 hover:text-red-400 transition-colors"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -301,42 +291,47 @@ export default function SalaryPage() {
       </div>
 
       {/* Expenses */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold text-gray-800">Expenses</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Total: {formatIDR(totalExpenses)}</p>
+      <div>
+        <div className="flex items-center justify-between mb-3 px-1 gap-3">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-gray-800 text-base lg:text-lg">Expenses</h2>
+            <p className="text-xs text-gray-400 mt-0.5 truncate">Total: {formatIDR(totalExpenses)}</p>
           </div>
           <button
             onClick={() => setShowExpenseForm(true)}
-            className="flex items-center gap-1.5 bg-[#2C6E49] text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-[#1E4D34] transition-colors"
+            className="flex items-center gap-1.5 bg-[#2C6E49] text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-[#1E4D34] transition-colors flex-shrink-0"
           >
             <Plus size={14} />
-            Add Expense
+            <span className="hidden sm:inline">Add Expense</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
 
         {expenses.length === 0 ? (
-          <div className="py-10 text-center text-gray-400 text-sm">No expenses recorded for {format(monthDate, "MMMM yyyy")}.</div>
+          <div className="bg-white rounded-2xl py-10 text-center text-gray-400 text-sm shadow-sm">
+            No expenses recorded for {format(monthDate, "MMMM yyyy")}.
+          </div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {expenses.map((exp) => (
-              <div key={exp.id} className="px-6 py-3 flex items-center gap-4">
-                <div className="w-24 text-xs text-gray-400 flex-shrink-0">
-                  {format(new Date(exp.date + "T00:00:00"), "MMM d")}
+              <div key={exp.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{exp.category}</span>
+                    <span className="text-xs text-gray-400">{format(new Date(exp.date + "T00:00:00"), "d MMM yyyy")}</span>
+                  </div>
+                  <div className="text-sm text-gray-700 mt-1">{exp.description || "—"}</div>
                 </div>
-                <div className="w-24">
-                  <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{exp.category}</span>
+                <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                  <div className="font-semibold text-gray-900">{formatIDR(exp.amount)}</div>
+                  <button
+                    onClick={() => handleDeleteExpense(exp.id)}
+                    disabled={deletingExp === exp.id}
+                    className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
-                <div className="flex-1 text-sm text-gray-700">{exp.description || "—"}</div>
-                <div className="font-semibold text-gray-800 text-sm">{formatIDR(exp.amount)}</div>
-                <button
-                  onClick={() => handleDeleteExpense(exp.id)}
-                  disabled={deletingExp === exp.id}
-                  className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
               </div>
             ))}
           </div>
@@ -345,35 +340,23 @@ export default function SalaryPage() {
 
       {/* Pay out modal */}
       {payModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-gray-800">Pay Out</h2>
-                <p className="text-sm text-gray-400 mt-0.5">{payModal.name} · {format(monthDate, "MMMM yyyy")}</p>
+                <p className="text-sm text-gray-400 mt-0.5 truncate">{payModal.name} · {format(monthDate, "MMM yyyy")}</p>
               </div>
-              <button onClick={() => setPayModal(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setPayModal(null)} className="p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
                 <X size={18} />
               </button>
             </div>
 
             <div className="bg-gray-50 rounded-xl px-4 py-3 mb-4 text-sm space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Base salary</span>
-                <span className="font-medium">{formatIDR(payModal.baseSalary)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Commission ({payModal.commissionRate}%)</span>
-                <span className="font-medium">+{formatIDR(payModal.commission)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Already paid</span>
-                <span className="font-medium text-green-600">−{formatIDR(payModal.paid)}</span>
-              </div>
-              <div className="flex justify-between border-t border-gray-200 pt-1.5 mt-1">
-                <span className="font-medium text-gray-700">Balance due</span>
-                <span className="font-bold text-[#2C6E49]">{formatIDR(payModal.balance)}</span>
-              </div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">Base salary</span><span className="font-medium">{formatIDR(payModal.baseSalary)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">Commission ({payModal.commissionRate}%)</span><span className="font-medium">+{formatIDR(payModal.commission)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">Already paid</span><span className="font-medium text-green-600">−{formatIDR(payModal.paid)}</span></div>
+              <div className="flex justify-between gap-3 border-t border-gray-200 pt-1.5 mt-1"><span className="font-medium text-gray-700">Balance due</span><span className="font-bold text-[#2C6E49]">{formatIDR(payModal.balance)}</span></div>
             </div>
 
             <form onSubmit={handlePay} className="space-y-3">
@@ -401,9 +384,7 @@ export default function SalaryPage() {
                 />
               </div>
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setPayModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">
-                  Cancel
-                </button>
+                <button type="button" onClick={() => setPayModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
                 <button type="submit" disabled={paying} className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
                   {paying ? "Saving..." : "Confirm Payment"}
                 </button>
@@ -415,8 +396,8 @@ export default function SalaryPage() {
 
       {/* Add expense modal */}
       {showExpenseForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-semibold text-gray-800">Add Expense</h2>
               <button onClick={() => setShowExpenseForm(false)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -473,9 +454,7 @@ export default function SalaryPage() {
                 />
               </div>
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setShowExpenseForm(false)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">
-                  Cancel
-                </button>
+                <button type="button" onClick={() => setShowExpenseForm(false)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
                 <button type="submit" disabled={savingExp} className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
                   {savingExp ? "Saving..." : "Add Expense"}
                 </button>
@@ -484,6 +463,33 @@ export default function SalaryPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function Stat({
+  label,
+  value,
+  hint,
+  accent = "default",
+}: {
+  label: string
+  value: string
+  hint?: string
+  accent?: "default" | "brand" | "amber" | "red" | "muted"
+}) {
+  const colors = {
+    default: "text-gray-800",
+    brand: "text-[#2C6E49]",
+    amber: "text-amber-600",
+    red: "text-red-500",
+    muted: "text-gray-400",
+  }
+  return (
+    <div className="bg-gray-50 rounded-xl p-2.5">
+      <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">{label}</div>
+      <div className={cn("text-sm font-semibold break-words", colors[accent])}>{value}</div>
+      {hint && <div className="text-[10px] text-gray-400 mt-0.5 truncate" title={hint}>{hint}</div>}
     </div>
   )
 }
