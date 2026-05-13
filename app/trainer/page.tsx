@@ -160,13 +160,13 @@ export default function TrainerSchedulePage() {
     <div>
       {/* Salary card */}
       {salary && (
-        <div className="bg-[#2C6E49] text-white rounded-2xl p-5 mb-6 flex items-center gap-6">
-          <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0">
-            <TrendingUp size={22} />
+        <div className="bg-[#2C6E49] text-white rounded-2xl p-4 lg:p-5 mb-6 flex items-center gap-3 lg:gap-6">
+          <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0">
+            <TrendingUp size={20} />
           </div>
-          <div className="flex-1">
-            <div className="text-sm text-white/70 mb-1">My earnings · {salary.month}</div>
-            <div className="text-2xl font-bold tracking-tight">
+          <div className="flex-1 min-w-0">
+            <div className="text-xs lg:text-sm text-white/70 mb-0.5 lg:mb-1 truncate">My earnings · {salary.month}</div>
+            <div className="text-lg lg:text-2xl font-bold tracking-tight">
               Rp {formatIDR(salary.total)}
             </div>
           </div>

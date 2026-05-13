@@ -8,7 +8,15 @@
   --color-bg: #F5F4F0;
 }
 
-body {
+html, body {
   background: #F5F4F0;
   color: #1A1A1A;
+  max-width: 100vw;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  overscroll-behavior-x: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
 }
