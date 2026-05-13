@@ -22,7 +22,7 @@ export default async function HomePage() {
               <div className="text-xs">Up to 6 people</div>
             </div>
             <Link
-              href="/trainer/login"
+              href="/login"
               aria-label="Staff sign in"
               className="text-gray-300 hover:text-[#2C6E49] text-xs transition-colors"
             >

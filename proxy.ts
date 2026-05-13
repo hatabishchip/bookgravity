@@ -8,15 +8,15 @@ export const proxy = auth((req) => {
   const { pathname } = req.nextUrl
   const session = req.auth
 
-  if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
+  if (pathname.startsWith("/admin")) {
     if (!session || session.user.role !== "ADMIN") {
-      return NextResponse.redirect(new URL("/admin/login", req.url))
+      return NextResponse.redirect(new URL("/login", req.url))
     }
   }
 
-  if (pathname.startsWith("/trainer") && !pathname.startsWith("/trainer/login")) {
+  if (pathname.startsWith("/trainer")) {
     if (!session || session.user.role !== "TRAINER") {
-      return NextResponse.redirect(new URL("/trainer/login", req.url))
+      return NextResponse.redirect(new URL("/login", req.url))
     }
   }
 })

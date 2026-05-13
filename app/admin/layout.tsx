@@ -105,7 +105,7 @@ function AdminNav() {
             <KeyRound size={18} />
             Change Password
           </button>
-          <button onClick={() => signOut({ callbackUrl: "/admin/login" })}
+          <button onClick={() => signOut({ callbackUrl: "/login" })}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full transition-colors">
             <LogOut size={18} />
             Sign Out

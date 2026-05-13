@@ -19,7 +19,7 @@ export const authConfig: NextAuthConfig = {
     },
   },
   pages: {
-    signIn: "/admin/login",
+    signIn: "/login",
   },
   session: { strategy: "jwt" },
 }
