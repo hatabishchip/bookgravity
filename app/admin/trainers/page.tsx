@@ -148,13 +148,13 @@ export default function TrainersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Trainers</h1>
+      <div className="flex items-center justify-between mb-6 gap-3">
+        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Trainers</h1>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-[#2C6E49] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#1E4D34] transition-colors"
+          className="flex items-center gap-2 bg-[#2C6E49] text-white px-3 lg:px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#1E4D34] transition-colors flex-shrink-0"
         >
-          <Plus size={16} /> Add Trainer
+          <Plus size={16} /> <span className="hidden sm:inline">Add Trainer</span><span className="sm:hidden">Add</span>
         </button>
       </div>
 
@@ -238,7 +238,7 @@ export default function TrainersPage() {
         ))}
 
         {trainers.length === 0 && (
-          <div className="col-span-3 text-center py-12 text-gray-400 text-sm">
+          <div className="col-span-1 lg:col-span-3 text-center py-12 text-gray-400 text-sm">
             No trainers yet. Add your first trainer.
           </div>
         )}
