@@ -253,7 +253,7 @@ export default function TrainerSchedulePage() {
                             ? "bg-[#2C6E49] border-[#2C6E49] text-white"
                             : hasBookings
                             ? "bg-[#2C6E49]/5 border-[#2C6E49]/20 hover:border-[#2C6E49]/50"
-                            : "bg-gray-200 border-gray-300 hover:border-gray-400"
+                            : "bg-[#ECEDF0] border-gray-300 hover:border-gray-400"
                         )}
                       >
                         <div className={cn(
