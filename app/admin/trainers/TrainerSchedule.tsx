@@ -263,17 +263,16 @@ export default function TrainerSchedule({
 
         {/* Calendar */}
         <div className="px-2 sm:px-6 pb-6 flex-1">
-          {/* Day headers */}
-          <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-1.5">
+          {/* Day headers — only on desktop */}
+          <div className="hidden lg:grid grid-cols-7 gap-2 mb-1.5">
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-              <div key={d} className="text-center text-[10px] sm:text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
-                <span className="hidden sm:inline">{d}</span>
-                <span className="sm:hidden">{d.charAt(0)}</span>
+              <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
+                {d}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1 sm:gap-2">
+          <div className="grid grid-cols-2 lg:grid-cols-7 gap-2">
             {days.map((day) => {
               const dateStr = format(day, "yyyy-MM-dd")
               const isToday = dateStr === todayStr
@@ -293,6 +292,9 @@ export default function TrainerSchedule({
                 >
                   {/* Date number */}
                   <div className={cn("text-center", isMonthView ? "mb-1" : "mb-2")}>
+                    <div className="lg:hidden text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
+                      {format(day, "EEE")}
+                    </div>
                     <div className={cn(
                       "font-bold mx-auto flex items-center justify-center rounded-full",
                       isMonthView ? "text-sm w-6 h-6" : "text-lg w-8 h-8 mt-0.5",
