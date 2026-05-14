@@ -540,7 +540,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
             {/* Brand footer */}
             <div className="bg-[#F8F7F3] px-6 py-4 text-center border-t border-gray-100">
               <div className="text-base font-bold text-[#2C6E49] tracking-tight">Gravity Stretching</div>
-              <div className="text-sm font-semibold text-[#2C6E49]/85 uppercase tracking-[0.45em] mt-1">Canggu</div>
+              <div className="text-base font-bold text-[#2C6E49] uppercase tracking-[0.45em] mt-1">Canggu</div>
             </div>
           </div>
 
