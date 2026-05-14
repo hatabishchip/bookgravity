@@ -268,6 +268,12 @@ export default function BookingWidget({ services }: { services: Service[] }) {
       .filter((s) => (s.maxCapacity - s.bookedCount) >= partySize)
       .map((s) => s.date)
   )
+  // Dates that have scheduled classes but no slot can fit the party (fully booked or insufficient)
+  const fullyBookedDates = new Set(
+    allSlots
+      .filter((s) => !availableDates.has(s.date))
+      .map((s) => s.date)
+  )
 
   useEffect(() => { fetchAvailableDates() }, [fetchAvailableDates])
 
@@ -692,7 +698,8 @@ export default function BookingWidget({ services }: { services: Service[] }) {
               const isPast = isBefore(day, today)
               const isTooFar = isAfter(day, maxDate)
               const hasSlot = availableDates.has(str)
-              const disabled = isPast || isTooFar || !hasSlot
+              const isFull = fullyBookedDates.has(str)
+              const disabled = isPast || isTooFar || (!hasSlot && !isFull)
               const isSelected = selectedDate === str
 
               return (
@@ -705,20 +712,36 @@ export default function BookingWidget({ services }: { services: Service[] }) {
                     isSelected ? "bg-[#2C6E49] text-white" :
                     hasSlot && !isPast && !isTooFar
                       ? "text-gray-800 hover:bg-[#2C6E49]/10 cursor-pointer"
-                      : "text-gray-300 cursor-not-allowed",
+                      : isFull && !isPast && !isTooFar
+                        ? "text-gray-700 bg-rose-50 hover:bg-rose-100 cursor-pointer line-through decoration-rose-300 decoration-[1.5px]"
+                        : "text-gray-300 cursor-not-allowed",
                   )}
                 >
                   {day.getDate()}
                   {hasSlot && !isPast && !isTooFar && !isSelected && (
                     <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#2C6E49]" />
                   )}
+                  {isFull && !isPast && !isTooFar && !isSelected && (
+                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-rose-400" />
+                  )}
                 </button>
               )
             })}
           </div>
 
-          <p className="text-center text-sm text-gray-400 mt-4">
-            Dots indicate available dates · Booking opens up to 1 month ahead
+          {/* Legend */}
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 text-xs">
+            <div className="flex items-center gap-1.5 text-gray-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
+              <span>Available</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-gray-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+              <span>Fully booked</span>
+            </div>
+          </div>
+          <p className="text-center text-xs text-gray-400 mt-2">
+            Booking opens up to 1 month ahead
           </p>
         </div>
       )}
@@ -740,49 +763,90 @@ export default function BookingWidget({ services }: { services: Service[] }) {
             </div>
           ) : slots.length === 0 ? (
             <div className="text-center py-8 text-gray-400">No sessions available on this day</div>
-          ) : (
-            <div className="space-y-3">
-              {slots.map((slot) => {
-                const spotsLeft = slot.maxCapacity - slot.bookedCount
-                const enoughForParty = spotsLeft >= partySize
-                const canBook = slot.available && enoughForParty
-                return (
-                  <button
-                    key={slot.id}
-                    onClick={() => canBook && handleSlotSelect(slot)}
-                    disabled={!canBook}
-                    className={cn(
-                      "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
-                      canBook
-                        ? "border-gray-100 hover:border-[#2C6E49] hover:bg-[#2C6E49]/5 cursor-pointer"
-                        : "border-gray-100 bg-gray-50 cursor-not-allowed opacity-60"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", canBook ? "bg-[#2C6E49]/10" : "bg-gray-100")}>
-                        <Clock size={18} className={canBook ? "text-[#2C6E49]" : "text-gray-400"} />
+          ) : (() => {
+            const anyBookable = slots.some((s) => s.available && (s.maxCapacity - s.bookedCount) >= partySize)
+            return (
+              <>
+                {!anyBookable && (
+                  <div className="mb-4 rounded-2xl border-2 border-rose-100 bg-rose-50/60 p-4 flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0">
+                      <Users size={18} className="text-rose-500" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-rose-900 mb-0.5">
+                        {slots.every((s) => !s.available) ? "All groups are fully booked" : "Not enough spots for your party"}
                       </div>
-                      <div>
-                        <div className="font-semibold text-gray-800">
-                          {formatTime(slot.startTime)} – {formatTime(slot.endTime)}
+                      <div className="text-xs text-rose-700/80 leading-relaxed">
+                        {slots.every((s) => !s.available)
+                          ? "Every session on this day is sold out. Please pick another day from the calendar."
+                          : `You need ${partySize} spots — none of the groups today have that many seats left.`}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-3">
+                  {slots.map((slot) => {
+                    const spotsLeft = slot.maxCapacity - slot.bookedCount
+                    const enoughForParty = spotsLeft >= partySize
+                    const canBook = slot.available && enoughForParty
+                    const isFull = !slot.available
+                    return (
+                      <button
+                        key={slot.id}
+                        onClick={() => canBook && handleSlotSelect(slot)}
+                        disabled={!canBook}
+                        className={cn(
+                          "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left relative",
+                          canBook
+                            ? "border-gray-100 hover:border-[#2C6E49] hover:bg-[#2C6E49]/5 cursor-pointer"
+                            : isFull
+                              ? "border-rose-100 bg-rose-50/40 cursor-not-allowed"
+                              : "border-amber-100 bg-amber-50/40 cursor-not-allowed"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+                            canBook ? "bg-[#2C6E49]/10" : isFull ? "bg-rose-100" : "bg-amber-100"
+                          )}>
+                            <Clock size={18} className={canBook ? "text-[#2C6E49]" : isFull ? "text-rose-500" : "text-amber-600"} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className={cn("font-semibold", isFull ? "text-rose-900 line-through decoration-rose-300" : "text-gray-800")}>
+                              {formatTime(slot.startTime)} – {formatTime(slot.endTime)}
+                            </div>
+                            <div className="text-sm text-gray-400">Group class · 6 max</div>
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-400">Group class · 6 max</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={cn("flex items-center gap-1 text-sm font-medium", canBook ? "text-[#2C6E49]" : "text-gray-400")}>
-                        <Users size={14} />
-                        {spotsLeft} / {slot.maxCapacity} spots
-                      </div>
-                      <div className={cn("text-xs mt-0.5", canBook ? "text-[#2C6E49]/70" : "text-gray-400")}>
-                        {!slot.available ? "Full" : !enoughForParty ? `Only ${spotsLeft} left` : "Available"}
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
+                        <div className="text-right flex flex-col items-end gap-0.5">
+                          {isFull ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-500 text-white">
+                              Sold out
+                            </span>
+                          ) : !enoughForParty ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-white">
+                              Only {spotsLeft} left
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-1 text-sm font-medium text-[#2C6E49]">
+                              <Users size={14} />
+                              {spotsLeft} / {slot.maxCapacity} spots
+                            </div>
+                          )}
+                          <div className={cn(
+                            "text-[11px] mt-0.5",
+                            canBook ? "text-[#2C6E49]/70" : isFull ? "text-rose-500/70" : "text-amber-600/70"
+                          )}>
+                            {isFull ? `${slot.bookedCount}/${slot.maxCapacity} booked` : canBook ? "Available" : `${spotsLeft} free`}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          })()}
         </div>
       )}
 
