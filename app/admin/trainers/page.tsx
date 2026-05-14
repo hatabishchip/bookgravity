@@ -87,7 +87,6 @@ export default function TrainersPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [updatingRate, setUpdatingRate] = useState<string | null>(null)
   const [scheduleFor, setScheduleFor] = useState<Trainer | null>(null)
 
   const fetchTrainers = useCallback(async () => {
@@ -117,16 +116,6 @@ export default function TrainersPage() {
     await fetchTrainers(); setDeleting(null)
   }
 
-  const handleRateChange = async (id: string, rate: number) => {
-    setUpdatingRate(id)
-    await fetch(`/api/admin/trainers?id=${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ commissionRate: rate }),
-    })
-    setTrainers((prev) => prev.map((t) => (t.id === id ? { ...t, commissionRate: rate } : t)))
-    setUpdatingRate(null)
-  }
 
   const handleColorChange = async (id: string, color: string) => {
     setTrainers((prev) => prev.map((t) => (t.id === id ? { ...t, color } : t)))
@@ -205,24 +194,11 @@ export default function TrainersPage() {
             {/* Divider */}
             <div className="my-4 border-t border-black/6" />
 
-            {/* Color + Commission */}
+            {/* Color */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">Schedule color</span>
                 <ColorPicker color={trainer.color} onChange={(c) => handleColorChange(trainer.id, c)} />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">Commission rate</span>
-                <select
-                  value={trainer.commissionRate}
-                  disabled={updatingRate === trainer.id}
-                  onChange={(e) => handleRateChange(trainer.id, Number(e.target.value))}
-                  className="border border-gray-200 bg-white/80 rounded-lg px-2.5 py-1 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-black/10 disabled:opacity-50"
-                >
-                  <option value={15}>15%</option>
-                  <option value={20}>20%</option>
-                </select>
               </div>
             </div>
 

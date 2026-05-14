@@ -34,7 +34,7 @@ model Trainer {
   user           User             @relation(fields: [userId], references: [id])
   timeSlots      TimeSlot[]
   assistedSlots  TimeSlot[]       @relation("SlotAssistant")
-  commissionRate Int              @default(15)
+  commissionRate Int              @default(20)
   color          String           @default("#6366F1")
   payments       TrainerPayment[]
   createdAt      DateTime         @default(now())
