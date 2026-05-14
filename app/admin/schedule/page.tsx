@@ -45,7 +45,18 @@ function slotCardStyle(slot: Slot) {
   }
 }
 
-const EMPTY_FORM = { date: format(new Date(), "yyyy-MM-dd"), startTime: "10:00", startTimes: [] as string[], customTime: "10:00", trainerId: "", assistantId: "", maxCapacity: 6, price: 300000 }
+type SlotAssignment = { trainerId: string; assistantId: string }
+const EMPTY_FORM = {
+  date: format(new Date(), "yyyy-MM-dd"),
+  startTime: "10:00",
+  startTimes: [] as string[],
+  customTime: "10:00",
+  trainerId: "",
+  assistantId: "",
+  maxCapacity: 6,
+  price: 300000,
+  assignments: {} as Record<string, SlotAssignment>,
+}
 
 function sortTimes(times: string[]) {
   return [...new Set(times)].sort()
@@ -136,14 +147,14 @@ export default function SchedulePage() {
     // a "manage day's sessions" view (toggle to add or remove).
     const existing = slots.filter((s) => s.date === date)
     const existingTimes = sortTimes(existing.map((s) => s.startTime))
-    setForm({ ...EMPTY_FORM, date, trainerId: trainers[0]?.id ?? "", startTimes: existingTimes })
+    setForm({ ...EMPTY_FORM, date, startTimes: existingTimes, assignments: {} })
     setFormError("")
     setModal("create")
   }
 
   const openEdit = (slot: Slot) => {
     setSelectedDate(slot.date)
-    setForm({ date: slot.date, startTime: slot.startTime, startTimes: [], customTime: slot.startTime, trainerId: slot.trainer?.id ?? "", assistantId: slot.assistant?.id ?? "", maxCapacity: slot.maxCapacity, price: slot.price })
+    setForm({ date: slot.date, startTime: slot.startTime, startTimes: [], customTime: slot.startTime, trainerId: slot.trainer?.id ?? "", assistantId: slot.assistant?.id ?? "", maxCapacity: slot.maxCapacity, price: slot.price, assignments: {} })
     setFormError("")
     setModal(slot)
   }
@@ -186,14 +197,15 @@ export default function SchedulePage() {
       if (!res.ok) failed.push(`Delete ${s.startTime}: error`)
     }
     for (const startTime of toCreate) {
+      const assignment = form.assignments[startTime] ?? { trainerId: "", assistantId: "" }
       const res = await fetch("/api/admin/slots", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: form.date,
           startTime,
-          trainerId: form.trainerId || undefined,
-          assistantId: form.assistantId || null,
+          trainerId: assignment.trainerId || undefined,
+          assistantId: assignment.assistantId || null,
           maxCapacity: Number(form.maxCapacity),
           price: Number(form.price),
         }),
@@ -649,23 +661,63 @@ export default function SchedulePage() {
                         {form.startTimes.length > 0 && (
                           <div>
                             <div className="text-xs text-gray-500 mb-1.5">Sessions on this day ({form.startTimes.length}):</div>
-                            <div className="flex flex-wrap gap-1.5">
+                            <div className="space-y-1.5">
                               {form.startTimes.map((t) => {
                                 const isExisting = existingTimes.has(t)
                                 const slot = existingForDate.find((s) => s.startTime === t)
+                                const assignment = form.assignments[t] ?? { trainerId: "", assistantId: "" }
+                                if (isExisting) {
+                                  return (
+                                    <div key={t} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-100 text-xs">
+                                      <span className="font-medium text-gray-700">{formatTime(t)} – {formatTime(computeEndTime(t))}</span>
+                                      <span className="text-gray-400">·</span>
+                                      <span className="text-gray-500 truncate">
+                                        {slot?.trainer ? slot.trainer.name : "Unassigned"}
+                                        {slot?.assistant && ` + ${slot.assistant.name}`}
+                                      </span>
+                                      <button type="button" onClick={() => setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t) })}
+                                        className="text-gray-400 hover:text-red-500 ml-auto text-base leading-none flex-shrink-0">×</button>
+                                    </div>
+                                  )
+                                }
+                                // New session — per-time trainer + assistant
                                 return (
-                                  <span key={t} className={cn(
-                                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium",
-                                    isExisting ? "bg-gray-100 text-gray-700" : "bg-[#2C6E49]/10 text-[#2C6E49]"
-                                  )}>
-                                    {!isExisting && <span className="text-[10px]">＋</span>}
-                                    {formatTime(t)} – {formatTime(computeEndTime(t))}
-                                    {isExisting && slot?.trainer && (
-                                      <span className="text-gray-400">· {slot.trainer.name}</span>
+                                  <div key={t} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#2C6E49]/5 border border-[#2C6E49]/15 text-xs">
+                                    <span className="font-medium text-[#2C6E49] whitespace-nowrap">＋ {formatTime(t)} – {formatTime(computeEndTime(t))}</span>
+                                    <select
+                                      value={assignment.trainerId}
+                                      onChange={(e) => {
+                                        const next = e.target.value
+                                        setForm((prev) => ({
+                                          ...prev,
+                                          assignments: { ...prev.assignments, [t]: { trainerId: next, assistantId: next ? assignment.assistantId : "" } },
+                                        }))
+                                      }}
+                                      className="ml-auto text-xs border border-gray-200 rounded-md px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 max-w-[110px]"
+                                    >
+                                      <option value="">Unassigned</option>
+                                      {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
+                                    </select>
+                                    {assignment.trainerId && (
+                                      <select
+                                        value={assignment.assistantId}
+                                        onChange={(e) => setForm((prev) => ({
+                                          ...prev,
+                                          assignments: { ...prev.assignments, [t]: { ...assignment, assistantId: e.target.value } },
+                                        }))}
+                                        className="text-xs border border-dashed border-gray-200 rounded-md px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 max-w-[110px] text-gray-500"
+                                        title="Assistant"
+                                      >
+                                        <option value="">+ Asst</option>
+                                        {trainers.filter((tr) => tr.id !== assignment.trainerId).map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
+                                      </select>
                                     )}
-                                    <button type="button" onClick={() => setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t) })}
-                                      className="text-gray-400 hover:text-red-500 ml-0.5 text-base leading-none">×</button>
-                                  </span>
+                                    <button type="button" onClick={() => {
+                                      const newAssignments = { ...form.assignments }
+                                      delete newAssignments[t]
+                                      setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newAssignments })
+                                    }} className="text-[#2C6E49]/60 hover:text-red-500 text-base leading-none flex-shrink-0">×</button>
+                                  </div>
                                 )
                               })}
                             </div>
@@ -691,37 +743,41 @@ export default function SchedulePage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Trainer</label>
-                <select required value={form.trainerId} onChange={(e) => {
-                  const next = e.target.value
-                  setForm((prev) => ({ ...prev, trainerId: next, assistantId: next ? prev.assistantId : "" }))
-                }}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] bg-white">
-                  <option value="">Select trainer...</option>
-                  {trainers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-
-              {form.assistantId ? (
-                <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
-                    <span className="text-gray-400 text-xs">Assistant</span>
-                    <span className="font-medium">{trainers.find((t) => t.id === form.assistantId)?.name}</span>
+              {isEdit && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Trainer</label>
+                    <select value={form.trainerId} onChange={(e) => {
+                      const next = e.target.value
+                      setForm((prev) => ({ ...prev, trainerId: next, assistantId: next ? prev.assistantId : "" }))
+                    }}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] bg-white">
+                      <option value="">Unassigned</option>
+                      {trainers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
                   </div>
-                  <button type="button" onClick={() => setForm({ ...form, assistantId: "" })}
-                    className="text-gray-400 hover:text-red-400 transition-colors text-lg leading-none">×</button>
-                </div>
-              ) : (
-                <select
-                  value=""
-                  disabled={!form.trainerId}
-                  onChange={(e) => { if (e.target.value) setForm({ ...form, assistantId: e.target.value }) }}
-                  className="w-full border border-dashed border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/20 focus:border-[#2C6E49]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50"
-                >
-                  <option value="">{form.trainerId ? "+ Add assistant (optional)" : "Select a trainer first"}</option>
-                  {form.trainerId && trainers.filter((t) => t.id !== form.trainerId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+
+                  {form.assistantId ? (
+                    <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <span className="text-gray-400 text-xs">Assistant</span>
+                        <span className="font-medium">{trainers.find((t) => t.id === form.assistantId)?.name}</span>
+                      </div>
+                      <button type="button" onClick={() => setForm({ ...form, assistantId: "" })}
+                        className="text-gray-400 hover:text-red-400 transition-colors text-lg leading-none">×</button>
+                    </div>
+                  ) : (
+                    <select
+                      value=""
+                      disabled={!form.trainerId}
+                      onChange={(e) => { if (e.target.value) setForm({ ...form, assistantId: e.target.value }) }}
+                      className="w-full border border-dashed border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/20 focus:border-[#2C6E49]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50"
+                    >
+                      <option value="">{form.trainerId ? "+ Add assistant (optional)" : "Select a trainer first"}</option>
+                      {form.trainerId && trainers.filter((t) => t.id !== form.trainerId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  )}
+                </>
               )}
 
               <div className="grid grid-cols-2 gap-3">
