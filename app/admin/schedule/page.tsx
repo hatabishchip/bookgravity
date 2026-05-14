@@ -474,7 +474,10 @@ export default function SchedulePage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Trainer</label>
-                <select required value={form.trainerId} onChange={(e) => setForm({ ...form, trainerId: e.target.value })}
+                <select required value={form.trainerId} onChange={(e) => {
+                  const next = e.target.value
+                  setForm((prev) => ({ ...prev, trainerId: next, assistantId: next ? prev.assistantId : "" }))
+                }}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] bg-white">
                   <option value="">Select trainer...</option>
                   {trainers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -493,11 +496,12 @@ export default function SchedulePage() {
               ) : (
                 <select
                   value=""
+                  disabled={!form.trainerId}
                   onChange={(e) => { if (e.target.value) setForm({ ...form, assistantId: e.target.value }) }}
-                  className="w-full border border-dashed border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/20 focus:border-[#2C6E49]/40"
+                  className="w-full border border-dashed border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/20 focus:border-[#2C6E49]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50"
                 >
-                  <option value="">+ Add assistant (optional)</option>
-                  {trainers.filter((t) => t.id !== form.trainerId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  <option value="">{form.trainerId ? "+ Add assistant (optional)" : "Select a trainer first"}</option>
+                  {form.trainerId && trainers.filter((t) => t.id !== form.trainerId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               )}
 
