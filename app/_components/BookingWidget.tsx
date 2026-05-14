@@ -190,6 +190,59 @@ export default function BookingWidget({ services }: { services: Service[] }) {
     clientPhone: useRef<HTMLInputElement>(null),
   }
   const [booking, setBooking] = useState<{ id: string; clientName: string; slot: Slot; ticketCode: string } | null>(null)
+  const ticketRef = useRef<HTMLDivElement>(null)
+  const [sharing, setSharing] = useState(false)
+
+  // Capture the ticket card as a PNG and share via WhatsApp.
+  // Mobile: Web Share API with file → opens system share sheet (user picks WhatsApp, image attaches).
+  // Desktop / unsupported: download the image and open wa.me so user can drag the file in.
+  async function shareTicketToWhatsApp(messageText: string, waLink: string | null) {
+    if (!ticketRef.current || sharing) return
+    setSharing(true)
+    try {
+      const { toBlob } = await import("html-to-image")
+      const blob = await toBlob(ticketRef.current, {
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        cacheBust: true,
+      })
+      if (!blob) throw new Error("Failed to render ticket")
+
+      const file = new File([blob], `gravity-ticket-${booking?.ticketCode || "ticket"}.png`, { type: "image/png" })
+
+      // Prefer native share with file when supported (mobile WhatsApp)
+      const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean; share?: (data: ShareData & { files?: File[] }) => Promise<void> }
+      if (nav.canShare && nav.canShare({ files: [file] }) && nav.share) {
+        try {
+          await nav.share({ files: [file], text: messageText })
+          return
+        } catch (err) {
+          // User cancelled or share failed — fall through to download path
+          if ((err as { name?: string }).name === "AbortError") return
+        }
+      }
+
+      // Fallback: download the image, then open WhatsApp link so user can attach manually
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = file.name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+
+      if (waLink) {
+        setTimeout(() => window.open(waLink, "_blank"), 300)
+      }
+    } catch (e) {
+      console.error("Share ticket failed:", e)
+      // Last-resort fallback: just open WhatsApp text link
+      if (waLink) window.open(waLink, "_blank")
+    } finally {
+      setSharing(false)
+    }
+  }
 
   const [form, setForm] = useState({
     clientName: "",
@@ -365,19 +418,20 @@ export default function BookingWidget({ services }: { services: Service[] }) {
     const barcodeBars = generateBarcode(booking.ticketCode)
     const dateStr = selectedDate ? format(parseISO(selectedDate), "EEE, MMM d") : ""
     const timeStr = formatTime(booking.slot.startTime)
-    const waLink = form.clientPhone ? whatsappLink(form.clientPhone, bookingConfirmationMessage({
+    const messageText = bookingConfirmationMessage({
       clientName: form.clientName,
       date: dateStr,
       time: timeStr,
       ticketCode: booking.ticketCode,
       partySize,
-    })) : null
+    })
+    const waLink = form.clientPhone ? whatsappLink(form.clientPhone, messageText) : null
 
     return (
       <div className="fixed inset-0 bg-gradient-to-br from-[#F5F4F0] via-[#EFEEE8] to-[#E8E6DD] z-50 flex items-center justify-center p-4 overflow-y-auto">
         <div className="w-full max-w-sm my-auto">
           {/* Ticket card */}
-          <div className="bg-white rounded-3xl shadow-2xl relative overflow-hidden">
+          <div ref={ticketRef} className="bg-white rounded-3xl shadow-2xl relative overflow-hidden">
             {/* Top accent bar */}
             <div className="h-1.5 bg-gradient-to-r from-[#2C6E49] via-[#3a8a5d] to-[#2C6E49]"></div>
 
@@ -465,15 +519,14 @@ export default function BookingWidget({ services }: { services: Service[] }) {
           {/* Actions */}
           <div className="mt-4 space-y-2">
             {waLink && (
-              <a
-                href={waLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white py-3 rounded-xl text-sm font-semibold transition-colors shadow-sm"
+              <button
+                onClick={() => shareTicketToWhatsApp(messageText, waLink)}
+                disabled={sharing}
+                className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold transition-colors shadow-sm"
               >
                 <MessageCircle size={16} />
-                Save to WhatsApp
-              </a>
+                {sharing ? "Preparing ticket..." : "Send to WhatsApp"}
+              </button>
             )}
 
             <button
