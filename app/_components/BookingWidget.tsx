@@ -4,8 +4,25 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { format, addMonths, subMonths, startOfMonth, getDaysInMonth, getDay, isBefore, isAfter, startOfDay, parseISO } from "date-fns"
 import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
-import { QRCodeSVG } from "qrcode.react"
 import { cn } from "@/lib/utils"
+
+// Deterministic barcode bars derived from a numeric code.
+// Returns an array of widths (in px) and gap booleans to render a Code-128-style look.
+function generateBarcode(code: string): { width: number; isBar: boolean }[] {
+  const seed = code.split("").reduce((acc, d) => acc * 31 + parseInt(d || "0", 10), 7)
+  const result: { width: number; isBar: boolean }[] = []
+  // Quiet start guard
+  result.push({ width: 2, isBar: true }, { width: 1, isBar: false }, { width: 2, isBar: true })
+  let s = seed
+  for (let i = 0; i < 42; i++) {
+    s = (s * 1103515245 + 12345) & 0x7fffffff
+    const w = (s % 3) + 1 // 1..3 px
+    result.push({ width: w, isBar: i % 2 === 0 })
+  }
+  // Guard end
+  result.push({ width: 2, isBar: true }, { width: 1, isBar: false }, { width: 2, isBar: true })
+  return result
+}
 
 type PhoneCountry = { code: string; flag: string; name: string; min: number; max: number }
 
@@ -304,85 +321,138 @@ export default function BookingWidget({ services }: { services: Service[] }) {
   const days = Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1))
   const blanks = Array.from({ length: firstDayOfWeek })
 
-  // Compact full-screen ticket on done step
+  // Beautiful ticket on done step
   if (step === "done" && booking) {
+    const barcodeBars = generateBarcode(booking.ticketCode)
+    const dateStr = selectedDate ? format(parseISO(selectedDate), "EEE, MMM d") : ""
+    const timeStr = formatTime(booking.slot.startTime)
+    const waLink = form.clientPhone ? whatsappLink(form.clientPhone, bookingConfirmationMessage({
+      clientName: form.clientName,
+      date: dateStr,
+      time: timeStr,
+      ticketCode: booking.ticketCode,
+      partySize,
+    })) : null
+
     return (
-      <div className="fixed inset-0 bg-[#F5F4F0] z-50 flex items-center justify-center p-4 overflow-hidden">
-        <div className="bg-white rounded-2xl shadow-xl p-5 sm:p-6 w-full max-w-sm text-center">
-          {/* Brand */}
-          <div className="mb-4 pb-4 border-b border-gray-100">
-            <div className="text-2xl font-bold text-[#2C6E49] tracking-tight leading-tight">Gravity Stretching</div>
-            <div className="text-xs text-gray-500 uppercase tracking-[0.3em] mt-1.5 font-medium">Canggu</div>
-          </div>
+      <div className="fixed inset-0 bg-gradient-to-br from-[#F5F4F0] via-[#EFEEE8] to-[#E8E6DD] z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div className="w-full max-w-sm my-auto">
+          {/* Ticket card */}
+          <div className="bg-white rounded-3xl shadow-2xl relative overflow-hidden">
+            {/* Top accent bar */}
+            <div className="h-1.5 bg-gradient-to-r from-[#2C6E49] via-[#3a8a5d] to-[#2C6E49]"></div>
 
-          {/* Confirmation header */}
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <CheckCircle size={18} className="text-[#2C6E49]" />
-            <span className="text-sm font-medium text-gray-700">Spot confirmed for {booking.clientName}</span>
-          </div>
+            {/* Header with logo */}
+            <div className="px-6 pt-6 pb-5 text-center">
+              <div className="flex justify-center mb-3">
+                <div className="w-20 h-20 rounded-full bg-white border-2 border-gray-100 flex items-center justify-center shadow-sm">
+                  <img src="/icon.png" alt="Gravity Stretching Canggu" className="w-16 h-16 object-contain" />
+                </div>
+              </div>
 
-          {/* Slot info */}
-          <div className="text-xs text-gray-400 mb-4">
-            {selectedDate && format(parseISO(selectedDate), "EEE, MMM d")} · {formatTime(booking.slot.startTime)}
-          </div>
+              {/* Confirmed badge */}
+              <div className="inline-flex items-center gap-1.5 bg-[#2C6E49]/10 text-[#2C6E49] px-3 py-1 rounded-full mb-3">
+                <CheckCircle size={13} />
+                <span className="text-[11px] font-bold uppercase tracking-wider">Booking confirmed</span>
+              </div>
 
-          {/* QR code */}
-          <div className="flex justify-center mb-3">
-            <div className="p-2 bg-white rounded-xl border border-gray-100">
-              <QRCodeSVG
-                value={`GRAVITY-${booking.ticketCode}`}
-                size={140}
-                fgColor="#1a1a1a"
-                bgColor="#ffffff"
-                level="M"
-              />
+              <h2 className="text-xl font-bold text-gray-900 mb-0.5">{booking.clientName}</h2>
+              <p className="text-xs text-gray-400 uppercase tracking-widest">
+                {partySize > 1 ? `${partySize} spots reserved` : "1 spot reserved"}
+              </p>
+            </div>
+
+            {/* Slot info row */}
+            <div className="mx-6 grid grid-cols-2 gap-3 pb-5">
+              <div className="bg-[#F8F7F3] rounded-xl p-3 text-center">
+                <div className="text-[9px] uppercase text-gray-400 tracking-wider mb-1 font-semibold">Date</div>
+                <div className="text-sm font-bold text-gray-900">{dateStr}</div>
+              </div>
+              <div className="bg-[#F8F7F3] rounded-xl p-3 text-center">
+                <div className="text-[9px] uppercase text-gray-400 tracking-wider mb-1 font-semibold">Time</div>
+                <div className="text-sm font-bold text-gray-900">{timeStr}</div>
+              </div>
+            </div>
+
+            {/* Perforated divider */}
+            <div className="relative">
+              <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#F5F4F0] rounded-full"></div>
+              <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#F5F4F0] rounded-full"></div>
+              <div className="mx-6 border-t-2 border-dashed border-gray-200"></div>
+            </div>
+
+            {/* Stub with barcode and code */}
+            <div className="px-6 pt-5 pb-6 text-center">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-gray-400 mb-2 font-semibold">
+                Show this code to your trainer
+              </div>
+
+              {/* Big code */}
+              <div className="text-5xl font-bold tracking-[0.4em] text-gray-900 mb-4 font-mono">
+                {booking.ticketCode}
+              </div>
+
+              {/* Barcode */}
+              <div className="flex justify-center items-end h-14 gap-px mb-1">
+                {barcodeBars.map((b, i) => (
+                  <div
+                    key={i}
+                    style={{ width: `${b.width}px` }}
+                    className={`h-full ${b.isBar ? "bg-gray-900" : "bg-transparent"}`}
+                  />
+                ))}
+              </div>
+              <div className="text-[10px] tracking-[0.5em] text-gray-400 font-mono">
+                GRV-{booking.ticketCode}
+              </div>
+            </div>
+
+            {/* Brand footer */}
+            <div className="bg-[#F8F7F3] px-6 py-4 text-center border-t border-gray-100">
+              <div className="text-base font-bold text-[#2C6E49] tracking-tight">Gravity Stretching</div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-[0.4em] mt-0.5">Canggu</div>
             </div>
           </div>
 
-          {/* Code */}
-          <div className="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Your code</div>
-          <div className="text-4xl font-bold tracking-[0.3em] text-gray-900 mb-3">{booking.ticketCode}</div>
+          {/* Reminder tip */}
+          <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 mt-3 text-center">
+            <p className="text-sm font-semibold text-gray-800 mb-1">Please arrive 10 minutes early 🧘</p>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Bring water, wear comfortable clothing.<br/>
+              We can&apos;t wait to see you on the mat 🌿
+            </p>
+          </div>
 
-          <p className="text-xs text-gray-400 mb-4">See you on the mat 🌿</p>
-
-          {/* WhatsApp confirmation button */}
-          {form.clientPhone && (() => {
-            const waLink = whatsappLink(form.clientPhone, bookingConfirmationMessage({
-              clientName: form.clientName,
-              date: selectedDate ? format(parseISO(selectedDate), "EEE, MMM d") : "",
-              time: formatTime(booking.slot.startTime),
-              ticketCode: booking.ticketCode,
-              partySize,
-            }))
-            if (!waLink) return null
-            return (
+          {/* Actions */}
+          <div className="mt-4 space-y-2">
+            {waLink && (
               <a
                 href={waLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full mb-2 flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
+                className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white py-3 rounded-xl text-sm font-semibold transition-colors shadow-sm"
               >
                 <MessageCircle size={16} />
-                Send to WhatsApp
+                Save to WhatsApp
               </a>
-            )
-          })()}
+            )}
 
-          <button
-            onClick={() => {
-              setStep("date")
-              setSelectedDate(null)
-              setSelectedSlot(null)
-              setForm({ clientName: "", clientEmail: "", clientPhone: "" })
-              setSelectedServices([])
-              setBooking(null)
-              setPartySize(1)
-              fetchAvailableDates()
-            }}
-            className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
-          >
-            Book another session
-          </button>
+            <button
+              onClick={() => {
+                setStep("date")
+                setSelectedDate(null)
+                setSelectedSlot(null)
+                setForm({ clientName: "", clientEmail: "", clientPhone: "" })
+                setSelectedServices([])
+                setBooking(null)
+                setPartySize(1)
+                fetchAvailableDates()
+              }}
+              className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-3 rounded-xl text-sm font-medium transition-colors"
+            >
+              Book another session
+            </button>
+          </div>
         </div>
       </div>
     )
