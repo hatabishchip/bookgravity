@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { format, addDays, startOfWeek, addWeeks, subWeeks } from "date-fns"
-import { ChevronLeft, ChevronRight, Users, TrendingUp } from "lucide-react"
+import { ChevronLeft, ChevronRight, Users, TrendingUp, MessageCircle } from "lucide-react"
+import { whatsappLink } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 
 type Slot = {
@@ -311,7 +312,22 @@ export default function TrainerSchedulePage() {
                         </div>
                         {b.checkedIn && <span className="text-[10px] font-medium text-green-700 bg-green-200 px-2 py-0.5 rounded-full">✓ checked in</span>}
                       </div>
-                      <div className="text-xs text-gray-400 ml-8 mb-3">{b.clientPhone}</div>
+                      <div className="ml-8 mb-3 flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-gray-400">{b.clientPhone}</span>
+                        {(() => {
+                          const wa = whatsappLink(b.clientPhone, `Hi ${b.clientName.replace(/\s*\(\d+\/\d+\)$/, "")}! Just a friendly reminder about your stretching class today 🌿`)
+                          return wa ? (
+                            <a
+                              href={wa}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[10px] bg-[#25D366] hover:bg-[#1da851] text-white px-2 py-0.5 rounded transition-colors"
+                            >
+                              <MessageCircle size={10} /> Chat
+                            </a>
+                          ) : null
+                        })()}
+                      </div>
 
                       {/* Code verification */}
                       {!b.checkedIn && (

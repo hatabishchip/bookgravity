@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { format } from "date-fns"
-import { Search, ChevronDown } from "lucide-react"
+import { Search, ChevronDown, MessageCircle } from "lucide-react"
+import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 
 type Booking = {
@@ -15,6 +16,7 @@ type Booking = {
   paymentType: string
   paymentStatus: string
   notes?: string
+  ticketCode?: string
   createdAt: string
   slot: {
     date: string
@@ -156,6 +158,25 @@ export default function BookingsPage() {
                           <div className="text-xs text-gray-400 mb-1">Contact</div>
                           <div className="text-sm text-gray-700">{b.clientPhone}</div>
                           {b.clientTelegram && <div className="text-sm text-gray-700">{b.clientTelegram}</div>}
+                          {(() => {
+                            const wa = whatsappLink(b.clientPhone, bookingConfirmationMessage({
+                              clientName: b.clientName.replace(/\s*\(\d+\/\d+\)$/, ""),
+                              date: format(new Date(b.slot.date), "EEE, MMM d"),
+                              time: formatTime(b.slot.startTime),
+                              ticketCode: b.ticketCode || "",
+                            }))
+                            return wa ? (
+                              <a
+                                href={wa}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2 inline-flex items-center gap-1.5 text-xs bg-[#25D366] hover:bg-[#1da851] text-white px-3 py-1.5 rounded-lg transition-colors"
+                              >
+                                <MessageCircle size={12} /> WhatsApp
+                              </a>
+                            ) : null
+                          })()}
                         </div>
 
                         {b.services.length > 0 && (

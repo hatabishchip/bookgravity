@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { format, addMonths, subMonths, startOfMonth, getDaysInMonth, getDay, isBefore, isAfter, startOfDay, parseISO } from "date-fns"
-import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle } from "lucide-react"
+import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle } from "lucide-react"
+import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { QRCodeSVG } from "qrcode.react"
 import { cn } from "@/lib/utils"
 
@@ -343,6 +344,29 @@ export default function BookingWidget({ services }: { services: Service[] }) {
           <div className="text-4xl font-bold tracking-[0.3em] text-gray-900 mb-3">{booking.ticketCode}</div>
 
           <p className="text-xs text-gray-400 mb-4">See you on the mat 🌿</p>
+
+          {/* WhatsApp confirmation button */}
+          {form.clientPhone && (() => {
+            const waLink = whatsappLink(form.clientPhone, bookingConfirmationMessage({
+              clientName: form.clientName,
+              date: selectedDate ? format(parseISO(selectedDate), "EEE, MMM d") : "",
+              time: formatTime(booking.slot.startTime),
+              ticketCode: booking.ticketCode,
+              partySize,
+            }))
+            if (!waLink) return null
+            return (
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full mb-2 flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
+              >
+                <MessageCircle size={16} />
+                Send to WhatsApp
+              </a>
+            )
+          })()}
 
           <button
             onClick={() => {
