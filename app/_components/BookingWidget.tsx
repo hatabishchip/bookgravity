@@ -290,7 +290,9 @@ export default function BookingWidget({ services }: { services: Service[] }) {
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth()
   const daysInMonth = getDaysInMonth(currentMonth)
-  const firstDayOfWeek = getDay(startOfMonth(currentMonth))
+  // Week starts Monday: Mon=0, Tue=1, ..., Sun=6
+  const sundayBased = getDay(startOfMonth(currentMonth))
+  const firstDayOfWeek = (sundayBased + 6) % 7
 
   const currentMonthStart = startOfMonth(currentMonth)
   const thisMonthStart = startOfMonth(today)
@@ -468,8 +470,8 @@ export default function BookingWidget({ services }: { services: Service[] }) {
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-2">
-            {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-              <div key={d} className="text-center text-xs font-medium text-gray-400 py-2">{d}</div>
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+              <div key={d} className="text-center text-xs font-semibold text-gray-700 py-2 uppercase tracking-wider">{d}</div>
             ))}
           </div>
 
