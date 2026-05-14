@@ -124,7 +124,11 @@ export default function SchedulePage() {
     const bd = blockedDays.find((b) => b.date === date)
     if (bd) return
     setSelectedDate(date)
-    setForm({ ...EMPTY_FORM, date, trainerId: trainers[0]?.id ?? "" })
+    // Pre-fill startTimes with existing slot times for that date so the form acts as
+    // a "manage day's sessions" view (toggle to add or remove).
+    const existing = slots.filter((s) => s.date === date)
+    const existingTimes = sortTimes(existing.map((s) => s.startTime))
+    setForm({ ...EMPTY_FORM, date, trainerId: trainers[0]?.id ?? "", startTimes: existingTimes })
     setFormError("")
     setModal("create")
   }
@@ -154,14 +158,26 @@ export default function SchedulePage() {
       return
     }
 
-    // Create mode: loop through selected times
-    if (form.startTimes.length === 0) {
-      setFormError("Select at least one time")
+    // Create mode: diff against existing slots on this date
+    const existing = slots.filter((s) => s.date === form.date)
+    const existingByTime = new Map(existing.map((s) => [s.startTime, s] as const))
+    const desired = new Set(form.startTimes)
+    const toDelete = existing.filter((s) => !desired.has(s.startTime))
+    const toCreate = form.startTimes.filter((t) => !existingByTime.has(t))
+
+    if (toCreate.length === 0 && toDelete.length === 0) {
+      closeModal()
       return
     }
     setSaving(true); setFormError("")
     const failed: string[] = []
-    for (const startTime of form.startTimes) {
+
+    // Deletes first to free up any potential conflicts
+    for (const s of toDelete) {
+      const res = await fetch(`/api/admin/slots?id=${s.id}`, { method: "DELETE" })
+      if (!res.ok) failed.push(`Delete ${s.startTime}: error`)
+    }
+    for (const startTime of toCreate) {
       const res = await fetch("/api/admin/slots", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -181,7 +197,7 @@ export default function SchedulePage() {
     }
     await fetchSlots(); setSaving(false)
     if (failed.length > 0) {
-      setFormError(`Some slots not created — ${failed.join("; ")}`)
+      setFormError(`Some changes failed — ${failed.join("; ")}`)
       return
     }
     closeModal()
@@ -523,7 +539,7 @@ export default function SchedulePage() {
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h2 className="text-lg font-semibold text-gray-800">{isEdit ? "Edit Session" : "Add Session"}</h2>
+                <h2 className="text-lg font-semibold text-gray-800">{isEdit ? "Edit Session" : (slots.some((s) => s.date === form.date) ? "Manage day's sessions" : "Add Session")}</h2>
                 <p className="text-sm text-gray-400 mt-0.5">{format(new Date(form.date + "T00:00:00"), "EEEE, MMMM d")}</p>
               </div>
               <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
@@ -598,20 +614,55 @@ export default function SchedulePage() {
                       + Add
                     </button>
                   </div>
-                  {form.startTimes.length > 0 && (
-                    <div className="mt-3">
-                      <div className="text-xs text-gray-500 mb-1.5">Selected ({form.startTimes.length}):</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {form.startTimes.map((t) => (
-                          <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-medium">
-                            {formatTime(t)} – {formatTime(computeEndTime(t))}
-                            <button type="button" onClick={() => setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t) })}
-                              className="text-[#2C6E49]/60 hover:text-red-500 ml-0.5 text-base leading-none">×</button>
-                          </span>
-                        ))}
+                  {(() => {
+                    const existingForDate = slots.filter((s) => s.date === form.date)
+                    const existingTimes = new Set(existingForDate.map((s) => s.startTime))
+                    const desiredSet = new Set(form.startTimes)
+                    const removed = existingForDate.filter((s) => !desiredSet.has(s.startTime))
+                    return (form.startTimes.length > 0 || removed.length > 0) && (
+                      <div className="mt-3 space-y-2">
+                        {form.startTimes.length > 0 && (
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1.5">Sessions on this day ({form.startTimes.length}):</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {form.startTimes.map((t) => {
+                                const isExisting = existingTimes.has(t)
+                                const slot = existingForDate.find((s) => s.startTime === t)
+                                return (
+                                  <span key={t} className={cn(
+                                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium",
+                                    isExisting ? "bg-gray-100 text-gray-700" : "bg-[#2C6E49]/10 text-[#2C6E49]"
+                                  )}>
+                                    {!isExisting && <span className="text-[10px]">＋</span>}
+                                    {formatTime(t)} – {formatTime(computeEndTime(t))}
+                                    {isExisting && slot?.trainer && (
+                                      <span className="text-gray-400">· {slot.trainer.name}</span>
+                                    )}
+                                    <button type="button" onClick={() => setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t) })}
+                                      className="text-gray-400 hover:text-red-500 ml-0.5 text-base leading-none">×</button>
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {removed.length > 0 && (
+                          <div>
+                            <div className="text-xs text-rose-600 mb-1.5">Will be deleted ({removed.length}):</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {removed.map((s) => (
+                                <span key={s.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-medium line-through decoration-rose-300">
+                                  {formatTime(s.startTime)}
+                                  <button type="button" onClick={() => setForm({ ...form, startTimes: sortTimes([...form.startTimes, s.startTime]) })}
+                                    className="text-rose-400 hover:text-rose-600 ml-0.5 text-base leading-none no-underline">↺</button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    )
+                  })()}
                 </div>
               )}
 
@@ -676,7 +727,17 @@ export default function SchedulePage() {
                 )}
                 <button type="button" onClick={closeModal} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
                 <button type="submit" disabled={saving} className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
-                  {saving ? "Saving..." : isEdit ? "Save Changes" : "Create Session"}
+                  {saving ? "Saving..." : isEdit ? "Save Changes" : (() => {
+                    const existing = slots.filter((s) => s.date === form.date)
+                    const desired = new Set(form.startTimes)
+                    const toCreate = form.startTimes.filter((t) => !existing.some((s) => s.startTime === t)).length
+                    const toDelete = existing.filter((s) => !desired.has(s.startTime)).length
+                    if (toCreate === 0 && toDelete === 0) return "Save"
+                    const parts: string[] = []
+                    if (toCreate > 0) parts.push(`+${toCreate}`)
+                    if (toDelete > 0) parts.push(`−${toDelete}`)
+                    return `Save (${parts.join(" / ")})`
+                  })()}
                 </button>
               </div>
             </form>
