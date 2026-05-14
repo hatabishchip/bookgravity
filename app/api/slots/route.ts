@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
         maxCapacity: s.maxCapacity,
         bookedCount: s._count.bookings,
         available: s._count.bookings < s.maxCapacity,
+        price: s.price,
       }))
     )
   }
@@ -51,6 +52,7 @@ export async function GET(request: NextRequest) {
     maxCapacity: slot.maxCapacity,
     bookedCount: slot._count.bookings,
     available: slot._count.bookings < slot.maxCapacity,
+    price: slot.price,
   }))
 
   return NextResponse.json(result)

@@ -155,6 +155,7 @@ type Slot = {
   maxCapacity: number
   bookedCount: number
   available: boolean
+  price?: number
 }
 
 type Service = {
@@ -476,6 +477,28 @@ export default function BookingWidget({ services }: { services: Service[] }) {
 
             {/* Stub with barcode and code */}
             <div className="px-6 pt-5 pb-6 text-center">
+              {/* Cash payment notice */}
+              {(() => {
+                const perPerson = booking.slot.price ?? 300000
+                const total = perPerson * partySize
+                const totalK = Math.round(total / 1000)
+                return (
+                  <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5">
+                    <div className="text-[9px] uppercase tracking-[0.25em] text-amber-700 font-bold mb-0.5">
+                      Pay at the studio
+                    </div>
+                    <div className="text-sm font-semibold text-amber-900">
+                      Cash · <span className="text-base font-bold">{totalK}k IDR</span>
+                    </div>
+                    {partySize > 1 && (
+                      <div className="text-[10px] text-amber-700/80 mt-0.5">
+                        {Math.round(perPerson / 1000)}k × {partySize} people
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
               <div className="text-[10px] uppercase tracking-[0.3em] text-gray-400 mb-2 font-semibold">
                 Show this code to your trainer
               </div>
