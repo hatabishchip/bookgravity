@@ -22,7 +22,7 @@ type Booking = {
     date: string
     startTime: string
     endTime: string
-    trainer: { name: string }
+    trainer: { name: string } | null
   }
   services: { service: { name: string; price: number } }[]
 }
@@ -137,7 +137,7 @@ export default function BookingsPage() {
                         {formatTime(b.slot.startTime)} – {formatTime(b.slot.endTime)}
                       </div>
                     </div>
-                    <div className="text-sm text-gray-600">{b.slot.trainer.name}</div>
+                    <div className="text-sm text-gray-600">{b.slot.trainer?.name ?? <span className="text-gray-400">—</span>}</div>
                     <div>
                       <span className={cn("text-xs px-2 py-1 rounded-full font-medium", badge.cls)}>
                         {badge.label}
