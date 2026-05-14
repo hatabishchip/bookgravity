@@ -4,11 +4,12 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpen, Users, Package, LayoutDashboard, LogOut, Banknote, KeyRound, X, Menu } from "lucide-react"
+import { Calendar, BookOpen, Users, Package, LayoutDashboard, LogOut, Banknote, KeyRound, X, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/schedule", label: "Schedule", icon: Calendar },
   { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
   { href: "/admin/trainers", label: "Trainers", icon: Users },
   { href: "/admin/services", label: "Services", icon: Package },
