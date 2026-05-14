@@ -52,7 +52,7 @@ function sortTimes(times: string[]) {
 }
 
 export default function SchedulePage() {
-  const [view, setView] = useState<View>("week")
+  const [view, setView] = useState<View>("2weeks")
   const [anchor, setAnchor] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [slots, setSlots] = useState<Slot[]>([])
   const [blockedDays, setBlockedDays] = useState<BlockedDay[]>([])
