@@ -54,9 +54,14 @@ const todayStr = format(new Date(), "yyyy-MM-dd")
 
 const EMPTY_CREATE = {
   date: format(new Date(), "yyyy-MM-dd"),
-  startTime: "10:00",
+  startTimes: [] as string[],
+  customTime: "10:00",
   maxCapacity: 6,
   price: 300000,
+}
+
+function sortTimes(times: string[]) {
+  return [...new Set(times)].sort()
 }
 
 export default function TrainerSchedule({
@@ -147,31 +152,39 @@ export default function TrainerSchedule({
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (createForm.startTimes.length === 0) {
+      setCreateError("Select at least one time")
+      return
+    }
     setCreating(true)
     setCreateError("")
 
-    const res = await fetch("/api/admin/slots", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date: createForm.date,
-        startTime: createForm.startTime,
-        trainerId: trainer.id,
-        maxCapacity: Number(createForm.maxCapacity),
-        price: Number(createForm.price),
-      }),
-    })
-
-    if (!res.ok) {
-      const err = await res.json()
-      setCreateError(err.error ?? "Error")
-      setCreating(false)
-      return
+    const failed: string[] = []
+    for (const startTime of createForm.startTimes) {
+      const res = await fetch("/api/admin/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: createForm.date,
+          startTime,
+          trainerId: trainer.id,
+          maxCapacity: Number(createForm.maxCapacity),
+          price: Number(createForm.price),
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        failed.push(`${startTime}: ${err.error ?? "error"}`)
+      }
     }
 
     await fetchSlots()
-    setCreateModal(null)
     setCreating(false)
+    if (failed.length > 0) {
+      setCreateError(`Some slots not created — ${failed.join("; ")}`)
+      return
+    }
+    setCreateModal(null)
   }
 
   const slotsForDay = (date: string) => slots.filter((s) => s.date === date)
@@ -434,30 +447,60 @@ export default function TrainerSchedule({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                {/* Quick presets */}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
+                <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min)</p>
+                {/* Multi-select presets */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {TIME_PRESETS.map((t) => (
-                    <button key={t} type="button" onClick={() => setCreateForm({ ...createForm, startTime: t })}
-                      className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors",
-                        createForm.startTime === t ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
-                      )}>
-                      {formatTime(t)}
-                    </button>
-                  ))}
+                  {TIME_PRESETS.map((t) => {
+                    const selected = createForm.startTimes.includes(t)
+                    return (
+                      <button key={t} type="button" onClick={() => {
+                        const next = selected ? createForm.startTimes.filter((x) => x !== t) : sortTimes([...createForm.startTimes, t])
+                        setCreateForm({ ...createForm, startTimes: next })
+                      }}
+                        className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors",
+                          selected ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                        )}>
+                        {formatTime(t)}
+                      </button>
+                    )
+                  })}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                {/* Custom time + Add */}
+                <div className="flex gap-2">
                   <input
                     type="time"
-                    required
-                    value={createForm.startTime}
-                    onChange={(e) => setCreateForm({ ...createForm, startTime: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    value={createForm.customTime}
+                    onChange={(e) => setCreateForm({ ...createForm, customTime: e.target.value })}
+                    className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
                   />
-                  <div className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-500">
-                    {computeEndTime(createForm.startTime)} <span className="text-xs text-gray-400">(120 min)</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!createForm.customTime) return
+                      const next = sortTimes([...createForm.startTimes, createForm.customTime])
+                      setCreateForm({ ...createForm, startTimes: next })
+                    }}
+                    className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#2C6E49]/40 transition-colors"
+                  >
+                    + Add
+                  </button>
                 </div>
+                {/* Selected chips */}
+                {createForm.startTimes.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-xs text-gray-500 mb-1.5">Selected ({createForm.startTimes.length}):</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {createForm.startTimes.map((t) => (
+                        <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-medium">
+                          {formatTime(t)} – {formatTime(computeEndTime(t))}
+                          <button type="button" onClick={() => setCreateForm({ ...createForm, startTimes: createForm.startTimes.filter((x) => x !== t) })}
+                            className="text-[#2C6E49]/60 hover:text-red-500 ml-0.5 text-base leading-none">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

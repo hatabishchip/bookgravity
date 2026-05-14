@@ -45,7 +45,11 @@ function slotCardStyle(slot: Slot) {
   }
 }
 
-const EMPTY_FORM = { date: format(new Date(), "yyyy-MM-dd"), startTime: "10:00", trainerId: "", assistantId: "", maxCapacity: 6, price: 300000 }
+const EMPTY_FORM = { date: format(new Date(), "yyyy-MM-dd"), startTime: "10:00", startTimes: [] as string[], customTime: "10:00", trainerId: "", assistantId: "", maxCapacity: 6, price: 300000 }
+
+function sortTimes(times: string[]) {
+  return [...new Set(times)].sort()
+}
 
 export default function SchedulePage() {
   const [view, setView] = useState<View>("week")
@@ -126,7 +130,7 @@ export default function SchedulePage() {
 
   const openEdit = (slot: Slot) => {
     setSelectedDate(slot.date)
-    setForm({ date: slot.date, startTime: slot.startTime, trainerId: slot.trainer?.id ?? "", assistantId: slot.assistant?.id ?? "", maxCapacity: slot.maxCapacity, price: slot.price })
+    setForm({ date: slot.date, startTime: slot.startTime, startTimes: [], customTime: slot.startTime, trainerId: slot.trainer?.id ?? "", assistantId: slot.assistant?.id ?? "", maxCapacity: slot.maxCapacity, price: slot.price })
     setFormError("")
     setModal(slot)
   }
@@ -135,16 +139,51 @@ export default function SchedulePage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true); setFormError("")
     const isEdit = modal !== null && modal !== "create"
-    const url = isEdit ? `/api/admin/slots?id=${(modal as Slot).id}` : "/api/admin/slots"
-    const method = isEdit ? "PATCH" : "POST"
-    const body = isEdit
-      ? { startTime: form.startTime, trainerId: form.trainerId || null, assistantId: form.assistantId || null, maxCapacity: form.maxCapacity, price: form.price }
-      : { ...form, trainerId: form.trainerId || undefined, assistantId: form.assistantId || null, maxCapacity: Number(form.maxCapacity) }
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    if (!res.ok) { const err = await res.json(); setFormError(err.error ?? "Error"); setSaving(false); return }
-    await fetchSlots(); closeModal(); setSaving(false)
+
+    if (isEdit) {
+      setSaving(true); setFormError("")
+      const res = await fetch(`/api/admin/slots?id=${(modal as Slot).id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startTime: form.startTime, trainerId: form.trainerId || null, assistantId: form.assistantId || null, maxCapacity: form.maxCapacity, price: form.price }),
+      })
+      if (!res.ok) { const err = await res.json(); setFormError(err.error ?? "Error"); setSaving(false); return }
+      await fetchSlots(); closeModal(); setSaving(false)
+      return
+    }
+
+    // Create mode: loop through selected times
+    if (form.startTimes.length === 0) {
+      setFormError("Select at least one time")
+      return
+    }
+    setSaving(true); setFormError("")
+    const failed: string[] = []
+    for (const startTime of form.startTimes) {
+      const res = await fetch("/api/admin/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: form.date,
+          startTime,
+          trainerId: form.trainerId || undefined,
+          assistantId: form.assistantId || null,
+          maxCapacity: Number(form.maxCapacity),
+          price: Number(form.price),
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        failed.push(`${startTime}: ${err.error ?? "error"}`)
+      }
+    }
+    await fetchSlots(); setSaving(false)
+    if (failed.length > 0) {
+      setFormError(`Some slots not created — ${failed.join("; ")}`)
+      return
+    }
+    closeModal()
   }
 
   const handleDelete = async (id: string) => {
@@ -448,29 +487,80 @@ export default function SchedulePage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                {/* Quick presets */}
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {TIME_PRESETS.map((t) => (
-                    <button key={t} type="button" onClick={() => setForm({ ...form, startTime: t })}
-                      className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors",
-                        form.startTime === t ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
-                      )}>
-                      {formatTime(t)}
-                    </button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <input type="time" required value={form.startTime}
-                    onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                  />
-                  <div className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-500">
-                    {computeEndTime(form.startTime)} <span className="text-xs text-gray-400">(120 min)</span>
+              {isEdit ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {TIME_PRESETS.map((t) => (
+                      <button key={t} type="button" onClick={() => setForm({ ...form, startTime: t })}
+                        className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors",
+                          form.startTime === t ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                        )}>
+                        {formatTime(t)}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="time" required value={form.startTime}
+                      onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    />
+                    <div className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-500">
+                      {computeEndTime(form.startTime)} <span className="text-xs text-gray-400">(120 min)</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
+                  <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min)</p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {TIME_PRESETS.map((t) => {
+                      const selected = form.startTimes.includes(t)
+                      return (
+                        <button key={t} type="button" onClick={() => {
+                          const next = selected ? form.startTimes.filter((x) => x !== t) : sortTimes([...form.startTimes, t])
+                          setForm({ ...form, startTimes: next })
+                        }}
+                          className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors",
+                            selected ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                          )}>
+                          {formatTime(t)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="flex gap-2">
+                    <input type="time" value={form.customTime}
+                      onChange={(e) => setForm({ ...form, customTime: e.target.value })}
+                      className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    />
+                    <button type="button"
+                      onClick={() => {
+                        if (!form.customTime) return
+                        setForm({ ...form, startTimes: sortTimes([...form.startTimes, form.customTime]) })
+                      }}
+                      className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#2C6E49]/40 transition-colors"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                  {form.startTimes.length > 0 && (
+                    <div className="mt-3">
+                      <div className="text-xs text-gray-500 mb-1.5">Selected ({form.startTimes.length}):</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {form.startTimes.map((t) => (
+                          <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-medium">
+                            {formatTime(t)} – {formatTime(computeEndTime(t))}
+                            <button type="button" onClick={() => setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t) })}
+                              className="text-[#2C6E49]/60 hover:text-red-500 ml-0.5 text-base leading-none">×</button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Trainer</label>
