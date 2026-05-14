@@ -721,20 +721,21 @@ export default function BookingWidget({ services }: { services: Service[] }) {
                     isSelected
                       ? "bg-[#2C6E49] text-white"
                       : clickable
-                        ? "text-gray-900 bg-emerald-50 hover:bg-emerald-100 cursor-pointer"
-                        : isFull && !isPast && !isTooFar
-                          ? "text-gray-500 bg-rose-50 cursor-not-allowed"
-                          : isPast && hadPastClass
-                            ? "text-gray-500 bg-gray-100 cursor-not-allowed"
-                            : "text-gray-300 cursor-not-allowed",
+                        ? "text-gray-900 hover:bg-[#2C6E49]/10 cursor-pointer"
+                        : (isFull && !isPast && !isTooFar) || (isPast && hadPastClass)
+                          ? "text-gray-500 cursor-not-allowed"
+                          : "text-gray-300 cursor-not-allowed",
                   )}
                 >
                   {day.getDate()}
                   {clickable && !isSelected && (
-                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#2C6E49]" />
+                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
                   )}
                   {isFull && !isPast && !isTooFar && !isSelected && (
-                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-rose-400" />
+                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  )}
+                  {isPast && hadPastClass && !isSelected && (
+                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-gray-400" />
                   )}
                 </button>
               )
@@ -742,17 +743,17 @@ export default function BookingWidget({ services }: { services: Service[] }) {
           </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 mt-4 text-xs">
-            <div className="flex items-center gap-1.5 text-gray-500">
-              <span className="w-3.5 h-3.5 rounded-full bg-emerald-50 border border-emerald-100" />
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 text-xs">
+            <div className="flex items-center gap-1.5 text-gray-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
               <span>Available</span>
             </div>
-            <div className="flex items-center gap-1.5 text-gray-500">
-              <span className="w-3.5 h-3.5 rounded-full bg-rose-50 border border-rose-100" />
+            <div className="flex items-center gap-1.5 text-gray-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
               <span>Fully booked</span>
             </div>
-            <div className="flex items-center gap-1.5 text-gray-500">
-              <span className="w-3.5 h-3.5 rounded-full bg-gray-100 border border-gray-200" />
+            <div className="flex items-center gap-1.5 text-gray-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
               <span>Past class</span>
             </div>
           </div>
