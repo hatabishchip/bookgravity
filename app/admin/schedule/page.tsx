@@ -66,7 +66,15 @@ export default function SchedulePage() {
   const [blockModal, setBlockModal] = useState<{ date: string; existing?: BlockedDay } | null>(null)
   const [blockReason, setBlockReason] = useState("")
   const [blocking, setBlocking] = useState(false)
-  const [copyModal, setCopyModal] = useState<null | { sourceStart: Date; targetStart: Date; toCopy: Slot[]; skipped: number; loading: boolean; running: boolean }>(null)
+  type CopyPlan = { weekIndex: number; targetStart: Date; toCopy: Slot[]; skipped: number }
+  const [copyModal, setCopyModal] = useState<null | {
+    sourceStart: Date
+    sourceSlots: Slot[]
+    weeksAhead: number
+    plans: CopyPlan[]
+    loading: boolean
+    running: boolean
+  }>(null)
 
   const todayStr = format(new Date(), "yyyy-MM-dd")
 
@@ -235,44 +243,61 @@ export default function SchedulePage() {
     setBlockModal(null); setBlocking(false)
   }
 
-  // Copy current calendar week → next week (skip conflicts)
+  // Build a copy plan for N weeks ahead, given source slots and start date.
+  // Skips times that already exist on the target week (same date+startTime).
+  const buildCopyPlans = async (sourceSlots: Slot[], sourceStart: Date, weeksAhead: number): Promise<CopyPlan[]> => {
+    const plans: CopyPlan[] = []
+    for (let i = 1; i <= weeksAhead; i++) {
+      const targetStart = addDays(sourceStart, 7 * i)
+      const targetEnd = addDays(targetStart, 6)
+      const res = await fetch(`/api/admin/slots?from=${format(targetStart, "yyyy-MM-dd")}&to=${format(targetEnd, "yyyy-MM-dd")}`)
+      const dstSlots: Slot[] = await res.json()
+      const dstKeys = new Set(dstSlots.map((s) => `${s.date}|${s.startTime}`))
+      const toCopy = sourceSlots.filter((s) => {
+        const newDate = format(addDays(parseISO(s.date), 7 * i), "yyyy-MM-dd")
+        return !dstKeys.has(`${newDate}|${s.startTime}`)
+      })
+      plans.push({ weekIndex: i, targetStart, toCopy, skipped: sourceSlots.length - toCopy.length })
+    }
+    return plans
+  }
+
   const openCopyModal = async () => {
     const sourceStart = startOfWeek(new Date(), { weekStartsOn: 1 })
     const sourceEnd = addDays(sourceStart, 6)
-    const targetStart = addDays(sourceStart, 7)
-    const targetEnd = addDays(targetStart, 6)
-    setCopyModal({ sourceStart, targetStart, toCopy: [], skipped: 0, loading: true, running: false })
-    const [srcRes, dstRes] = await Promise.all([
-      fetch(`/api/admin/slots?from=${format(sourceStart, "yyyy-MM-dd")}&to=${format(sourceEnd, "yyyy-MM-dd")}`),
-      fetch(`/api/admin/slots?from=${format(targetStart, "yyyy-MM-dd")}&to=${format(targetEnd, "yyyy-MM-dd")}`),
-    ])
-    const srcSlots: Slot[] = await srcRes.json()
-    const dstSlots: Slot[] = await dstRes.json()
-    const dstKeys = new Set(dstSlots.map((s) => `${s.date}|${s.startTime}`))
-    const toCopy = srcSlots.filter((s) => {
-      const newDate = format(addDays(parseISO(s.date), 7), "yyyy-MM-dd")
-      return !dstKeys.has(`${newDate}|${s.startTime}`)
-    })
-    setCopyModal({ sourceStart, targetStart, toCopy, skipped: srcSlots.length - toCopy.length, loading: false, running: false })
+    setCopyModal({ sourceStart, sourceSlots: [], weeksAhead: 1, plans: [], loading: true, running: false })
+    const srcRes = await fetch(`/api/admin/slots?from=${format(sourceStart, "yyyy-MM-dd")}&to=${format(sourceEnd, "yyyy-MM-dd")}`)
+    const sourceSlots: Slot[] = await srcRes.json()
+    const plans = await buildCopyPlans(sourceSlots, sourceStart, 1)
+    setCopyModal({ sourceStart, sourceSlots, weeksAhead: 1, plans, loading: false, running: false })
+  }
+
+  const changeWeeksAhead = async (n: number) => {
+    if (!copyModal) return
+    setCopyModal({ ...copyModal, weeksAhead: n, loading: true })
+    const plans = await buildCopyPlans(copyModal.sourceSlots, copyModal.sourceStart, n)
+    setCopyModal((prev) => prev ? { ...prev, weeksAhead: n, plans, loading: false } : null)
   }
 
   const runCopy = async () => {
     if (!copyModal || copyModal.loading || copyModal.running) return
     setCopyModal({ ...copyModal, running: true })
-    for (const s of copyModal.toCopy) {
-      const newDate = format(addDays(parseISO(s.date), 7), "yyyy-MM-dd")
-      await fetch("/api/admin/slots", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: newDate,
-          startTime: s.startTime,
-          trainerId: s.trainer?.id ?? undefined,
-          assistantId: s.assistant?.id ?? null,
-          maxCapacity: s.maxCapacity,
-          price: s.price,
-        }),
-      })
+    for (const plan of copyModal.plans) {
+      for (const s of plan.toCopy) {
+        const newDate = format(addDays(parseISO(s.date), 7 * plan.weekIndex), "yyyy-MM-dd")
+        await fetch("/api/admin/slots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: newDate,
+            startTime: s.startTime,
+            trainerId: s.trainer?.id ?? undefined,
+            assistantId: s.assistant?.id ?? null,
+            maxCapacity: s.maxCapacity,
+            price: s.price,
+          }),
+        })
+      }
     }
     await fetchSlots()
     setCopyModal(null)
@@ -746,88 +771,134 @@ export default function SchedulePage() {
       )}
 
       {/* Copy week modal */}
-      {copyModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-            <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-800">Copy week to next</h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {format(copyModal.sourceStart, "MMM d")} – {format(addDays(copyModal.sourceStart, 6), "MMM d")}
-                  {" → "}
-                  {format(copyModal.targetStart, "MMM d")} – {format(addDays(copyModal.targetStart, 6), "MMM d")}
-                </p>
-              </div>
-              <button onClick={() => !copyModal.running && setCopyModal(null)} disabled={copyModal.running}
-                className="p-1.5 hover:bg-gray-100 rounded-lg disabled:opacity-40"><X size={18} /></button>
-            </div>
-
-            <div className="px-6 py-5">
-              {copyModal.loading ? (
-                <div className="text-center py-6 text-sm text-gray-500">Analyzing current and next week…</div>
-              ) : copyModal.toCopy.length === 0 ? (
-                <div className="text-center py-6">
-                  <p className="text-sm font-medium text-gray-800">Nothing to copy</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {copyModal.skipped > 0
-                      ? `All ${copyModal.skipped} session(s) from this week already exist next week.`
-                      : "This week has no sessions to copy."}
+      {copyModal && (() => {
+        const totalToCopy = copyModal.plans.reduce((sum, p) => sum + p.toCopy.length, 0)
+        const totalSkipped = copyModal.plans.reduce((sum, p) => sum + p.skipped, 0)
+        const sourceLen = copyModal.sourceSlots.length
+        const lastTarget = copyModal.plans[copyModal.plans.length - 1]?.targetStart
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
+              <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Copy week forward</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    From {format(copyModal.sourceStart, "MMM d")} – {format(addDays(copyModal.sourceStart, 6), "MMM d")}
+                    {lastTarget && ` → through ${format(addDays(lastTarget, 6), "MMM d")}`}
                   </p>
                 </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-bold">
-                      {copyModal.toCopy.length}
-                    </span>
-                    <span className="text-sm text-gray-700 font-medium">
-                      session{copyModal.toCopy.length !== 1 ? "s" : ""} will be copied
-                    </span>
+                <button onClick={() => !copyModal.running && setCopyModal(null)} disabled={copyModal.running}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg disabled:opacity-40"><X size={18} /></button>
+              </div>
+
+              <div className="px-6 py-5 overflow-y-auto">
+                {/* Week count selector */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Copy to how many weeks ahead?</label>
+                  <div className="flex gap-1.5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        disabled={copyModal.loading || copyModal.running}
+                        onClick={() => changeWeeksAhead(n)}
+                        className={cn(
+                          "flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors disabled:opacity-50",
+                          copyModal.weeksAhead === n
+                            ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                            : "bg-white text-gray-700 border-gray-200 hover:border-[#2C6E49]/40"
+                        )}
+                      >
+                        {n} {n === 1 ? "week" : "weeks"}
+                      </button>
+                    ))}
                   </div>
-                  {copyModal.skipped > 0 && (
-                    <div className="mb-3 p-2.5 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800">
-                      {copyModal.skipped} session{copyModal.skipped !== 1 ? "s" : ""} skipped — already exist on the same date and time next week.
+                </div>
+
+                {copyModal.loading ? (
+                  <div className="text-center py-6 text-sm text-gray-500">Analyzing weeks…</div>
+                ) : sourceLen === 0 ? (
+                  <div className="text-center py-6">
+                    <p className="text-sm font-medium text-gray-800">This week has no sessions to copy</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Summary */}
+                    <div className="mb-3 p-3 rounded-xl bg-[#2C6E49]/5 border border-[#2C6E49]/10">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-bold text-[#2C6E49]">{totalToCopy}</span>
+                        <span className="text-sm text-gray-700">
+                          session{totalToCopy !== 1 ? "s" : ""} will be created across {copyModal.weeksAhead} week{copyModal.weeksAhead !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      {totalSkipped > 0 && (
+                        <div className="text-xs text-amber-700 mt-1">
+                          {totalSkipped} skipped — already exist at the same date and time
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-100 divide-y divide-gray-50">
-                    {copyModal.toCopy.map((s) => {
-                      const newDate = format(addDays(parseISO(s.date), 7), "EEE, MMM d")
-                      return (
-                        <div key={s.id} className="flex items-center justify-between px-3 py-2 text-xs">
-                          <div>
-                            <div className="font-medium text-gray-800">{newDate} · {formatTime(s.startTime)}</div>
-                            <div className="text-gray-400 mt-0.5">
-                              {s.trainer ? s.trainer.name : "Unassigned"}
-                              {s.assistant && ` + ${s.assistant.name}`}
+
+                    {/* Per-week breakdown */}
+                    <div className="space-y-2.5">
+                      {copyModal.plans.map((plan) => (
+                        <div key={plan.weekIndex} className="rounded-xl border border-gray-100 overflow-hidden">
+                          <div className="px-3 py-2 bg-gray-50 flex items-center justify-between">
+                            <div className="text-xs font-semibold text-gray-700">
+                              Week {plan.weekIndex} · {format(plan.targetStart, "MMM d")} – {format(addDays(plan.targetStart, 6), "MMM d")}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              <span className="text-[#2C6E49] font-medium">+{plan.toCopy.length}</span>
+                              {plan.skipped > 0 && <span className="ml-2 text-amber-600">−{plan.skipped} skipped</span>}
                             </div>
                           </div>
-                          <div className="text-gray-400">{Math.round(s.price / 1000)}k</div>
+                          {plan.toCopy.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-gray-400 italic">All sessions already exist this week</div>
+                          ) : (
+                            <div className="divide-y divide-gray-50 max-h-32 overflow-y-auto">
+                              {plan.toCopy.map((s) => {
+                                const newDate = format(addDays(parseISO(s.date), 7 * plan.weekIndex), "EEE, MMM d")
+                                return (
+                                  <div key={`${plan.weekIndex}-${s.id}`} className="flex items-center justify-between px-3 py-1.5 text-xs">
+                                    <div>
+                                      <div className="font-medium text-gray-800">{newDate} · {formatTime(s.startTime)}</div>
+                                      <div className="text-gray-400 mt-0.5">
+                                        {s.trainer ? s.trainer.name : "Unassigned"}
+                                        {s.assistant && ` + ${s.assistant.name}`}
+                                      </div>
+                                    </div>
+                                    <div className="text-gray-400">{Math.round(s.price / 1000)}k</div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
                         </div>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
 
-            <div className="px-6 pb-5 flex gap-2">
-              <button
-                onClick={() => !copyModal.running && setCopyModal(null)}
-                disabled={copyModal.running}
-                className="flex-1 bg-white border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={runCopy}
-                disabled={copyModal.loading || copyModal.running || copyModal.toCopy.length === 0}
-                className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
-              >
-                {copyModal.running ? "Copying…" : `Copy ${copyModal.toCopy.length || ""}`.trim()}
-              </button>
+              <div className="px-6 pb-5 flex gap-2 flex-shrink-0 border-t border-gray-100 pt-4">
+                <button
+                  onClick={() => !copyModal.running && setCopyModal(null)}
+                  disabled={copyModal.running}
+                  className="flex-1 bg-white border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={runCopy}
+                  disabled={copyModal.loading || copyModal.running || totalToCopy === 0}
+                  className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+                >
+                  {copyModal.running ? "Copying…" : totalToCopy > 0 ? `Copy ${totalToCopy} sessions` : "Nothing to copy"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )
+      })()
       )}
     </div>
   )
