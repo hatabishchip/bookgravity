@@ -49,6 +49,7 @@ function computeEndTime(startTime: string) {
 }
 
 const VIEW_LABELS: Record<View, string> = { week: "Week", "2weeks": "2 Weeks", month: "Month" }
+const TIME_PRESETS = ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00"]
 const todayStr = format(new Date(), "yyyy-MM-dd")
 
 const EMPTY_CREATE = {
@@ -432,9 +433,20 @@ export default function TrainerSchedule({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                {/* Quick presets */}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {TIME_PRESETS.map((t) => (
+                    <button key={t} type="button" onClick={() => setCreateForm({ ...createForm, startTime: t })}
+                      className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors",
+                        createForm.startTime === t ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                      )}>
+                      {formatTime(t)}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <input
                     type="time"
                     required
@@ -442,9 +454,6 @@ export default function TrainerSchedule({
                     onChange={(e) => setCreateForm({ ...createForm, startTime: e.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
                   <div className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-500">
                     {computeEndTime(createForm.startTime)} <span className="text-xs text-gray-400">(120 min)</span>
                   </div>
