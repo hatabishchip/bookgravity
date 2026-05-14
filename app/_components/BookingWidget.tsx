@@ -722,7 +722,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
                       ? "bg-[#2C6E49] text-white"
                       : clickable
                         ? "text-gray-900 hover:bg-[#2C6E49]/10 cursor-pointer"
-                        : (isFull && !isPast && !isTooFar) || (isPast && hadPastClass)
+                        : isFull && !isPast && !isTooFar
                           ? "text-gray-500 cursor-not-allowed"
                           : "text-gray-300 cursor-not-allowed",
                   )}
