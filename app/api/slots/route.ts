@@ -6,17 +6,19 @@ export async function GET(request: NextRequest) {
   const date = searchParams.get("date")
 
   if (!date) {
-    // Return all dates that have slots within next month
+    // Return all dates that have slots from the start of the current month to one month ahead.
+    // Past dates of this month are included so the calendar can mark days that had classes.
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
     const maxDate = new Date(today)
     maxDate.setMonth(maxDate.getMonth() + 1)
 
-    const todayStr = today.toISOString().split("T")[0]
+    const monthStartStr = monthStart.toISOString().split("T")[0]
     const maxStr = maxDate.toISOString().split("T")[0]
 
     const slots = await prisma.timeSlot.findMany({
-      where: { date: { gte: todayStr, lte: maxStr } },
+      where: { date: { gte: monthStartStr, lte: maxStr } },
       include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     })

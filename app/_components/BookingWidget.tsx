@@ -262,16 +262,24 @@ export default function BookingWidget({ services }: { services: Service[] }) {
     setAllSlots(data)
   }, [])
 
-  // Dates that have at least one slot with enough free seats for the party
+  const todayStr = format(today, "yyyy-MM-dd")
+
+  // Future dates that have at least one slot with enough free seats for the party
   const availableDates = new Set(
     allSlots
-      .filter((s) => (s.maxCapacity - s.bookedCount) >= partySize)
+      .filter((s) => s.date >= todayStr && (s.maxCapacity - s.bookedCount) >= partySize)
       .map((s) => s.date)
   )
-  // Dates that have scheduled classes but no slot can fit the party (fully booked or insufficient)
+  // Future dates that have scheduled classes but no slot can fit the party (fully booked or insufficient)
   const fullyBookedDates = new Set(
     allSlots
-      .filter((s) => !availableDates.has(s.date))
+      .filter((s) => s.date >= todayStr && !availableDates.has(s.date))
+      .map((s) => s.date)
+  )
+  // Past dates that had a class scheduled — shown so the user sees there was a session
+  const pastDatesWithSlots = new Set(
+    allSlots
+      .filter((s) => s.date < todayStr)
       .map((s) => s.date)
   )
 
@@ -699,26 +707,30 @@ export default function BookingWidget({ services }: { services: Service[] }) {
               const isTooFar = isAfter(day, maxDate)
               const hasSlot = availableDates.has(str)
               const isFull = fullyBookedDates.has(str)
-              const disabled = isPast || isTooFar || (!hasSlot && !isFull)
+              const hadPastClass = pastDatesWithSlots.has(str)
               const isSelected = selectedDate === str
+              const clickable = hasSlot && !isPast && !isTooFar
 
               return (
                 <button
                   key={str}
-                  onClick={() => !disabled && handleDateSelect(day)}
-                  disabled={disabled}
+                  onClick={() => clickable && handleDateSelect(day)}
+                  disabled={!clickable}
                   className={cn(
                     "aspect-square rounded-full text-sm font-medium transition-all flex items-center justify-center relative",
-                    isSelected ? "bg-[#2C6E49] text-white" :
-                    hasSlot && !isPast && !isTooFar
-                      ? "text-gray-800 hover:bg-[#2C6E49]/10 cursor-pointer"
-                      : isFull && !isPast && !isTooFar
-                        ? "text-gray-700 bg-rose-50 hover:bg-rose-100 cursor-pointer line-through decoration-rose-300 decoration-[1.5px]"
-                        : "text-gray-300 cursor-not-allowed",
+                    isSelected
+                      ? "bg-[#2C6E49] text-white"
+                      : clickable
+                        ? "text-gray-900 bg-emerald-50 hover:bg-emerald-100 cursor-pointer"
+                        : isFull && !isPast && !isTooFar
+                          ? "text-gray-500 bg-rose-50 cursor-not-allowed"
+                          : isPast && hadPastClass
+                            ? "text-gray-500 bg-gray-100 cursor-not-allowed"
+                            : "text-gray-300 cursor-not-allowed",
                   )}
                 >
                   {day.getDate()}
-                  {hasSlot && !isPast && !isTooFar && !isSelected && (
+                  {clickable && !isSelected && (
                     <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#2C6E49]" />
                   )}
                   {isFull && !isPast && !isTooFar && !isSelected && (
@@ -730,14 +742,18 @@ export default function BookingWidget({ services }: { services: Service[] }) {
           </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 text-xs">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 mt-4 text-xs">
             <div className="flex items-center gap-1.5 text-gray-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
+              <span className="w-3.5 h-3.5 rounded-full bg-emerald-50 border border-emerald-100" />
               <span>Available</span>
             </div>
             <div className="flex items-center gap-1.5 text-gray-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+              <span className="w-3.5 h-3.5 rounded-full bg-rose-50 border border-rose-100" />
               <span>Fully booked</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-gray-500">
+              <span className="w-3.5 h-3.5 rounded-full bg-gray-100 border border-gray-200" />
+              <span>Past class</span>
             </div>
           </div>
           <p className="text-center text-xs text-gray-400 mt-2">
