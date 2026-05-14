@@ -217,6 +217,34 @@ export default function BookingWidget({ services }: { services: Service[] }) {
 
   useEffect(() => { fetchAvailableDates() }, [fetchAvailableDates])
 
+  // Restore persisted ticket if class date is today or in the future
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("bg_active_ticket")
+      if (!raw) return
+      const saved = JSON.parse(raw) as {
+        booking: { id: string; clientName: string; slot: Slot; ticketCode: string }
+        selectedDate: string
+        partySize: number
+        form: { clientName: string; clientPhone: string; clientEmail: string }
+      }
+      const classDate = parseISO(saved.selectedDate)
+      const todayStart = startOfDay(new Date())
+      if (isBefore(classDate, todayStart)) {
+        localStorage.removeItem("bg_active_ticket")
+        return
+      }
+      setBooking(saved.booking)
+      setSelectedDate(saved.selectedDate)
+      setSelectedSlot(saved.booking.slot)
+      setPartySize(saved.partySize)
+      setForm(saved.form)
+      setStep("done")
+    } catch {
+      localStorage.removeItem("bg_active_ticket")
+    }
+  }, [])
+
   const fetchSlots = useCallback(async (date: string) => {
     setLoading(true)
     const res = await fetch(`/api/slots?date=${date}`)
@@ -293,8 +321,19 @@ export default function BookingWidget({ services }: { services: Service[] }) {
       }
 
       const data = await res.json()
-      setBooking({ id: data.id, clientName: form.clientName, slot: selectedSlot, ticketCode: data.ticketCode })
+      const bookingData = { id: data.id, clientName: form.clientName, slot: selectedSlot, ticketCode: data.ticketCode }
+      setBooking(bookingData)
       setStep("done")
+      // Persist ticket so it survives page reloads until the class is in the past
+      try {
+        const persisted = {
+          booking: bookingData,
+          selectedDate,
+          partySize,
+          form: { clientName: form.clientName, clientPhone: form.clientPhone, clientEmail: form.clientEmail },
+        }
+        localStorage.setItem("bg_active_ticket", JSON.stringify(persisted))
+      } catch {}
     } finally {
       setSubmitting(false)
     }
@@ -439,6 +478,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
 
             <button
               onClick={() => {
+                try { localStorage.removeItem("bg_active_ticket") } catch {}
                 setStep("date")
                 setSelectedDate(null)
                 setSelectedSlot(null)
