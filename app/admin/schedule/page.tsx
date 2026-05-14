@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { format, addDays, startOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns"
-import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, Unlock } from "lucide-react"
+import { format, addDays, startOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, endOfWeek, addMonths, subMonths, isSameMonth, parseISO } from "date-fns"
+import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, Unlock, Copy } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type View = "week" | "2weeks" | "month"
@@ -66,6 +66,7 @@ export default function SchedulePage() {
   const [blockModal, setBlockModal] = useState<{ date: string; existing?: BlockedDay } | null>(null)
   const [blockReason, setBlockReason] = useState("")
   const [blocking, setBlocking] = useState(false)
+  const [copyModal, setCopyModal] = useState<null | { sourceStart: Date; targetStart: Date; toCopy: Slot[]; skipped: number; loading: boolean; running: boolean }>(null)
 
   const todayStr = format(new Date(), "yyyy-MM-dd")
 
@@ -218,6 +219,49 @@ export default function SchedulePage() {
     setBlockModal(null); setBlocking(false)
   }
 
+  // Copy current calendar week → next week (skip conflicts)
+  const openCopyModal = async () => {
+    const sourceStart = startOfWeek(new Date(), { weekStartsOn: 1 })
+    const sourceEnd = addDays(sourceStart, 6)
+    const targetStart = addDays(sourceStart, 7)
+    const targetEnd = addDays(targetStart, 6)
+    setCopyModal({ sourceStart, targetStart, toCopy: [], skipped: 0, loading: true, running: false })
+    const [srcRes, dstRes] = await Promise.all([
+      fetch(`/api/admin/slots?from=${format(sourceStart, "yyyy-MM-dd")}&to=${format(sourceEnd, "yyyy-MM-dd")}`),
+      fetch(`/api/admin/slots?from=${format(targetStart, "yyyy-MM-dd")}&to=${format(targetEnd, "yyyy-MM-dd")}`),
+    ])
+    const srcSlots: Slot[] = await srcRes.json()
+    const dstSlots: Slot[] = await dstRes.json()
+    const dstKeys = new Set(dstSlots.map((s) => `${s.date}|${s.startTime}`))
+    const toCopy = srcSlots.filter((s) => {
+      const newDate = format(addDays(parseISO(s.date), 7), "yyyy-MM-dd")
+      return !dstKeys.has(`${newDate}|${s.startTime}`)
+    })
+    setCopyModal({ sourceStart, targetStart, toCopy, skipped: srcSlots.length - toCopy.length, loading: false, running: false })
+  }
+
+  const runCopy = async () => {
+    if (!copyModal || copyModal.loading || copyModal.running) return
+    setCopyModal({ ...copyModal, running: true })
+    for (const s of copyModal.toCopy) {
+      const newDate = format(addDays(parseISO(s.date), 7), "yyyy-MM-dd")
+      await fetch("/api/admin/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: newDate,
+          startTime: s.startTime,
+          trainerId: s.trainer?.id ?? undefined,
+          assistantId: s.assistant?.id ?? null,
+          maxCapacity: s.maxCapacity,
+          price: s.price,
+        }),
+      })
+    }
+    await fetchSlots()
+    setCopyModal(null)
+  }
+
   const slotsForDay = (d: string) => slots.filter((s) => s.date === d)
   const isEdit = modal !== null && modal !== "create"
   const isMonthView = view === "month"
@@ -234,12 +278,21 @@ export default function SchedulePage() {
             <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Schedule</h1>
             <p className="text-gray-500 text-xs lg:text-sm mt-0.5 truncate">{headerLabel}</p>
           </div>
-          <button
-            onClick={() => openCreate(selectedDate ?? todayStr)}
-            className="flex items-center gap-2 bg-[#2C6E49] text-white px-3 lg:px-4 py-2 rounded-xl text-xs lg:text-sm font-medium hover:bg-[#1E4D34] transition-colors flex-shrink-0"
-          >
-            <Plus size={16} /> <span className="hidden sm:inline">Add Session</span><span className="sm:hidden">Add</span>
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={openCopyModal}
+              className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 px-3 lg:px-4 py-2 rounded-xl text-xs lg:text-sm font-medium hover:border-[#2C6E49]/40 hover:bg-gray-50 transition-colors"
+              title="Copy this week's schedule to next week"
+            >
+              <Copy size={15} /> <span className="hidden sm:inline">Copy week</span>
+            </button>
+            <button
+              onClick={() => openCreate(selectedDate ?? todayStr)}
+              className="flex items-center gap-2 bg-[#2C6E49] text-white px-3 lg:px-4 py-2 rounded-xl text-xs lg:text-sm font-medium hover:bg-[#1E4D34] transition-colors"
+            >
+              <Plus size={16} /> <span className="hidden sm:inline">Add Session</span><span className="sm:hidden">Add</span>
+            </button>
+          </div>
         </div>
 
         {/* View switcher — full width on mobile */}
@@ -627,6 +680,91 @@ export default function SchedulePage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Copy week modal */}
+      {copyModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+            <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">Copy week to next</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {format(copyModal.sourceStart, "MMM d")} – {format(addDays(copyModal.sourceStart, 6), "MMM d")}
+                  {" → "}
+                  {format(copyModal.targetStart, "MMM d")} – {format(addDays(copyModal.targetStart, 6), "MMM d")}
+                </p>
+              </div>
+              <button onClick={() => !copyModal.running && setCopyModal(null)} disabled={copyModal.running}
+                className="p-1.5 hover:bg-gray-100 rounded-lg disabled:opacity-40"><X size={18} /></button>
+            </div>
+
+            <div className="px-6 py-5">
+              {copyModal.loading ? (
+                <div className="text-center py-6 text-sm text-gray-500">Analyzing current and next week…</div>
+              ) : copyModal.toCopy.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-sm font-medium text-gray-800">Nothing to copy</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {copyModal.skipped > 0
+                      ? `All ${copyModal.skipped} session(s) from this week already exist next week.`
+                      : "This week has no sessions to copy."}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-bold">
+                      {copyModal.toCopy.length}
+                    </span>
+                    <span className="text-sm text-gray-700 font-medium">
+                      session{copyModal.toCopy.length !== 1 ? "s" : ""} will be copied
+                    </span>
+                  </div>
+                  {copyModal.skipped > 0 && (
+                    <div className="mb-3 p-2.5 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800">
+                      {copyModal.skipped} session{copyModal.skipped !== 1 ? "s" : ""} skipped — already exist on the same date and time next week.
+                    </div>
+                  )}
+                  <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-100 divide-y divide-gray-50">
+                    {copyModal.toCopy.map((s) => {
+                      const newDate = format(addDays(parseISO(s.date), 7), "EEE, MMM d")
+                      return (
+                        <div key={s.id} className="flex items-center justify-between px-3 py-2 text-xs">
+                          <div>
+                            <div className="font-medium text-gray-800">{newDate} · {formatTime(s.startTime)}</div>
+                            <div className="text-gray-400 mt-0.5">
+                              {s.trainer ? s.trainer.name : "Unassigned"}
+                              {s.assistant && ` + ${s.assistant.name}`}
+                            </div>
+                          </div>
+                          <div className="text-gray-400">{Math.round(s.price / 1000)}k</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="px-6 pb-5 flex gap-2">
+              <button
+                onClick={() => !copyModal.running && setCopyModal(null)}
+                disabled={copyModal.running}
+                className="flex-1 bg-white border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={runCopy}
+                disabled={copyModal.loading || copyModal.running || copyModal.toCopy.length === 0}
+                className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+              >
+                {copyModal.running ? "Copying…" : `Copy ${copyModal.toCopy.length || ""}`.trim()}
+              </button>
+            </div>
           </div>
         </div>
       )}
