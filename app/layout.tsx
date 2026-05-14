@@ -7,6 +7,9 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
 export const metadata: Metadata = {
   title: "Gravity Stretching Changgu",
   description: "Book your group stretching session in Changgu, Bali",
+  other: {
+    "facebook-domain-verification": "clyp87431mdp6q9nj6nz1ashxbrycv",
+  },
 }
 
 export const viewport: Viewport = {
