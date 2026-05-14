@@ -9,12 +9,14 @@ export const authConfig: NextAuthConfig = {
       if (user) {
         token.role = (user as { role: string }).role
         token.id = user.id!
+        token.studioId = (user as { studioId?: string }).studioId
       }
       return token
     },
     session({ session, token }) {
       session.user.role = token.role as string
       session.user.id = token.id as string
+      session.user.studioId = token.studioId as string
       return session
     },
   },

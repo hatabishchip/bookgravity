@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { format, startOfMonth, endOfMonth } from "date-fns"
 
@@ -7,18 +7,18 @@ const BASE_SALARY = 1_000_000
 const ASSISTANT_RATE = 5
 
 export async function GET() {
-  const session = await auth()
-  if (!session || session.user.role !== "TRAINER") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const ctx = await requireTrainer()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const trainer = await prisma.trainer.findUnique({ where: { userId: session.user.id } })
+  const trainer = await prisma.trainer.findFirst({
+    where: { userId: ctx.userId, studioId: ctx.studioId },
+  })
   if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
 
   const now = new Date()
   const monthStart = format(startOfMonth(now), "yyyy-MM-dd")
   const monthEnd = format(endOfMonth(now), "yyyy-MM-dd")
-  const slotFilter = { date: { gte: monthStart, lte: monthEnd } }
+  const slotFilter = { date: { gte: monthStart, lte: monthEnd }, studioId: ctx.studioId }
   const paidFilter = { status: "CONFIRMED", paymentStatus: "PAID" }
 
   // Main trainer slots with assistant info

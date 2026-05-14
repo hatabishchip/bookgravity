@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 
 const BASE_SALARY = 1_000_000
 const ASSISTANT_RATE = 5
 
-async function requireAdmin() {
-  const session = await auth()
-  if (!session || session.user.role !== "ADMIN") return null
-  return session
-}
-
 export async function GET(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
   const month = searchParams.get("month") ?? new Date().toISOString().slice(0, 7)
@@ -22,14 +17,15 @@ export async function GET(request: NextRequest) {
   const lastDay = new Date(year, mon, 0).getDate()
   const monthEnd = `${month}-${String(lastDay).padStart(2, "0")}`
 
-  const slotFilter = { date: { gte: monthStart, lte: monthEnd } }
+  const slotFilter = { date: { gte: monthStart, lte: monthEnd }, studioId: ctx.studioId }
   const paidBookingsFilter = { status: "CONFIRMED", paymentStatus: "PAID" }
 
   const trainers = await prisma.trainer.findMany({
+    where: { studioId: ctx.studioId },
     orderBy: { name: "asc" },
     include: {
       user: { select: { email: true } },
-      payments: { where: { month } },
+      payments: { where: { month, studioId: ctx.studioId } },
       timeSlots: {
         where: slotFilter,
         include: {

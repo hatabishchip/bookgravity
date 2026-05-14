@@ -1,10 +1,12 @@
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
+import { getDefaultStudioId } from "@/lib/studio"
 import BookingWidget from "./_components/BookingWidget"
 
 export default async function HomePage() {
+  const studioId = await getDefaultStudioId()
   const services = await prisma.additionalService.findMany({
-    where: { active: true },
+    where: { active: true, studioId },
     orderBy: { name: "asc" },
   })
 

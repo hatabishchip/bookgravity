@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { getDefaultStudioId } from "@/lib/studio"
 import { z } from "zod"
 
 const BookingSchema = z.object({
@@ -29,12 +30,23 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = BookingSchema.parse(body)
 
-    const slot = await prisma.timeSlot.findUnique({
-      where: { id: data.slotId },
+    const studioId = await getDefaultStudioId()
+    const slot = await prisma.timeSlot.findFirst({
+      where: { id: data.slotId, studioId },
       include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
     })
 
     if (!slot) return NextResponse.json({ error: "Slot not found" }, { status: 404 })
+
+    if (data.serviceIds?.length) {
+      const services = await prisma.additionalService.findMany({
+        where: { id: { in: data.serviceIds }, studioId },
+        select: { id: true },
+      })
+      if (services.length !== data.serviceIds.length) {
+        return NextResponse.json({ error: "Invalid service" }, { status: 400 })
+      }
+    }
 
     const seatsLeft = slot.maxCapacity - slot._count.bookings
     if (seatsLeft < data.partySize) {

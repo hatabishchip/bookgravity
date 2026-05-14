@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -9,23 +9,19 @@ const UpdateSchema = z.object({
   notes: z.string().optional(),
 })
 
-async function requireTrainer() {
-  const session = await auth()
-  if (!session || session.user.role !== "TRAINER") return null
-  return session
-}
-
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireTrainer()
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireTrainer()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
 
-  const trainer = await prisma.trainer.findUnique({ where: { userId: session.user.id } })
+  const trainer = await prisma.trainer.findFirst({
+    where: { userId: ctx.userId, studioId: ctx.studioId },
+  })
   if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
 
-  const booking = await prisma.booking.findUnique({
-    where: { id },
+  const booking = await prisma.booking.findFirst({
+    where: { id, slot: { studioId: ctx.studioId } },
     include: { slot: true },
   })
   if (!booking || booking.slot.trainerId !== trainer.id) {

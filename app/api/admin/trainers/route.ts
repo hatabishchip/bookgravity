@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import bcrypt from "bcryptjs"
@@ -10,16 +10,12 @@ const TrainerSchema = z.object({
   password: z.string().min(6),
 })
 
-async function requireAdmin() {
-  const session = await auth()
-  if (!session || session.user.role !== "ADMIN") return null
-  return session
-}
-
 export async function GET() {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const trainers = await prisma.trainer.findMany({
+    where: { studioId: ctx.studioId },
     include: { user: { select: { email: true } } },
     orderBy: { name: "asc" },
   })
@@ -28,7 +24,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
     const body = await request.json()
@@ -46,7 +43,8 @@ export async function POST(request: NextRequest) {
         email: data.email,
         password: hashed,
         role: "TRAINER",
-        trainer: { create: { name: data.name } },
+        studioId: ctx.studioId,
+        trainer: { create: { name: data.name, studioId: ctx.studioId } },
       },
       include: { trainer: true },
     })
@@ -61,7 +59,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
@@ -89,8 +88,11 @@ export async function PATCH(request: NextRequest) {
     updateData.whatsapp = String(body.whatsapp)
   }
 
+  const existing = await prisma.trainer.findFirst({ where: { id, studioId: ctx.studioId } })
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
   const trainer = await prisma.trainer.update({
-    where: { id },
+    where: { id: existing.id },
     data: updateData,
     include: { user: { select: { email: true } } },
   })
@@ -98,13 +100,14 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const trainer = await prisma.trainer.findUnique({ where: { id } })
+  const trainer = await prisma.trainer.findFirst({ where: { id, studioId: ctx.studioId } })
   if (!trainer) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   await prisma.user.delete({ where: { id: trainer.userId } })

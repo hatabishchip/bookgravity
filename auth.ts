@@ -7,12 +7,14 @@ import { authConfig } from "./auth.config"
 declare module "next-auth" {
   interface User {
     role: string
+    studioId?: string
   }
   interface Session {
     user: {
       id: string
       email: string
       role: string
+      studioId: string
       name?: string | null
     }
   }
@@ -38,7 +40,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) return null
 
-        return { id: user.id, email: user.email, role: user.role, name: user.email }
+        return { id: user.id, email: user.email, role: user.role, studioId: user.studioId, name: user.email }
       },
     }),
   ],

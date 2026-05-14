@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -10,21 +10,21 @@ const UpdateSchema = z.object({
   status: z.enum(["CONFIRMED", "CANCELLED"]).optional(),
 })
 
-async function requireAdmin() {
-  const session = await auth()
-  if (!session || session.user.role !== "ADMIN") return null
-  return session
-}
-
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
   const body = await request.json()
   const data = UpdateSchema.parse(body)
 
+  const existing = await prisma.booking.findFirst({
+    where: { id, slot: { studioId: ctx.studioId } },
+  })
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
   const booking = await prisma.booking.update({
-    where: { id },
+    where: { id: existing.id },
     data,
     include: {
       slot: { include: { trainer: { select: { name: true } } } },

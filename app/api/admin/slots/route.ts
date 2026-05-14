@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -32,21 +32,19 @@ const SlotSchema = z.object({
   price: z.number().min(0).default(0),
 })
 
-async function requireAdmin() {
-  const session = await auth()
-  if (!session || session.user.role !== "ADMIN") return null
-  return session
-}
-
 export async function GET(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
   const from = searchParams.get("from")
   const to = searchParams.get("to")
 
   const slots = await prisma.timeSlot.findMany({
-    where: from && to ? { date: { gte: from, lte: to } } : {},
+    where: {
+      studioId: ctx.studioId,
+      ...(from && to ? { date: { gte: from, lte: to } } : {}),
+    },
     include: slotInclude,
     orderBy: [{ date: "asc" }, { startTime: "asc" }],
   })
@@ -55,7 +53,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
     const body = await request.json()
@@ -65,7 +64,7 @@ export async function POST(request: NextRequest) {
     const endMin = startMin + CLASS_DURATION_MIN
     const endTime = minToTime(endMin)
 
-    const existingSlots = await prisma.timeSlot.findMany({ where: { date: data.date } })
+    const existingSlots = await prisma.timeSlot.findMany({ where: { date: data.date, studioId: ctx.studioId } })
 
     // Max 7 sessions per day
     if (existingSlots.length >= MAX_SLOTS_PER_DAY) {
@@ -88,7 +87,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if day is blocked
-    const blocked = await prisma.blockedDay.findUnique({ where: { date: data.date } })
+    const blocked = await prisma.blockedDay.findFirst({ where: { date: data.date, studioId: ctx.studioId } })
     if (blocked) {
       return NextResponse.json(
         { error: `${data.date} is blocked${blocked.reason ? ": " + blocked.reason : ""}. Unblock the day first.` },
@@ -97,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
 
     const slot = await prisma.timeSlot.create({
-      data: { ...data, endTime },
+      data: { ...data, endTime, studioId: ctx.studioId },
       include: slotInclude,
     })
 
@@ -111,7 +110,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
@@ -131,11 +131,11 @@ export async function PATCH(request: NextRequest) {
     const endMin = startMin + CLASS_DURATION_MIN
     const endTime = minToTime(endMin)
 
-    const current = await prisma.timeSlot.findUnique({ where: { id } })
+    const current = await prisma.timeSlot.findFirst({ where: { id, studioId: ctx.studioId } })
     if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const siblings = await prisma.timeSlot.findMany({
-      where: { date: current.date, NOT: { id } },
+      where: { date: current.date, studioId: ctx.studioId, NOT: { id } },
     })
     for (const slot of siblings) {
       const exStart = timeToMin(slot.startTime)
@@ -149,7 +149,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const updated = await prisma.timeSlot.update({
-      where: { id },
+      where: { id: current.id },
       data: {
         startTime: data.startTime, endTime,
         trainerId: data.trainerId ?? null,
@@ -169,12 +169,14 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  await prisma.timeSlot.delete({ where: { id } })
+  const result = await prisma.timeSlot.deleteMany({ where: { id, studioId: ctx.studioId } })
+  if (result.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 })
   return NextResponse.json({ success: true })
 }

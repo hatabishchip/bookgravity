@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-
-async function requireAdmin() {
-  const session = await auth()
-  if (!session || session.user.role !== "ADMIN") return null
-  return session
-}
 
 const PaymentSchema = z.object({
   trainerId: z.string(),
@@ -17,12 +11,22 @@ const PaymentSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
     const body = await request.json()
     const data = PaymentSchema.parse(body)
-    const payment = await prisma.trainerPayment.create({ data })
+
+    // Verify trainer belongs to this studio
+    const trainer = await prisma.trainer.findFirst({
+      where: { id: data.trainerId, studioId: ctx.studioId },
+    })
+    if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
+
+    const payment = await prisma.trainerPayment.create({
+      data: { ...data, studioId: ctx.studioId },
+    })
     return NextResponse.json(payment, { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -33,12 +37,14 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  await prisma.trainerPayment.delete({ where: { id } })
+  const result = await prisma.trainerPayment.deleteMany({ where: { id, studioId: ctx.studioId } })
+  if (result.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 })
   return NextResponse.json({ success: true })
 }

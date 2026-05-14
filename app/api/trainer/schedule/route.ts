@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 
-async function requireTrainer() {
-  const session = await auth()
-  if (!session || session.user.role !== "TRAINER") return null
-  return session
-}
-
 export async function GET(request: NextRequest) {
-  const session = await requireTrainer()
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const ctx = await requireTrainer()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const trainer = await prisma.trainer.findUnique({
-    where: { userId: session.user.id },
+  const trainer = await prisma.trainer.findFirst({
+    where: { userId: ctx.userId, studioId: ctx.studioId },
   })
   if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
 
@@ -25,6 +19,7 @@ export async function GET(request: NextRequest) {
   const slots = await prisma.timeSlot.findMany({
     where: {
       trainerId: trainer.id,
+      studioId: ctx.studioId,
       date: {
         gte: from ?? today,
         ...(to ? { lte: to } : {}),

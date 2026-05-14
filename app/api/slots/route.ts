@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { getDefaultStudioId } from "@/lib/studio"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const date = searchParams.get("date")
+  const studioId = await getDefaultStudioId()
 
   if (!date) {
     // Return all dates that have slots from the start of the current month to one month ahead.
@@ -18,7 +20,7 @@ export async function GET(request: NextRequest) {
     const maxStr = maxDate.toISOString().split("T")[0]
 
     const slots = await prisma.timeSlot.findMany({
-      where: { date: { gte: monthStartStr, lte: maxStr } },
+      where: { studioId, date: { gte: monthStartStr, lte: maxStr } },
       include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     })
@@ -38,7 +40,7 @@ export async function GET(request: NextRequest) {
   }
 
   const slots = await prisma.timeSlot.findMany({
-    where: { date },
+    where: { studioId, date },
     include: {
       _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
       trainer: { select: { name: true } },
