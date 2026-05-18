@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, parseISO } from "date-fns"
-import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, Unlock, Copy } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, Unlock, Copy, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 
@@ -976,12 +976,14 @@ export default function SchedulePage() {
                                             onClick={() => updateAssignment({ publicVisible: !assignment.publicVisible })}
                                             title={assignment.publicVisible ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
                                             className={cn(
-                                              "w-7 h-7 rounded text-[12px] font-bold leading-none flex items-center justify-center border touch-manipulation",
+                                              "w-7 h-7 rounded flex items-center justify-center border touch-manipulation",
                                               assignment.publicVisible
                                                 ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
-                                                : "bg-gray-100 text-gray-400 border-gray-200"
+                                                : "bg-gray-50 text-gray-400 border-gray-200"
                                             )}>
-                                            {assignment.publicVisible ? "👁" : "🚫"}
+                                            {assignment.publicVisible
+                                              ? <Eye size={14} strokeWidth={2.25} />
+                                              : <EyeOff size={14} strokeWidth={2.25} />}
                                           </button>
                                         </>
                                       )}

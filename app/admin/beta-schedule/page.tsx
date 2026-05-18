@@ -5,7 +5,7 @@ import {
   format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addMonths, isSameMonth, isSameDay,
 } from "date-fns"
-import { X, Plus, Trash2 } from "lucide-react"
+import { X, Plus, Trash2, Eye, EyeOff } from "lucide-react"
 import { whatsappLink } from "@/lib/whatsapp"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { PriceInput } from "@/app/_components/PriceInput"
@@ -1147,12 +1147,14 @@ function SlotCreator({
                                     onClick={() => updateAssignment(t, { publicVisible: !a.publicVisible })}
                                     title={a.publicVisible ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
                                     className={cn(
-                                      "w-7 h-7 rounded text-[12px] font-bold leading-none flex items-center justify-center border touch-manipulation",
+                                      "w-7 h-7 rounded flex items-center justify-center border touch-manipulation",
                                       a.publicVisible
                                         ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
-                                        : "bg-gray-100 text-gray-400 border-gray-200"
+                                        : "bg-gray-50 text-gray-400 border-gray-200"
                                     )}>
-                                    {a.publicVisible ? "👁" : "🚫"}
+                                    {a.publicVisible
+                                      ? <Eye size={14} strokeWidth={2.25} />
+                                      : <EyeOff size={14} strokeWidth={2.25} />}
                                   </button>
                                 </>
                               )}
