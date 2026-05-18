@@ -1005,23 +1005,23 @@ function SlotCreator({
                         const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
                         return (
                           <div key={t} className={cn(
-                            "relative rounded-lg text-xs border pl-2.5 pr-8 py-2 space-y-1.5",
+                            "relative rounded-lg text-xs border pl-3 pr-10 py-2.5 space-y-2",
                             isExisting ? "bg-gray-50 border-gray-200" : "bg-[#2C6E49]/5 border-[#2C6E49]/15"
                           )}>
                             <button type="button" onClick={() => toggleTime(t)}
                               title={isExisting ? "Remove this session" : "Discard this new session"}
                               aria-label="Remove session"
                               className={cn(
-                                "absolute top-1 right-1 w-5 h-5 rounded-md flex items-center justify-center text-base leading-none touch-manipulation",
+                                "absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center text-lg leading-none touch-manipulation",
                                 isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-[#2C6E49]/60 hover:text-rose-600 hover:bg-rose-50"
                               )}>×</button>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className={cn("font-medium whitespace-nowrap",
                                 isExisting ? "text-gray-700" : "text-[#2C6E49]"
                               )}>
                                 {formatTime(t)}–{formatTime(computeEndTime(t))}
                               </span>
-                              <div className="ml-auto flex gap-0.5">
+                              <div className="ml-auto flex gap-1">
                                 {CLASS_TYPES.map((c) => {
                                   const wasPrivate = a.classType === "PRIVATE"
                                   return (
@@ -1044,7 +1044,7 @@ function SlotCreator({
                                       }}
                                       title={c.label}
                                       className={cn(
-                                        "w-6 h-6 rounded text-[10px] font-bold leading-none flex items-center justify-center border touch-manipulation",
+                                        "w-7 h-7 rounded text-[11px] font-bold leading-none flex items-center justify-center border touch-manipulation",
                                         a.classType === c.value
                                           ? "bg-[#2C6E49] text-white border-[#2C6E49]"
                                           : "bg-white text-gray-500 border-gray-200"
@@ -1055,24 +1055,27 @@ function SlotCreator({
                                 })}
                               </div>
                               {(a.classType === "KIDS" || a.classType === "PRIVATE") && (
-                                <button type="button"
-                                  onClick={() => updateAssignment(t, { publicVisible: !a.publicVisible })}
-                                  title={a.publicVisible ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
-                                  className={cn(
-                                    "w-6 h-6 rounded text-[10px] font-bold leading-none flex items-center justify-center border touch-manipulation",
-                                    a.publicVisible
-                                      ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
-                                      : "bg-gray-100 text-gray-400 border-gray-200"
-                                  )}>
-                                  {a.publicVisible ? "👁" : "🚫"}
-                                </button>
+                                <>
+                                  <span className="w-px h-5 bg-gray-300/60 flex-shrink-0" aria-hidden />
+                                  <button type="button"
+                                    onClick={() => updateAssignment(t, { publicVisible: !a.publicVisible })}
+                                    title={a.publicVisible ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
+                                    className={cn(
+                                      "w-7 h-7 rounded text-[12px] font-bold leading-none flex items-center justify-center border touch-manipulation",
+                                      a.publicVisible
+                                        ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
+                                        : "bg-gray-100 text-gray-400 border-gray-200"
+                                    )}>
+                                    {a.publicVisible ? "👁" : "🚫"}
+                                  </button>
+                                </>
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                               <select
                                 value={a.trainerId}
                                 onChange={(e) => updateAssignment(t, { trainerId: e.target.value, assistantId: e.target.value ? a.assistantId : "" })}
-                                className="flex-1 text-xs border border-gray-200 rounded-md px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30"
+                                className="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30"
                               >
                                 <option value="">Unassigned</option>
                                 {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
@@ -1081,13 +1084,14 @@ function SlotCreator({
                                 <select
                                   value={a.assistantId}
                                   onChange={(e) => updateAssignment(t, { assistantId: e.target.value })}
-                                  className="flex-1 text-xs border border-dashed border-gray-200 rounded-md px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 text-gray-500"
+                                  className="flex-1 min-w-0 text-xs border border-dashed border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 text-gray-500"
                                   title="Assistant"
                                 >
                                   <option value="">+ Asst</option>
                                   {trainers.filter((tr) => tr.id !== a.trainerId).map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
                                 </select>
                               )}
+                              <span className="w-px h-5 bg-gray-300/60 flex-shrink-0" aria-hidden />
                               {(() => {
                                 const isPrivate = a.classType === "PRIVATE"
                                 return (
@@ -1096,7 +1100,7 @@ function SlotCreator({
                                     disabled={isPrivate}
                                     onChange={(e) => updateAssignment(t, { maxCapacity: Number(e.target.value) })}
                                     title={isPrivate ? "Private session is always 1 person" : "Capacity"}
-                                    className="text-xs border border-gray-200 rounded-md px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 disabled:opacity-60 disabled:bg-gray-50"
+                                    className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 disabled:opacity-60 disabled:bg-gray-50 flex-shrink-0"
                                   >
                                     {[1, 2, 3, 4, 5, 6].map((n) => (
                                       <option key={n} value={n}>👤 {n}</option>
