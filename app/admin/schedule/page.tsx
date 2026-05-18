@@ -927,7 +927,7 @@ export default function SchedulePage() {
                                         "absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center text-lg leading-none touch-manipulation",
                                         hasBookings ? "text-gray-300 cursor-not-allowed" :
                                           isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-[#2C6E49]/60 hover:text-rose-600 hover:bg-rose-50"
-                                      )}>{hasBookings ? "🔒" : "×"}</button>
+                                      )}>×</button>
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className={cn(
                                         "font-medium whitespace-nowrap",
@@ -935,11 +935,6 @@ export default function SchedulePage() {
                                       )}>
                                         {formatTime(t)} – {formatTime(computeEndTime(t))}
                                       </span>
-                                      {hasBookings && (
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] text-[10px] font-semibold leading-none whitespace-nowrap" title="Confirmed bookings">
-                                          👥 {bookingCount}
-                                        </span>
-                                      )}
                                       <div className="ml-auto flex gap-1">
                                         {CLASS_TYPES.map((c) => (
                                           <button key={c.value} type="button"
@@ -1026,6 +1021,14 @@ export default function SchedulePage() {
                                           <option key={n} value={n}>👤 {n}</option>
                                         ))}
                                       </select>
+                                      {hasBookings && (
+                                        <span
+                                          className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold leading-none whitespace-nowrap flex-shrink-0"
+                                          title={`${bookingCount} confirmed booking${bookingCount === 1 ? "" : "s"} — session can't be removed`}
+                                        >
+                                          🔒 {bookingCount}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 )
