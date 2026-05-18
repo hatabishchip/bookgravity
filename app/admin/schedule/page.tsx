@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, parseISO } from "date-fns"
-import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, Unlock, Copy, Eye, EyeOff } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, X, Lock, Unlock, Copy, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 
@@ -380,24 +380,6 @@ export default function SchedulePage() {
     })
   }
 
-  const handleDelete = (id: string) => {
-    if (!confirm("Delete this session? Existing bookings will remain.")) return
-    // Optimistic — remove from local state immediately, fire request in background
-    setSlots((prev) => prev.filter((s) => s.id !== id))
-    if (modal !== null && modal !== "create" && (modal as Slot).id === id) closeModal()
-    fetch(`/api/admin/slots?id=${id}`, { method: "DELETE" }).then(async (r) => {
-      if (!r.ok) {
-        setSyncError(`delete: ${r.status}`)
-        setTimeout(() => setSyncError(null), 5000)
-      }
-      fetchSlots()
-    }).catch(() => {
-      setSyncError("delete: network")
-      setTimeout(() => setSyncError(null), 5000)
-      fetchSlots()
-    })
-  }
-
   // Block/unblock day
   const openBlockModal = (e: React.MouseEvent, date: string) => {
     e.stopPropagation()
@@ -737,12 +719,6 @@ export default function SchedulePage() {
                         >
                           {slot._count.bookings}/{slot.maxCapacity}
                         </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(slot.id) }}
-                          className="absolute top-1 right-1 opacity-0 group-hover/slot:opacity-100 p-0.5 bg-white hover:bg-red-50 rounded shadow-sm text-red-400 transition-all border border-red-100"
-                        >
-                          <Trash2 size={10} />
-                        </button>
                       </div>
                     )
                   })}
