@@ -34,6 +34,24 @@ function computeEndTime(startTime: string) {
   return `${String(Math.floor(e / 60)).padStart(2, "0")}:${String(e % 60).padStart(2, "0")}`
 }
 
+const CLASS_DURATION = 120 // minutes, matches the server
+
+function timeToMin(t: string) {
+  const [h, m] = t.split(":").map(Number)
+  return h * 60 + m
+}
+
+// Two classes overlap if their [start, start+120) intervals intersect.
+// Equivalently: their start times are < 120 min apart.
+function overlapsAny(candidate: string, otherStartTimes: string[]) {
+  const c = timeToMin(candidate)
+  for (const t of otherStartTimes) {
+    if (t === candidate) continue
+    if (Math.abs(timeToMin(t) - c) < CLASS_DURATION) return t
+  }
+  return null
+}
+
 function hexToRgba(hex: string, alpha: number) {
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
@@ -785,27 +803,45 @@ export default function SchedulePage() {
 
             <form onSubmit={handleSave} className="flex-1 flex flex-col overflow-hidden min-w-0">
               <div className="px-6 py-4 space-y-4 overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
+                {formError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2.5 rounded-xl flex items-start gap-2">
+                    <span className="text-base leading-none">⚠</span>
+                    <span className="flex-1">{formError}</span>
+                    <button type="button" onClick={() => setFormError("")} className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
-                  <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min)</p>
+                  <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min). Times within 2h of an existing one are locked.</p>
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {TIME_PRESETS.map((t) => {
                       const selected = form.startTimes.includes(t)
+                      const conflictWith = !selected ? overlapsAny(t, form.startTimes) : null
+                      const disabled = !!conflictWith
                       return (
-                        <button key={t} type="button" onClick={() => {
-                          if (selected) {
-                            const newA = { ...form.assignments }
-                            delete newA[t]
-                            setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newA })
-                          } else {
-                            const newTimes = sortTimes([...form.startTimes, t])
-                            const newA = { ...form.assignments }
-                            if (!newA[t]) newA[t] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6 }
-                            setForm({ ...form, startTimes: newTimes, assignments: newA })
-                          }
-                        }}
+                        <button key={t} type="button"
+                          disabled={disabled}
+                          title={disabled && conflictWith ? `Conflicts with ${formatTime(conflictWith)}` : undefined}
+                          onClick={() => {
+                            if (selected) {
+                              const newA = { ...form.assignments }
+                              delete newA[t]
+                              setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newA })
+                              setFormError("")
+                            } else {
+                              const newTimes = sortTimes([...form.startTimes, t])
+                              const newA = { ...form.assignments }
+                              if (!newA[t]) newA[t] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6 }
+                              setForm({ ...form, startTimes: newTimes, assignments: newA })
+                              setFormError("")
+                            }
+                          }}
                           className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium",
-                            selected ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                            selected
+                              ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                              : disabled
+                                ? "bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed line-through"
+                                : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
                           )}>
                           {formatTime(t)}
                         </button>
@@ -820,9 +856,19 @@ export default function SchedulePage() {
                     <button type="button"
                       onClick={() => {
                         if (!form.customTime) return
+                        if (form.startTimes.includes(form.customTime)) {
+                          setFormError(`${formatTime(form.customTime)} is already in the list`)
+                          return
+                        }
+                        const conflict = overlapsAny(form.customTime, form.startTimes)
+                        if (conflict) {
+                          setFormError(`${formatTime(form.customTime)} overlaps with ${formatTime(conflict)}–${formatTime(computeEndTime(conflict))} (classes are 2h long)`)
+                          return
+                        }
                         const newA = { ...form.assignments }
                         if (!newA[form.customTime]) newA[form.customTime] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6 }
                         setForm({ ...form, startTimes: sortTimes([...form.startTimes, form.customTime]), assignments: newA })
+                        setFormError("")
                       }}
                       className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#2C6E49]/40 transition-colors"
                     >
@@ -981,7 +1027,6 @@ export default function SchedulePage() {
                   })()}
                 </div>
 
-              {formError && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{formError}</div>}
               </div>
 
               <div className="px-6 py-4 flex gap-3 flex-shrink-0 border-t border-gray-100">

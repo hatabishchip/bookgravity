@@ -89,6 +89,22 @@ function computeEndTime(startTime: string) {
   return `${String(Math.floor(e / 60)).padStart(2, "0")}:${String(e % 60).padStart(2, "0")}`
 }
 
+const CLASS_DURATION = 120
+
+function timeToMin(t: string) {
+  const [h, m] = t.split(":").map(Number)
+  return h * 60 + m
+}
+
+function overlapsAny(candidate: string, otherStartTimes: string[]) {
+  const c = timeToMin(candidate)
+  for (const t of otherStartTimes) {
+    if (t === candidate) continue
+    if (Math.abs(timeToMin(t) - c) < CLASS_DURATION) return t
+  }
+  return null
+}
+
 function hexToRgba(hex: string, alpha: number) {
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
@@ -807,7 +823,16 @@ function SlotCreator({
   }, [existingSlots])
 
   const toggleTime = (t: string) => {
-    setStartTimes((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : sortTimes([...prev, t]))
+    setError("")
+    setStartTimes((prev) => {
+      if (prev.includes(t)) return prev.filter((x) => x !== t)
+      const conflict = overlapsAny(t, prev)
+      if (conflict) {
+        setError(`${formatTime(t)} overlaps with ${formatTime(conflict)}–${formatTime(computeEndTime(conflict))} (classes are 2h long)`)
+        return prev
+      }
+      return sortTimes([...prev, t])
+    })
     setAssignments((prev) => {
       if (prev[t]) return prev
       return { ...prev, [t]: { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6 } }
@@ -959,16 +984,32 @@ function SlotCreator({
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2.5 rounded-xl flex items-start gap-2">
+              <span className="text-base leading-none">⚠</span>
+              <span className="flex-1">{error}</span>
+              <button type="button" onClick={() => setError("")} className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
-            <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min)</p>
+            <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min). Times within 2h of an existing one are locked.</p>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {TIME_PRESETS.map((t) => {
                 const selected = startTimes.includes(t)
+                const conflictWith = !selected ? overlapsAny(t, startTimes) : null
+                const disabled = !!conflictWith
                 return (
-                  <button key={t} type="button" onClick={() => toggleTime(t)}
+                  <button key={t} type="button"
+                    disabled={disabled}
+                    title={disabled && conflictWith ? `Conflicts with ${formatTime(conflictWith)}` : undefined}
+                    onClick={() => toggleTime(t)}
                     className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium touch-manipulation",
-                      selected ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200"
+                      selected
+                        ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                        : disabled
+                          ? "bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed line-through"
+                          : "bg-white text-gray-600 border-gray-200"
                     )}>
                     {formatTime(t)}
                   </button>
@@ -981,7 +1022,20 @@ function SlotCreator({
                 className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
               />
               <button type="button"
-                onClick={() => { if (customTime) { toggleTime(customTime); setCustomTime("") } }}
+                onClick={() => {
+                  if (!customTime) return
+                  if (startTimes.includes(customTime)) {
+                    setError(`${formatTime(customTime)} is already in the list`)
+                    return
+                  }
+                  const conflict = overlapsAny(customTime, startTimes)
+                  if (conflict) {
+                    setError(`${formatTime(customTime)} overlaps with ${formatTime(conflict)}–${formatTime(computeEndTime(conflict))} (classes are 2h long)`)
+                    return
+                  }
+                  toggleTime(customTime)
+                  setCustomTime("")
+                }}
                 className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700">
                 + Add
               </button>
@@ -1132,10 +1186,6 @@ function SlotCreator({
               </div>
             )
           })()}
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-3 py-2 rounded-lg">{error}</div>
-          )}
         </div>
 
         <div className="px-5 py-3 flex gap-2 flex-shrink-0 border-t border-gray-100">
