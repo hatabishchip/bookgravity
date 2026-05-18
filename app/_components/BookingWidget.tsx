@@ -941,13 +941,9 @@ export default function BookingWidget({ services, studio }: {
                         </div>
                         <div className="text-right flex flex-col items-end gap-0.5">
                           {isFull ? (
-                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-rose-500 text-white leading-none">
-                              Sold out
-                            </span>
+                            <span className="inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase bg-rose-500 text-white leading-none">{"Sold out"}</span>
                           ) : !enoughForParty ? (
-                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-amber-500 text-white leading-none">
-                              Only {spotsLeft} left
-                            </span>
+                            <span className="inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase bg-amber-500 text-white leading-none">{`Only ${spotsLeft} left`}</span>
                           ) : (
                             <div className="flex items-center gap-1 text-sm font-medium text-[#2C6E49]">
                               <Users size={14} />
