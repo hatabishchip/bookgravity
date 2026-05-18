@@ -100,12 +100,10 @@ export default function SchedulePage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [modal, setModal] = useState<null | "create" | Slot>(null)
   const [form, setForm] = useState(EMPTY_FORM)
-  const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState("")
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
   const [blockModal, setBlockModal] = useState<{ date: string; existing?: BlockedDay } | null>(null)
   const [blockReason, setBlockReason] = useState("")
-  const [blocking, setBlocking] = useState(false)
   type CopyPlan = { weekIndex: number; targetStart: Date; toCopy: Slot[]; skipped: number }
   const [copyModal, setCopyModal] = useState<null | {
     sourceStart: Date
@@ -218,126 +216,168 @@ export default function SchedulePage() {
 
   const closeModal = () => { setModal(null); setFormError("") }
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
-    if (saving) return
     setFormError("")
 
     type Req = { url: string; method: "POST" | "PATCH" | "DELETE"; body?: unknown }
     const payloads: Req[] = []
 
-    {
-      // Multi-time mode: diff against existing slots on this date
-      const existing = slots.filter((s) => s.date === form.date)
-      const existingByTime = new Map(existing.map((s) => [s.startTime, s] as const))
-      const desired = new Set(form.startTimes)
-      const toDelete = existing.filter((s) => !desired.has(s.startTime))
-      const toCreate = form.startTimes.filter((t) => !existingByTime.has(t))
+    const existing = slots.filter((s) => s.date === form.date)
+    const existingByTime = new Map(existing.map((s) => [s.startTime, s] as const))
+    const desired = new Set(form.startTimes)
+    const toDelete = existing.filter((s) => !desired.has(s.startTime))
+    const toCreate = form.startTimes.filter((t) => !existingByTime.has(t))
 
-      for (const s of toDelete) {
-        payloads.push({ url: `/api/admin/slots?id=${s.id}`, method: "DELETE" })
-      }
+    const idsToDelete = new Set<string>()
+    const optimisticUpdates = new Map<string, Slot>()
+    const tempCreates: Slot[] = []
 
-      // Existing slots whose trainer/assistant/classType/capacity/visibility changed inline
-      for (const t of form.startTimes) {
-        const slot = existingByTime.get(t)
-        if (!slot) continue
-        const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
-        const currentTrainer = slot.trainer?.id ?? ""
-        const currentAssistant = slot.assistant?.id ?? ""
-        const currentType = (slot.classType as ClassType) ?? "GROUP"
-        const currentVis = slot.publicVisible ?? true
-        const currentCap = slot.maxCapacity ?? 6
-        const desiredCap = a.classType === "PRIVATE" ? 1 : a.maxCapacity
-        if (
-          a.trainerId !== currentTrainer ||
-          a.assistantId !== currentAssistant ||
-          a.classType !== currentType ||
-          a.publicVisible !== currentVis ||
-          desiredCap !== currentCap
-        ) {
-          payloads.push({
-            url: `/api/admin/slots?id=${slot.id}`,
-            method: "PATCH",
-            body: {
-              trainerId: a.trainerId || null,
-              assistantId: a.assistantId || null,
-              classType: a.classType,
-              publicVisible: a.publicVisible,
-              maxCapacity: desiredCap,
-              price: priceForType(a.classType),
-            },
-          })
-        }
-      }
+    for (const s of toDelete) {
+      payloads.push({ url: `/api/admin/slots?id=${s.id}`, method: "DELETE" })
+      idsToDelete.add(s.id)
+    }
 
-      for (const startTime of toCreate) {
-        const a = form.assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
-        const isPrivate = a.classType === "PRIVATE"
+    for (const t of form.startTimes) {
+      const slot = existingByTime.get(t)
+      if (!slot) continue
+      const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+      const currentTrainer = slot.trainer?.id ?? ""
+      const currentAssistant = slot.assistant?.id ?? ""
+      const currentType = (slot.classType as ClassType) ?? "GROUP"
+      const currentVis = slot.publicVisible ?? true
+      const currentCap = slot.maxCapacity ?? 6
+      const desiredCap = a.classType === "PRIVATE" ? 1 : a.maxCapacity
+      if (
+        a.trainerId !== currentTrainer ||
+        a.assistantId !== currentAssistant ||
+        a.classType !== currentType ||
+        a.publicVisible !== currentVis ||
+        desiredCap !== currentCap
+      ) {
+        const tr = a.trainerId ? trainers.find((x) => x.id === a.trainerId) : null
+        const as = a.assistantId ? trainers.find((x) => x.id === a.assistantId) : null
+        optimisticUpdates.set(slot.id, {
+          ...slot,
+          classType: a.classType,
+          publicVisible: a.publicVisible,
+          maxCapacity: desiredCap,
+          price: priceForType(a.classType),
+          trainer: tr ? { id: tr.id, name: tr.name, color: tr.color } : null,
+          assistant: as ? { id: as.id, name: as.name, color: as.color } : null,
+        })
         payloads.push({
-          url: "/api/admin/slots",
-          method: "POST",
+          url: `/api/admin/slots?id=${slot.id}`,
+          method: "PATCH",
           body: {
-            date: form.date,
-            startTime,
-            trainerId: a.trainerId || undefined,
+            trainerId: a.trainerId || null,
             assistantId: a.assistantId || null,
             classType: a.classType,
             publicVisible: a.publicVisible,
-            maxCapacity: isPrivate ? 1 : Number(a.maxCapacity),
+            maxCapacity: desiredCap,
             price: priceForType(a.classType),
           },
         })
       }
     }
 
-    if (payloads.length === 0) {
-      closeModal()
-      return
+    for (const startTime of toCreate) {
+      const a = form.assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+      const isPrivate = a.classType === "PRIVATE"
+      const tr = a.trainerId ? trainers.find((x) => x.id === a.trainerId) : null
+      const as = a.assistantId ? trainers.find((x) => x.id === a.assistantId) : null
+      tempCreates.push({
+        id: `tmp-${form.date}-${startTime}-${Math.random().toString(36).slice(2, 8)}`,
+        date: form.date,
+        startTime,
+        endTime: computeEndTime(startTime),
+        classType: a.classType,
+        publicVisible: a.publicVisible,
+        maxCapacity: isPrivate ? 1 : Number(a.maxCapacity),
+        price: priceForType(a.classType),
+        trainer: tr ? { id: tr.id, name: tr.name, color: tr.color } : null,
+        assistant: as ? { id: as.id, name: as.name, color: as.color } : null,
+        _count: { bookings: 0 },
+      })
+      payloads.push({
+        url: "/api/admin/slots",
+        method: "POST",
+        body: {
+          date: form.date,
+          startTime,
+          trainerId: a.trainerId || undefined,
+          assistantId: a.assistantId || null,
+          classType: a.classType,
+          publicVisible: a.publicVisible,
+          maxCapacity: isPrivate ? 1 : Number(a.maxCapacity),
+          price: priceForType(a.classType),
+        },
+      })
     }
 
-    setSaving(true)
-    try {
-      const results = await Promise.all(
-        payloads.map((p) =>
-          fetch(p.url, {
-            method: p.method,
-            ...(p.body !== undefined && {
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(p.body),
-            }),
+    // Apply optimistic state immediately, then close modal
+    if (idsToDelete.size > 0 || optimisticUpdates.size > 0 || tempCreates.length > 0) {
+      setSlots((prev) => {
+        const remaining = prev.filter((s) => !idsToDelete.has(s.id))
+        const updated = remaining.map((s) => optimisticUpdates.get(s.id) ?? s)
+        return [...updated, ...tempCreates]
+      })
+    }
+    closeModal()
+
+    if (payloads.length === 0) return
+
+    // Background sync — converge to truth and surface failures unobtrusively
+    Promise.allSettled(
+      payloads.map((p) =>
+        fetch(p.url, {
+          method: p.method,
+          ...(p.body !== undefined && {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(p.body),
           }),
-        ),
-      )
+        }),
+      ),
+    ).then(async (results) => {
       const failed: string[] = []
       for (let i = 0; i < results.length; i++) {
         const r = results[i]
-        if (!r.ok) {
-          const txt = await r.text().catch(() => "")
-          let msg = `${r.status}`
+        if (r.status === "rejected") {
+          failed.push(`${payloads[i].method}: network`)
+          continue
+        }
+        if (!r.value.ok) {
+          const txt = await r.value.text().catch(() => "")
+          let msg = `${r.value.status}`
           try { msg = JSON.parse(txt).error ?? msg } catch {}
-          failed.push(`${payloads[i].method.replace("POST", "create").replace("PATCH", "update").replace("DELETE", "delete")}: ${msg}`)
+          failed.push(`${payloads[i].method}: ${msg}`)
         }
       }
-      await fetchSlots()
+      // Always refetch to converge with server truth (correct IDs, etc.)
+      fetchSlots()
       if (failed.length > 0) {
-        setFormError(failed.join(" · "))
-        return
+        setSyncError(failed.slice(0, 2).join(" · "))
+        setTimeout(() => setSyncError(null), 5000)
       }
-      closeModal()
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Network error")
-    } finally {
-      setSaving(false)
-    }
+    })
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm("Delete this session? Existing bookings will remain.")) return
-    setDeleting(id)
-    await fetch(`/api/admin/slots?id=${id}`, { method: "DELETE" })
-    await fetchSlots(); setDeleting(null)
+    // Optimistic — remove from local state immediately, fire request in background
+    setSlots((prev) => prev.filter((s) => s.id !== id))
     if (modal !== null && modal !== "create" && (modal as Slot).id === id) closeModal()
+    fetch(`/api/admin/slots?id=${id}`, { method: "DELETE" }).then(async (r) => {
+      if (!r.ok) {
+        setSyncError(`delete: ${r.status}`)
+        setTimeout(() => setSyncError(null), 5000)
+      }
+      fetchSlots()
+    }).catch(() => {
+      setSyncError("delete: network")
+      setTimeout(() => setSyncError(null), 5000)
+      fetchSlots()
+    })
   }
 
   // Block/unblock day
@@ -348,20 +388,35 @@ export default function SchedulePage() {
     setBlockModal({ date, existing })
   }
 
-  const handleBlock = async () => {
+  const handleBlock = () => {
     if (!blockModal) return
-    setBlocking(true)
-    if (blockModal.existing) {
-      await fetch(`/api/admin/blocked-days?date=${blockModal.date}`, { method: "DELETE" })
-    } else {
-      await fetch("/api/admin/blocked-days", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: blockModal.date, reason: blockReason || null }),
-      })
-    }
-    await fetchBlocked()
-    setBlockModal(null); setBlocking(false)
+    const isUnblock = !!blockModal.existing
+    const date = blockModal.date
+    const reason = blockReason || null
+    // Optimistic — update local state, close modal, fire in background
+    setBlockedDays((prev) => {
+      if (isUnblock) return prev.filter((b) => b.date !== date)
+      return [...prev.filter((b) => b.date !== date), { id: `tmp-${date}`, date, reason }]
+    })
+    setBlockModal(null)
+    const req = isUnblock
+      ? fetch(`/api/admin/blocked-days?date=${date}`, { method: "DELETE" })
+      : fetch("/api/admin/blocked-days", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date, reason }),
+        })
+    req.then((r) => {
+      if (!r.ok) {
+        setSyncError(`block: ${r.status}`)
+        setTimeout(() => setSyncError(null), 5000)
+      }
+      fetchBlocked()
+    }).catch(() => {
+      setSyncError("block: network")
+      setTimeout(() => setSyncError(null), 5000)
+      fetchBlocked()
+    })
   }
 
   // Build a copy plan for N weeks ahead, given source slots and start date.
@@ -430,6 +485,13 @@ export default function SchedulePage() {
 
   return (
     <div>
+      {syncError && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] max-w-md px-4 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
+          <span className="text-base">⚠</span>
+          <span className="font-medium">Sync error — page reverted</span>
+          <span className="text-rose-500 truncate max-w-[200px]">{syncError}</span>
+        </div>
+      )}
       {/* Header */}
       <div className="mb-4 space-y-3">
         {/* Title row */}
@@ -646,7 +708,6 @@ export default function SchedulePage() {
                         </div>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(slot.id) }}
-                          disabled={deleting === slot.id}
                           className="absolute top-1 right-1 opacity-0 group-hover/slot:opacity-100 p-0.5 bg-white hover:bg-red-50 rounded shadow-sm text-red-400 transition-all border border-red-100"
                         >
                           <Trash2 size={10} />
@@ -699,12 +760,11 @@ export default function SchedulePage() {
               <button onClick={() => setBlockModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
               <button
                 onClick={handleBlock}
-                disabled={blocking}
-                className={cn("flex-1 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-60",
+                className={cn("flex-1 py-2.5 rounded-xl text-sm font-medium text-white",
                   blockModal.existing ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600"
                 )}
               >
-                {blocking ? "..." : blockModal.existing ? "Unblock" : "Block Day"}
+                {blockModal.existing ? "Unblock" : "Block Day"}
               </button>
             </div>
           </div>
@@ -922,8 +982,8 @@ export default function SchedulePage() {
 
               <div className="px-6 py-4 flex gap-3 flex-shrink-0 border-t border-gray-100">
                 <button type="button" onClick={closeModal} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={saving} className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
-                  {saving ? "Saving..." : (() => {
+                <button type="submit" className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34]">
+                  {(() => {
                     const existing = slots.filter((s) => s.date === form.date)
                     const existingByTime = new Map(existing.map((s) => [s.startTime, s] as const))
                     const desired = new Set(form.startTimes)

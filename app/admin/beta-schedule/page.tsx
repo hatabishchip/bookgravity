@@ -462,39 +462,22 @@ function SlotEditor({
 
   useEffect(() => { fetchBookings() }, [fetchBookings])
 
-  const handleSave = async () => {
-    if (saving) return
-    setSaving(true)
-    setError("")
-    try {
-      const res = await fetch(`/api/admin/slots?id=${slot.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startTime,
-          trainerId: trainerId || null,
-          assistantId: assistantId || null,
-          classType,
-          publicVisible,
-          maxCapacity: classType === "PRIVATE" ? 1 : Number(maxCapacity),
-          price: Number(price),
-        }),
-      })
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "")
-        let msg = `${res.status}`
-        try { msg = JSON.parse(txt).error ?? msg } catch {}
-        setError(msg)
-        onChanged()
-        return
-      }
-      onChanged()
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error")
-    } finally {
-      setSaving(false)
-    }
+  const handleSave = () => {
+    // Optimistic — close immediately, fire in background, parent re-fetches
+    onClose()
+    fetch(`/api/admin/slots?id=${slot.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        startTime,
+        trainerId: trainerId || null,
+        assistantId: assistantId || null,
+        classType,
+        publicVisible,
+        maxCapacity: classType === "PRIVATE" ? 1 : Number(maxCapacity),
+        price: Number(price),
+      }),
+    }).finally(() => onChanged())
   }
 
   const handleDeleteSlot = () => {
@@ -838,8 +821,7 @@ function SlotCreator({
     }))
   }
 
-  const handleSave = async () => {
-    if (saving) return
+  const handleSave = () => {
     setError("")
     const desired = new Set(startTimes)
     const toDelete = existingSlots.filter((s) => !desired.has(s.startTime))
@@ -910,40 +892,19 @@ function SlotCreator({
       return
     }
 
-    setSaving(true)
-    try {
-      const results = await Promise.all(
-        payloads.map((p) =>
-          fetch(p.url, {
-            method: p.method,
-            ...(p.body !== undefined && {
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(p.body),
-            }),
+    // Optimistic — close immediately, fire requests in the background
+    onClose()
+    Promise.allSettled(
+      payloads.map((p) =>
+        fetch(p.url, {
+          method: p.method,
+          ...(p.body !== undefined && {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(p.body),
           }),
-        ),
-      )
-      const failed: string[] = []
-      for (let i = 0; i < results.length; i++) {
-        const r = results[i]
-        if (!r.ok) {
-          const txt = await r.text().catch(() => "")
-          let msg = `${r.status}`
-          try { msg = JSON.parse(txt).error ?? msg } catch {}
-          failed.push(`${payloads[i].label}: ${msg}`)
-        }
-      }
-      onCreated()
-      if (failed.length > 0) {
-        setError(failed.join(" · "))
-        return
-      }
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error")
-    } finally {
-      setSaving(false)
-    }
+        }),
+      ),
+    ).finally(() => onCreated())
   }
 
   const counts = useMemo(() => {
