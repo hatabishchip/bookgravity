@@ -31,8 +31,10 @@ export async function GET(request: NextRequest) {
     })
 
     // No cutoff filter here — calendar markers (incl. past "had classes" dots)
-    // need to see every slot of the month. The 2h cutoff only applies to the
-    // per-date booking list and to POST /api/bookings.
+    // need to see every slot of the month. But add a `bookable` flag so the
+    // client can mark only days with bookable slots as green; otherwise a slot
+    // within the 2h cutoff would show green but fail in the per-date list.
+    const nowMs = Date.now()
     return NextResponse.json(
       slots.map((s) => ({
         id: s.id,
@@ -42,6 +44,7 @@ export async function GET(request: NextRequest) {
         maxCapacity: s.maxCapacity,
         bookedCount: s._count.bookings,
         available: s._count.bookings < s.maxCapacity,
+        bookable: isSlotBookable(s.date, s.startTime, nowMs),
         price: s.price,
       }))
     )

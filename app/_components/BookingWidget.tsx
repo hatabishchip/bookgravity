@@ -156,6 +156,7 @@ type Slot = {
   maxCapacity: number
   bookedCount: number
   available: boolean
+  bookable?: boolean
   price?: number
 }
 
@@ -317,16 +318,19 @@ export default function BookingWidget({ services, studio }: {
 
   const todayStr = format(today, "yyyy-MM-dd")
 
-  // Future dates that have at least one slot with enough free seats for the party
+  // Future dates that have at least one BOOKABLE slot (passes 2h cutoff) with
+  // enough free seats for the party. Without the `bookable` check the calendar
+  // shows green dots for days whose only remaining slots are inside the cutoff
+  // window — then clicking the day yields an empty list.
   const availableDates = new Set(
     allSlots
-      .filter((s) => s.date >= todayStr && (s.maxCapacity - s.bookedCount) >= partySize)
+      .filter((s) => s.date >= todayStr && s.bookable !== false && (s.maxCapacity - s.bookedCount) >= partySize)
       .map((s) => s.date)
   )
-  // Future dates that have scheduled classes but no slot can fit the party (fully booked or insufficient)
+  // Future dates whose bookable slots are all full
   const fullyBookedDates = new Set(
     allSlots
-      .filter((s) => s.date >= todayStr && !availableDates.has(s.date))
+      .filter((s) => s.date >= todayStr && s.bookable !== false && !availableDates.has(s.date))
       .map((s) => s.date)
   )
   // Past dates that had a class scheduled — shown so the user sees there was a session
