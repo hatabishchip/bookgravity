@@ -904,22 +904,30 @@ export default function SchedulePage() {
                                   }))
                                 }
                                 const isPrivate = assignment.classType === "PRIVATE"
+                                const existingSlot = isExisting ? slots.find((s) => s.date === form.date && s.startTime === t) : null
+                                const bookingCount = existingSlot?._count.bookings ?? 0
+                                const hasBookings = bookingCount > 0
                                 return (
                                   <div key={t} className={cn(
                                     "relative rounded-lg text-xs border pl-3 pr-10 py-2.5 space-y-2",
                                     isExisting ? "bg-gray-50 border-gray-200" : "bg-[#2C6E49]/5 border-[#2C6E49]/15"
                                   )}>
-                                    <button type="button" onClick={() => {
-                                      const newAssignments = { ...form.assignments }
-                                      delete newAssignments[t]
-                                      setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newAssignments })
-                                    }}
-                                      title={isExisting ? "Remove this session" : "Discard this new session"}
+                                    <button type="button"
+                                      disabled={hasBookings}
+                                      onClick={() => {
+                                        const newAssignments = { ...form.assignments }
+                                        delete newAssignments[t]
+                                        setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newAssignments })
+                                      }}
+                                      title={hasBookings
+                                        ? `Has ${bookingCount} booking${bookingCount === 1 ? "" : "s"} — cancel them first or hide the session instead`
+                                        : isExisting ? "Remove this session" : "Discard this new session"}
                                       aria-label="Remove session"
                                       className={cn(
                                         "absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center text-lg leading-none touch-manipulation",
-                                        isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-[#2C6E49]/60 hover:text-rose-600 hover:bg-rose-50"
-                                      )}>×</button>
+                                        hasBookings ? "text-gray-300 cursor-not-allowed" :
+                                          isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-[#2C6E49]/60 hover:text-rose-600 hover:bg-rose-50"
+                                      )}>{hasBookings ? "🔒" : "×"}</button>
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className={cn(
                                         "font-medium whitespace-nowrap",
@@ -927,11 +935,20 @@ export default function SchedulePage() {
                                       )}>
                                         {formatTime(t)} – {formatTime(computeEndTime(t))}
                                       </span>
+                                      {hasBookings && (
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] text-[10px] font-semibold leading-none whitespace-nowrap" title="Confirmed bookings">
+                                          👥 {bookingCount}
+                                        </span>
+                                      )}
                                       <div className="ml-auto flex gap-1">
                                         {CLASS_TYPES.map((c) => (
                                           <button key={c.value} type="button"
                                             onClick={() => {
                                               if (c.value === "PRIVATE") {
+                                                if (bookingCount >= 2) {
+                                                  const ok = confirm(`This session has ${bookingCount} bookings. Private allows only 1 person — extra clients will be over capacity. Continue?`)
+                                                  if (!ok) return
+                                                }
                                                 updateAssignment({ classType: c.value, maxCapacity: 1 })
                                               } else if (c.value === "GROUP") {
                                                 updateAssignment({

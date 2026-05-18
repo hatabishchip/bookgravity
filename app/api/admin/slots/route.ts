@@ -194,7 +194,20 @@ export async function DELETE(request: NextRequest) {
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const result = await prisma.timeSlot.deleteMany({ where: { id, studioId: ctx.studioId } })
-  if (result.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  // Block delete if the slot has confirmed bookings — FK would crash anyway,
+  // and silently swallowing it would lose data. Surface a friendly 409.
+  const slot = await prisma.timeSlot.findFirst({
+    where: { id, studioId: ctx.studioId },
+    include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
+  })
+  if (!slot) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (slot._count.bookings > 0) {
+    return NextResponse.json(
+      { error: `Cannot delete: ${slot._count.bookings} booking${slot._count.bookings === 1 ? "" : "s"}. Cancel them first, or hide the session from clients instead.` },
+      { status: 409 },
+    )
+  }
+
+  await prisma.timeSlot.delete({ where: { id: slot.id } })
   return NextResponse.json({ success: true })
 }
