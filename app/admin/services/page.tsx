@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Plus, Trash2, X, Package, Pencil } from "lucide-react"
+import { PriceInput } from "@/app/_components/PriceInput"
 
 type Service = { id: string; name: string; price: number; active: boolean }
 
@@ -82,7 +83,10 @@ export default function ServicesPage() {
   }
 
   return (
-    <div>
+    <div className="space-y-8">
+      <MainServicesCard />
+
+      <div>
       <div className="flex items-center justify-between mb-6 gap-3">
         <div className="min-w-0">
           <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Additional Services</h1>
@@ -200,6 +204,135 @@ export default function ServicesPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      </div>
+    </div>
+  )
+}
+
+type StudioPrices = {
+  groupPrice: number
+  kidsPrice: number
+  privatePrice: number
+}
+
+function formatPriceShort(p: number) {
+  if (p >= 1_000_000) {
+    const m = p / 1_000_000
+    const s = m % 1 === 0 ? m.toString() : m.toFixed(1).replace(/\.0$/, "")
+    return `${s}M`
+  }
+  return `${Math.round(p / 1000)}k`
+}
+
+type MainKind = "GROUP" | "KIDS" | "PRIVATE"
+
+function MainServicesCard() {
+  const [studio, setStudio] = useState<StudioPrices | null>(null)
+  const [editing, setEditing] = useState<MainKind | null>(null)
+  const [draftValue, setDraftValue] = useState(0)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/admin/studio").then((r) => r.json()).then((d) => {
+      setStudio({ groupPrice: d.groupPrice, kidsPrice: d.kidsPrice, privatePrice: d.privatePrice })
+    })
+  }, [])
+
+  const items: { kind: MainKind; field: keyof StudioPrices; label: string; sub: string }[] = [
+    { kind: "GROUP", field: "groupPrice", label: "Group class", sub: "Adults, up to 6 people" },
+    { kind: "KIDS", field: "kidsPrice", label: "Kids class", sub: "Children's group" },
+    { kind: "PRIVATE", field: "privatePrice", label: "Private session", sub: "1 person only" },
+  ]
+
+  const startEdit = (kind: MainKind, value: number) => {
+    setEditing(kind)
+    setDraftValue(value)
+  }
+
+  const cancelEdit = () => setEditing(null)
+
+  const save = async (field: keyof StudioPrices) => {
+    if (!studio) return
+    setSaving(true)
+    const res = await fetch("/api/admin/studio", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: draftValue }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setStudio({ groupPrice: updated.groupPrice, kidsPrice: updated.kidsPrice, privatePrice: updated.privatePrice })
+      setEditing(null)
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Main Services</h1>
+        <p className="text-gray-500 text-xs lg:text-sm mt-1">Default prices for each class type · used when creating slots</p>
+      </div>
+      {!studio ? (
+        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">Loading…</div>
+      ) : (
+        <div className="space-y-3">
+          {items.map(({ kind, field, label, sub }) => {
+            const value = studio[field]
+            const isEditing = editing === kind
+            return (
+              <div key={kind} className="w-full bg-white rounded-2xl p-4 lg:p-5 shadow-sm flex items-center gap-3 lg:gap-4">
+                <div className="w-10 h-10 bg-[#2C6E49]/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Package size={18} className="text-[#2C6E49]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-gray-800 truncate">{label}</div>
+                  <div className="text-xs text-gray-400 mt-0.5 truncate">{sub}</div>
+                </div>
+                {isEditing ? (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <PriceInput
+                      value={draftValue}
+                      onChange={setDraftValue}
+                      className="w-28 sm:w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    />
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      disabled={saving}
+                      className="px-2 py-2 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => save(field)}
+                      disabled={saving || draftValue === value}
+                      className="px-3 py-2 rounded-lg bg-[#2C6E49] text-white text-xs font-medium hover:bg-[#1E4D34] disabled:opacity-50"
+                    >
+                      {saving ? "…" : "Save"}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-lg font-bold text-[#2C6E49] flex-shrink-0">
+                      {formatPriceShort(value)}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => startEdit(kind, value)}
+                      title="Edit price"
+                      className="p-2 hover:bg-[#2C6E49]/5 rounded-lg text-gray-400 hover:text-[#2C6E49] flex-shrink-0"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  </>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

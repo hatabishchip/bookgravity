@@ -28,6 +28,8 @@ const SlotSchema = z.object({
   startTime: z.string(),
   trainerId: z.string().optional(),
   assistantId: z.string().nullable().optional(),
+  classType: z.enum(["GROUP", "KIDS", "PRIVATE"]).default("GROUP"),
+  publicVisible: z.boolean().optional(),
   maxCapacity: z.number().min(1).max(6).default(6),
   price: z.number().min(0).default(0),
 })
@@ -95,8 +97,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Private session is always max 1 person
+    const finalCapacity = data.classType === "PRIVATE" ? 1 : data.maxCapacity
+
     const slot = await prisma.timeSlot.create({
-      data: { ...data, endTime, studioId: ctx.studioId },
+      data: { ...data, maxCapacity: finalCapacity, endTime, studioId: ctx.studioId },
       include: slotInclude,
     })
 
@@ -120,42 +125,55 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
     const data = z.object({
-      startTime: z.string(),
+      startTime: z.string().optional(),
       trainerId: z.string().nullable().optional(),
       assistantId: z.string().nullable().optional(),
-      maxCapacity: z.number().min(1).max(6),
-      price: z.number().min(0),
+      classType: z.enum(["GROUP", "KIDS", "PRIVATE"]).optional(),
+      publicVisible: z.boolean().optional(),
+      maxCapacity: z.number().min(1).max(6).optional(),
+      price: z.number().min(0).optional(),
     }).parse(body)
 
-    const startMin = timeToMin(data.startTime)
-    const endMin = startMin + CLASS_DURATION_MIN
-    const endTime = minToTime(endMin)
+    // Force capacity to 1 when type becomes PRIVATE
+    if (data.classType === "PRIVATE") data.maxCapacity = 1
 
     const current = await prisma.timeSlot.findFirst({ where: { id, studioId: ctx.studioId } })
     if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-    const siblings = await prisma.timeSlot.findMany({
-      where: { date: current.date, studioId: ctx.studioId, NOT: { id } },
-    })
-    for (const slot of siblings) {
-      const exStart = timeToMin(slot.startTime)
-      const exEnd = timeToMin(slot.endTime)
-      if (startMin < exEnd + MIN_GAP_MIN && exStart < endMin + MIN_GAP_MIN) {
-        return NextResponse.json(
-          { error: `Conflicts with session at ${slot.startTime}–${slot.endTime}. Min 30-min gap required.` },
-          { status: 409 }
-        )
+    // Recompute end time + check conflicts only if startTime is changing
+    let newStartTime: string | undefined
+    let newEndTime: string | undefined
+    if (data.startTime && data.startTime !== current.startTime) {
+      newStartTime = data.startTime
+      const startMin = timeToMin(newStartTime)
+      const endMin = startMin + CLASS_DURATION_MIN
+      newEndTime = minToTime(endMin)
+
+      const siblings = await prisma.timeSlot.findMany({
+        where: { date: current.date, studioId: ctx.studioId, NOT: { id } },
+      })
+      for (const slot of siblings) {
+        const exStart = timeToMin(slot.startTime)
+        const exEnd = timeToMin(slot.endTime)
+        if (startMin < exEnd + MIN_GAP_MIN && exStart < endMin + MIN_GAP_MIN) {
+          return NextResponse.json(
+            { error: `Conflicts with session at ${slot.startTime}–${slot.endTime}. Min 30-min gap required.` },
+            { status: 409 }
+          )
+        }
       }
     }
 
     const updated = await prisma.timeSlot.update({
       where: { id: current.id },
       data: {
-        startTime: data.startTime, endTime,
-        trainerId: data.trainerId ?? null,
-        assistantId: data.assistantId ?? null,
-        maxCapacity: data.maxCapacity,
-        price: data.price,
+        ...(newStartTime !== undefined && { startTime: newStartTime, endTime: newEndTime! }),
+        ...(data.trainerId !== undefined && { trainerId: data.trainerId ?? null }),
+        ...(data.assistantId !== undefined && { assistantId: data.assistantId ?? null }),
+        ...(data.classType !== undefined && { classType: data.classType }),
+        ...(data.publicVisible !== undefined && { publicVisible: data.publicVisible }),
+        ...(data.maxCapacity !== undefined && { maxCapacity: data.maxCapacity }),
+        ...(data.price !== undefined && { price: data.price }),
       },
       include: slotInclude,
     })

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getDefaultStudioId } from "@/lib/studio"
+import { getStudioIdBySubdomain } from "@/lib/studio"
+import { isSlotBookable } from "@/lib/booking-cutoff"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const date = searchParams.get("date")
-  const studioId = await getDefaultStudioId()
+  const studioId = await getStudioIdBySubdomain()
 
   if (!date) {
     // Return all dates that have slots from the start of the current month to one month ahead.
@@ -20,11 +21,18 @@ export async function GET(request: NextRequest) {
     const maxStr = maxDate.toISOString().split("T")[0]
 
     const slots = await prisma.timeSlot.findMany({
-      where: { studioId, date: { gte: monthStartStr, lte: maxStr } },
+      where: {
+        studioId,
+        date: { gte: monthStartStr, lte: maxStr },
+        trainerId: { not: null }, publicVisible: true,
+      },
       include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     })
 
+    // No cutoff filter here — calendar markers (incl. past "had classes" dots)
+    // need to see every slot of the month. The 2h cutoff only applies to the
+    // per-date booking list and to POST /api/bookings.
     return NextResponse.json(
       slots.map((s) => ({
         id: s.id,
@@ -40,7 +48,7 @@ export async function GET(request: NextRequest) {
   }
 
   const slots = await prisma.timeSlot.findMany({
-    where: { studioId, date },
+    where: { studioId, date, trainerId: { not: null }, publicVisible: true },
     include: {
       _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
       trainer: { select: { name: true } },
@@ -48,16 +56,20 @@ export async function GET(request: NextRequest) {
     orderBy: { startTime: "asc" },
   })
 
-  const result = slots.map((slot) => ({
-    id: slot.id,
-    date: slot.date,
-    startTime: slot.startTime,
-    endTime: slot.endTime,
-    maxCapacity: slot.maxCapacity,
-    bookedCount: slot._count.bookings,
-    available: slot._count.bookings < slot.maxCapacity,
-    price: slot.price,
-  }))
+  const nowMs = Date.now()
+  const result = slots
+    .filter((slot) => isSlotBookable(slot.date, slot.startTime, nowMs))
+    .map((slot) => ({
+      id: slot.id,
+      date: slot.date,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      classType: slot.classType,
+      maxCapacity: slot.maxCapacity,
+      bookedCount: slot._count.bookings,
+      available: slot._count.bookings < slot.maxCapacity,
+      price: slot.price,
+    }))
 
   return NextResponse.json(result)
 }

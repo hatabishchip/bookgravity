@@ -1,0 +1,362 @@
+"use client"
+
+import { useState, useEffect, useRef } from "react"
+import { Upload, Trash2, ImageIcon, KeyRound } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+type Studio = {
+  id: string
+  name: string
+  slug: string
+  logoUrl: string | null
+  faviconUrl: string | null
+  isDefault: boolean
+}
+
+// Read a File as a data URL (base64-encoded), optionally downscaling images
+// so we keep payloads small.
+function readImageAsDataUrl(file: File, maxDim = 512, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error)
+    reader.onload = () => {
+      const dataUrl = String(reader.result)
+      // For SVG / non-image — just return raw data URL
+      if (!file.type.startsWith("image/") || file.type === "image/svg+xml") {
+        resolve(dataUrl)
+        return
+      }
+      const img = new Image()
+      img.onload = () => {
+        const ratio = Math.min(1, maxDim / Math.max(img.width, img.height))
+        const w = Math.round(img.width * ratio)
+        const h = Math.round(img.height * ratio)
+        const canvas = document.createElement("canvas")
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext("2d")
+        if (!ctx) return resolve(dataUrl)
+        ctx.drawImage(img, 0, 0, w, h)
+        // PNG keeps transparency; everything else as JPEG for smaller size
+        const out = file.type === "image/png"
+          ? canvas.toDataURL("image/png")
+          : canvas.toDataURL("image/jpeg", quality)
+        resolve(out)
+      }
+      img.onerror = () => resolve(dataUrl)
+      img.src = dataUrl
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+export default function SettingsPage() {
+  const [studio, setStudio] = useState<Studio | null>(null)
+  const [saving, setSaving] = useState<"logo" | "favicon" | "name" | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const faviconInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetch("/api/admin/studio").then((r) => r.json()).then(setStudio)
+  }, [])
+
+  const update = async (data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "name">>) => {
+    const which: "logo" | "favicon" | "name" =
+      "logoUrl" in data ? "logo" : "faviconUrl" in data ? "favicon" : "name"
+    setSaving(which)
+    setError(null)
+    const res = await fetch("/api/admin/studio", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setStudio(updated)
+    } else {
+      const e = await res.json().catch(() => ({}))
+      setError(e.error ?? "Failed to save")
+    }
+    setSaving(null)
+  }
+
+  const handleFile = async (kind: "logo" | "favicon", file: File) => {
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Image is too large (max 2 MB).")
+      return
+    }
+    try {
+      const maxDim = kind === "favicon" ? 64 : 512
+      const dataUrl = await readImageAsDataUrl(file, maxDim)
+      await update(kind === "logo" ? { logoUrl: dataUrl } : { faviconUrl: dataUrl })
+    } catch {
+      setError("Could not read the file.")
+    }
+  }
+
+  return (
+    <div className="max-w-3xl">
+      <h1 className="text-xl lg:text-2xl font-bold text-gray-900 mb-1">Settings</h1>
+      <p className="text-gray-500 text-xs lg:text-sm mb-6">
+        Branding for {studio?.name ?? "your studio"} — customers see this on the booking page.
+      </p>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">
+          {error}
+        </div>
+      )}
+
+      {!studio ? (
+        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">Loading…</div>
+      ) : (
+        <div className="space-y-4">
+          <NameCard
+            initialName={studio.name}
+            saving={saving === "name"}
+            onSave={(name) => update({ name })}
+          />
+
+          <AssetCard
+            title="Logo"
+            description="Shown in the header of your public booking page. Best looks: PNG with transparent background, square or wide format."
+            kind="logo"
+            value={studio.logoUrl}
+            saving={saving === "logo"}
+            onPick={() => logoInputRef.current?.click()}
+            onClear={() => update({ logoUrl: null })}
+            previewBg="bg-white"
+            previewSize="h-20"
+          />
+
+          <AssetCard
+            title="Favicon"
+            description="Browser tab icon. Square image works best (32×32 or 64×64)."
+            kind="favicon"
+            value={studio.faviconUrl}
+            saving={saving === "favicon"}
+            onPick={() => faviconInputRef.current?.click()}
+            onClear={() => update({ faviconUrl: null })}
+            previewBg="bg-gray-100"
+            previewSize="h-10 w-10"
+          />
+
+          <ChangePasswordCard />
+
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) handleFile("logo", f)
+              e.target.value = ""
+            }}
+          />
+          <input
+            ref={faviconInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,image/vnd.microsoft.icon"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) handleFile("favicon", f)
+              e.target.value = ""
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AssetCard({
+  title, description, value, saving, onPick, onClear, previewBg, previewSize,
+}: {
+  title: string
+  description: string
+  kind: "logo" | "favicon"
+  value: string | null
+  saving: boolean
+  onPick: () => void
+  onClear: () => void
+  previewBg: string
+  previewSize: string
+}) {
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+          <p className="text-xs text-gray-500 mt-1 max-w-md">{description}</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className={cn("rounded-xl border border-gray-200 flex items-center justify-center overflow-hidden", previewBg, previewSize, value ? "" : "min-w-[80px]")}>
+          {value ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={value} alt={title} className="max-h-full max-w-full object-contain" />
+          ) : (
+            <ImageIcon size={20} className="text-gray-300" />
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2 flex-1">
+          <button
+            type="button"
+            onClick={onPick}
+            disabled={saving}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+          >
+            <Upload size={14} />
+            {saving ? "Saving…" : value ? `Replace ${title.toLowerCase()}` : `Upload ${title.toLowerCase()}`}
+          </button>
+          {value && (
+            <button
+              type="button"
+              onClick={onClear}
+              disabled={saving}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+            >
+              <Trash2 size={14} />
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function NameCard({
+  initialName, saving, onSave,
+}: {
+  initialName: string
+  saving: boolean
+  onSave: (name: string) => Promise<void> | void
+}) {
+  const [value, setValue] = useState(initialName)
+  const [done, setDone] = useState(false)
+
+  useEffect(() => { setValue(initialName) }, [initialName])
+
+  const dirty = value.trim() !== initialName.trim() && value.trim().length >= 2
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!dirty || saving) return
+    await onSave(value.trim())
+    setDone(true)
+    setTimeout(() => setDone(false), 2000)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <h2 className="text-base font-semibold text-gray-900">Studio name</h2>
+      <p className="text-xs text-gray-500 mt-1 mb-4 max-w-md">
+        Shown in the header of your public booking page and on the ticket. For example, &laquo;Gravity Stretching Canggu&raquo; or &laquo;Gravity Stretching Ubud&raquo;.
+      </p>
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          minLength={2}
+          maxLength={100}
+          required
+          className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+          placeholder="e.g. Gravity Stretching Canggu"
+        />
+        <button
+          type="submit"
+          disabled={!dirty || saving}
+          className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+        >
+          {saving ? "Saving…" : done ? "Saved ✓" : "Save"}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function ChangePasswordCard() {
+  const [form, setForm] = useState({ current: "", next: "", confirm: "" })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [done, setDone] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    if (form.next.length < 4) { setError("Password must be at least 4 characters"); return }
+    if (form.next !== form.confirm) { setError("Passwords do not match"); return }
+    setLoading(true)
+    const res = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword: form.current, newPassword: form.next }),
+    })
+    if (res.ok) {
+      setDone(true)
+      setForm({ current: "", next: "", confirm: "" })
+      setTimeout(() => setDone(false), 3000)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? "Error")
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <KeyRound size={16} className="text-[#2C6E49]" />
+        <h2 className="text-base font-semibold text-gray-900">Change password</h2>
+      </div>
+      <p className="text-xs text-gray-500 mb-4">Update the password used to sign into this admin account.</p>
+
+      <form onSubmit={handleSubmit} className="space-y-3 max-w-md">
+        <input
+          type="password"
+          required
+          placeholder="Current password"
+          value={form.current}
+          onChange={(e) => setForm({ ...form, current: e.target.value })}
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input
+            type="password"
+            required
+            placeholder="New password"
+            minLength={4}
+            value={form.next}
+            onChange={(e) => setForm({ ...form, next: e.target.value })}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+          />
+          <input
+            type="password"
+            required
+            placeholder="Confirm new password"
+            value={form.confirm}
+            onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+          />
+        </div>
+        {error && <p className="text-xs text-red-500">{error}</p>}
+        {done && <p className="text-xs text-[#2C6E49] font-medium">Password updated.</p>}
+        <button
+          type="submit"
+          disabled={loading}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+        >
+          {loading ? "Saving…" : "Update password"}
+        </button>
+      </form>
+    </div>
+  )
+}

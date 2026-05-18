@@ -152,6 +152,7 @@ type Slot = {
   date: string
   startTime: string
   endTime: string
+  classType?: "GROUP" | "KIDS" | "PRIVATE"
   maxCapacity: number
   bookedCount: number
   available: boolean
@@ -172,7 +173,30 @@ function formatTime(time: string) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`
 }
 
-export default function BookingWidget({ services }: { services: Service[] }) {
+// Format IDR amounts: 300000 -> "300k", 1000000 -> "1M", 1800000 -> "1.8M"
+function formatIDR(amount: number) {
+  if (amount >= 1_000_000) {
+    const m = amount / 1_000_000
+    const str = m % 1 === 0 ? m.toString() : m.toFixed(1).replace(/\.0$/, "")
+    return `${str}M IDR`
+  }
+  return `${Math.round(amount / 1000)}k IDR`
+}
+
+// Client-facing end time: 90 minutes after start (real slot is 120 with buffer)
+function clientEndTime(startTime: string) {
+  const [h, m] = startTime.split(":").map(Number)
+  const total = h * 60 + m + 90
+  const eh = Math.floor(total / 60) % 24
+  const em = total % 60
+  const ampm = eh >= 12 ? "PM" : "AM"
+  return `${eh % 12 || 12}:${String(em).padStart(2, "0")} ${ampm}`
+}
+
+export default function BookingWidget({ services, studio }: {
+  services: Service[]
+  studio?: { name: string; slug: string; logoUrl: string | null }
+}) {
   const [step, setStep] = useState<Step>("date")
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -187,7 +211,6 @@ export default function BookingWidget({ services }: { services: Service[] }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const fieldRefs = {
     clientName: useRef<HTMLInputElement>(null),
-    clientEmail: useRef<HTMLInputElement>(null),
     clientPhone: useRef<HTMLInputElement>(null),
   }
   const [booking, setBooking] = useState<{ id: string; clientName: string; slot: Slot; ticketCode: string } | null>(null)
@@ -247,9 +270,39 @@ export default function BookingWidget({ services }: { services: Service[] }) {
 
   const [form, setForm] = useState({
     clientName: "",
-    clientEmail: "",
     clientPhone: "",
   })
+  const [lookupState, setLookupState] = useState<"idle" | "loading" | "found" | "new">("idle")
+  // Track which phone we last fetched a lookup for to avoid re-fetching on every keystroke
+  const lastLookedUpPhoneRef = useRef("")
+
+  // When phone reaches minimum length for the detected country, look up
+  // existing client and auto-fill the name (only if user hasn't typed one yet).
+  useEffect(() => {
+    const country = detectCountry(form.clientPhone)
+    const phoneReady = !!country && subscriberDigits(form.clientPhone, country) >= country.min
+    if (!phoneReady) {
+      setLookupState("idle")
+      lastLookedUpPhoneRef.current = ""
+      return
+    }
+    if (lastLookedUpPhoneRef.current === form.clientPhone) return
+    lastLookedUpPhoneRef.current = form.clientPhone
+    setLookupState("loading")
+    const ctrl = new AbortController()
+    fetch(`/api/lookup-client?phone=${encodeURIComponent(form.clientPhone)}`, { signal: ctrl.signal })
+      .then((r) => r.ok ? r.json() : { name: null })
+      .then((d: { name: string | null }) => {
+        if (d.name) {
+          setLookupState("found")
+          setForm((prev) => prev.clientName.trim() ? prev : { ...prev, clientName: d.name as string })
+        } else {
+          setLookupState("new")
+        }
+      })
+      .catch(() => { setLookupState("idle") })
+    return () => ctrl.abort()
+  }, [form.clientPhone])
 
   const today = startOfDay(new Date())
   // Allow booking through the end of next month
@@ -294,7 +347,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
         booking: { id: string; clientName: string; slot: Slot; ticketCode: string }
         selectedDate: string
         partySize: number
-        form: { clientName: string; clientPhone: string; clientEmail: string }
+        form: { clientName: string; clientPhone: string }
       }
       const classDate = parseISO(saved.selectedDate)
       const todayStart = startOfDay(new Date())
@@ -321,12 +374,21 @@ export default function BookingWidget({ services }: { services: Service[] }) {
     setLoading(false)
   }, [])
 
+  const timeStepRef = useRef<HTMLDivElement>(null)
+
   const handleDateSelect = (date: Date) => {
     const str = format(date, "yyyy-MM-dd")
     setSelectedDate(str)
-    fetchSlots(str)
-    setStep("time")
+    // Clear stale slots immediately to avoid the "jump" when previous day's
+    // list briefly flashes through before the new one loads.
+    setSlots([])
     setSelectedSlot(null)
+    setStep("time")
+    fetchSlots(str)
+    // Smooth scroll the new card into view on the next paint
+    requestAnimationFrame(() => {
+      timeStepRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
   }
 
   const handleSlotSelect = (slot: Slot) => {
@@ -398,7 +460,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
           booking: bookingData,
           selectedDate,
           partySize,
-          form: { clientName: form.clientName, clientPhone: form.clientPhone, clientEmail: form.clientEmail },
+          form: { clientName: form.clientName, clientPhone: form.clientPhone },
         }
         localStorage.setItem("bg_active_ticket", JSON.stringify(persisted))
       } catch {}
@@ -453,8 +515,9 @@ export default function BookingWidget({ services }: { services: Service[] }) {
             {/* Header with logo */}
             <div className="px-6 pt-6 pb-5 text-center">
               <div className="flex justify-center mb-3">
-                <div className="w-20 h-20 rounded-full bg-white border-2 border-gray-100 flex items-center justify-center shadow-sm">
-                  <img src="/icon.png" alt="Gravity Stretching Canggu" className="w-16 h-16 object-contain" />
+                <div className="w-20 h-20 rounded-full bg-white border-2 border-gray-100 flex items-center justify-center shadow-sm overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={studio?.logoUrl || "/api/app-icon"} alt={studio?.name || "Gravity Stretching"} className="w-16 h-16 object-contain" />
                 </div>
               </div>
 
@@ -494,19 +557,33 @@ export default function BookingWidget({ services }: { services: Service[] }) {
               {/* Cash payment notice */}
               {(() => {
                 const perPerson = booking.slot.price ?? 300000
-                const total = perPerson * partySize
-                const totalK = Math.round(total / 1000)
+                const sessionTotal = perPerson * partySize
+                const chosenServices = services.filter((s) => selectedServices.includes(s.id))
+                const servicesTotal = chosenServices.reduce((sum, s) => sum + s.price, 0)
+                const total = sessionTotal + servicesTotal
                 return (
                   <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5">
                     <div className="text-[9px] uppercase tracking-[0.25em] text-amber-700 font-bold mb-0.5">
                       Pay at the studio
                     </div>
                     <div className="text-sm font-semibold text-amber-900">
-                      Cash · <span className="text-base font-bold">{totalK}k IDR</span>
+                      <span className="text-base font-bold">{formatIDR(total)}</span>
                     </div>
-                    {partySize > 1 && (
-                      <div className="text-[10px] text-amber-700/80 mt-0.5">
-                        {Math.round(perPerson / 1000)}k × {partySize} people
+                    <div className="text-[10px] text-amber-700/80 mt-0.5">
+                      Cash · Card · QR · Transfer
+                    </div>
+                    {(partySize > 1 || chosenServices.length > 0) && (
+                      <div className="mt-1.5 pt-1.5 border-t border-amber-200/60 space-y-0.5 text-[10px] text-amber-700/80">
+                        <div className="flex justify-between">
+                          <span>Session {partySize > 1 ? `(${formatIDR(perPerson)} × ${partySize})` : ""}</span>
+                          <span>{formatIDR(sessionTotal)}</span>
+                        </div>
+                        {chosenServices.map((s) => (
+                          <div key={s.id} className="flex justify-between">
+                            <span>+ {s.name}</span>
+                            <span>{formatIDR(s.price)}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -539,8 +616,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
 
             {/* Brand footer */}
             <div className="bg-[#F8F7F3] px-6 py-4 text-center border-t border-gray-100">
-              <div className="text-base font-bold text-[#2C6E49] tracking-tight">Gravity Stretching</div>
-              <div className="text-base font-bold text-[#2C6E49] uppercase tracking-[0.45em] mt-1">Canggu</div>
+              <div className="text-base font-bold text-[#2C6E49] tracking-tight">{studio?.name || "Gravity Stretching"}</div>
             </div>
           </div>
 
@@ -572,7 +648,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
                 setStep("date")
                 setSelectedDate(null)
                 setSelectedSlot(null)
-                setForm({ clientName: "", clientEmail: "", clientPhone: "" })
+                setForm({ clientName: "", clientPhone: "" })
                 setSelectedServices([])
                 setBooking(null)
                 setPartySize(1)
@@ -711,32 +787,41 @@ export default function BookingWidget({ services }: { services: Service[] }) {
               const isSelected = selectedDate === str
               const clickable = hasSlot && !isPast && !isTooFar
 
+              const dotColor = isSelected
+                ? null
+                : clickable
+                  ? "bg-[#2C6E49]"
+                  : isFull && !isPast && !isTooFar
+                    ? "bg-rose-500"
+                    : isPast && hadPastClass
+                      ? "bg-gray-300"
+                      : null
               return (
                 <button
                   key={str}
+                  type="button"
                   onClick={() => clickable && handleDateSelect(day)}
-                  disabled={!clickable}
+                  aria-disabled={!clickable}
                   className={cn(
-                    "aspect-square rounded-full text-sm font-medium transition-all flex items-center justify-center relative",
+                    "aspect-square rounded-full text-sm font-medium flex flex-col items-center justify-center gap-1 leading-none",
                     isSelected
                       ? "bg-[#2C6E49] text-white"
                       : clickable
                         ? "text-gray-900 hover:bg-[#2C6E49]/10 cursor-pointer"
                         : isFull && !isPast && !isTooFar
                           ? "text-gray-500 cursor-not-allowed"
-                          : "text-gray-300 cursor-not-allowed",
+                          : isPast
+                            ? "text-gray-300 cursor-not-allowed"
+                            : "text-gray-700 cursor-not-allowed",
                   )}
                 >
-                  {day.getDate()}
-                  {clickable && !isSelected && (
-                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
-                  )}
-                  {isFull && !isPast && !isTooFar && !isSelected && (
-                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-rose-500" />
-                  )}
-                  {isPast && hadPastClass && !isSelected && (
-                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-gray-400" />
-                  )}
+                  <span>{day.getDate()}</span>
+                  {/* Reserve a fixed-height row for the dot so cell layout
+                      is identical across iOS / Android, regardless of which
+                      kind of dot (or none) is shown. */}
+                  <span className="h-1.5 flex items-center" aria-hidden>
+                    {dotColor && <span className={cn("w-1.5 h-1.5 rounded-full", dotColor)} />}
+                  </span>
                 </button>
               )
             })}
@@ -753,7 +838,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
               <span>Fully booked</span>
             </div>
             <div className="flex items-center gap-1.5 text-gray-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
               <span>Past class</span>
             </div>
           </div>
@@ -765,7 +850,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
 
       {/* Step: Time */}
       {step === "time" && selectedDate && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div ref={timeStepRef} className="bg-white rounded-2xl shadow-sm p-6 scroll-mt-4 min-h-[320px]">
           <button onClick={() => setStep("date")} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4">
             <ChevronLeft size={16} /> Back
           </button>
@@ -829,19 +914,35 @@ export default function BookingWidget({ services }: { services: Service[] }) {
                             <Clock size={18} className={canBook ? "text-[#2C6E49]" : isFull ? "text-rose-500" : "text-amber-600"} />
                           </div>
                           <div className="min-w-0">
-                            <div className={cn("font-semibold", isFull ? "text-rose-900 line-through decoration-rose-300" : "text-gray-800")}>
-                              {formatTime(slot.startTime)} – {formatTime(slot.endTime)}
+                            <div className={cn("font-semibold flex items-center gap-2 flex-wrap", isFull ? "text-rose-900 line-through decoration-rose-300" : "text-gray-800")}>
+                              <span>{formatTime(slot.startTime)} – {clientEndTime(slot.startTime)}</span>
+                              {slot.classType === "KIDS" && (
+                                <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full no-underline">
+                                  Kids
+                                </span>
+                              )}
+                              {slot.classType === "PRIVATE" && (
+                                <span className="text-[10px] font-bold uppercase bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full no-underline">
+                                  Private
+                                </span>
+                              )}
                             </div>
-                            <div className="text-sm text-gray-400">Group class · 6 max</div>
+                            <div className="text-sm text-gray-400">
+                              {slot.classType === "PRIVATE"
+                                ? "Private session · 1 person"
+                                : slot.classType === "KIDS"
+                                  ? `Kids class · up to ${slot.maxCapacity}`
+                                  : `Group class · up to ${slot.maxCapacity}`}
+                            </div>
                           </div>
                         </div>
                         <div className="text-right flex flex-col items-end gap-0.5">
                           {isFull ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-500 text-white">
+                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-rose-500 text-white leading-none">
                               Sold out
                             </span>
                           ) : !enoughForParty ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-white">
+                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-amber-500 text-white leading-none">
                               Only {spotsLeft} left
                             </span>
                           ) : (
@@ -879,28 +980,11 @@ export default function BookingWidget({ services }: { services: Service[] }) {
               {selectedDate && format(parseISO(selectedDate), "EEEE, MMMM d")}
             </div>
             <div className="text-sm text-gray-500">
-              {formatTime(selectedSlot.startTime)} – {formatTime(selectedSlot.endTime)} · Group class
+              {formatTime(selectedSlot.startTime)} – {clientEndTime(selectedSlot.startTime)} · Group class
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-              <input
-                ref={fieldRefs.clientName}
-                type="text"
-                value={form.clientName}
-                onChange={(e) => { setForm({ ...form, clientName: e.target.value }); clearFieldError("clientName") }}
-                placeholder="Your full name"
-                className={cn(
-                  "w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 transition-colors",
-                  fieldErrors.clientName
-                    ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
-                    : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                )}
-              />
-              {fieldErrors.clientName && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientName}</p>}
-            </div>
             {(() => {
               const country = detectCountry(form.clientPhone)
               const digits = form.clientPhone.replace(/\D/g, "")
@@ -913,6 +997,7 @@ export default function BookingWidget({ services }: { services: Service[] }) {
                   <input
                     ref={fieldRefs.clientPhone}
                     type="tel"
+                    autoFocus
                     value={form.clientPhone}
                     onChange={(e) => {
                       const stripped = "+" + e.target.value.replace(/\D/g, "")
@@ -956,6 +1041,38 @@ export default function BookingWidget({ services }: { services: Service[] }) {
               )
             })()}
 
+            {(() => {
+              const country = detectCountry(form.clientPhone)
+              const phoneDone = !!country && subscriberDigits(form.clientPhone, country) >= country.min
+              return (
+                <div>
+                  <label className={cn(
+                    "block text-sm font-medium mb-1",
+                    phoneDone ? "text-gray-700" : "text-gray-400"
+                  )}>
+                    Full Name *
+                    {lookupState === "loading" && <span className="text-xs text-gray-400 ml-2">looking up…</span>}
+                    {lookupState === "found" && <span className="text-xs text-[#2C6E49] ml-2">welcome back ✓</span>}
+                  </label>
+                  <input
+                    ref={fieldRefs.clientName}
+                    type="text"
+                    disabled={!phoneDone}
+                    value={form.clientName}
+                    onChange={(e) => { setForm({ ...form, clientName: e.target.value }); clearFieldError("clientName") }}
+                    placeholder={phoneDone ? "Your full name" : "Enter phone number first"}
+                    className={cn(
+                      "w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
+                      fieldErrors.clientName
+                        ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
+                        : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    )}
+                  />
+                  {fieldErrors.clientName && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientName}</p>}
+                </div>
+              )
+            })()}
+
             {services.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Additional Services <span className="text-gray-400">(optional)</span></label>
@@ -983,6 +1100,33 @@ export default function BookingWidget({ services }: { services: Service[] }) {
                 </div>
               </div>
             )}
+
+            {/* Running total */}
+            {(() => {
+              const perPerson = selectedSlot.price ?? 300000
+              const sessionTotal = perPerson * partySize
+              const chosenServices = services.filter((s) => selectedServices.includes(s.id))
+              const servicesTotal = chosenServices.reduce((sum, s) => sum + s.price, 0)
+              const total = sessionTotal + servicesTotal
+              return (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 space-y-1">
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Session{partySize > 1 ? ` × ${partySize}` : ""}</span>
+                    <span>{formatIDR(sessionTotal)}</span>
+                  </div>
+                  {chosenServices.map((s) => (
+                    <div key={s.id} className="flex justify-between text-xs text-gray-500">
+                      <span>+ {s.name}</span>
+                      <span>{formatIDR(s.price)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-semibold text-gray-800 pt-1 border-t border-gray-200">
+                    <span>Total</span>
+                    <span>{formatIDR(total)}</span>
+                  </div>
+                </div>
+              )
+            })()}
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">

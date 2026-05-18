@@ -4,89 +4,43 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, BookOpen, Users, Package, LayoutDashboard, LogOut, Banknote, KeyRound, X, Menu } from "lucide-react"
+import { Calendar, BookOpen, Users, Package, LayoutDashboard, LogOut, Banknote, Settings, ExternalLink, X, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const navItems = [
+const navItems: { href: string; label: string; icon: React.ComponentType<{ size?: number }>; beta?: boolean }[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/schedule", label: "Schedule", icon: Calendar },
+  { href: "/admin/beta-schedule", label: "Schedule", icon: Calendar, beta: true },
   { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
   { href: "/admin/trainers", label: "Trainers", icon: Users },
   { href: "/admin/services", label: "Services", icon: Package },
   { href: "/admin/salary", label: "Salary", icon: Banknote },
 ]
 
-function ChangePasswordModal({ onClose }: { onClose: () => void }) {
-  const [form, setForm] = useState({ current: "", next: "", confirm: "" })
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [done, setDone] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (form.next !== form.confirm) { setError("Passwords do not match"); return }
-    setLoading(true); setError("")
-    const res = await fetch("/api/auth/change-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ currentPassword: form.current, newPassword: form.next }),
-    })
-    if (res.ok) { setDone(true) }
-    else { const d = await res.json(); setError(d.error ?? "Error") }
-    setLoading(false)
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-gray-800">Change Password</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
-        </div>
-        {done ? (
-          <div className="text-center py-4">
-            <p className="text-[#2C6E49] font-medium mb-1">Password updated!</p>
-            <button onClick={onClose} className="mt-3 text-sm text-gray-400 hover:text-gray-600">Close</button>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <input type="password" required placeholder="Current password" value={form.current}
-              onChange={(e) => setForm({ ...form, current: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
-            <input type="password" required placeholder="New password" minLength={4} value={form.next}
-              onChange={(e) => setForm({ ...form, next: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
-            <input type="password" required placeholder="Confirm new password" value={form.confirm}
-              onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
-            {error && <p className="text-xs text-red-500">{error}</p>}
-            <button type="submit" disabled={loading}
-              className="w-full bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
-              {loading ? "Saving..." : "Update Password"}
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
-  )
-}
-
 function SidebarContent({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
-  const [showChangePassword, setShowChangePassword] = useState(false)
+  const [studio, setStudio] = useState<{ name: string; slug: string; isDefault: boolean } | null>(null)
 
   useEffect(() => { onClose() }, [pathname])
 
+  useEffect(() => {
+    fetch("/api/studio").then((r) => r.ok ? r.json() : null).then((d) => d && setStudio(d))
+  }, [])
+
+  const settingsActive = pathname === "/admin/settings"
+
   return (
     <>
-      <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-[#2C6E49] text-lg">Gravity Stretching</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Admin Panel</p>
+      <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="font-bold text-[#2C6E49] text-lg leading-tight">
+            {studio?.name || "Gravity Stretching"}
+          </h1>
+          <p className="text-xs text-gray-400 mt-1">Admin Panel</p>
         </div>
         <button
           onClick={onClose}
-          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg flex-shrink-0"
           aria-label="Close menu"
         >
           <X size={18} />
@@ -94,33 +48,47 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon, beta }) => {
           const active = pathname === href
           return (
             <Link key={href} href={href}
-              className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+              className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
                 active ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50"
               )}>
               <Icon size={18} />
-              {label}
+              <span className="flex-1">{label}</span>
+              {beta && (
+                <span className={cn(
+                  "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded",
+                  active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
+                )}>
+                  Beta
+                </span>
+              )}
             </Link>
           )
         })}
       </nav>
 
       <div className="p-4 border-t border-gray-100 space-y-1">
-        <button onClick={() => setShowChangePassword(true)}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full transition-colors">
-          <KeyRound size={18} />
-          Change Password
-        </button>
+        <a href="/" target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">
+          <ExternalLink size={18} />
+          <span className="flex-1">Booking page</span>
+        </a>
+        <Link href="/admin/settings"
+          className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
+            settingsActive ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50"
+          )}>
+          <Settings size={18} />
+          Settings
+        </Link>
         <button onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full transition-colors">
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full">
           <LogOut size={18} />
           Sign Out
         </button>
       </div>
-      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
     </>
   )
 }
@@ -128,6 +96,11 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
 function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname()
   const activeLabel = navItems.find((n) => n.href === pathname)?.label ?? "Admin"
+  const [studio, setStudio] = useState<{ name: string } | null>(null)
+
+  useEffect(() => {
+    fetch("/api/studio").then((r) => r.ok ? r.json() : null).then((d) => d && setStudio(d))
+  }, [])
 
   return (
     <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
@@ -139,7 +112,9 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
         <Menu size={20} />
       </button>
       <div className="flex-1 min-w-0">
-        <div className="font-bold text-[#2C6E49] text-sm">Gravity Stretching</div>
+        <div className="font-bold text-[#2C6E49] text-sm truncate">
+          {studio?.name || "Gravity Stretching"}
+        </div>
         <div className="text-xs text-gray-400">{activeLabel}</div>
       </div>
     </header>
@@ -154,8 +129,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex min-h-screen bg-[#F5F4F0]">
         <aside
           className={cn(
-            "fixed lg:static top-0 left-0 z-50 h-full lg:h-auto lg:min-h-screen w-64 bg-white border-r border-gray-100 flex flex-col transition-transform duration-200",
-            navOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+            "fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-100 flex flex-col transition-transform duration-200",
+            "lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
+            navOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
           <SidebarContent onClose={() => setNavOpen(false)} />

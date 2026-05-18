@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { authConfig } from "./auth.config"
+import { getStudioIdBySubdomain } from "@/lib/studio"
 
 declare module "next-auth" {
   interface User {
@@ -39,6 +40,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) return null
+
+        // Enforce studio isolation: user can only log in on their own studio's subdomain
+        const currentStudioId = await getStudioIdBySubdomain()
+        if (user.studioId !== currentStudioId) return null
 
         return { id: user.id, email: user.email, role: user.role, studioId: user.studioId, name: user.email }
       },

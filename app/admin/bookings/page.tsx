@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { format } from "date-fns"
-import { Search, ChevronDown, MessageCircle } from "lucide-react"
+import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, User, Clock, CreditCard, CheckCircle2, StickyNote, Sparkles, Copy, Check } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 
 type Booking = {
   id: string
   clientName: string
-  clientEmail: string
   clientPhone: string
   clientTelegram?: string
   status: string
@@ -28,15 +27,239 @@ type Booking = {
 }
 
 function formatTime(time: string) {
+  // Admin always sees 24-hour format
   const [h, m] = time.split(":").map(Number)
-  const ampm = h >= 12 ? "PM" : "AM"
-  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
 }
 
+function formatTime24(time: string) {
+  const [h, m] = time.split(":").map(Number)
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+}
+
+const PAYMENT_METHODS = [
+  { value: "CASH", label: "Cash" },
+  { value: "EDC", label: "EDC" },
+  { value: "QR", label: "QR" },
+  { value: "TRANSFER", label: "Transfer" },
+]
+
+const PAYMENT_LABEL: Record<string, string> = Object.fromEntries(
+  PAYMENT_METHODS.map((m) => [m.value, m.label])
+)
+
 const paymentBadge = (type: string, status: string) => {
-  if (type === "ONLINE" && status === "PAID") return { label: "Paid Online", cls: "bg-green-50 text-green-700" }
-  if (type === "OFFLINE" && status === "PAID") return { label: "Paid Offline", cls: "bg-blue-50 text-blue-700" }
+  if (status === "PAID") {
+    const label = PAYMENT_LABEL[type] ?? (type === "ONLINE" ? "Online" : type === "OFFLINE" ? "Offline" : "Paid")
+    return { label: `Paid · ${label}`, cls: "bg-green-50 text-green-700" }
+  }
   return { label: "Unpaid", cls: "bg-yellow-50 text-yellow-700" }
+}
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        navigator.clipboard.writeText(value).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        })
+      }}
+      title="Copy"
+      className="p-1.5 text-gray-400 hover:text-[#2C6E49] hover:bg-[#2C6E49]/5 rounded-md transition-colors"
+    >
+      {copied ? <Check size={14} /> : <Copy size={14} />}
+    </button>
+  )
+}
+
+function BookingDetails({
+  booking, isUpdating, onUpdate,
+}: {
+  booking: Booking
+  isUpdating: boolean
+  onUpdate: (data: Record<string, string>) => Promise<void> | void
+}) {
+  const [noteDraft, setNoteDraft] = useState(booking.notes ?? "")
+  const [noteSaved, setNoteSaved] = useState(false)
+  const cleanName = booking.clientName.replace(/\s*\(\d+\/\d+\)$/, "")
+  const wa = whatsappLink(
+    booking.clientPhone,
+    bookingConfirmationMessage({
+      clientName: cleanName,
+      date: format(new Date(booking.slot.date), "EEE, MMM d"),
+      time: formatTime(booking.slot.startTime),
+      ticketCode: booking.ticketCode || "",
+    })
+  )
+
+  const saveNote = () => {
+    const trimmed = noteDraft.trim()
+    if (trimmed === (booking.notes ?? "").trim()) return
+    Promise.resolve(onUpdate({ notes: trimmed })).then(() => {
+      setNoteSaved(true)
+      setTimeout(() => setNoteSaved(false), 1500)
+    })
+  }
+
+  return (
+    <div className="px-4 lg:px-6 py-5 bg-[#2C6E49]/[0.03] border-t border-[#2C6E49]/15 space-y-4">
+      {/* Top meta row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <MetaCell icon={<Calendar size={13} />} label="Date" value={format(new Date(booking.slot.date), "EEE, MMM d")} />
+        <MetaCell icon={<Clock size={13} />} label="Time" value={`${formatTime(booking.slot.startTime)} – ${formatTime(booking.slot.endTime)}`} />
+        <MetaCell icon={<User size={13} />} label="Trainer" value={booking.slot.trainer?.name ?? "—"} />
+        <MetaCell icon={<Calendar size={13} />} label="Booked on" value={format(new Date(booking.createdAt), "MMM d")} />
+      </div>
+
+      {/* Two-column main layout: contact + payment | services + notes */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Contact card */}
+        <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center gap-1.5 mb-3">
+            <Phone size={14} className="text-[#2C6E49]" />
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact</h3>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 group">
+              <Phone size={14} className="text-gray-400 flex-shrink-0" />
+              <a href={`tel:${booking.clientPhone}`} className="text-sm text-gray-800 hover:text-[#2C6E49] flex-1 truncate">
+                {booking.clientPhone}
+              </a>
+              <CopyButton value={booking.clientPhone} />
+            </div>
+            {booking.clientTelegram && (
+              <div className="flex items-center gap-2 group">
+                <Send size={14} className="text-gray-400 flex-shrink-0" />
+                <span className="text-sm text-gray-800 flex-1 truncate">{booking.clientTelegram}</span>
+                <CopyButton value={booking.clientTelegram} />
+              </div>
+            )}
+            {wa && (
+              <a
+                href={wa}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="mt-2 w-full flex items-center justify-center gap-2 text-sm font-medium bg-[#25D366] hover:bg-[#1da851] text-white px-3 py-2 rounded-lg transition-colors"
+              >
+                <MessageCircle size={14} /> Send WhatsApp confirmation
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Payment card */}
+        <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center gap-1.5 mb-3">
+            <CreditCard size={14} className="text-[#2C6E49]" />
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</h3>
+          </div>
+
+          {booking.paymentStatus === "PAID" ? (
+            <div className="flex items-center justify-between gap-2 bg-[#2C6E49]/5 border border-[#2C6E49]/20 rounded-lg px-3 py-2">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-[#2C6E49]">
+                <CheckCircle2 size={14} />
+                Paid · {PAYMENT_LABEL[booking.paymentType] ?? booking.paymentType}
+              </span>
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={() => onUpdate({ paymentType: "PENDING", paymentStatus: "UNPAID" })}
+                className="text-[11px] text-[#2C6E49]/70 hover:text-[#2C6E49] underline disabled:opacity-50"
+              >
+                Undo
+              </button>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">Mark as paid with</label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {PAYMENT_METHODS.map((pm) => (
+                  <button
+                    key={pm.value}
+                    type="button"
+                    disabled={isUpdating}
+                    onClick={() => onUpdate({ paymentType: pm.value, paymentStatus: "PAID" })}
+                    className={cn(
+                      "px-2 py-2 rounded-lg text-xs font-medium border text-center truncate touch-manipulation",
+                      "bg-white text-gray-500 border-gray-200 hover:border-[#2C6E49]/40 hover:text-[#2C6E49]"
+                    )}
+                  >
+                    {pm.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Services + Notes */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {booking.services.length > 0 && (
+          <div className="bg-white rounded-xl p-4 border border-gray-100">
+            <div className="flex items-center gap-1.5 mb-3">
+              <Sparkles size={14} className="text-[#2C6E49]" />
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Additional services</h3>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {booking.services.map((s, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5 text-xs bg-[#2C6E49]/5 text-[#2C6E49] px-2.5 py-1 rounded-lg font-medium">
+                  {s.service.name}
+                  <span className="text-[#2C6E49]/60">·</span>
+                  <span className="text-[#2C6E49]/80">{Math.round(s.service.price / 1000)}k</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className={cn("bg-white rounded-xl p-4 border border-gray-100", booking.services.length === 0 && "lg:col-span-2")}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <StickyNote size={14} className="text-[#2C6E49]" />
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</h3>
+            </div>
+            {noteSaved && (
+              <span className="text-[10px] text-green-600 flex items-center gap-1">
+                <Check size={10} /> Saved
+              </span>
+            )}
+          </div>
+          <textarea
+            value={noteDraft}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            onBlur={saveNote}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.currentTarget.blur()
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            rows={2}
+            disabled={isUpdating}
+            placeholder="Add a note about this client..."
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] resize-none disabled:opacity-50"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MetaCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="px-3 py-2 rounded-lg bg-white/60 border border-gray-100">
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-0.5">
+        <span className="text-gray-300">{icon}</span>
+        {label}
+      </div>
+      <div className="text-sm font-medium text-gray-700 truncate">{value}</div>
+    </div>
+  )
 }
 
 export default function BookingsPage() {
@@ -55,21 +278,25 @@ export default function BookingsPage() {
 
   useEffect(() => { fetchBookings() }, [fetchBookings])
 
+  // Optimistic update — apply locally first, then sync to the server.
+  // No "loading" / disabled state — the UI reacts in the same frame.
   const updateBooking = async (id: string, data: Record<string, string>) => {
-    setUpdating(id)
-    await fetch(`/api/admin/bookings/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    })
-    await fetchBookings()
-    setUpdating(null)
+    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...data } : b)))
+    try {
+      await fetch(`/api/admin/bookings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
+    } catch {
+      // Network error — pull authoritative state back
+      fetchBookings()
+    }
   }
 
   const filtered = bookings.filter((b) =>
     !search ||
     b.clientName.toLowerCase().includes(search.toLowerCase()) ||
-    b.clientEmail.toLowerCase().includes(search.toLowerCase()) ||
     b.clientPhone.includes(search)
   )
 
@@ -83,18 +310,21 @@ export default function BookingsPage() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search name, email, phone..."
+            placeholder="Search name, phone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
           />
         </div>
-        <input
-          type="date"
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] bg-white"
-        />
+        <div className="relative">
+          <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] bg-white"
+          />
+        </div>
         {dateFilter && (
           <button onClick={() => setDateFilter("")} className="text-sm text-gray-500 hover:text-gray-800 px-2">Clear</button>
         )}
@@ -102,12 +332,12 @@ export default function BookingsPage() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[2fr_2fr_1fr_1fr_1fr_40px] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wide">
+        <div className="grid [grid-template-columns:1.5fr_1.5fr_1fr_30px] lg:[grid-template-columns:2fr_2fr_1fr_1fr_1fr_40px] gap-3 lg:gap-4 px-4 lg:px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wide">
           <div>Client</div>
           <div>Session</div>
-          <div>Trainer</div>
+          <div className="hidden lg:block">Trainer</div>
           <div>Payment</div>
-          <div>Booked</div>
+          <div className="hidden lg:block">Booked</div>
           <div />
         </div>
 
@@ -120,30 +350,39 @@ export default function BookingsPage() {
               const isExpanded = expandedId === b.id
 
               return (
-                <div key={b.id}>
+                <div
+                  key={b.id}
+                  className={cn(
+                    isExpanded && "relative z-10 my-2 mx-2 lg:mx-3 rounded-xl ring-1 ring-[#2C6E49]/25 shadow-sm overflow-hidden bg-white"
+                  )}
+                >
                   <div
-                    className="grid grid-cols-[2fr_2fr_1fr_1fr_1fr_40px] gap-4 px-6 py-4 items-center hover:bg-gray-50 cursor-pointer"
+                    className={cn(
+                      "grid [grid-template-columns:1.5fr_1.5fr_1fr_30px] lg:[grid-template-columns:2fr_2fr_1fr_1fr_1fr_40px] gap-3 lg:gap-4 px-4 lg:px-6 py-4 items-center cursor-pointer transition-colors",
+                      isExpanded ? "bg-[#2C6E49]/5" : "hover:bg-gray-50"
+                    )}
                     onClick={() => setExpandedId(isExpanded ? null : b.id)}
                   >
-                    <div>
-                      <div className="font-medium text-sm text-gray-800">{b.clientName}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">{b.clientEmail}</div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm text-gray-800 truncate">{b.clientName}</div>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-sm text-gray-800">
-                        {format(new Date(b.slot.date), "MMM d, yyyy")}
+                        <span className="lg:hidden">{format(new Date(b.slot.date), "MMM d")}</span>
+                        <span className="hidden lg:inline">{format(new Date(b.slot.date), "MMM d, yyyy")}</span>
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5">
-                        {formatTime(b.slot.startTime)} – {formatTime(b.slot.endTime)}
+                        <span className="lg:hidden">{formatTime24(b.slot.startTime)}</span>
+                        <span className="hidden lg:inline">{formatTime(b.slot.startTime)} – {formatTime(b.slot.endTime)}</span>
                       </div>
                     </div>
-                    <div className="text-sm text-gray-600">{b.slot.trainer?.name ?? <span className="text-gray-400">—</span>}</div>
+                    <div className="hidden lg:block text-sm text-gray-600">{b.slot.trainer?.name ?? <span className="text-gray-400">—</span>}</div>
                     <div>
-                      <span className={cn("text-xs px-2 py-1 rounded-full font-medium", badge.cls)}>
+                      <span className={cn("text-[10px] lg:text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap", badge.cls)}>
                         {badge.label}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div className="hidden lg:block text-xs text-gray-400">
                       {format(new Date(b.createdAt), "MMM d")}
                     </div>
                     <div>
@@ -152,85 +391,11 @@ export default function BookingsPage() {
                   </div>
 
                   {isExpanded && (
-                    <div className="px-6 pb-5 bg-gray-50 border-t border-gray-100">
-                      <div className="grid grid-cols-3 gap-6 pt-4">
-                        <div>
-                          <div className="text-xs text-gray-400 mb-1">Contact</div>
-                          <div className="text-sm text-gray-700">{b.clientPhone}</div>
-                          {b.clientTelegram && <div className="text-sm text-gray-700">{b.clientTelegram}</div>}
-                          {(() => {
-                            const wa = whatsappLink(b.clientPhone, bookingConfirmationMessage({
-                              clientName: b.clientName.replace(/\s*\(\d+\/\d+\)$/, ""),
-                              date: format(new Date(b.slot.date), "EEE, MMM d"),
-                              time: formatTime(b.slot.startTime),
-                              ticketCode: b.ticketCode || "",
-                            }))
-                            return wa ? (
-                              <a
-                                href={wa}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="mt-2 inline-flex items-center gap-1.5 text-xs bg-[#25D366] hover:bg-[#1da851] text-white px-3 py-1.5 rounded-lg transition-colors"
-                              >
-                                <MessageCircle size={12} /> WhatsApp
-                              </a>
-                            ) : null
-                          })()}
-                        </div>
-
-                        {b.services.length > 0 && (
-                          <div>
-                            <div className="text-xs text-gray-400 mb-1">Additional Services</div>
-                            {b.services.map((s, i) => (
-                              <div key={i} className="text-sm text-gray-700">{s.service.name} — {Math.round(s.service.price / 1000)}k IDR</div>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">Payment Type</label>
-                            <select
-                              value={b.paymentType}
-                              disabled={updating === b.id}
-                              onChange={(e) => updateBooking(b.id, { paymentType: e.target.value })}
-                              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
-                            >
-                              <option value="PENDING">Pending</option>
-                              <option value="ONLINE">Online</option>
-                              <option value="OFFLINE">Offline</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">Payment Status</label>
-                            <select
-                              value={b.paymentStatus}
-                              disabled={updating === b.id}
-                              onChange={(e) => updateBooking(b.id, { paymentStatus: e.target.value })}
-                              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
-                            >
-                              <option value="UNPAID">Unpaid</option>
-                              <option value="PAID">Paid</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">Notes</label>
-                            <input
-                              type="text"
-                              defaultValue={b.notes ?? ""}
-                              onBlur={(e) => {
-                                if (e.target.value !== (b.notes ?? "")) {
-                                  updateBooking(b.id, { notes: e.target.value })
-                                }
-                              }}
-                              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
-                              placeholder="Add note..."
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <BookingDetails
+                      booking={b}
+                      isUpdating={updating === b.id}
+                      onUpdate={(data) => updateBooking(b.id, data)}
+                    />
                   )}
                 </div>
               )

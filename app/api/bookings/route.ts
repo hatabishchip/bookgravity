@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getDefaultStudioId } from "@/lib/studio"
+import { getStudioIdBySubdomain } from "@/lib/studio"
+import { isSlotBookable } from "@/lib/booking-cutoff"
 import { z } from "zod"
 
 const BookingSchema = z.object({
   slotId: z.string(),
   clientName: z.string().min(2),
-  clientEmail: z.string().email().optional().or(z.literal("")),
   clientPhone: z.string().min(5),
   serviceIds: z.array(z.string()).optional(),
   partySize: z.number().int().min(1).max(6).default(1),
@@ -30,13 +30,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = BookingSchema.parse(body)
 
-    const studioId = await getDefaultStudioId()
+    const studioId = await getStudioIdBySubdomain()
     const slot = await prisma.timeSlot.findFirst({
-      where: { id: data.slotId, studioId },
+      where: { id: data.slotId, studioId, trainerId: { not: null }, publicVisible: true },
       include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
     })
 
     if (!slot) return NextResponse.json({ error: "Slot not found" }, { status: 404 })
+
+    if (!isSlotBookable(slot.date, slot.startTime)) {
+      return NextResponse.json(
+        { error: "Bookings close 2 hours before the session starts" },
+        { status: 409 }
+      )
+    }
 
     if (data.serviceIds?.length) {
       const services = await prisma.additionalService.findMany({
@@ -68,7 +75,7 @@ export async function POST(request: NextRequest) {
         data: {
           slotId: data.slotId,
           clientName: data.partySize > 1 ? `${data.clientName} (${i + 1}/${data.partySize})` : data.clientName,
-          clientEmail: data.clientEmail || "",
+          clientEmail: "",
           clientPhone: data.clientPhone,
           ticketCode,
           services: data.serviceIds?.length

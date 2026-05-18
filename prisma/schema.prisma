@@ -7,11 +7,17 @@ datasource db {
 }
 
 model Studio {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  isDefault     Boolean  @default(false)
+  logoUrl       String?
+  faviconUrl    String?
+  // Main-service prices (per person) — used as defaults when creating slots
+  groupPrice    Float    @default(300000)
+  kidsPrice     Float    @default(200000)
+  privatePrice  Float    @default(800000)
+  createdAt     DateTime @default(now())
 
   users        User[]
   trainers     Trainer[]
@@ -104,6 +110,8 @@ model TimeSlot {
   trainer     Trainer?  @relation(fields: [trainerId], references: [id])
   assistantId String?
   assistant   Trainer?  @relation("SlotAssistant", fields: [assistantId], references: [id])
+  classType     String  @default("GROUP") // GROUP | KIDS | PRIVATE
+  publicVisible Boolean @default(true)
   maxCapacity Int       @default(6)
   price       Float     @default(0)
   studioId    String

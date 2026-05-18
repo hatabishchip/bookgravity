@@ -1,14 +1,17 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
-import { format, addDays, startOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, endOfWeek, addMonths, subMonths, isSameMonth, parseISO } from "date-fns"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, parseISO } from "date-fns"
 import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, Unlock, Copy } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 
 type View = "week" | "2weeks" | "month"
 type Trainer = { id: string; name: string; color: string }
 type Slot = {
   id: string; date: string; startTime: string; endTime: string
+  classType: string
+  publicVisible: boolean
   maxCapacity: number; price: number
   trainer: { id: string; name: string; color: string } | null
   assistant: { id: string; name: string; color: string } | null
@@ -19,9 +22,10 @@ type BlockedDay = { id: string; date: string; reason: string | null }
 const TIME_PRESETS = ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00"]
 const VIEW_LABELS: Record<View, string> = { week: "Week", "2weeks": "2 Weeks", month: "Month" }
 
+// 24-hour format: 07:00, 13:00, 19:00 etc. Admin always sees 24h.
 function formatTime(t: string) {
   const [h, m] = t.split(":").map(Number)
-  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
 }
 
 function computeEndTime(startTime: string) {
@@ -45,7 +49,15 @@ function slotCardStyle(slot: Slot) {
   }
 }
 
-type SlotAssignment = { trainerId: string; assistantId: string }
+type SlotAssignment = { trainerId: string; assistantId: string; classType: ClassType; publicVisible: boolean; maxCapacity: number }
+type ClassType = "GROUP" | "KIDS" | "PRIVATE"
+
+const CLASS_TYPES: { value: ClassType; label: string; sub: string }[] = [
+  { value: "GROUP", label: "Group class", sub: "up to 6" },
+  { value: "KIDS", label: "Kids class", sub: "up to 6" },
+  { value: "PRIVATE", label: "Private", sub: "1 person" },
+]
+
 const EMPTY_FORM = {
   date: format(new Date(), "yyyy-MM-dd"),
   startTime: "10:00",
@@ -53,6 +65,8 @@ const EMPTY_FORM = {
   customTime: "10:00",
   trainerId: "",
   assistantId: "",
+  classType: "GROUP" as ClassType,
+  publicVisible: true,
   maxCapacity: 6,
   price: 300000,
   assignments: {} as Record<string, SlotAssignment>,
@@ -63,11 +77,26 @@ function sortTimes(times: string[]) {
 }
 
 export default function SchedulePage() {
-  const [view, setView] = useState<View>("2weeks")
-  const [anchor, setAnchor] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
+  const [view, setView] = useState<View>("week")
+  // For Week view, anchor = the actual first visible day (defaults to today).
+  // For 2weeks, anchor = Monday of the current week.
+  // For Month, anchor = any day within the visible month.
+  const [anchor, setAnchor] = useState<Date>(new Date())
+
+  // Reset anchor whenever the view mode changes so it matches that view's
+  // semantics — keeps Prev/Next behaving correctly across switches.
+  const lastViewRef = useRef<View>(view)
+  useEffect(() => {
+    if (lastViewRef.current === view) return
+    lastViewRef.current = view
+    if (view === "week") setAnchor(new Date())
+    else if (view === "2weeks") setAnchor(startOfWeek(new Date(), { weekStartsOn: 1 }))
+    else setAnchor(startOfMonth(new Date()))
+  }, [view])
   const [slots, setSlots] = useState<Slot[]>([])
   const [blockedDays, setBlockedDays] = useState<BlockedDay[]>([])
   const [trainers, setTrainers] = useState<Trainer[]>([])
+  const [studioPrices, setStudioPrices] = useState<{ groupPrice: number; kidsPrice: number; privatePrice: number } | null>(null)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [modal, setModal] = useState<null | "create" | Slot>(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -87,17 +116,24 @@ export default function SchedulePage() {
     running: boolean
   }>(null)
 
+  // Lock background scroll while any modal is open (iOS-safe)
+  useBodyScrollLock(modal !== null || blockModal !== null || copyModal !== null)
+
   const todayStr = format(new Date(), "yyyy-MM-dd")
 
   const days = useMemo(() => {
-    if (view === "week") return Array.from({ length: 7 }, (_, i) => addDays(anchor, i))
+    if (view === "week") {
+      // 7 days starting from `anchor` (defaults to today; Prev/Next shift by 7)
+      return Array.from({ length: 7 }, (_, i) => addDays(anchor, i))
+    }
     if (view === "2weeks") return Array.from({ length: 14 }, (_, i) => addDays(anchor, i))
+    // Month view: full calendar grid so weekday columns line up with headers
     const mStart = startOfMonth(anchor)
     const mEnd = endOfMonth(anchor)
-    const gs = startOfWeek(mStart, { weekStartsOn: 1 })
-    const ge = endOfWeek(mEnd, { weekStartsOn: 1 })
-    const r: Date[] = []; let d = gs
-    while (d <= ge) { r.push(d); d = addDays(d, 1) }
+    const gridStart = startOfWeek(mStart, { weekStartsOn: 1 })
+    const gridEnd = endOfWeek(mEnd, { weekStartsOn: 1 })
+    const r: Date[] = []; let d = gridStart
+    while (d <= gridEnd) { r.push(d); d = addDays(d, 1) }
     return r
   }, [view, anchor])
 
@@ -121,12 +157,12 @@ export default function SchedulePage() {
   }
 
   const fetchSlots = useCallback(async () => {
-    const res = await fetch(`/api/admin/slots?from=${from}&to=${to}`)
+    const res = await fetch(`/api/admin/slots?from=${from}&to=${to}`, { cache: "no-store" })
     setSlots(await res.json())
   }, [from, to])
 
   const fetchBlocked = useCallback(async () => {
-    const res = await fetch(`/api/admin/blocked-days?from=${from}&to=${to}`)
+    const res = await fetch(`/api/admin/blocked-days?from=${from}&to=${to}`, { cache: "no-store" })
     setBlockedDays(await res.json())
   }, [from, to])
 
@@ -138,6 +174,24 @@ export default function SchedulePage() {
   useEffect(() => { fetchSlots() }, [fetchSlots])
   useEffect(() => { fetchBlocked() }, [fetchBlocked])
   useEffect(() => { fetchTrainers() }, [fetchTrainers])
+  useEffect(() => {
+    fetch("/api/admin/studio").then((r) => r.ok ? r.json() : null).then((d) => {
+      if (d) setStudioPrices({ groupPrice: d.groupPrice, kidsPrice: d.kidsPrice, privatePrice: d.privatePrice })
+    })
+  }, [])
+
+  const priceForType = (t: ClassType) => {
+    if (!studioPrices) return 0
+    return t === "GROUP" ? studioPrices.groupPrice : t === "KIDS" ? studioPrices.kidsPrice : studioPrices.privatePrice
+  }
+  const formatPriceShort = (p: number) => {
+    if (p >= 1_000_000) {
+      const m = p / 1_000_000
+      const s = m % 1 === 0 ? m.toString() : m.toFixed(1).replace(/\.0$/, "")
+      return `${s}M`
+    }
+    return `${Math.round(p / 1000)}k`
+  }
 
   const openCreate = (date: string) => {
     const bd = blockedDays.find((b) => b.date === date)
@@ -147,80 +201,135 @@ export default function SchedulePage() {
     // a "manage day's sessions" view (toggle to add or remove).
     const existing = slots.filter((s) => s.date === date)
     const existingTimes = sortTimes(existing.map((s) => s.startTime))
-    setForm({ ...EMPTY_FORM, date, startTimes: existingTimes, assignments: {} })
+    const initialAssignments: Record<string, SlotAssignment> = {}
+    existing.forEach((s) => {
+      initialAssignments[s.startTime] = {
+        trainerId: s.trainer?.id ?? "",
+        assistantId: s.assistant?.id ?? "",
+        classType: (s.classType as ClassType) ?? "GROUP",
+        publicVisible: s.publicVisible ?? true,
+        maxCapacity: s.maxCapacity ?? 6,
+      }
+    })
+    setForm({ ...EMPTY_FORM, date, startTimes: existingTimes, assignments: initialAssignments })
     setFormError("")
     setModal("create")
-  }
-
-  const openEdit = (slot: Slot) => {
-    setSelectedDate(slot.date)
-    setForm({ date: slot.date, startTime: slot.startTime, startTimes: [], customTime: slot.startTime, trainerId: slot.trainer?.id ?? "", assistantId: slot.assistant?.id ?? "", maxCapacity: slot.maxCapacity, price: slot.price, assignments: {} })
-    setFormError("")
-    setModal(slot)
   }
 
   const closeModal = () => { setModal(null); setFormError("") }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    const isEdit = modal !== null && modal !== "create"
+    if (saving) return
+    setFormError("")
 
-    if (isEdit) {
-      setSaving(true); setFormError("")
-      const res = await fetch(`/api/admin/slots?id=${(modal as Slot).id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startTime: form.startTime, trainerId: form.trainerId || null, assistantId: form.assistantId || null, maxCapacity: form.maxCapacity, price: form.price }),
-      })
-      if (!res.ok) { const err = await res.json(); setFormError(err.error ?? "Error"); setSaving(false); return }
-      await fetchSlots(); closeModal(); setSaving(false)
-      return
+    type Req = { url: string; method: "POST" | "PATCH" | "DELETE"; body?: unknown }
+    const payloads: Req[] = []
+
+    {
+      // Multi-time mode: diff against existing slots on this date
+      const existing = slots.filter((s) => s.date === form.date)
+      const existingByTime = new Map(existing.map((s) => [s.startTime, s] as const))
+      const desired = new Set(form.startTimes)
+      const toDelete = existing.filter((s) => !desired.has(s.startTime))
+      const toCreate = form.startTimes.filter((t) => !existingByTime.has(t))
+
+      for (const s of toDelete) {
+        payloads.push({ url: `/api/admin/slots?id=${s.id}`, method: "DELETE" })
+      }
+
+      // Existing slots whose trainer/assistant/classType/capacity/visibility changed inline
+      for (const t of form.startTimes) {
+        const slot = existingByTime.get(t)
+        if (!slot) continue
+        const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+        const currentTrainer = slot.trainer?.id ?? ""
+        const currentAssistant = slot.assistant?.id ?? ""
+        const currentType = (slot.classType as ClassType) ?? "GROUP"
+        const currentVis = slot.publicVisible ?? true
+        const currentCap = slot.maxCapacity ?? 6
+        const desiredCap = a.classType === "PRIVATE" ? 1 : a.maxCapacity
+        if (
+          a.trainerId !== currentTrainer ||
+          a.assistantId !== currentAssistant ||
+          a.classType !== currentType ||
+          a.publicVisible !== currentVis ||
+          desiredCap !== currentCap
+        ) {
+          payloads.push({
+            url: `/api/admin/slots?id=${slot.id}`,
+            method: "PATCH",
+            body: {
+              trainerId: a.trainerId || null,
+              assistantId: a.assistantId || null,
+              classType: a.classType,
+              publicVisible: a.publicVisible,
+              maxCapacity: desiredCap,
+              price: priceForType(a.classType),
+            },
+          })
+        }
+      }
+
+      for (const startTime of toCreate) {
+        const a = form.assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+        const isPrivate = a.classType === "PRIVATE"
+        payloads.push({
+          url: "/api/admin/slots",
+          method: "POST",
+          body: {
+            date: form.date,
+            startTime,
+            trainerId: a.trainerId || undefined,
+            assistantId: a.assistantId || null,
+            classType: a.classType,
+            publicVisible: a.publicVisible,
+            maxCapacity: isPrivate ? 1 : Number(a.maxCapacity),
+            price: priceForType(a.classType),
+          },
+        })
+      }
     }
 
-    // Create mode: diff against existing slots on this date
-    const existing = slots.filter((s) => s.date === form.date)
-    const existingByTime = new Map(existing.map((s) => [s.startTime, s] as const))
-    const desired = new Set(form.startTimes)
-    const toDelete = existing.filter((s) => !desired.has(s.startTime))
-    const toCreate = form.startTimes.filter((t) => !existingByTime.has(t))
-
-    if (toCreate.length === 0 && toDelete.length === 0) {
+    if (payloads.length === 0) {
       closeModal()
       return
     }
-    setSaving(true); setFormError("")
-    const failed: string[] = []
 
-    // Deletes first to free up any potential conflicts
-    for (const s of toDelete) {
-      const res = await fetch(`/api/admin/slots?id=${s.id}`, { method: "DELETE" })
-      if (!res.ok) failed.push(`Delete ${s.startTime}: error`)
-    }
-    for (const startTime of toCreate) {
-      const assignment = form.assignments[startTime] ?? { trainerId: "", assistantId: "" }
-      const res = await fetch("/api/admin/slots", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: form.date,
-          startTime,
-          trainerId: assignment.trainerId || undefined,
-          assistantId: assignment.assistantId || null,
-          maxCapacity: Number(form.maxCapacity),
-          price: Number(form.price),
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        failed.push(`${startTime}: ${err.error ?? "error"}`)
+    setSaving(true)
+    try {
+      const results = await Promise.all(
+        payloads.map((p) =>
+          fetch(p.url, {
+            method: p.method,
+            ...(p.body !== undefined && {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(p.body),
+            }),
+          }),
+        ),
+      )
+      const failed: string[] = []
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i]
+        if (!r.ok) {
+          const txt = await r.text().catch(() => "")
+          let msg = `${r.status}`
+          try { msg = JSON.parse(txt).error ?? msg } catch {}
+          failed.push(`${payloads[i].method.replace("POST", "create").replace("PATCH", "update").replace("DELETE", "delete")}: ${msg}`)
+        }
       }
+      await fetchSlots()
+      if (failed.length > 0) {
+        setFormError(failed.join(" · "))
+        return
+      }
+      closeModal()
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Network error")
+    } finally {
+      setSaving(false)
     }
-    await fetchSlots(); setSaving(false)
-    if (failed.length > 0) {
-      setFormError(`Some changes failed — ${failed.join("; ")}`)
-      return
-    }
-    closeModal()
   }
 
   const handleDelete = async (id: string) => {
@@ -316,10 +425,8 @@ export default function SchedulePage() {
   }
 
   const slotsForDay = (d: string) => slots.filter((s) => s.date === d)
-  const isEdit = modal !== null && modal !== "create"
-  const isMonthView = view === "month"
-  const cellPad = isMonthView ? "p-1.5" : "p-2.5"
-  const cellMinH = isMonthView ? "min-h-[90px]" : view === "2weeks" ? "min-h-[160px]" : "min-h-[220px]"
+  const cellPad = view === "week" ? "p-4" : "p-2.5"
+  const cellMinH = view === "week" ? "min-h-[160px] lg:min-h-[220px]" : "min-h-[160px]"
 
   return (
     <div>
@@ -339,12 +446,6 @@ export default function SchedulePage() {
             >
               <Copy size={15} /> <span className="hidden sm:inline">Copy week</span>
             </button>
-            <button
-              onClick={() => openCreate(selectedDate ?? todayStr)}
-              className="flex items-center gap-2 bg-[#2C6E49] text-white px-3 lg:px-4 py-2 rounded-xl text-xs lg:text-sm font-medium hover:bg-[#1E4D34] transition-colors"
-            >
-              <Plus size={16} /> <span className="hidden sm:inline">Add Session</span><span className="sm:hidden">Add</span>
-            </button>
           </div>
         </div>
 
@@ -355,7 +456,7 @@ export default function SchedulePage() {
               key={v}
               onClick={() => setView(v)}
               className={cn(
-                "flex-1 lg:flex-initial px-3 lg:px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                "flex-1 lg:flex-initial px-3 lg:px-4 py-2 rounded-lg text-sm font-medium",
                 view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
               )}
             >
@@ -375,7 +476,11 @@ export default function SchedulePage() {
             <span className="hidden sm:inline">Previous</span>
           </button>
           <button
-            onClick={() => setAnchor(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+            onClick={() => {
+              if (view === "week") setAnchor(new Date())
+              else if (view === "2weeks") setAnchor(startOfWeek(new Date(), { weekStartsOn: 1 }))
+              else setAnchor(startOfMonth(new Date()))
+            }}
             className="flex-1 lg:flex-initial px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
           >
             Today
@@ -391,30 +496,33 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* Day headers — month view always 7 cols; week/2weeks responsive */}
-      <div className={cn(
-        "grid gap-2 mb-1.5 px-0.5",
-        isMonthView ? "grid-cols-7" : "hidden lg:grid lg:grid-cols-7"
-      )}>
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-          <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
-            <span className="hidden sm:inline">{d}</span>
-            <span className="sm:hidden">{d.charAt(0)}</span>
-          </div>
-        ))}
-      </div>
+      {/* Day headers — only for 2weeks/month, hidden in Week view since
+          cells already display weekday + date prominently */}
+      {view !== "week" && (
+        <div className="hidden lg:grid lg:grid-cols-7 gap-2 mb-1.5 px-0.5">
+          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+            <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
+              <span className="hidden sm:inline">{d}</span>
+              <span className="sm:hidden">{d.charAt(0)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Grid */}
+      {/* Grid — Week view stacks vertically on mobile (today + 6 days),
+          2 cols on lg, like the trainer's Week view */}
       <div className={cn(
         "grid gap-2",
-        isMonthView ? "grid-cols-7" : "grid-cols-2 lg:grid-cols-7"
+        view === "week"
+          ? "grid-cols-1 lg:grid-cols-2"
+          : "grid-cols-2 max-lg:landscape:grid-cols-4 lg:grid-cols-7"
       )}>
         {days.map((day) => {
           const dateStr = format(day, "yyyy-MM-dd")
           const isToday = dateStr === todayStr
           const isSelected = dateStr === selectedDate
+          const isOutsideMonth = view === "month" && !isSameMonth(day, anchor)
           const daySlots = slotsForDay(dateStr)
-          const isOtherMonth = isMonthView && !isSameMonth(day, anchor)
           const blocked = blockedDays.find((b) => b.date === dateStr)
 
           return (
@@ -422,21 +530,37 @@ export default function SchedulePage() {
               key={dateStr}
               onClick={() => !blocked && openCreate(dateStr)}
               className={cn(
-                "rounded-2xl shadow-sm transition-all group relative",
+                "rounded-2xl shadow-sm group relative",
                 cellPad, cellMinH,
                 blocked ? "bg-gray-100 cursor-not-allowed" : "bg-white cursor-pointer",
-                isOtherMonth && "opacity-40",
                 !blocked && isSelected ? "ring-2 ring-[#2C6E49]" : !blocked && "hover:ring-1 hover:ring-[#2C6E49]/30",
+                isOutsideMonth && "opacity-40",
               )}
             >
               {/* Date + lock */}
-              <div className={cn("text-center relative", isMonthView ? "mb-1" : "mb-2.5")}>
-                {!isMonthView && (
-                  <div className="lg:hidden text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
-                    {format(day, "EEE")}
+              {view === "week" ? (
+                <div className="mb-4 flex items-center justify-between gap-2 relative">
+                  <div>
+                    <div className={cn(
+                      "text-lg font-bold leading-tight",
+                      isToday && !blocked ? "text-[#2C6E49]" : blocked ? "text-gray-400" : "text-gray-900"
+                    )}>
+                      {format(day, "EEEE")}
+                    </div>
+                    <div className="text-sm text-gray-500 mt-0.5">
+                      {format(day, "MMMM d")}
+                    </div>
                   </div>
-                )}
-                <div className={cn("font-bold mx-auto flex items-center justify-center rounded-full", isMonthView ? "text-sm w-6 h-6" : "text-lg w-8 h-8 mt-0.5",
+                  {isToday && !blocked && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-[#2C6E49] text-white px-2 py-1 rounded-full">Today</span>
+                  )}
+                </div>
+              ) : (
+              <div className="text-center relative mb-2.5">
+                <div className="lg:hidden text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
+                  {format(day, "EEE")}
+                </div>
+                <div className={cn("font-bold mx-auto flex items-center justify-center rounded-full text-lg w-8 h-8 mt-0.5",
                   isToday && !blocked ? "bg-[#2C6E49] text-white" : blocked ? "text-gray-400" : "text-gray-800"
                 )}>
                   {format(day, "d")}
@@ -446,13 +570,14 @@ export default function SchedulePage() {
                   onClick={(e) => openBlockModal(e, dateStr)}
                   title={blocked ? `Blocked${blocked.reason ? ": " + blocked.reason : ""}` : "Block day"}
                   className={cn(
-                    "absolute top-0 right-0 p-0.5 rounded transition-all",
+                    "absolute top-0 right-0 p-0.5 rounded",
                     blocked ? "opacity-60 text-gray-500 hover:text-red-500" : "opacity-0 group-hover:opacity-60 text-gray-300 hover:text-orange-500"
                   )}
                 >
                   {blocked ? <Lock size={10} /> : <Unlock size={10} />}
                 </button>
               </div>
+              )}
 
               {/* Blocked label */}
               {blocked && (
@@ -469,36 +594,52 @@ export default function SchedulePage() {
                   {daySlots.map((slot) => {
                     const cardStyle = slotCardStyle(slot)
                     const hasTrainer = !!slot.trainer
+                    const typeLabel = slot.classType === "KIDS" ? "Kids" : slot.classType === "PRIVATE" ? "Private" : "Group"
+                    const typePill = slot.classType === "KIDS"
+                      ? "bg-amber-100 text-amber-900 border-amber-300"
+                      : slot.classType === "PRIVATE"
+                        ? "bg-purple-100 text-purple-900 border-purple-300"
+                        : hasTrainer
+                          ? "bg-white/90 text-gray-800 border-white/60"
+                          : "bg-gray-100 text-gray-700 border-gray-200"
 
                     return (
                       <div
                         key={slot.id}
-                        onClick={(e) => { e.stopPropagation(); openEdit(slot) }}
+                        onClick={(e) => { e.stopPropagation(); openCreate(slot.date) }}
                         style={cardStyle}
                         className={cn(
                           "rounded-lg p-1.5 relative group/slot cursor-pointer transition-all border",
                           !hasTrainer && "bg-gray-50 border-gray-200 hover:bg-gray-100"
                         )}
                       >
-                        <div
-                          className="text-xs font-semibold leading-tight"
-                          style={hasTrainer ? { color: "white" } : {}}
-                        >
-                          {formatTime(slot.startTime)}
-                          {!isMonthView && (
+                        <div className="flex items-start justify-between gap-1">
+                          <div
+                            className="text-xs font-semibold leading-tight"
+                            style={hasTrainer ? { color: "white" } : {}}
+                          >
+                            {formatTime(slot.startTime)}
                             <span className="block font-normal text-[10px] opacity-70">{formatTime(slot.endTime)}</span>
-                          )}
+                          </div>
+                          <span
+                            className={cn(
+                              "px-1.5 py-[1px] rounded text-[9px] font-bold uppercase tracking-wide leading-none border whitespace-nowrap mt-0.5 group-hover/slot:opacity-0 transition-opacity",
+                              typePill,
+                            )}
+                          >
+                            {typeLabel}
+                          </span>
                         </div>
-                        <div className={cn("mt-0.5 truncate", isMonthView ? "text-[8px]" : "text-[10px]")}
+                        <div className="mt-0.5 truncate text-[10px]"
                           style={hasTrainer ? { color: "rgba(255,255,255,0.75)" } : { color: "#9CA3AF" }}
                         >
                           {slot.trainer?.name ?? "—"}
-                          {!isMonthView && slot.assistant && (
+                          {slot.assistant && (
                             <span className="opacity-75"> + {slot.assistant.name}</span>
                           )}
                         </div>
                         <div
-                          className={isMonthView ? "text-[8px]" : "text-[10px]"}
+                          className="text-[10px]"
                           style={hasTrainer ? { color: "rgba(255,255,255,0.6)" } : { color: "#D1D5DB" }}
                         >
                           {slot._count.bookings}/{slot.maxCapacity}
@@ -513,7 +654,7 @@ export default function SchedulePage() {
                       </div>
                     )
                   })}
-                  {daySlots.length < 7 && !isMonthView && (
+                  {daySlots.length < 7 && (
                     <div className="flex items-center justify-center gap-1 py-1.5 text-gray-300 opacity-0 group-hover:opacity-100">
                       <Plus size={11} /><span className="text-[10px]">add</span>
                     </div>
@@ -527,7 +668,7 @@ export default function SchedulePage() {
 
       {/* Block day modal */}
       {blockModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 touch-none" onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault() }}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-800">
@@ -572,51 +713,18 @@ export default function SchedulePage() {
 
       {/* Create / Edit modal */}
       {modal !== null && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between mb-5">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 touch-none" onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault() }}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-6 pt-5 pb-4 flex items-center justify-between flex-shrink-0 border-b border-gray-100">
               <div>
-                <h2 className="text-lg font-semibold text-gray-800">{isEdit ? "Edit Session" : (slots.some((s) => s.date === form.date) ? "Manage day's sessions" : "Add Session")}</h2>
+                <h2 className="text-lg font-semibold text-gray-800">{slots.some((s) => s.date === form.date) ? "Manage day's sessions" : "Add Session"}</h2>
                 <p className="text-sm text-gray-400 mt-0.5">{format(new Date(form.date + "T00:00:00"), "EEEE, MMMM d")}</p>
               </div>
               <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-4">
-              {!isEdit && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                  <input type="date" required value={form.date}
-                    onChange={(e) => { setForm({ ...form, date: e.target.value }); e.target.blur() }}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                  />
-                </div>
-              )}
-
-              {isEdit ? (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {TIME_PRESETS.map((t) => (
-                      <button key={t} type="button" onClick={() => setForm({ ...form, startTime: t })}
-                        className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors",
-                          form.startTime === t ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
-                        )}>
-                        {formatTime(t)}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <input type="time" required value={form.startTime}
-                      onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                    />
-                    <div className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-500">
-                      {computeEndTime(form.startTime)} <span className="text-xs text-gray-400">(120 min)</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
+            <form onSubmit={handleSave} className="flex-1 flex flex-col overflow-hidden min-w-0">
+              <div className="px-6 py-4 space-y-4 overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
                   <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min)</p>
@@ -625,10 +733,18 @@ export default function SchedulePage() {
                       const selected = form.startTimes.includes(t)
                       return (
                         <button key={t} type="button" onClick={() => {
-                          const next = selected ? form.startTimes.filter((x) => x !== t) : sortTimes([...form.startTimes, t])
-                          setForm({ ...form, startTimes: next })
+                          if (selected) {
+                            const newA = { ...form.assignments }
+                            delete newA[t]
+                            setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newA })
+                          } else {
+                            const newTimes = sortTimes([...form.startTimes, t])
+                            const newA = { ...form.assignments }
+                            if (!newA[t]) newA[t] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6 }
+                            setForm({ ...form, startTimes: newTimes, assignments: newA })
+                          }
                         }}
-                          className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors",
+                          className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium",
                             selected ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
                           )}>
                           {formatTime(t)}
@@ -644,7 +760,9 @@ export default function SchedulePage() {
                     <button type="button"
                       onClick={() => {
                         if (!form.customTime) return
-                        setForm({ ...form, startTimes: sortTimes([...form.startTimes, form.customTime]) })
+                        const newA = { ...form.assignments }
+                        if (!newA[form.customTime]) newA[form.customTime] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6 }
+                        setForm({ ...form, startTimes: sortTimes([...form.startTimes, form.customTime]), assignments: newA })
                       }}
                       className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#2C6E49]/40 transition-colors"
                     >
@@ -664,59 +782,113 @@ export default function SchedulePage() {
                             <div className="space-y-1.5">
                               {form.startTimes.map((t) => {
                                 const isExisting = existingTimes.has(t)
-                                const slot = existingForDate.find((s) => s.startTime === t)
-                                const assignment = form.assignments[t] ?? { trainerId: "", assistantId: "" }
-                                if (isExisting) {
-                                  return (
-                                    <div key={t} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-100 text-xs">
-                                      <span className="font-medium text-gray-700">{formatTime(t)} – {formatTime(computeEndTime(t))}</span>
-                                      <span className="text-gray-400">·</span>
-                                      <span className="text-gray-500 truncate">
-                                        {slot?.trainer ? slot.trainer.name : "Unassigned"}
-                                        {slot?.assistant && ` + ${slot.assistant.name}`}
-                                      </span>
-                                      <button type="button" onClick={() => setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t) })}
-                                        className="text-gray-400 hover:text-red-500 ml-auto text-base leading-none flex-shrink-0">×</button>
-                                    </div>
-                                  )
+                                const assignment = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+                                const updateAssignment = (patch: Partial<SlotAssignment>) => {
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    assignments: { ...prev.assignments, [t]: { ...assignment, ...patch } },
+                                  }))
                                 }
-                                // New session — per-time trainer + assistant
+                                const isPrivate = assignment.classType === "PRIVATE"
                                 return (
-                                  <div key={t} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#2C6E49]/5 border border-[#2C6E49]/15 text-xs">
-                                    <span className="font-medium text-[#2C6E49] whitespace-nowrap">＋ {formatTime(t)} – {formatTime(computeEndTime(t))}</span>
-                                    <select
-                                      value={assignment.trainerId}
-                                      onChange={(e) => {
-                                        const next = e.target.value
-                                        setForm((prev) => ({
-                                          ...prev,
-                                          assignments: { ...prev.assignments, [t]: { trainerId: next, assistantId: next ? assignment.assistantId : "" } },
-                                        }))
-                                      }}
-                                      className="ml-auto text-xs border border-gray-200 rounded-md px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 max-w-[110px]"
-                                    >
-                                      <option value="">Unassigned</option>
-                                      {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
-                                    </select>
-                                    {assignment.trainerId && (
+                                  <div key={t} className={cn(
+                                    "rounded-lg text-xs border px-2.5 py-2 space-y-1.5",
+                                    isExisting ? "bg-gray-50 border-gray-200" : "bg-[#2C6E49]/5 border-[#2C6E49]/15"
+                                  )}>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className={cn(
+                                        "font-medium whitespace-nowrap",
+                                        isExisting ? "text-gray-700" : "text-[#2C6E49]"
+                                      )}>
+                                        {formatTime(t)} – {formatTime(computeEndTime(t))}
+                                      </span>
+                                      <div className="ml-auto flex gap-0.5">
+                                        {CLASS_TYPES.map((c) => (
+                                          <button key={c.value} type="button"
+                                            onClick={() => {
+                                              if (c.value === "PRIVATE") {
+                                                updateAssignment({ classType: c.value, maxCapacity: 1 })
+                                              } else if (c.value === "GROUP") {
+                                                updateAssignment({
+                                                  classType: c.value,
+                                                  publicVisible: true,
+                                                  maxCapacity: isPrivate ? 6 : assignment.maxCapacity,
+                                                })
+                                              } else {
+                                                updateAssignment({
+                                                  classType: c.value,
+                                                  maxCapacity: isPrivate ? 6 : assignment.maxCapacity,
+                                                })
+                                              }
+                                            }}
+                                            title={c.label}
+                                            className={cn(
+                                              "w-6 h-6 rounded text-[10px] font-bold leading-none flex items-center justify-center border touch-manipulation",
+                                              assignment.classType === c.value
+                                                ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                                                : "bg-white text-gray-500 border-gray-200"
+                                            )}>
+                                            {c.value[0]}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      {(assignment.classType === "KIDS" || assignment.classType === "PRIVATE") && (
+                                        <button type="button"
+                                          onClick={() => updateAssignment({ publicVisible: !assignment.publicVisible })}
+                                          title={assignment.publicVisible ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
+                                          className={cn(
+                                            "w-6 h-6 rounded text-[10px] font-bold leading-none flex items-center justify-center border touch-manipulation",
+                                            assignment.publicVisible
+                                              ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
+                                              : "bg-gray-100 text-gray-400 border-gray-200"
+                                          )}>
+                                          {assignment.publicVisible ? "👁" : "🚫"}
+                                        </button>
+                                      )}
+                                      <button type="button" onClick={() => {
+                                        const newAssignments = { ...form.assignments }
+                                        delete newAssignments[t]
+                                        setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newAssignments })
+                                      }} className={cn(
+                                        "text-base leading-none flex-shrink-0",
+                                        isExisting ? "text-gray-400 hover:text-red-500" : "text-[#2C6E49]/60 hover:text-red-500"
+                                      )}>×</button>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
                                       <select
-                                        value={assignment.assistantId}
-                                        onChange={(e) => setForm((prev) => ({
-                                          ...prev,
-                                          assignments: { ...prev.assignments, [t]: { ...assignment, assistantId: e.target.value } },
-                                        }))}
-                                        className="text-xs border border-dashed border-gray-200 rounded-md px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 max-w-[110px] text-gray-500"
-                                        title="Assistant"
+                                        value={assignment.trainerId}
+                                        onChange={(e) => {
+                                          const next = e.target.value
+                                          updateAssignment({ trainerId: next, assistantId: next ? assignment.assistantId : "" })
+                                        }}
+                                        className="flex-1 text-xs border border-gray-200 rounded-md px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30"
                                       >
-                                        <option value="">+ Asst</option>
-                                        {trainers.filter((tr) => tr.id !== assignment.trainerId).map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
+                                        <option value="">Unassigned</option>
+                                        {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
                                       </select>
-                                    )}
-                                    <button type="button" onClick={() => {
-                                      const newAssignments = { ...form.assignments }
-                                      delete newAssignments[t]
-                                      setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newAssignments })
-                                    }} className="text-[#2C6E49]/60 hover:text-red-500 text-base leading-none flex-shrink-0">×</button>
+                                      {assignment.trainerId && (
+                                        <select
+                                          value={assignment.assistantId}
+                                          onChange={(e) => updateAssignment({ assistantId: e.target.value })}
+                                          className="flex-1 text-xs border border-dashed border-gray-200 rounded-md px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 text-gray-500"
+                                          title="Assistant"
+                                        >
+                                          <option value="">+ Asst</option>
+                                          {trainers.filter((tr) => tr.id !== assignment.trainerId).map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
+                                        </select>
+                                      )}
+                                      <select
+                                        value={isPrivate ? 1 : assignment.maxCapacity}
+                                        disabled={isPrivate}
+                                        onChange={(e) => updateAssignment({ maxCapacity: Number(e.target.value) })}
+                                        title={isPrivate ? "Private session is always 1 person" : "Capacity"}
+                                        className="text-xs border border-gray-200 rounded-md px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 disabled:opacity-60 disabled:bg-gray-50"
+                                      >
+                                        {[1, 2, 3, 4, 5, 6].map((n) => (
+                                          <option key={n} value={n}>👤 {n}</option>
+                                        ))}
+                                      </select>
+                                    </div>
                                   </div>
                                 )
                               })}
@@ -741,82 +913,38 @@ export default function SchedulePage() {
                     )
                   })()}
                 </div>
-              )}
-
-              {isEdit && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Trainer</label>
-                    <select value={form.trainerId} onChange={(e) => {
-                      const next = e.target.value
-                      setForm((prev) => ({ ...prev, trainerId: next, assistantId: next ? prev.assistantId : "" }))
-                    }}
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] bg-white">
-                      <option value="">Unassigned</option>
-                      {trainers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  </div>
-
-                  {form.assistantId ? (
-                    <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
-                      <div className="flex items-center gap-2 text-sm text-gray-700">
-                        <span className="text-gray-400 text-xs">Assistant</span>
-                        <span className="font-medium">{trainers.find((t) => t.id === form.assistantId)?.name}</span>
-                      </div>
-                      <button type="button" onClick={() => setForm({ ...form, assistantId: "" })}
-                        className="text-gray-400 hover:text-red-400 transition-colors text-lg leading-none">×</button>
-                    </div>
-                  ) : (
-                    <select
-                      value=""
-                      disabled={!form.trainerId}
-                      onChange={(e) => { if (e.target.value) setForm({ ...form, assistantId: e.target.value }) }}
-                      className="w-full border border-dashed border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/20 focus:border-[#2C6E49]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50"
-                    >
-                      <option value="">{form.trainerId ? "+ Add assistant (optional)" : "Select a trainer first"}</option>
-                      {form.trainerId && trainers.filter((t) => t.id !== form.trainerId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  )}
-                </>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Capacity (1–6)</label>
-                  <input type="number" min="1" max="6" required value={form.maxCapacity}
-                    onChange={(e) => setForm({ ...form, maxCapacity: Number(e.target.value) })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Price (IDR)</label>
-                  <input type="number" min="0" step="1000" required value={form.price}
-                    onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                  />
-                </div>
-              </div>
 
               {formError && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{formError}</div>}
+              </div>
 
-              <div className="flex gap-3 pt-1">
-                {isEdit && (
-                  <button type="button" onClick={() => handleDelete((modal as Slot).id)} disabled={deleting !== null}
-                    className="px-3 border border-red-200 text-red-500 py-2.5 rounded-xl text-sm hover:bg-red-50 disabled:opacity-50">
-                    <Trash2 size={15} />
-                  </button>
-                )}
+              <div className="px-6 py-4 flex gap-3 flex-shrink-0 border-t border-gray-100">
                 <button type="button" onClick={closeModal} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
                 <button type="submit" disabled={saving} className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
-                  {saving ? "Saving..." : isEdit ? "Save Changes" : (() => {
+                  {saving ? "Saving..." : (() => {
                     const existing = slots.filter((s) => s.date === form.date)
+                    const existingByTime = new Map(existing.map((s) => [s.startTime, s] as const))
                     const desired = new Set(form.startTimes)
-                    const toCreate = form.startTimes.filter((t) => !existing.some((s) => s.startTime === t)).length
+                    const toCreate = form.startTimes.filter((t) => !existingByTime.has(t)).length
                     const toDelete = existing.filter((s) => !desired.has(s.startTime)).length
-                    if (toCreate === 0 && toDelete === 0) return "Save"
+                    let toUpdate = 0
+                    for (const t of form.startTimes) {
+                      const slot = existingByTime.get(t)
+                      if (!slot) continue
+                      const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+                      const desiredCap = a.classType === "PRIVATE" ? 1 : a.maxCapacity
+                      if (
+                        a.trainerId !== (slot.trainer?.id ?? "") ||
+                        a.assistantId !== (slot.assistant?.id ?? "") ||
+                        a.classType !== ((slot.classType as ClassType) ?? "GROUP") ||
+                        a.publicVisible !== (slot.publicVisible ?? true) ||
+                        desiredCap !== (slot.maxCapacity ?? 6)
+                      ) toUpdate++
+                    }
+                    if (toCreate === 0 && toDelete === 0 && toUpdate === 0) return "Save"
                     const parts: string[] = []
                     if (toCreate > 0) parts.push(`+${toCreate}`)
                     if (toDelete > 0) parts.push(`−${toDelete}`)
+                    if (toUpdate > 0) parts.push(`~${toUpdate}`)
                     return `Save (${parts.join(" / ")})`
                   })()}
                 </button>
@@ -833,7 +961,7 @@ export default function SchedulePage() {
         const sourceLen = copyModal.sourceSlots.length
         const lastTarget = copyModal.plans[copyModal.plans.length - 1]?.targetStart
         return (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 touch-none" onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault() }}>
             <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
               <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                 <div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { getStudioIdBySubdomain } from "@/lib/studio"
 import bcrypt from "bcryptjs"
 
 export async function POST(request: NextRequest) {
@@ -14,6 +15,12 @@ export async function POST(request: NextRequest) {
   })
 
   if (!resetToken || resetToken.expiresAt < new Date()) {
+    return NextResponse.json({ error: "Link has expired or is invalid" }, { status: 400 })
+  }
+
+  // Enforce studio isolation: token can only be used on the user's own studio's subdomain
+  const studioId = await getStudioIdBySubdomain()
+  if (resetToken.user.studioId !== studioId) {
     return NextResponse.json({ error: "Link has expired or is invalid" }, { status: 400 })
   }
 

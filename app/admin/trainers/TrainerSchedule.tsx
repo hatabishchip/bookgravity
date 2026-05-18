@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import {
-  format, addDays, startOfWeek, addWeeks, subWeeks,
-  startOfMonth, endOfMonth, endOfWeek, addMonths, subMonths, isSameMonth,
+  format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks,
+  startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth,
 } from "date-fns"
 import { ChevronLeft, ChevronRight, X, Check, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 
 type View = "week" | "2weeks" | "month"
 
@@ -38,8 +39,7 @@ function hexToRgba(hex: string, alpha: number) {
 
 function formatTime(time: string) {
   const [h, m] = time.split(":").map(Number)
-  const ampm = h >= 12 ? "PM" : "AM"
-  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
 }
 
 function computeEndTime(startTime: string) {
@@ -74,7 +74,6 @@ export default function TrainerSchedule({
   const [view, setView] = useState<View>("month")
   const [anchor, setAnchor] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [slots, setSlots] = useState<Slot[]>([])
-  const [toggling, setToggling] = useState<string | null>(null)
 
   // Create modal
   const [createModal, setCreateModal] = useState<string | null>(null) // date string
@@ -82,13 +81,16 @@ export default function TrainerSchedule({
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState("")
 
+  // Lock body scroll while this view (or its create modal) is open — iOS-safe
+  useBodyScrollLock(true)
+
   const days = useMemo(() => {
     if (view === "week") return Array.from({ length: 7 }, (_, i) => addDays(anchor, i))
     if (view === "2weeks") return Array.from({ length: 14 }, (_, i) => addDays(anchor, i))
-    const mStart = startOfMonth(anchor)
-    const mEnd = endOfMonth(anchor)
-    const gridStart = startOfWeek(mStart, { weekStartsOn: 1 })
-    const gridEnd = endOfWeek(mEnd, { weekStartsOn: 1 })
+    // Month view: full calendar grid so weekday columns line up with the
+    // MON/TUE/… headers (pad the start with previous month, end with next).
+    const gridStart = startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 })
+    const gridEnd = endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 })
     const result: Date[] = []
     let d = gridStart
     while (d <= gridEnd) { result.push(d); d = addDays(d, 1) }
@@ -124,23 +126,24 @@ export default function TrainerSchedule({
 
   // Toggle assignment — no confirm dialog, instant action
   const handleToggle = async (slot: Slot) => {
-    if (toggling) return
     const isMine = slot.trainer?.id === trainer.id
-    setToggling(slot.id)
-
-    await fetch(`/api/admin/slots?id=${slot.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        startTime: slot.startTime,
-        trainerId: isMine ? null : trainer.id,
-        maxCapacity: slot.maxCapacity,
-        price: slot.price,
-      }),
-    })
-
-    await fetchSlots()
-    setToggling(null)
+    // Optimistic update — flip trainer locally in the same frame
+    setSlots((prev) => prev.map((s) =>
+      s.id === slot.id
+        ? { ...s, trainer: isMine ? null : { id: trainer.id, name: trainer.name, color: trainer.color } }
+        : s
+    ))
+    try {
+      await fetch(`/api/admin/slots?id=${slot.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trainerId: isMine ? null : trainer.id,
+        }),
+      })
+    } catch {
+      fetchSlots()
+    }
   }
 
   // Create new slot pre-assigned to this trainer
@@ -189,9 +192,8 @@ export default function TrainerSchedule({
 
   const slotsForDay = (date: string) => slots.filter((s) => s.date === date)
   const mySlots = slots.filter((s) => s.trainer?.id === trainer.id).length
-  const isMonthView = view === "month"
-  const cellMinH = isMonthView ? "min-h-[90px]" : view === "2weeks" ? "min-h-[140px]" : "min-h-[200px]"
-  const cellPad = isMonthView ? "p-1.5" : "p-2.5"
+  const cellMinH = view === "week" ? "min-h-[200px]" : "min-h-[140px]"
+  const cellPad = "p-2.5"
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex">
@@ -226,7 +228,7 @@ export default function TrainerSchedule({
                   key={v}
                   onClick={() => setView(v)}
                   className={cn(
-                    "flex-1 lg:flex-initial px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all",
+                    "flex-1 lg:flex-initial px-3 py-2 rounded-lg text-xs sm:text-sm font-medium",
                     view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
@@ -296,11 +298,11 @@ export default function TrainerSchedule({
             ))}
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-7 gap-2">
+          <div className="grid grid-cols-2 max-lg:landscape:grid-cols-4 lg:grid-cols-7 gap-2">
             {days.map((day) => {
               const dateStr = format(day, "yyyy-MM-dd")
               const isToday = dateStr === todayStr
-              const isOtherMonth = isMonthView && !isSameMonth(day, anchor)
+              const isOutsideMonth = view === "month" && !isSameMonth(day, anchor)
               const daySlots = slotsForDay(dateStr)
 
               return (
@@ -308,20 +310,19 @@ export default function TrainerSchedule({
                   key={dateStr}
                   onClick={() => openCreate(dateStr)}
                   className={cn(
-                    "bg-white rounded-2xl shadow-sm transition-all cursor-pointer group",
+                    "bg-white rounded-2xl shadow-sm cursor-pointer group",
                     "hover:ring-1 hover:ring-gray-300",
                     cellPad, cellMinH,
-                    isOtherMonth && "opacity-40"
+                    isOutsideMonth && "opacity-40",
                   )}
                 >
                   {/* Date number */}
-                  <div className={cn("text-center", isMonthView ? "mb-1" : "mb-2")}>
+                  <div className="text-center mb-2">
                     <div className="lg:hidden text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
                       {format(day, "EEE")}
                     </div>
                     <div className={cn(
-                      "font-bold mx-auto flex items-center justify-center rounded-full",
-                      isMonthView ? "text-sm w-6 h-6" : "text-lg w-8 h-8 mt-0.5",
+                      "font-bold mx-auto flex items-center justify-center rounded-full text-lg w-8 h-8 mt-0.5",
                       isToday ? "bg-gray-800 text-white" : "text-gray-800"
                     )}>
                       {format(day, "d")}
@@ -333,7 +334,6 @@ export default function TrainerSchedule({
                     {daySlots.map((slot) => {
                       const isMine = slot.trainer?.id === trainer.id
                       const otherColor = slot.trainer && !isMine ? slot.trainer.color : null
-                      const isLoading = toggling === slot.id
 
                       const otherStyle = otherColor
                         ? { backgroundColor: hexToRgba(otherColor, 0.12), borderColor: hexToRgba(otherColor, 0.4) }
@@ -343,54 +343,47 @@ export default function TrainerSchedule({
                         <button
                           key={slot.id}
                           onClick={() => handleToggle(slot)}
-                          disabled={isLoading}
                           style={
                             isMine
                               ? { backgroundColor: trainer.color, borderColor: trainer.color }
                               : otherStyle
                           }
                           className={cn(
-                            "w-full text-left rounded-lg transition-all border",
-                            isMonthView ? "p-1" : "p-1.5",
-                            !isMine && !otherColor && "bg-[#EDEEF1] border-gray-200 hover:border-gray-300 hover:bg-gray-200",
-                            isLoading && "opacity-50"
+                            "w-full text-left rounded-lg border p-1.5 touch-manipulation",
+                            !isMine && !otherColor && "bg-[#EDEEF1] border-gray-200 hover:border-gray-300 hover:bg-gray-200"
                           )}
                         >
                           <div className="flex items-start gap-1">
                             {/* Checkbox */}
                             <span className={cn(
-                              "flex-shrink-0 mt-0.5 rounded-sm border flex items-center justify-center transition-colors",
-                              isMonthView ? "w-2.5 h-2.5" : "w-3.5 h-3.5",
+                              "flex-shrink-0 mt-0.5 rounded-sm border flex items-center justify-center transition-colors w-3.5 h-3.5",
                               isMine ? "bg-white border-white" : "border-gray-300 bg-white"
                             )}>
-                              {isMine && <Check size={isMonthView ? 6 : 9} strokeWidth={3} style={{ color: trainer.color }} />}
+                              {isMine && <Check size={9} strokeWidth={3} style={{ color: trainer.color }} />}
                             </span>
 
                             <div className="min-w-0 flex-1">
                               <div
                                 className={cn(
-                                  "font-semibold leading-tight truncate",
-                                  isMonthView ? "text-[9px]" : "text-xs",
+                                  "font-semibold leading-tight truncate text-xs",
                                   isMine ? "text-white" : "text-gray-700"
                                 )}
                                 style={!isMine && otherColor ? { color: otherColor } : {}}
                               >
                                 {formatTime(slot.startTime)}
                               </div>
-                              {!isMonthView && (
-                                <div
-                                  className={cn(
-                                    "text-[10px] truncate mt-0.5",
-                                    isMine ? "text-white/70" : "text-gray-400"
-                                  )}
-                                  style={!isMine && otherColor ? { color: hexToRgba(otherColor, 0.85) } : {}}
-                                >
-                                  {slot.trainer ? slot.trainer.name : "Unassigned"}
-                                </div>
-                              )}
                               <div
                                 className={cn(
-                                  isMonthView ? "text-[8px]" : "text-[10px]",
+                                  "text-[10px] truncate mt-0.5",
+                                  isMine ? "text-white/70" : "text-gray-400"
+                                )}
+                                style={!isMine && otherColor ? { color: hexToRgba(otherColor, 0.85) } : {}}
+                              >
+                                {slot.trainer ? slot.trainer.name : "Unassigned"}
+                              </div>
+                              <div
+                                className={cn(
+                                  "text-[10px]",
                                   isMine ? "text-white/60" : "text-gray-400"
                                 )}
                                 style={!isMine && otherColor ? { color: hexToRgba(otherColor, 0.7) } : {}}
@@ -405,12 +398,10 @@ export default function TrainerSchedule({
                   </div>
 
                   {/* Add hint on hover */}
-                  {!isMonthView && (
-                    <div className="mt-1 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity py-1">
-                      <Plus size={10} className="text-gray-300" />
-                      <span className="text-[10px] text-gray-300">add</span>
-                    </div>
-                  )}
+                  <div className="mt-1 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity py-1">
+                    <Plus size={10} className="text-gray-300" />
+                    <span className="text-[10px] text-gray-300">add</span>
+                  </div>
                 </div>
               )
             })}
@@ -420,13 +411,16 @@ export default function TrainerSchedule({
 
       {/* Create session modal */}
       {createModal !== null && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between mb-5">
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4 touch-none"
+          onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault() }}
+        >
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-6 pt-5 pb-4 flex items-center justify-between flex-shrink-0 border-b border-gray-100">
               <div>
                 <h2 className="text-lg font-semibold text-gray-800">Add Session</h2>
                 <p className="text-sm text-gray-400 mt-0.5">
-                  Trainer: <span className="text-[#2C6E49] font-medium">{trainer.name}</span>
+                  {format(new Date(createForm.date + "T00:00:00"), "EEEE, MMMM d")} · <span className="text-[#2C6E49] font-medium">{trainer.name}</span>
                 </p>
               </div>
               <button onClick={() => setCreateModal(null)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -434,17 +428,8 @@ export default function TrainerSchedule({
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                <input
-                  type="date"
-                  required
-                  value={createForm.date}
-                  onChange={(e) => { setCreateForm({ ...createForm, date: e.target.value }); e.target.blur() }}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                />
-              </div>
+            <form onSubmit={handleCreate} className="flex-1 flex flex-col overflow-hidden min-w-0">
+              <div className="px-6 py-4 space-y-4 overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
@@ -458,7 +443,7 @@ export default function TrainerSchedule({
                         const next = selected ? createForm.startTimes.filter((x) => x !== t) : sortTimes([...createForm.startTimes, t])
                         setCreateForm({ ...createForm, startTimes: next })
                       }}
-                        className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors",
+                        className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium",
                           selected ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
                         )}>
                         {formatTime(t)}
@@ -505,13 +490,17 @@ export default function TrainerSchedule({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Capacity (1–6)</label>
-                  <input
-                    type="number" min="1" max="6" required
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                  <select
+                    required
                     value={createForm.maxCapacity}
                     onChange={(e) => setCreateForm({ ...createForm, maxCapacity: Number(e.target.value) })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                  />
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] bg-white"
+                  >
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Price (IDR)</label>
@@ -527,8 +516,9 @@ export default function TrainerSchedule({
               {createError && (
                 <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{createError}</div>
               )}
+              </div>
 
-              <div className="flex gap-3 pt-1">
+              <div className="px-6 py-4 flex gap-3 flex-shrink-0 border-t border-gray-100">
                 <button type="button" onClick={() => setCreateModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">
                   Cancel
                 </button>

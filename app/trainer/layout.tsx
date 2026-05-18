@@ -4,12 +4,13 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, BookOpen, LogOut, KeyRound, X, Menu } from "lucide-react"
+import { Calendar, BookOpen, Banknote, LogOut, KeyRound, X, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   { href: "/trainer", label: "My Schedule", icon: Calendar },
   { href: "/trainer/bookings", label: "Bookings", icon: BookOpen },
+  { href: "/trainer/salary", label: "Salary", icon: Banknote },
 ]
 
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
@@ -70,19 +71,26 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 function SidebarContent({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
   const [showChangePassword, setShowChangePassword] = useState(false)
+  const [studio, setStudio] = useState<{ name: string } | null>(null)
 
   useEffect(() => { onClose() }, [pathname])
 
+  useEffect(() => {
+    fetch("/api/studio").then((r) => r.ok ? r.json() : null).then((d) => d && setStudio(d))
+  }, [])
+
   return (
     <>
-      <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-[#2C6E49] text-lg">Gravity Stretching</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Trainer Portal</p>
+      <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="font-bold text-[#2C6E49] text-lg leading-tight">
+            {studio?.name || "Gravity Stretching"}
+          </h1>
+          <p className="text-xs text-gray-400 mt-1">Trainer Portal</p>
         </div>
         <button
           onClick={onClose}
-          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg flex-shrink-0"
           aria-label="Close menu"
         >
           <X size={18} />
@@ -121,12 +129,31 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
   )
 }
 
+function formatIDR(amount: number) {
+  if (amount >= 1_000_000) {
+    const m = amount / 1_000_000
+    return `${(m % 1 === 0 ? m.toString() : m.toFixed(1)).replace(/\.0$/, "")}M`
+  }
+  if (amount >= 1000) return `${Math.round(amount / 1000)}k`
+  return Math.round(amount).toString()
+}
+
 function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname()
   const activeLabel = navItems.find((n) => n.href === pathname)?.label ?? "Trainer"
+  const [salary, setSalary] = useState<{ total: number } | null>(null)
+  const [studio, setStudio] = useState<{ name: string } | null>(null)
+
+  useEffect(() => {
+    fetch("/api/trainer/salary").then((r) => r.ok ? r.json() : null).then((d) => d && setSalary(d))
+  }, [pathname])
+
+  useEffect(() => {
+    fetch("/api/studio").then((r) => r.ok ? r.json() : null).then((d) => d && setStudio(d))
+  }, [])
 
   return (
-    <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
+    <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
       <button
         onClick={onMenuClick}
         className="p-2 hover:bg-gray-100 rounded-lg"
@@ -135,9 +162,17 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
         <Menu size={20} />
       </button>
       <div className="flex-1 min-w-0">
-        <div className="font-bold text-[#2C6E49] text-sm">Gravity Stretching</div>
+        <div className="font-bold text-[#2C6E49] text-sm truncate">
+          {studio?.name || "Gravity Stretching"}
+        </div>
         <div className="text-xs text-gray-400">{activeLabel}</div>
       </div>
+      {salary && (
+        <Link href="/trainer/salary" className="text-right leading-tight hover:opacity-80">
+          <div className="text-[9px] uppercase tracking-wider text-gray-400 font-medium">This month</div>
+          <div className="text-sm font-semibold text-gray-700">Rp {formatIDR(salary.total)}</div>
+        </Link>
+      )}
     </header>
   )
 }
@@ -150,8 +185,9 @@ export default function TrainerLayout({ children }: { children: React.ReactNode 
       <div className="flex min-h-screen bg-[#F5F4F0]">
         <aside
           className={cn(
-            "fixed lg:static top-0 left-0 z-50 h-full lg:h-auto lg:min-h-screen w-64 bg-white border-r border-gray-100 flex flex-col transition-transform duration-200",
-            navOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+            "fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-100 flex flex-col transition-transform duration-200",
+            "lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
+            navOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
           <SidebarContent onClose={() => setNavOpen(false)} />
@@ -166,7 +202,7 @@ export default function TrainerLayout({ children }: { children: React.ReactNode 
 
         <div className="flex-1 flex flex-col min-w-0">
           <MobileTopBar onMenuClick={() => setNavOpen(true)} />
-          <main className="flex-1 p-4 lg:p-8 min-w-0 overflow-x-hidden">{children}</main>
+          <main className="flex-1 p-4 lg:p-8 min-w-0 overflow-x-hidden pt-[72px] lg:pt-8">{children}</main>
         </div>
       </div>
     </SessionProvider>

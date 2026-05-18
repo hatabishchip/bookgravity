@@ -1,18 +1,23 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { format, addDays, startOfWeek, addWeeks, subWeeks } from "date-fns"
-import { ChevronLeft, ChevronRight, Users, TrendingUp, MessageCircle } from "lucide-react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import Link from "next/link"
+import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns"
+import { ChevronLeft, ChevronRight, Users, X } from "lucide-react"
 import { whatsappLink } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
+import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 
 type Slot = {
   id: string
   date: string
   startTime: string
   endTime: string
-  maxCapacity: number
-  _count: { bookings: number }
+  state: "mine" | "unassigned" | "other"
+  maxCapacity?: number
+  price?: number
+  _count?: { bookings: number }
 }
 
 type Service = { id: string; name: string; price: number }
@@ -54,11 +59,28 @@ function formatTime(time: string) {
 }
 
 function formatIDR(amount: number) {
-  return new Intl.NumberFormat("id-ID").format(amount)
+  if (amount >= 1_000_000) {
+    const m = amount / 1_000_000
+    const str = m % 1 === 0 ? m.toString() : m.toFixed(1).replace(/\.0$/, "")
+    return `${str}M`
+  }
+  if (amount >= 1000) return `${Math.round(amount / 1000)}k`
+  return Math.round(amount).toString()
 }
 
+type View = "week" | "month"
+
 export default function TrainerSchedulePage() {
-  const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
+  // Stable reference — created once per mount so it doesn't re-trigger
+  // effects on every render (which caused a visible "blink" / re-scroll
+  // in Month view).
+  const today = useMemo(() => new Date(), [])
+  const todayStart = useMemo(() => startOfMonth(today), [today])
+  const nextMonthStart = useMemo(() => startOfMonth(addMonths(today, 1)), [today])
+
+  const [view, setView] = useState<View>("week")
+  const [monthAnchor, setMonthAnchor] = useState(startOfMonth(today))
+  const todayCellRef = useRef<HTMLDivElement>(null)
   const [slots, setSlots] = useState<Slot[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [services, setServices] = useState<Service[]>([])
@@ -67,10 +89,41 @@ export default function TrainerSchedulePage() {
   const [salary, setSalary] = useState<Salary | null>(null)
   const [verifyCodes, setVerifyCodes] = useState<Record<string, string>>({})
   const [verifyStates, setVerifyStates] = useState<Record<string, "ok" | "error" | "idle">>({})
+  const [isMobile, setIsMobile] = useState(false)
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-  const from = format(weekStart, "yyyy-MM-dd")
-  const to = format(addDays(weekStart, 6), "yyyy-MM-dd")
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)")
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [])
+
+  // Lock body scroll only when the booking list is open as a full-screen modal (mobile)
+  useBodyScrollLock(isMobile && selectedSlot !== null)
+
+  const todayStr = format(today, "yyyy-MM-dd")
+
+  // Compute the visible date range based on view
+  const range = (() => {
+    if (view === "week") {
+      // 7 days starting from today (no left/right navigation)
+      const days = Array.from({ length: 7 }, (_, i) => addDays(today, i))
+      return { start: today, end: addDays(today, 6), days }
+    }
+    // month — full calendar grid so columns line up by weekday
+    const mStart = startOfMonth(monthAnchor)
+    const mEnd = endOfMonth(monthAnchor)
+    const gridStart = startOfWeek(mStart, { weekStartsOn: 1 })
+    const gridEnd = endOfWeek(mEnd, { weekStartsOn: 1 })
+    const days: Date[] = []
+    let d = gridStart
+    while (d <= gridEnd) { days.push(d); d = addDays(d, 1) }
+    return { start: mStart, end: mEnd, days }
+  })()
+
+  const from = format(range.start, "yyyy-MM-dd")
+  const to = format(range.end, "yyyy-MM-dd")
 
   const fetchSlots = useCallback(async () => {
     const res = await fetch(`/api/trainer/schedule?from=${from}&to=${to}`)
@@ -83,7 +136,7 @@ export default function TrainerSchedulePage() {
   }, [])
 
   const fetchServices = useCallback(async () => {
-    const res = await fetch("/api/admin/services")
+    const res = await fetch("/api/trainer/services")
     if (res.ok) setServices(await res.json())
   }, [])
 
@@ -91,6 +144,37 @@ export default function TrainerSchedulePage() {
   useEffect(() => {
     Promise.all([fetchSalary(), fetchServices()])
   }, [fetchSalary, fetchServices])
+
+  // When entering Month view on the current month, scroll to today's cell.
+  // Fire once per (view, month) — independent of slots, so it works even when
+  // the month is empty. Double rAF lets layout settle (sticky header + grid).
+  const scrolledKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (view !== "month") return
+    if (monthAnchor.getMonth() !== today.getMonth() || monthAnchor.getFullYear() !== today.getFullYear()) return
+    const key = `${view}-${format(monthAnchor, "yyyy-MM")}`
+    if (scrolledKeyRef.current === key) return
+    scrolledKeyRef.current = key
+    let raf2 = 0
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        todayCellRef.current?.scrollIntoView({ behavior: "auto", block: "start" })
+      })
+    })
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+    }
+  }, [view, monthAnchor, today])
+
+  // Reset the scroll-once guard when leaving Month view OR when navigating
+  // away from the current month — so re-entering re-scrolls.
+  useEffect(() => {
+    if (view !== "month") scrolledKeyRef.current = null
+    else if (monthAnchor.getMonth() !== today.getMonth() || monthAnchor.getFullYear() !== today.getFullYear()) {
+      scrolledKeyRef.current = null
+    }
+  }, [view, monthAnchor, today])
 
   const fetchBookingsForSlot = useCallback(async (slotId: string) => {
     const res = await fetch(`/api/trainer/bookings?slotId=${slotId}`)
@@ -119,16 +203,21 @@ export default function TrainerSchedulePage() {
     }
   }
 
+  // Optimistic update — apply locally first, then sync to server in the
+  // background. This avoids the "blink" of disabled state on every tap.
   const updateBooking = async (id: string, data: Record<string, string>) => {
-    setUpdating(id)
-    await fetch(`/api/trainer/bookings/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    })
-    if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...data } : b)))
+    try {
+      await fetch(`/api/trainer/bookings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
+    } catch {
+      // Network error — resync from server
+      if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+    }
     fetchSalary()
-    setUpdating(null)
   }
 
   const handlePaymentMethod = async (booking: Booking, method: string) => {
@@ -142,114 +231,228 @@ export default function TrainerSchedulePage() {
 
   const toggleService = async (booking: Booking, serviceId: string) => {
     const has = booking.services.some((s) => s.service.id === serviceId)
-    setUpdating(booking.id)
-    if (has) {
-      await fetch(`/api/trainer/bookings/${booking.id}/services?serviceId=${serviceId}`, { method: "DELETE" })
-    } else {
-      await fetch(`/api/trainer/bookings/${booking.id}/services`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceId }),
-      })
+    const svc = services.find((s) => s.id === serviceId)
+    // Optimistic local update
+    setBookings((prev) => prev.map((b) => {
+      if (b.id !== booking.id) return b
+      if (has) {
+        return { ...b, services: b.services.filter((s) => s.service.id !== serviceId) }
+      }
+      if (!svc) return b
+      return { ...b, services: [...b.services, { service: { id: svc.id, name: svc.name, price: svc.price } }] }
+    }))
+    try {
+      if (has) {
+        await fetch(`/api/trainer/bookings/${booking.id}/services?serviceId=${serviceId}`, { method: "DELETE" })
+      } else {
+        await fetch(`/api/trainer/bookings/${booking.id}/services`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ serviceId }),
+        })
+      }
+    } catch {
+      if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
     }
-    if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
-    setUpdating(null)
   }
 
   const slotsForDay = (date: string) => slots.filter((s) => s.date === date)
 
+  // Navigation bounds (only Month view is navigable)
+  const canPrevMonth = monthAnchor.getTime() > todayStart.getTime()
+  const canNextMonth = monthAnchor.getTime() < nextMonthStart.getTime()
+
+  const handlePrev = () => {
+    if (view === "month" && canPrevMonth) setMonthAnchor(subMonths(monthAnchor, 1))
+  }
+  const handleNext = () => {
+    if (view === "month" && canNextMonth) setMonthAnchor(addMonths(monthAnchor, 1))
+  }
+
   return (
     <div>
-      {/* Salary card */}
-      {salary && (
-        <div className="bg-[#2C6E49] text-white rounded-2xl p-4 lg:p-5 mb-6 flex items-center gap-3 lg:gap-6">
-          <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0">
-            <TrendingUp size={20} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs lg:text-sm text-white/70 mb-0.5 lg:mb-1 truncate">My earnings · {salary.month}</div>
-            <div className="text-lg lg:text-2xl font-bold tracking-tight">
-              Rp {formatIDR(salary.total)}
-            </div>
-          </div>
-          <div className="hidden sm:flex gap-6 text-sm">
-            <div>
-              <div className="text-white/60 text-xs mb-0.5">Base salary</div>
-              <div className="font-medium">Rp {formatIDR(salary.baseSalary)}</div>
-            </div>
-            <div>
-              <div className="text-white/60 text-xs mb-0.5">Commission ({salary.commissionRate}%)</div>
-              <div className="font-medium">+ Rp {formatIDR(salary.commission)}</div>
-            </div>
-            <div>
-              <div className="text-white/60 text-xs mb-0.5">Paid sessions</div>
-              <div className="font-medium">{salary.paidBookingsCount}</div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Compact title — date subtitle moved into day cards, salary moved to top bar */}
+      <div className="flex items-center justify-between gap-3 mb-3 lg:mb-4">
+        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Schedule</h1>
+        {salary && (
+          <Link
+            href="/trainer/salary"
+            className="hidden lg:block text-right leading-tight hover:opacity-80"
+            title="Earnings this month — tap for breakdown"
+          >
+            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">This month</div>
+            <div className="text-sm font-semibold text-gray-700">Rp {formatIDR(salary.total)}</div>
+          </Link>
+        )}
+      </div>
 
-      <div className="mb-6 space-y-3">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Schedule</h1>
-          <p className="text-gray-500 text-xs lg:text-sm mt-1">
-            {format(weekStart, "MMMM d")} – {format(addDays(weekStart, 6), "MMMM d, yyyy")}
-          </p>
-        </div>
-        <div className="flex items-stretch gap-2">
+      {/* View switcher */}
+      <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5 mb-3">
+        {(["week", "month"] as View[]).map((v) => (
           <button
-            onClick={() => setWeekStart(subWeeks(weekStart, 1))}
-            aria-label="Previous week"
-            className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+            key={v}
+            onClick={() => setView(v)}
+            className={cn(
+              "flex-1 px-3 py-2 rounded-lg text-sm font-medium capitalize",
+              view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+            )}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+
+      {/* Navigation — only for month view */}
+      {view === "month" && (
+        <div className="flex items-stretch gap-2 mb-5">
+          <button
+            onClick={handlePrev}
+            disabled={!canPrevMonth}
+            aria-label="Previous month"
+            className={cn(
+              "flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 active:scale-[0.98]",
+              canPrevMonth ? "hover:bg-gray-50" : "opacity-40 cursor-not-allowed"
+            )}
           >
             <ChevronLeft size={18} />
             <span className="hidden sm:inline">Previous</span>
           </button>
           <button
-            onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-            className="flex-1 lg:flex-initial px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+            onClick={() => setMonthAnchor(todayStart)}
+            className="flex-1 lg:flex-initial px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98]"
           >
-            Today
+            This month
           </button>
           <button
-            onClick={() => setWeekStart(addWeeks(weekStart, 1))}
-            aria-label="Next week"
-            className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
+            onClick={handleNext}
+            disabled={!canNextMonth}
+            aria-label="Next month"
+            className={cn(
+              "flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 active:scale-[0.98]",
+              canNextMonth ? "hover:bg-gray-50" : "opacity-40 cursor-not-allowed"
+            )}
           >
             <span className="hidden sm:inline">Next</span>
             <ChevronRight size={18} />
           </button>
         </div>
-      </div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-        {/* Week grid */}
+        {/* Schedule grid — responsive based on view */}
         <div className="flex-1 min-w-0">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
-            {weekDays.map((day) => {
+          <div className={cn(
+            "grid gap-3",
+            view === "week"
+              ? "grid-cols-1 lg:grid-cols-2"
+              : "grid-cols-2 max-lg:landscape:grid-cols-4 lg:grid-cols-7"
+          )}>
+            {range.days.map((day) => {
               const dateStr = format(day, "yyyy-MM-dd")
-              const isToday = dateStr === format(new Date(), "yyyy-MM-dd")
+              const isToday = dateStr === todayStr
+              const isOutsideMonth = view === "month" && !isSameMonth(day, monthAnchor)
               const daySlots = slotsForDay(dateStr)
 
               return (
-                <div key={dateStr} className={cn("bg-white rounded-2xl p-3 shadow-sm min-h-[180px]", isToday && "ring-2 ring-[#2C6E49]")}>
-                  <div className="text-center mb-3">
-                    <div className="text-xs text-gray-400 uppercase tracking-wide">{format(day, "EEE")}</div>
-                    <div className={cn("text-lg font-bold mt-0.5", isToday ? "text-[#2C6E49]" : "text-gray-800")}>
-                      {format(day, "d")}
+                <div
+                  key={dateStr}
+                  ref={isToday && view === "month" ? todayCellRef : null}
+                  className={cn(
+                    "bg-white rounded-2xl shadow-sm scroll-mt-20",
+                    view === "week" ? "p-5" : "p-3 min-h-[180px]",
+                    isOutsideMonth && "opacity-40"
+                  )}
+                >
+                  {view === "week" ? (
+                    <div className="mb-4 flex items-center justify-between gap-2">
+                      <div>
+                        <div className={cn(
+                          "text-lg font-bold leading-tight",
+                          isToday ? "text-[#2C6E49]" : "text-gray-900"
+                        )}>
+                          {format(day, "EEEE")}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-0.5">
+                          {format(day, "MMMM d")}
+                        </div>
+                      </div>
+                      {isToday && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-[#2C6E49] text-white px-2 py-1 rounded-full">Today</span>
+                      )}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="text-center mb-3 relative">
+                      <div className="uppercase tracking-wide text-gray-400 text-xs">
+                        {format(day, "EEEE")}
+                      </div>
+                      <div className={cn(
+                        "font-bold text-lg mt-0.5",
+                        isToday ? "text-[#2C6E49]" : "text-gray-800"
+                      )}>
+                        {format(day, "d")}
+                      </div>
+                      {isToday && (
+                        <span className="block mx-auto mt-1 text-[9px] font-bold uppercase tracking-wider bg-[#2C6E49] text-white px-1.5 py-0.5 rounded-full w-fit">
+                          Today
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     {daySlots.map((slot) => {
+                      // Another trainer's slot — gray "occupied" placeholder, no details
+                      if (slot.state === "other") {
+                        return (
+                          <div
+                            key={slot.id}
+                            className={cn(
+                              "w-full rounded-lg border border-gray-200 bg-gray-50 select-none cursor-default",
+                              view === "week" ? "p-3 flex items-center justify-between" : "p-2"
+                            )}
+                            aria-label="Occupied"
+                          >
+                            <div className={cn("font-medium text-gray-400", view === "week" ? "text-base" : "text-xs")}>
+                              {formatTime(slot.startTime)}
+                            </div>
+                            <div className={cn("text-gray-300", view === "week" ? "text-xs" : "text-[10px] mt-0.5")}>Occupied</div>
+                          </div>
+                        )
+                      }
+                      // Unassigned slot — show bookings count, hint to contact admin
+                      if (slot.state === "unassigned") {
+                        return (
+                          <div
+                            key={slot.id}
+                            className={cn(
+                              "w-full rounded-lg border-2 border-dashed border-amber-300 bg-amber-50 select-none cursor-default",
+                              view === "week" ? "p-3" : "p-2"
+                            )}
+                            title="No trainer assigned — ask the admin to take this session"
+                          >
+                            <div className={cn("font-semibold text-amber-700", view === "week" ? "text-base" : "text-xs")}>
+                              {formatTime(slot.startTime)}
+                            </div>
+                            <div className={cn("text-amber-600 flex items-center gap-1", view === "week" ? "text-sm mt-1" : "text-[10px] mt-0.5")}>
+                              <Users size={view === "week" ? 14 : 10} />
+                              {slot._count?.bookings ?? 0}/{slot.maxCapacity ?? 0}
+                            </div>
+                            <div className={cn("text-amber-700/80 leading-tight", view === "week" ? "text-xs mt-1.5" : "text-[10px] mt-1")}>
+                              Free — ask admin
+                            </div>
+                          </div>
+                        )
+                      }
+                      // Mine — full interactive card
                       const isSelected = selectedSlot?.id === slot.id
-                      const hasBookings = slot._count.bookings > 0
+                      const hasBookings = (slot._count?.bookings ?? 0) > 0
                       return (
                       <button
                         key={slot.id}
                         onClick={() => handleSlotClick(slot)}
                         className={cn(
-                          "w-full text-left rounded-lg p-2 transition-all border-2",
+                          "w-full text-left rounded-lg border-2 touch-manipulation",
+                          view === "week" ? "p-3 flex items-center justify-between gap-2" : "p-2",
                           isSelected
                             ? "bg-[#2C6E49] border-[#2C6E49] text-white"
                             : hasBookings
@@ -258,17 +461,19 @@ export default function TrainerSchedulePage() {
                         )}
                       >
                         <div className={cn(
-                          "text-xs font-semibold",
+                          "font-semibold",
+                          view === "week" ? "text-base" : "text-xs",
                           isSelected ? "text-white" : hasBookings ? "text-[#2C6E49]" : "text-gray-500"
                         )}>
                           {formatTime(slot.startTime)}
                         </div>
                         <div className={cn(
-                          "text-xs mt-0.5 flex items-center gap-1",
+                          "flex items-center gap-1",
+                          view === "week" ? "text-sm" : "text-xs mt-0.5",
                           isSelected ? "text-white/80" : hasBookings ? "text-gray-500" : "text-gray-400"
                         )}>
-                          <Users size={10} />
-                          {slot._count.bookings}/{slot.maxCapacity}
+                          <Users size={view === "week" ? 14 : 10} />
+                          {slot._count?.bookings ?? 0}/{slot.maxCapacity ?? 0}
                         </div>
                       </button>
                       )
@@ -280,20 +485,39 @@ export default function TrainerSchedulePage() {
           </div>
         </div>
 
-        {/* Booking list for selected slot */}
+        {/* Booking list for selected slot — full-screen modal on mobile, side panel on desktop */}
         {selectedSlot && (
-          <div className="w-full lg:w-80 bg-white rounded-2xl shadow-sm p-5 lg:flex-shrink-0 h-fit">
-            <div className="flex items-center justify-between mb-4">
+          <div
+            className={cn(
+              // Mobile: full-screen modal — overscroll-none stops the whole sheet
+              // from rubber-banding as a unit when finger lands on a card
+              "fixed inset-0 z-50 bg-[#F5F4F0] flex flex-col overscroll-none",
+              // Desktop: side panel, scoped within the parent flex
+              "lg:static lg:z-auto lg:inset-auto lg:w-80 lg:bg-white lg:rounded-2xl lg:shadow-sm lg:flex-shrink-0 lg:h-fit lg:p-5 lg:overscroll-auto"
+            )}
+          >
+            {/* Sticky header (mobile) / plain header (desktop) */}
+            <div className="flex items-center justify-between px-4 py-4 bg-white border-b border-gray-100 lg:p-0 lg:border-0 lg:mb-4 lg:bg-transparent flex-shrink-0">
               <div>
                 <div className="font-semibold text-gray-800">
                   {format(new Date(selectedSlot.date + "T00:00:00"), "MMM d")} · {formatTime(selectedSlot.startTime)}
                 </div>
                 <div className="text-sm text-gray-400 mt-0.5">
-                  {selectedSlot._count.bookings}/{selectedSlot.maxCapacity} booked
+                  {selectedSlot._count?.bookings ?? 0}/{selectedSlot.maxCapacity ?? 0} booked
                 </div>
               </div>
-              <button onClick={() => setSelectedSlot(null)} className="text-lg text-gray-400 hover:text-gray-600 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
+              <button
+                onClick={() => setSelectedSlot(null)}
+                aria-label="Close"
+                className="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors lg:w-7 lg:h-7 lg:rounded-lg"
+              >
+                <X size={18} />
+              </button>
             </div>
+
+            {/* Scrollable body — overscroll-none kills iOS rubber-band bounce
+                so touching a card and pulling down doesn't drag the modal */}
+            <div className="flex-1 overflow-y-auto overscroll-none touch-pan-y px-4 py-4 lg:p-0 lg:overflow-visible lg:overscroll-auto">
 
             {bookings.length === 0 ? (
               <div className="text-sm text-gray-400 text-center py-6">No bookings yet</div>
@@ -304,7 +528,7 @@ export default function TrainerSchedulePage() {
                   const isUpdating = updating === b.id
 
                   return (
-                    <div key={b.id} className={cn("rounded-xl p-4 border-2 shadow-sm", b.checkedIn ? "border-green-300 bg-green-50" : "border-gray-200 bg-white")}>
+                    <div key={b.id} className="rounded-xl p-4 border-2 border-gray-200 bg-white shadow-sm">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
@@ -312,20 +536,20 @@ export default function TrainerSchedulePage() {
                         </div>
                         {b.checkedIn && <span className="text-[10px] font-medium text-green-700 bg-green-200 px-2 py-0.5 rounded-full">✓ checked in</span>}
                       </div>
-                      <div className="ml-8 mb-3 flex items-center gap-2 flex-wrap">
-                        <span className="text-xs text-gray-400">{b.clientPhone}</span>
+                      <div className="ml-8 mb-3">
                         {(() => {
                           const wa = whatsappLink(b.clientPhone, `Hi ${b.clientName.replace(/\s*\(\d+\/\d+\)$/, "")}! Just a friendly reminder about your stretching class today 🌿`)
+                          const content = (
+                            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#25D366]/8 border border-[#25D366]/20">
+                              <WhatsAppIcon size={15} />
+                              <span className="text-sm text-gray-800 font-medium">{b.clientPhone}</span>
+                            </span>
+                          )
                           return wa ? (
-                            <a
-                              href={wa}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[10px] bg-[#25D366] hover:bg-[#1da851] text-white px-2 py-0.5 rounded transition-colors"
-                            >
-                              <MessageCircle size={10} /> Chat
+                            <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-block hover:opacity-90 transition-opacity">
+                              {content}
                             </a>
-                          ) : null
+                          ) : content
                         })()}
                       </div>
 
@@ -362,23 +586,21 @@ export default function TrainerSchedulePage() {
                       )}
 
                       {/* Payment method buttons */}
-                      <div className="mt-3">
-                        <div className="text-xs text-gray-400 mb-1.5">Payment method</div>
-                        <div className="grid grid-cols-4 gap-1">
+                      <div className="mt-4">
+                        <div className="text-xs text-gray-500 font-medium mb-2">Payment method</div>
+                        <div className="grid grid-cols-4 gap-1.5">
                           {PAYMENT_METHODS.map((pm) => {
                             const isActive = b.paymentType === pm.value
                             return (
                               <button
                                 key={pm.value}
                                 type="button"
-                                disabled={isUpdating}
                                 onClick={() => handlePaymentMethod(b, pm.value)}
                                 className={cn(
-                                  "py-1.5 rounded-lg text-xs font-medium transition-all border",
+                                  "py-2.5 rounded-lg text-sm font-semibold border touch-manipulation",
                                   isActive
                                     ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                                    : "bg-white text-gray-500 border-gray-200 hover:border-[#2C6E49]/40 hover:text-[#2C6E49]",
-                                  isUpdating && "opacity-50 cursor-not-allowed"
+                                    : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
                                 )}
                               >
                                 {pm.label}
@@ -387,40 +609,71 @@ export default function TrainerSchedulePage() {
                           })}
                         </div>
                         {isPaid && (
-                          <div className="mt-1 text-[10px] text-[#2C6E49] font-medium">
+                          <div className="mt-1.5 text-xs text-[#2C6E49] font-medium">
                             ✓ Paid · {b.paymentType}
                           </div>
                         )}
                       </div>
 
-                      {/* Services checklist */}
+                      {/* Services — bigger tap targets, instant toggle */}
                       {services.length > 0 && (
-                        <div className="mt-3">
-                          <div className="text-xs text-gray-400 mb-1.5">Services</div>
-                          <div className="space-y-1">
+                        <div className="mt-4">
+                          <div className="text-xs text-gray-500 font-medium mb-2">Services</div>
+                          <div className="space-y-1.5">
                             {services.map((svc) => {
                               const hasService = b.services.some((s) => s.service.id === svc.id)
                               return (
-                                <label key={svc.id} className={cn("flex items-center gap-2 cursor-pointer", isUpdating && "opacity-50 cursor-not-allowed")}>
-                                  <input
-                                    type="checkbox"
-                                    checked={hasService}
-                                    disabled={isUpdating}
-                                    onChange={() => toggleService(b, svc.id)}
-                                    className="w-3.5 h-3.5 rounded accent-[#2C6E49]"
-                                  />
-                                  <span className="text-xs text-gray-700 flex-1">{svc.name}</span>
-                                  <span className="text-[10px] text-gray-400">+{formatIDR(svc.price)}</span>
-                                </label>
+                                <button
+                                  key={svc.id}
+                                  type="button"
+                                  onClick={() => toggleService(b, svc.id)}
+                                  className={cn(
+                                    "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 border text-left touch-manipulation",
+                                    hasService
+                                      ? "bg-[#2C6E49]/5 border-[#2C6E49]/20"
+                                      : "bg-white border-gray-200"
+                                  )}
+                                >
+                                  <span className={cn(
+                                    "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
+                                    hasService ? "bg-[#2C6E49] border-[#2C6E49]" : "bg-white border-gray-300"
+                                  )}>
+                                    {hasService && (
+                                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                        <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                      </svg>
+                                    )}
+                                  </span>
+                                  <span className={cn("text-sm flex-1 font-medium", hasService ? "text-gray-900" : "text-gray-700")}>
+                                    {svc.name}
+                                  </span>
+                                  <span className={cn("text-sm font-semibold", hasService ? "text-[#2C6E49]" : "text-gray-400")}>
+                                    +{formatIDR(svc.price)}
+                                  </span>
+                                </button>
                               )
                             })}
                           </div>
                         </div>
                       )}
 
-                      {/* Notes */}
-                      <div className="mt-3">
-                        <label className="block text-xs text-gray-400 mb-1">Notes</label>
+                      {/* Total to charge — bigger and prominent */}
+                      {(() => {
+                        const sessionPrice = selectedSlot?.price ?? 0
+                        const servicesTotal = b.services.reduce((sum, s) => sum + s.service.price, 0)
+                        const total = sessionPrice + servicesTotal
+                        if (total === 0) return null
+                        return (
+                          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                            <span className="text-sm text-gray-500 font-medium">Total to charge</span>
+                            <span className="text-lg font-bold text-gray-900">{formatIDR(total)}</span>
+                          </div>
+                        )
+                      })()}
+
+                      {/* Notes — bigger input */}
+                      <div className="mt-4">
+                        <label className="block text-xs text-gray-500 font-medium mb-2">Notes</label>
                         <input
                           type="text"
                           defaultValue={b.notes ?? ""}
@@ -430,7 +683,7 @@ export default function TrainerSchedulePage() {
                               updateBooking(b.id, { notes: e.target.value })
                             }
                           }}
-                          className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs w-full focus:outline-none disabled:opacity-50"
+                          className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-50"
                           placeholder="Add note..."
                         />
                       </div>
@@ -439,6 +692,7 @@ export default function TrainerSchedulePage() {
                 })}
               </div>
             )}
+            </div>
           </div>
         )}
       </div>

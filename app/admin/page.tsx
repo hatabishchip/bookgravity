@@ -1,23 +1,25 @@
 import { prisma } from "@/lib/prisma"
+import { getCurrentUserStudioId } from "@/lib/studio"
 import { format } from "date-fns"
 import Link from "next/link"
 import { Calendar, Users, BookOpen, TrendingUp } from "lucide-react"
 
 export default async function AdminDashboard() {
   const today = format(new Date(), "yyyy-MM-dd")
+  const studioId = await getCurrentUserStudioId()
 
   const [todaySlots, totalBookings, upcomingSlots, trainers] = await Promise.all([
     prisma.timeSlot.findMany({
-      where: { date: today },
+      where: { date: today, studioId },
       include: {
         trainer: { select: { name: true } },
         _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
       },
       orderBy: { startTime: "asc" },
     }),
-    prisma.booking.count({ where: { status: "CONFIRMED" } }),
+    prisma.booking.count({ where: { status: "CONFIRMED", slot: { studioId } } }),
     prisma.timeSlot.findMany({
-      where: { date: { gt: today } },
+      where: { date: { gt: today }, studioId },
       include: {
         trainer: { select: { name: true } },
         _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
@@ -25,7 +27,7 @@ export default async function AdminDashboard() {
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
       take: 5,
     }),
-    prisma.trainer.count(),
+    prisma.trainer.count({ where: { studioId } }),
   ])
 
   const todayTotal = todaySlots.reduce((sum, s) => sum + s._count.bookings, 0)
