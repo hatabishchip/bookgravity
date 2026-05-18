@@ -792,9 +792,20 @@ export default function SchedulePage() {
                                 const isPrivate = assignment.classType === "PRIVATE"
                                 return (
                                   <div key={t} className={cn(
-                                    "rounded-lg text-xs border px-2.5 py-2 space-y-1.5",
+                                    "relative rounded-lg text-xs border pl-2.5 pr-8 py-2 space-y-1.5",
                                     isExisting ? "bg-gray-50 border-gray-200" : "bg-[#2C6E49]/5 border-[#2C6E49]/15"
                                   )}>
+                                    <button type="button" onClick={() => {
+                                      const newAssignments = { ...form.assignments }
+                                      delete newAssignments[t]
+                                      setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newAssignments })
+                                    }}
+                                      title={isExisting ? "Remove this session" : "Discard this new session"}
+                                      aria-label="Remove session"
+                                      className={cn(
+                                        "absolute top-1 right-1 w-5 h-5 rounded-md flex items-center justify-center text-base leading-none touch-manipulation",
+                                        isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-[#2C6E49]/60 hover:text-rose-600 hover:bg-rose-50"
+                                      )}>×</button>
                                     <div className="flex items-center gap-1.5">
                                       <span className={cn(
                                         "font-medium whitespace-nowrap",
@@ -845,21 +856,6 @@ export default function SchedulePage() {
                                           {assignment.publicVisible ? "👁" : "🚫"}
                                         </button>
                                       )}
-                                      <span className="w-px h-5 bg-gray-200 mx-1 flex-shrink-0" aria-hidden />
-                                      <button type="button" onClick={() => {
-                                        const newAssignments = { ...form.assignments }
-                                        delete newAssignments[t]
-                                        setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newAssignments })
-                                      }}
-                                        title={isExisting ? "Remove this session" : "Discard this new session"}
-                                        className={cn(
-                                          "w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 border touch-manipulation",
-                                          isExisting
-                                            ? "border-rose-200 text-rose-500 hover:bg-rose-50"
-                                            : "border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-rose-500"
-                                        )}>
-                                        <Trash2 size={13} />
-                                      </button>
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                       <select
