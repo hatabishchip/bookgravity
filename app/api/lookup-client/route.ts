@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getStudioIdBySubdomain } from "@/lib/studio"
 
 export const dynamic = "force-dynamic"
 
-// Returns the most recent booking name for a given phone in the current studio.
-// Used by the booking widget to auto-fill the name field for returning clients.
+// Returns the most recently used name for a given phone, across ALL studios.
+// A returning client should see whichever name they last typed in — even if
+// the prior booking was at a different studio under the same brand. Scoping
+// the lookup per-studio caused stale names to autofill when the client had
+// updated their name on the other studio's widget.
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const phone = searchParams.get("phone")?.trim()
   if (!phone || phone.length < 5) return NextResponse.json({ name: null })
 
   try {
-    const studioId = await getStudioIdBySubdomain()
     const booking = await prisma.booking.findFirst({
-      where: {
-        clientPhone: phone,
-        slot: { studioId },
-      },
+      where: { clientPhone: phone },
       orderBy: { createdAt: "desc" },
       select: { clientName: true },
     })
