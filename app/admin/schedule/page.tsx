@@ -714,7 +714,12 @@ export default function SchedulePage() {
                               {typeLabel}
                             </span>
                             {isHidden && (
-                              <span className="text-[9px] leading-none" title="Hidden from clients">🚫</span>
+                              <span
+                                title="Hidden from clients"
+                                className="inline-flex items-center justify-center w-4 h-4 rounded bg-white/95 border border-gray-300 text-gray-500"
+                              >
+                                <EyeOff size={10} strokeWidth={2.25} />
+                              </span>
                             )}
                           </div>
                         </div>
