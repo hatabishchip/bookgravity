@@ -916,14 +916,17 @@ export default function BookingWidget({ services, studio }: {
                           <div className="min-w-0">
                             <div className={cn("font-semibold flex items-center gap-2 flex-wrap", isFull ? "text-rose-900 line-through decoration-rose-300" : "text-gray-800")}>
                               <span>{formatTime(slot.startTime)} – {clientEndTime(slot.startTime)}</span>
-                              {slot.classType === "KIDS" && (
+                              {slot.classType === "KIDS" ? (
                                 <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full no-underline">
                                   Kids
                                 </span>
-                              )}
-                              {slot.classType === "PRIVATE" && (
+                              ) : slot.classType === "PRIVATE" ? (
                                 <span className="text-[10px] font-bold uppercase bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full no-underline">
                                   Private
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold uppercase bg-[#2C6E49]/10 text-[#2C6E49] px-2 py-0.5 rounded-full no-underline">
+                                  Group
                                 </span>
                               )}
                             </div>
