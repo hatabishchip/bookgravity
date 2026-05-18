@@ -458,7 +458,6 @@ function SlotEditor({
   useBodyScrollLock(true)
   const [trainerId, setTrainerId] = useState(slot.trainer?.id ?? "")
   const [assistantId, setAssistantId] = useState(slot.assistant?.id ?? "")
-  const [startTime, setStartTime] = useState(slot.startTime)
   const [classType, setClassType] = useState<ClassType>(slot.classType)
   const [publicVisible, setPublicVisible] = useState<boolean>(slot.publicVisible)
   const [maxCapacity, setMaxCapacity] = useState(slot.maxCapacity)
@@ -505,7 +504,6 @@ function SlotEditor({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        startTime,
         trainerId: trainerId || null,
         assistantId: assistantId || null,
         classType,
@@ -615,29 +613,6 @@ function SlotEditor({
                     </button>
                   )
                 })}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Start time</label>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {TIME_PRESETS.map((t) => (
-                  <button key={t} type="button" onClick={() => setStartTime(t)}
-                    className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium touch-manipulation",
-                      startTime === t ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200"
-                    )}>
-                    {formatTime(t)}
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input type="time" required value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
-                />
-                <div className="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2.5 text-sm text-gray-500">
-                  → {formatTime(computeEndTime(startTime))} <span className="text-xs text-gray-400">(120 min)</span>
-                </div>
               </div>
             </div>
 
