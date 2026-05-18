@@ -337,18 +337,29 @@ export default function BetaSchedulePage() {
                   const c = slot.trainer?.color ?? "#9CA3AF"
                   const seatsLeft = slot.maxCapacity - slot._count.bookings
                   const isFull = seatsLeft <= 0
+                  const isHidden = !slot.publicVisible
                   return (
                     <button
                       key={slot.id}
                       type="button"
                       onClick={() => setEditingSlot(slot)}
-                      className="w-full text-left rounded-2xl px-4 py-3 touch-manipulation hover:opacity-90"
-                      style={{ backgroundColor: hexToRgba(c, 0.18) }}
+                      className={cn(
+                        "w-full text-left rounded-2xl px-4 py-3 touch-manipulation hover:opacity-90 relative",
+                        isHidden && "border-2 border-dashed border-gray-300 opacity-70"
+                      )}
+                      style={{ backgroundColor: hexToRgba(c, isHidden ? 0.08 : 0.18) }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold text-gray-900 truncate">
-                          {slot.trainer?.name ?? "Unassigned"}
-                          {slot.assistant && ` · + ${slot.assistant.name}`}
+                        <div className="text-sm font-semibold text-gray-900 truncate flex items-center gap-1.5">
+                          <span className="truncate">
+                            {slot.trainer?.name ?? "Unassigned"}
+                            {slot.assistant && ` · + ${slot.assistant.name}`}
+                          </span>
+                          {isHidden && (
+                            <span className="inline-flex items-center gap-0.5 flex-shrink-0 px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[9px] font-bold uppercase tracking-wider leading-none">
+                              🚫 Hidden
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs font-semibold text-gray-700 flex-shrink-0">
                           {slot._count.bookings}/{slot.maxCapacity}
@@ -360,6 +371,11 @@ export default function BetaSchedulePage() {
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
                           · {CLASS_TYPES.find((c) => c.value === slot.classType)?.label ?? slot.classType}
                         </span>
+                        {isHidden && (
+                          <span className="text-[10px] font-medium text-gray-500 italic">
+                            · not visible to clients
+                          </span>
+                        )}
                       </div>
                     </button>
                   )

@@ -683,6 +683,7 @@ export default function SchedulePage() {
                           ? "bg-white/90 text-gray-800 border-white/60"
                           : "bg-gray-100 text-gray-700 border-gray-200"
 
+                    const isHidden = !slot.publicVisible
                     return (
                       <div
                         key={slot.id}
@@ -690,8 +691,10 @@ export default function SchedulePage() {
                         style={cardStyle}
                         className={cn(
                           "rounded-lg p-1.5 relative group/slot cursor-pointer transition-all border",
-                          !hasTrainer && "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                          !hasTrainer && "bg-gray-50 border-gray-200 hover:bg-gray-100",
+                          isHidden && "opacity-60 border-dashed"
                         )}
+                        title={isHidden ? "Hidden from clients" : undefined}
                       >
                         <div className="flex items-start justify-between gap-1">
                           <div
@@ -701,14 +704,19 @@ export default function SchedulePage() {
                             {formatTime(slot.startTime)}
                             <span className="block font-normal text-[10px] opacity-70">{formatTime(slot.endTime)}</span>
                           </div>
-                          <span
-                            className={cn(
-                              "px-1.5 py-[1px] rounded text-[9px] font-bold uppercase tracking-wide leading-none border whitespace-nowrap mt-0.5 group-hover/slot:opacity-0 transition-opacity",
-                              typePill,
+                          <div className="flex flex-col items-end gap-0.5 group-hover/slot:opacity-0 transition-opacity">
+                            <span
+                              className={cn(
+                                "px-1.5 py-[1px] rounded text-[9px] font-bold uppercase tracking-wide leading-none border whitespace-nowrap",
+                                typePill,
+                              )}
+                            >
+                              {typeLabel}
+                            </span>
+                            {isHidden && (
+                              <span className="text-[9px] leading-none" title="Hidden from clients">🚫</span>
                             )}
-                          >
-                            {typeLabel}
-                          </span>
+                          </div>
                         </div>
                         <div className="mt-0.5 truncate text-[10px]"
                           style={hasTrainer ? { color: "rgba(255,255,255,0.75)" } : { color: "#9CA3AF" }}
