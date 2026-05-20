@@ -18,12 +18,11 @@ function parseDataUrl(dataUrl: string): { bytes: Buffer } | null {
 }
 
 // Normalize whatever the admin uploaded into a square 128×128 PNG with a
-// transparent background. Trims existing transparent padding so the logo
-// fills the visible area, then letterboxes the result back to a square.
+// transparent background. Trims existing padding so the glyph fills, then
+// letterboxes back to a square.
 async function normalizeToFavicon(bytes: Buffer): Promise<Buffer> {
-  const img = sharp(bytes).rotate()
-  const trimmed = await img.trim().toBuffer().catch(() => null)
-  const src = trimmed ? sharp(trimmed) : sharp(bytes)
+  const trimmed = await sharp(bytes).rotate().trim().toBuffer().catch(() => null)
+  const src = trimmed ? sharp(trimmed) : sharp(bytes).rotate()
   return src
     .resize(128, 128, {
       fit: "contain",
@@ -33,26 +32,53 @@ async function normalizeToFavicon(bytes: Buffer): Promise<Buffer> {
     .toBuffer()
 }
 
+// "Good" favicon source = the image is reasonably large and roughly square.
+// Tiny or non-square uploads usually contain a fraction of a real logo on a
+// big transparent canvas and produce a blurry, unrecognizable tab icon, so
+// we fall back to the studio's full-resolution logo when available.
+async function isGoodSource(bytes: Buffer): Promise<boolean> {
+  try {
+    const m = await sharp(bytes).metadata()
+    const w = m.width ?? 0
+    const h = m.height ?? 0
+    if (w < 96 || h < 96) return false
+    const ratio = Math.max(w, h) / Math.min(w, h)
+    return ratio <= 1.2
+  } catch {
+    return false
+  }
+}
+
 export async function GET() {
   try {
     const studioId = await getStudioIdBySubdomain()
     const studio = await prisma.studio.findUnique({
       where: { id: studioId },
-      select: { faviconUrl: true },
+      select: { faviconUrl: true, logoUrl: true },
     })
-    if (studio?.faviconUrl) {
-      const parsed = parseDataUrl(studio.faviconUrl)
-      if (parsed) {
-        const out = await normalizeToFavicon(parsed.bytes).catch(() => null)
-        if (out) {
-          return new NextResponse(new Uint8Array(out), {
-            headers: {
-              "Content-Type": "image/png",
-              // Short cache so changes propagate after upload
-              "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
-            },
-          })
-        }
+
+    // Pick the best available source: a "good" favicon upload wins; otherwise
+    // use the logo (typically a higher-resolution brand mark); otherwise fall
+    // back to whatever favicon bytes we do have.
+    const candidates: Buffer[] = []
+    const favParsed = studio?.faviconUrl ? parseDataUrl(studio.faviconUrl) : null
+    const logoParsed = studio?.logoUrl ? parseDataUrl(studio.logoUrl) : null
+
+    if (favParsed && (await isGoodSource(favParsed.bytes))) candidates.push(favParsed.bytes)
+    else {
+      if (logoParsed) candidates.push(logoParsed.bytes)
+      if (favParsed) candidates.push(favParsed.bytes)
+    }
+
+    for (const bytes of candidates) {
+      const out = await normalizeToFavicon(bytes).catch(() => null)
+      if (out) {
+        return new NextResponse(new Uint8Array(out), {
+          headers: {
+            "Content-Type": "image/png",
+            "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
+          },
+        })
       }
     }
   } catch {
