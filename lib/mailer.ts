@@ -128,9 +128,14 @@ export async function sendClientBookingConfirmation(
     </div>
   `
   try {
-    await r.emails.send({ from: FROM, to: clientEmail, subject, html })
-  } catch {
-    // Swallow — confirmation failure must not break the booking response
+    const res = await r.emails.send({ from: FROM, to: clientEmail, subject, html })
+    if (res.error) {
+      console.error("[mailer] client confirmation failed:", res.error)
+    } else {
+      console.log("[mailer] client confirmation sent:", res.data?.id, "→", clientEmail)
+    }
+  } catch (err) {
+    console.error("[mailer] client confirmation exception:", err)
   }
 }
 
@@ -162,8 +167,13 @@ export async function sendTrainerBookingNotification(
     </div>
   `
   try {
-    await r.emails.send({ from: FROM, to: trainerEmail, subject, html })
-  } catch {
-    // Swallow — booking flow must not fail due to email delivery
+    const res = await r.emails.send({ from: FROM, to: trainerEmail, subject, html })
+    if (res.error) {
+      console.error("[mailer] trainer notification failed:", res.error, "→", trainerEmail)
+    } else {
+      console.log("[mailer] trainer notification sent:", res.data?.id, "→", trainerEmail)
+    }
+  } catch (err) {
+    console.error("[mailer] trainer notification exception:", err, "→", trainerEmail)
   }
 }

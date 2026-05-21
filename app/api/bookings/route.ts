@@ -92,9 +92,10 @@ export async function POST(request: NextRequest) {
       bookings.push(b)
     }
 
-    // Send the booking confirmation email to the client AND notify the
-    // assigned trainer. Both are fire-and-forget so a mail-service hiccup
-    // never blocks the booking response.
+    // Send confirmation emails to the client AND notify the assigned trainer.
+    // Awaiting both so the serverless function doesn't terminate before the
+    // Resend HTTP calls complete (fire-and-forget was unreliable on Vercel).
+    // Both mailers swallow their own errors internally so this can't 500.
     try {
       const slotWithTrainer = await prisma.timeSlot.findUnique({
         where: { id: data.slotId },
@@ -117,23 +118,34 @@ export async function POST(request: NextRequest) {
           partySize: data.partySize,
         }
 
-        // Client confirmation — include their ticket code and trainer name
-        sendClientBookingConfirmation(data.clientEmail, {
-          ...sharedData,
-          ticketCode: bookings[0].ticketCode,
-          trainerName: slotWithTrainer.trainer?.name ?? null,
-        }).catch(() => { /* swallow */ })
-
-        // Trainer notification (if the trainer has a user account with email)
         const trainerEmail = slotWithTrainer.trainer?.user?.email
         const trainerName = slotWithTrainer.trainer?.name
+        console.log("[bookings] dispatch mails:", {
+          clientEmail: data.clientEmail,
+          trainerEmail,
+          trainerName,
+          slotId: data.slotId,
+        })
+
+        const mailPromises: Promise<unknown>[] = []
+        mailPromises.push(
+          sendClientBookingConfirmation(data.clientEmail, {
+            ...sharedData,
+            ticketCode: bookings[0].ticketCode,
+            trainerName: trainerName ?? null,
+          }),
+        )
         if (trainerEmail && trainerName) {
-          sendTrainerBookingNotification(trainerEmail, trainerName, sharedData)
-            .catch(() => { /* swallow */ })
+          mailPromises.push(sendTrainerBookingNotification(trainerEmail, trainerName, sharedData))
+        } else {
+          console.warn("[bookings] trainer notify SKIPPED — slot has no trainer with an email")
         }
+        await Promise.all(mailPromises)
+      } else {
+        console.warn("[bookings] could not load slot for mailing:", data.slotId)
       }
-    } catch {
-      // Mailer or DB lookup failed — booking still succeeded
+    } catch (err) {
+      console.error("[bookings] mailing block exception:", err)
     }
 
     // Return the lead booking (first one)
