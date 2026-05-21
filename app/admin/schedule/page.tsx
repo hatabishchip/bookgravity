@@ -13,6 +13,7 @@ type Slot = {
   classType: string
   publicVisible: boolean
   maxCapacity: number; price: number
+  seriesId: string | null
   trainer: { id: string; name: string; color: string } | null
   assistant: { id: string; name: string; color: string } | null
   _count: { bookings: number }
@@ -67,7 +68,7 @@ function slotCardStyle(slot: Slot) {
   }
 }
 
-type SlotAssignment = { trainerId: string; assistantId: string; classType: ClassType; publicVisible: boolean; maxCapacity: number }
+type SlotAssignment = { trainerId: string; assistantId: string; classType: ClassType; publicVisible: boolean; maxCapacity: number; repeatWeekly: boolean }
 type ClassType = "GROUP" | "KIDS" | "PRIVATE"
 
 const CLASS_TYPES: { value: ClassType; label: string; sub: string }[] = [
@@ -225,6 +226,7 @@ export default function SchedulePage() {
         classType: (s.classType as ClassType) ?? "GROUP",
         publicVisible: s.publicVisible ?? true,
         maxCapacity: s.maxCapacity ?? 6,
+        repeatWeekly: !!s.seriesId,
       }
     })
     setForm({ ...EMPTY_FORM, date, startTimes: existingTimes, assignments: initialAssignments })
@@ -259,20 +261,23 @@ export default function SchedulePage() {
     for (const t of form.startTimes) {
       const slot = existingByTime.get(t)
       if (!slot) continue
-      const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+      const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
       const currentTrainer = slot.trainer?.id ?? ""
       const currentAssistant = slot.assistant?.id ?? ""
       const currentType = (slot.classType as ClassType) ?? "GROUP"
       const currentVis = slot.publicVisible ?? true
       const currentCap = slot.maxCapacity ?? 6
       const desiredCap = a.classType === "PRIVATE" ? 1 : a.maxCapacity
-      if (
+      // User unchecked "Repeat weekly" on a slot that's part of a series →
+      // tell the server to remove future occurrences from this series.
+      const endSeries = !!slot.seriesId && !a.repeatWeekly
+      const fieldChanged =
         a.trainerId !== currentTrainer ||
         a.assistantId !== currentAssistant ||
         a.classType !== currentType ||
         a.publicVisible !== currentVis ||
         desiredCap !== currentCap
-      ) {
+      if (fieldChanged || endSeries) {
         const tr = a.trainerId ? trainers.find((x) => x.id === a.trainerId) : null
         const as = a.assistantId ? trainers.find((x) => x.id === a.assistantId) : null
         optimisticUpdates.set(slot.id, {
@@ -283,6 +288,7 @@ export default function SchedulePage() {
           price: priceForType(a.classType),
           trainer: tr ? { id: tr.id, name: tr.name, color: tr.color } : null,
           assistant: as ? { id: as.id, name: as.name, color: as.color } : null,
+          seriesId: endSeries ? null : slot.seriesId,
         })
         payloads.push({
           url: `/api/admin/slots?id=${slot.id}`,
@@ -294,13 +300,14 @@ export default function SchedulePage() {
             publicVisible: a.publicVisible,
             maxCapacity: desiredCap,
             price: priceForType(a.classType),
+            ...(endSeries ? { endSeries: true } : {}),
           },
         })
       }
     }
 
     for (const startTime of toCreate) {
-      const a = form.assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+      const a = form.assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
       const isPrivate = a.classType === "PRIVATE"
       const tr = a.trainerId ? trainers.find((x) => x.id === a.trainerId) : null
       const as = a.assistantId ? trainers.find((x) => x.id === a.assistantId) : null
@@ -313,6 +320,7 @@ export default function SchedulePage() {
         publicVisible: a.publicVisible,
         maxCapacity: isPrivate ? 1 : Number(a.maxCapacity),
         price: priceForType(a.classType),
+        seriesId: null,  // server will assign one if repeatWeekly is true
         trainer: tr ? { id: tr.id, name: tr.name, color: tr.color } : null,
         assistant: as ? { id: as.id, name: as.name, color: as.color } : null,
         _count: { bookings: 0 },
@@ -329,6 +337,7 @@ export default function SchedulePage() {
           publicVisible: a.publicVisible,
           maxCapacity: isPrivate ? 1 : Number(a.maxCapacity),
           price: priceForType(a.classType),
+          repeatWeekly: a.repeatWeekly,
         },
       })
     }
@@ -781,7 +790,7 @@ export default function SchedulePage() {
       {/* Create / Edit modal */}
       {modal !== null && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 touch-none" onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault() }}>
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col overflow-hidden">
             <div className="px-6 pt-5 pb-4 flex items-center justify-between flex-shrink-0 border-b border-gray-100">
               <div>
                 <h2 className="text-lg font-semibold text-gray-800">{slots.some((s) => s.date === form.date) ? "Manage day's sessions" : "Add Session"}</h2>
@@ -820,7 +829,7 @@ export default function SchedulePage() {
                             } else {
                               const newTimes = sortTimes([...form.startTimes, t])
                               const newA = { ...form.assignments }
-                              if (!newA[t]) newA[t] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6 }
+                              if (!newA[t]) newA[t] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: true }
                               setForm({ ...form, startTimes: newTimes, assignments: newA })
                               setFormError("")
                             }
@@ -855,7 +864,7 @@ export default function SchedulePage() {
                           return
                         }
                         const newA = { ...form.assignments }
-                        if (!newA[form.customTime]) newA[form.customTime] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6 }
+                        if (!newA[form.customTime]) newA[form.customTime] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: true }
                         setForm({ ...form, startTimes: sortTimes([...form.startTimes, form.customTime]), assignments: newA })
                         setFormError("")
                       }}
@@ -877,7 +886,7 @@ export default function SchedulePage() {
                             <div className="space-y-1.5">
                               {form.startTimes.map((t) => {
                                 const isExisting = existingTimes.has(t)
-                                const assignment = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+                                const assignment = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
                                 const updateAssignment = (patch: Partial<SlotAssignment>) => {
                                   setForm((prev) => ({
                                     ...prev,
@@ -1013,6 +1022,42 @@ export default function SchedulePage() {
                                         </span>
                                       )}
                                     </div>
+                                    {(() => {
+                                      const weekday = format(new Date(form.date + "T00:00:00"), "EEEE")
+                                      const isPartOfSeries = isExisting && !!(existingSlot?.seriesId)
+                                      const showSeriesWarning = isPartOfSeries && !assignment.repeatWeekly
+                                      return (
+                                        <label className={cn(
+                                          "flex items-start gap-2 cursor-pointer select-none rounded-md px-2 py-1.5 transition-colors",
+                                          assignment.repeatWeekly
+                                            ? "bg-[#2C6E49]/5 hover:bg-[#2C6E49]/10"
+                                            : "bg-gray-50 hover:bg-gray-100"
+                                        )}>
+                                          <input type="checkbox"
+                                            checked={assignment.repeatWeekly}
+                                            onChange={(e) => updateAssignment({ repeatWeekly: e.target.checked })}
+                                            className="w-4 h-4 mt-0.5 accent-[#2C6E49] flex-shrink-0"
+                                          />
+                                          <div className="min-w-0 flex-1 leading-tight">
+                                            <div className={cn(
+                                              "text-[11px] font-medium",
+                                              assignment.repeatWeekly ? "text-[#2C6E49]" : "text-gray-600"
+                                            )}>
+                                              Repeat every {weekday}
+                                            </div>
+                                            <div className="text-[10px] text-gray-500 mt-0.5">
+                                              {showSeriesWarning
+                                                ? "Unchecking stops the series — future occurrences will be removed"
+                                                : isPartOfSeries
+                                                  ? "Part of a weekly series"
+                                                  : isExisting
+                                                    ? "Currently one-off (turning on won't backfill past weeks)"
+                                                    : `Also schedule the next ${12} ${weekday}s`}
+                                            </div>
+                                          </div>
+                                        </label>
+                                      )
+                                    })()}
                                   </div>
                                 )
                               })}
@@ -1053,7 +1098,7 @@ export default function SchedulePage() {
                     for (const t of form.startTimes) {
                       const slot = existingByTime.get(t)
                       if (!slot) continue
-                      const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+                      const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
                       const desiredCap = a.classType === "PRIVATE" ? 1 : a.maxCapacity
                       if (
                         a.trainerId !== (slot.trainer?.id ?? "") ||

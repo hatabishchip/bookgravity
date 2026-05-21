@@ -32,7 +32,18 @@ const SlotSchema = z.object({
   publicVisible: z.boolean().optional(),
   maxCapacity: z.number().min(1).max(6).default(6),
   price: z.number().min(0).default(0),
+  // When true, also create copies of this slot for the next N Tuesdays
+  // (or whatever weekday `date` falls on). Skips dates that conflict.
+  repeatWeekly: z.boolean().optional(),
 })
+
+const REPEAT_WEEKS = 12 // how many future weeks to schedule when repeatWeekly is true
+
+function addDaysISO(dateStr: string, days: number) {
+  const d = new Date(`${dateStr}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
+}
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAdmin()
@@ -100,12 +111,55 @@ export async function POST(request: NextRequest) {
     // Private session is always max 1 person
     const finalCapacity = data.classType === "PRIVATE" ? 1 : data.maxCapacity
 
+    // Strip out repeatWeekly before passing through to Prisma; assign a
+    // seriesId only when we're actually scheduling future weeks.
+    const { repeatWeekly, ...slotData } = data
+    const seriesId = repeatWeekly ? `srs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}` : null
+
     const slot = await prisma.timeSlot.create({
-      data: { ...data, maxCapacity: finalCapacity, endTime, studioId: ctx.studioId },
+      data: {
+        ...slotData,
+        maxCapacity: finalCapacity,
+        endTime,
+        studioId: ctx.studioId,
+        ...(seriesId ? { seriesId } : {}),
+      },
       include: slotInclude,
     })
 
-    return NextResponse.json(slot, { status: 201 })
+    // Schedule future weekly repeats. Each candidate week is independently
+    // validated (gap check + blocked-day check + per-day cap). Any that fail
+    // are silently skipped so a partial run still succeeds.
+    const skipped: { date: string; reason: string }[] = []
+    if (repeatWeekly && seriesId) {
+      for (let w = 1; w <= REPEAT_WEEKS; w++) {
+        const nextDate = addDaysISO(data.date, 7 * w)
+
+        const blockedNext = await prisma.blockedDay.findFirst({ where: { date: nextDate, studioId: ctx.studioId } })
+        if (blockedNext) { skipped.push({ date: nextDate, reason: "day blocked" }); continue }
+
+        const otherSlots = await prisma.timeSlot.findMany({ where: { date: nextDate, studioId: ctx.studioId } })
+        if (otherSlots.length >= MAX_SLOTS_PER_DAY) { skipped.push({ date: nextDate, reason: "max sessions" }); continue }
+        const conflict = otherSlots.find((s) => {
+          const exStart = timeToMin(s.startTime), exEnd = timeToMin(s.endTime)
+          return startMin < exEnd + MIN_GAP_MIN && exStart < endMin + MIN_GAP_MIN
+        })
+        if (conflict) { skipped.push({ date: nextDate, reason: `conflicts with ${conflict.startTime}` }); continue }
+
+        await prisma.timeSlot.create({
+          data: {
+            ...slotData,
+            date: nextDate,
+            maxCapacity: finalCapacity,
+            endTime,
+            studioId: ctx.studioId,
+            seriesId,
+          },
+        })
+      }
+    }
+
+    return NextResponse.json({ ...slot, _seriesSkipped: skipped }, { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues.map((e: { message: string }) => e.message).join("; ") }, { status: 400 })
@@ -132,6 +186,10 @@ export async function PATCH(request: NextRequest) {
       publicVisible: z.boolean().optional(),
       maxCapacity: z.number().min(1).max(6).optional(),
       price: z.number().min(0).optional(),
+      // When true, also delete every FUTURE slot in this slot's series
+      // (date > current.date). Bookings block individual deletions; days that
+      // can't be removed are reported back as skipped instead of failing.
+      endSeries: z.boolean().optional(),
     }).parse(body)
 
     // Force capacity to 1 when type becomes PRIVATE
@@ -177,7 +235,37 @@ export async function PATCH(request: NextRequest) {
       },
       include: slotInclude,
     })
-    return NextResponse.json(updated)
+
+    // If the admin un-checks "Repeat weekly" on this slot, strip the series
+    // from future occurrences and delete the ones with no bookings. Past +
+    // current slot keep their seriesId so history is preserved.
+    let seriesEnded: { deleted: number; kept: number } | undefined
+    if (data.endSeries && current.seriesId) {
+      const futures = await prisma.timeSlot.findMany({
+        where: {
+          studioId: ctx.studioId,
+          seriesId: current.seriesId,
+          date: { gt: current.date },
+        },
+        include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
+      })
+      let deleted = 0, kept = 0
+      for (const f of futures) {
+        if (f._count.bookings > 0) {
+          // Keep it, but detach from the series so it won't be re-trimmed later
+          await prisma.timeSlot.update({ where: { id: f.id }, data: { seriesId: null } })
+          kept++
+        } else {
+          await prisma.timeSlot.delete({ where: { id: f.id } })
+          deleted++
+        }
+      }
+      // Detach current slot too so the series is fully closed
+      await prisma.timeSlot.update({ where: { id: current.id }, data: { seriesId: null } })
+      seriesEnded = { deleted, kept }
+    }
+
+    return NextResponse.json({ ...updated, _seriesEnded: seriesEnded })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues.map((e: { message: string }) => e.message).join("; ") }, { status: 400 })

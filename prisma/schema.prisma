@@ -117,8 +117,14 @@ model TimeSlot {
   studioId    String
   studio      Studio    @relation(fields: [studioId], references: [id])
   bookings    Booking[]
+  // Slots created together as a weekly recurrence share the same seriesId.
+  // Null = standalone, one-off slot. Used by the schedule modal to offer
+  // "Repeat weekly" and to "stop series" on a specific future occurrence.
+  seriesId    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([seriesId])
 }
 
 model Booking {
