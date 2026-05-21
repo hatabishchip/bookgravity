@@ -110,6 +110,21 @@ export async function DELETE(request: NextRequest) {
   const trainer = await prisma.trainer.findFirst({ where: { id, studioId: ctx.studioId } })
   if (!trainer) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
+  // Trainer relations: TrainerPayment cascades on delete; TimeSlot has the
+  // trainer as either primary (trainerId) or assistant (assistantId) with NO
+  // cascade — straight delete fails with an FK constraint. So we unassign
+  // first, then delete trainer + user atomically. Existing slots become
+  // "Unassigned" rather than disappearing.
+  const [unassignedPrimary, unassignedAssistant] = await prisma.$transaction([
+    prisma.timeSlot.updateMany({ where: { trainerId: trainer.id }, data: { trainerId: null } }),
+    prisma.timeSlot.updateMany({ where: { assistantId: trainer.id }, data: { assistantId: null } }),
+  ])
+  // Now safe to delete: trainer first (cascades TrainerPayment), then user.
+  await prisma.trainer.delete({ where: { id: trainer.id } })
   await prisma.user.delete({ where: { id: trainer.userId } })
-  return NextResponse.json({ success: true })
+
+  return NextResponse.json({
+    success: true,
+    unassignedSlots: unassignedPrimary.count + unassignedAssistant.count,
+  })
 }
