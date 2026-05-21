@@ -213,6 +213,7 @@ export default function BookingWidget({ services, studio }: {
   const fieldRefs = {
     clientName: useRef<HTMLInputElement>(null),
     clientPhone: useRef<HTMLInputElement>(null),
+    clientEmail: useRef<HTMLInputElement>(null),
   }
   const [booking, setBooking] = useState<{ id: string; clientName: string; slot: Slot; ticketCode: string } | null>(null)
   const ticketRef = useRef<HTMLDivElement>(null)
@@ -272,13 +273,15 @@ export default function BookingWidget({ services, studio }: {
   const [form, setForm] = useState({
     clientName: "",
     clientPhone: "",
+    clientEmail: "",
   })
   const [lookupState, setLookupState] = useState<"idle" | "loading" | "found" | "new">("idle")
   // Track which phone we last fetched a lookup for to avoid re-fetching on every keystroke
   const lastLookedUpPhoneRef = useRef("")
 
-  // When phone reaches minimum length for the detected country, look up
-  // existing client and auto-fill the name (only if user hasn't typed one yet).
+  // When phone reaches minimum length for the detected country, look up the
+  // existing client and auto-fill name + email (only fields the user hasn't
+  // already typed into).
   useEffect(() => {
     const country = detectCountry(form.clientPhone)
     const phoneReady = !!country && subscriberDigits(form.clientPhone, country) >= country.min
@@ -292,11 +295,15 @@ export default function BookingWidget({ services, studio }: {
     setLookupState("loading")
     const ctrl = new AbortController()
     fetch(`/api/lookup-client?phone=${encodeURIComponent(form.clientPhone)}`, { signal: ctrl.signal })
-      .then((r) => r.ok ? r.json() : { name: null })
-      .then((d: { name: string | null }) => {
-        if (d.name) {
+      .then((r) => r.ok ? r.json() : { name: null, email: null })
+      .then((d: { name: string | null; email: string | null }) => {
+        if (d.name || d.email) {
           setLookupState("found")
-          setForm((prev) => prev.clientName.trim() ? prev : { ...prev, clientName: d.name as string })
+          setForm((prev) => ({
+            ...prev,
+            clientName: prev.clientName.trim() ? prev.clientName : (d.name ?? prev.clientName),
+            clientEmail: prev.clientEmail.trim() ? prev.clientEmail : (d.email ?? prev.clientEmail),
+          }))
         } else {
           setLookupState("new")
         }
@@ -363,7 +370,7 @@ export default function BookingWidget({ services, studio }: {
       setSelectedDate(saved.selectedDate)
       setSelectedSlot(saved.booking.slot)
       setPartySize(saved.partySize)
-      setForm(saved.form)
+      setForm({ clientName: saved.form.clientName ?? "", clientPhone: saved.form.clientPhone ?? "", clientEmail: "" })
       setStep("done")
     } catch {
       localStorage.removeItem("bg_active_ticket")
@@ -415,6 +422,12 @@ export default function BookingWidget({ services, studio }: {
       if (!form.clientPhone.startsWith("+") || digits.length < 7) {
         errors.clientPhone = "Enter phone with country code, e.g. +62 812 3456 7890"
       }
+    }
+    const trimmedEmail = form.clientEmail.trim()
+    if (!trimmedEmail) {
+      errors.clientEmail = "Please enter your email"
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      errors.clientEmail = "Enter a valid email like name@example.com"
     }
     return errors
   }
@@ -652,7 +665,7 @@ export default function BookingWidget({ services, studio }: {
                 setStep("date")
                 setSelectedDate(null)
                 setSelectedSlot(null)
-                setForm({ clientName: "", clientPhone: "" })
+                setForm({ clientName: "", clientPhone: "", clientEmail: "" })
                 setSelectedServices([])
                 setBooking(null)
                 setPartySize(1)
@@ -1053,9 +1066,47 @@ export default function BookingWidget({ services, studio }: {
                     "block text-sm font-medium mb-1",
                     phoneDone ? "text-gray-700" : "text-gray-400"
                   )}>
-                    Full Name *
+                    Email *
                     {lookupState === "loading" && <span className="text-xs text-gray-400 ml-2">looking up…</span>}
-                    {lookupState === "found" && <span className="text-xs text-[#2C6E49] ml-2">welcome back ✓</span>}
+                    {lookupState === "found" && form.clientEmail && <span className="text-xs text-[#2C6E49] ml-2">welcome back ✓</span>}
+                  </label>
+                  <input
+                    ref={fieldRefs.clientEmail}
+                    type="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    disabled={!phoneDone}
+                    value={form.clientEmail}
+                    onChange={(e) => { setForm({ ...form, clientEmail: e.target.value }); clearFieldError("clientEmail") }}
+                    placeholder={phoneDone ? "name@example.com" : "Enter phone number first"}
+                    className={cn(
+                      "w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
+                      fieldErrors.clientEmail
+                        ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
+                        : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    )}
+                  />
+                  {fieldErrors.clientEmail ? (
+                    <p className="text-xs text-red-500 mt-1">{fieldErrors.clientEmail}</p>
+                  ) : (
+                    <p className="text-xs text-gray-400 mt-1">
+                      We&apos;ll send your booking confirmation and ticket to this email
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
+
+            {(() => {
+              const country = detectCountry(form.clientPhone)
+              const phoneDone = !!country && subscriberDigits(form.clientPhone, country) >= country.min
+              return (
+                <div>
+                  <label className={cn(
+                    "block text-sm font-medium mb-1",
+                    phoneDone ? "text-gray-700" : "text-gray-400"
+                  )}>
+                    Full Name *
                   </label>
                   <input
                     ref={fieldRefs.clientName}

@@ -14,15 +14,21 @@ export async function GET(request: NextRequest) {
   if (!phone || phone.length < 5) return NextResponse.json({ name: null })
 
   try {
-    const booking = await prisma.booking.findFirst({
+    // Most recent name (across all studios)
+    const nameBooking = await prisma.booking.findFirst({
       where: { clientPhone: phone },
       orderBy: { createdAt: "desc" },
       select: { clientName: true },
     })
-    if (!booking?.clientName) return NextResponse.json({ name: null })
-    // Strip "(1/3)" party suffix that gets added at booking time
-    const cleanName = booking.clientName.replace(/\s*\(\d+\/\d+\)$/, "").trim()
-    return NextResponse.json({ name: cleanName })
+    // Most recent NON-EMPTY email — earliest bookings had empty clientEmail
+    // before we added the field to the widget, so we skip those.
+    const emailBooking = await prisma.booking.findFirst({
+      where: { clientPhone: phone, clientEmail: { not: "" } },
+      orderBy: { createdAt: "desc" },
+      select: { clientEmail: true },
+    })
+    const cleanName = nameBooking?.clientName?.replace(/\s*\(\d+\/\d+\)$/, "").trim() || null
+    return NextResponse.json({ name: cleanName, email: emailBooking?.clientEmail ?? null })
   } catch {
     return NextResponse.json({ name: null })
   }

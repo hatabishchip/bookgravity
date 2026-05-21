@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getStudioIdBySubdomain } from "@/lib/studio"
 import { isSlotBookable } from "@/lib/booking-cutoff"
+import { sendTrainerBookingNotification } from "@/lib/mailer"
 import { z } from "zod"
 
 const BookingSchema = z.object({
   slotId: z.string(),
   clientName: z.string().min(2),
   clientPhone: z.string().min(5),
+  clientEmail: z.string().email(),
   serviceIds: z.array(z.string()).optional(),
   partySize: z.number().int().min(1).max(6).default(1),
 })
@@ -75,7 +77,7 @@ export async function POST(request: NextRequest) {
         data: {
           slotId: data.slotId,
           clientName: data.partySize > 1 ? `${data.clientName} (${i + 1}/${data.partySize})` : data.clientName,
-          clientEmail: "",
+          clientEmail: data.clientEmail,
           clientPhone: data.clientPhone,
           ticketCode,
           services: data.serviceIds?.length
@@ -88,6 +90,36 @@ export async function POST(request: NextRequest) {
         },
       })
       bookings.push(b)
+    }
+
+    // Notify the assigned trainer that a client booked. Fire-and-forget so a
+    // mail-service hiccup never blocks the booking response.
+    try {
+      const slotWithTrainer = await prisma.timeSlot.findUnique({
+        where: { id: data.slotId },
+        include: {
+          trainer: { include: { user: { select: { email: true } } } },
+          studio: { select: { name: true } },
+        },
+      })
+      const trainerEmail = slotWithTrainer?.trainer?.user?.email
+      const trainerName = slotWithTrainer?.trainer?.name
+      if (trainerEmail && trainerName && slotWithTrainer) {
+        // Do not await — keep the response fast.
+        sendTrainerBookingNotification(trainerEmail, trainerName, {
+          clientName: data.clientName,
+          clientPhone: data.clientPhone,
+          clientEmail: data.clientEmail,
+          date: slotWithTrainer.date,
+          startTime: slotWithTrainer.startTime,
+          endTime: slotWithTrainer.endTime,
+          classType: slotWithTrainer.classType,
+          studioName: slotWithTrainer.studio.name,
+          partySize: data.partySize,
+        }).catch(() => { /* swallow */ })
+      }
+    } catch {
+      // Mailer or DB lookup failed — booking still succeeded
     }
 
     // Return the lead booking (first one)
