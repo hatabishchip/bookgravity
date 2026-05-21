@@ -27,6 +27,7 @@ type Slot = {
   publicVisible: boolean
   maxCapacity: number
   price: number
+  seriesId: string | null
   trainer: Trainer | null
   assistant: Trainer | null
   _count: { bookings: number }
@@ -462,6 +463,11 @@ function SlotEditor({
   const [publicVisible, setPublicVisible] = useState<boolean>(slot.publicVisible)
   const [maxCapacity, setMaxCapacity] = useState(slot.maxCapacity)
   const [price, setPrice] = useState(slot.price)
+  // Existing slot keeps the "Repeat weekly" toggle reflecting its current
+  // series state. Unchecking it triggers an endSeries call on save, exactly
+  // like /admin/schedule does.
+  const [repeatWeekly, setRepeatWeekly] = useState<boolean>(!!slot.seriesId)
+  const wasInSeries = !!slot.seriesId
 
   // When class type changes, auto-update capacity and (only if untouched) price
   const handleClassTypeChange = (next: ClassType) => {
@@ -500,6 +506,7 @@ function SlotEditor({
   const handleSave = () => {
     // Optimistic — close immediately, fire in background, parent re-fetches
     onClose()
+    const endSeries = wasInSeries && !repeatWeekly
     fetch(`/api/admin/slots?id=${slot.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -510,6 +517,7 @@ function SlotEditor({
         publicVisible,
         maxCapacity: classType === "PRIVATE" ? 1 : Number(maxCapacity),
         price: Number(price),
+        ...(endSeries ? { endSeries: true } : {}),
       }),
     }).finally(() => onChanged())
   }
@@ -664,6 +672,41 @@ function SlotEditor({
                 </div>
               </label>
             )}
+
+            {(() => {
+              const weekday = format(new Date(slot.date + "T00:00:00"), "EEEE")
+              const showWarning = wasInSeries && !repeatWeekly
+              return (
+                <label className={cn(
+                  "flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer touch-manipulation",
+                  repeatWeekly
+                    ? "bg-[#2C6E49]/5 border-[#2C6E49]/20"
+                    : "bg-gray-50 border-gray-200"
+                )}>
+                  <input
+                    type="checkbox"
+                    checked={repeatWeekly}
+                    onChange={(e) => setRepeatWeekly(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 accent-[#2C6E49]"
+                  />
+                  <div className="min-w-0">
+                    <div className={cn(
+                      "text-sm font-medium",
+                      repeatWeekly ? "text-[#2C6E49]" : "text-gray-700"
+                    )}>
+                      Repeat every {weekday}
+                    </div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
+                      {showWarning
+                        ? "Unchecking stops the series — future occurrences will be removed."
+                        : wasInSeries
+                          ? "Part of a weekly series — this trainer covers every " + weekday + "."
+                          : "Currently one-off. Turning on won't backfill past weeks."}
+                    </div>
+                  </div>
+                </label>
+              )
+            })()}
           </div>
 
           {/* Bookings */}
@@ -769,7 +812,7 @@ function SlotEditor({
   )
 }
 
-type Assignment = { trainerId: string; assistantId: string; classType: ClassType; publicVisible: boolean; maxCapacity: number }
+type Assignment = { trainerId: string; assistantId: string; classType: ClassType; publicVisible: boolean; maxCapacity: number; repeatWeekly: boolean }
 
 function sortTimes(arr: string[]) {
   return [...new Set(arr)].sort()
@@ -800,6 +843,7 @@ function SlotCreator({
         classType: s.classType,
         publicVisible: s.publicVisible,
         maxCapacity: s.maxCapacity ?? 6,
+        repeatWeekly: !!s.seriesId,
       }
     }
     return m
@@ -830,14 +874,14 @@ function SlotCreator({
     })
     setAssignments((prev) => {
       if (prev[t]) return prev
-      return { ...prev, [t]: { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6 } }
+      return { ...prev, [t]: { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: true } }
     })
   }
 
   const updateAssignment = (t: string, change: Partial<Assignment>) => {
     setAssignments((prev) => ({
       ...prev,
-      [t]: { ...(prev[t] ?? { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6 }), ...change },
+      [t]: { ...(prev[t] ?? { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: true }), ...change },
     }))
   }
 
@@ -857,20 +901,21 @@ function SlotCreator({
     for (const t of startTimes) {
       const slot = existingByTime.get(t)
       if (!slot) continue
-      const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+      const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
       const curT = slot.trainer?.id ?? ""
       const curA = slot.assistant?.id ?? ""
       const curType = slot.classType
       const curVis = slot.publicVisible
       const curCap = slot.maxCapacity ?? 6
       const desiredCap = a.classType === "PRIVATE" ? 1 : a.maxCapacity
-      if (
+      const endSeries = !!slot.seriesId && !a.repeatWeekly
+      const fieldChanged =
         a.trainerId !== curT ||
         a.assistantId !== curA ||
         a.classType !== curType ||
         a.publicVisible !== curVis ||
         desiredCap !== curCap
-      ) {
+      if (fieldChanged || endSeries) {
         payloads.push({
           url: `/api/admin/slots?id=${slot.id}`,
           method: "PATCH",
@@ -882,13 +927,14 @@ function SlotCreator({
             publicVisible: a.publicVisible,
             maxCapacity: desiredCap,
             price: studioPrices ? priceForType(a.classType, studioPrices) : slot.price,
+            ...(endSeries ? { endSeries: true } : {}),
           },
         })
       }
     }
 
     for (const startTime of toCreate) {
-      const a = assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+      const a = assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
       const isPrivate = a.classType === "PRIVATE"
       payloads.push({
         url: "/api/admin/slots",
@@ -903,6 +949,7 @@ function SlotCreator({
           publicVisible: a.publicVisible,
           maxCapacity: isPrivate ? 1 : Number(a.maxCapacity),
           price: studioPrices ? priceForType(a.classType, studioPrices) : 0,
+          repeatWeekly: a.repeatWeekly,
         },
       })
     }
@@ -935,7 +982,7 @@ function SlotCreator({
     for (const t of startTimes) {
       const slot = existingByTime.get(t)
       if (!slot) continue
-      const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+      const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
       const desiredCap = a.classType === "PRIVATE" ? 1 : a.maxCapacity
       if (
         a.trainerId !== (slot.trainer?.id ?? "") ||
@@ -1051,7 +1098,7 @@ function SlotCreator({
                     <div className="space-y-1.5">
                       {startTimes.map((t) => {
                         const isExisting = existingTimes.has(t)
-                        const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6 }
+                        const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
                         const existingSlotForTime = isExisting ? existingSlots.find((s) => s.startTime === t) : null
                         const bookingCount = existingSlotForTime?._count.bookings ?? 0
                         const hasBookings = bookingCount > 0
@@ -1180,6 +1227,42 @@ function SlotCreator({
                                 </span>
                               )}
                             </div>
+                            {(() => {
+                              const weekday = format(new Date(date + "T00:00:00"), "EEEE")
+                              const isPartOfSeries = isExisting && !!existingSlotForTime?.seriesId
+                              const showWarning = isPartOfSeries && !a.repeatWeekly
+                              return (
+                                <label className={cn(
+                                  "flex items-start gap-2 cursor-pointer select-none rounded-md px-2 py-1.5 transition-colors",
+                                  a.repeatWeekly
+                                    ? "bg-[#2C6E49]/5 hover:bg-[#2C6E49]/10"
+                                    : "bg-gray-50 hover:bg-gray-100"
+                                )}>
+                                  <input type="checkbox"
+                                    checked={a.repeatWeekly}
+                                    onChange={(e) => updateAssignment(t, { repeatWeekly: e.target.checked })}
+                                    className="w-4 h-4 mt-0.5 accent-[#2C6E49] flex-shrink-0"
+                                  />
+                                  <div className="min-w-0 flex-1 leading-tight">
+                                    <div className={cn(
+                                      "text-[11px] font-medium",
+                                      a.repeatWeekly ? "text-[#2C6E49]" : "text-gray-600"
+                                    )}>
+                                      Repeat every {weekday}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 mt-0.5">
+                                      {showWarning
+                                        ? "Unchecking stops the series — future occurrences will be removed"
+                                        : isPartOfSeries
+                                          ? "Part of a weekly series"
+                                          : isExisting
+                                            ? "Currently one-off (turning on won't backfill past weeks)"
+                                            : `Also schedule the next 12 ${weekday}s`}
+                                    </div>
+                                  </div>
+                                </label>
+                              )
+                            })()}
                           </div>
                         )
                       })}
