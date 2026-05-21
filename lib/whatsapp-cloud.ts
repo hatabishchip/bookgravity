@@ -141,7 +141,7 @@ export async function sendClientBookingConfirmationWA(opts: {
   ticketCode: string
 }): Promise<SendResult> {
   const templateName =
-    process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmation"
+    process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
   return sendWhatsAppTemplate({
     toPhone: opts.clientPhone,
