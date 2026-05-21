@@ -2,9 +2,11 @@ import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { getStudioIdBySubdomain } from "@/lib/studio"
 import BookingWidget from "./_components/BookingWidget"
+import { auth } from "@/auth"
 
 export default async function HomePage() {
   const studioId = await getStudioIdBySubdomain()
+  const session = await auth()
 
   const studio = await prisma.studio.findUnique({
     where: { id: studioId },
@@ -15,6 +17,10 @@ export default async function HomePage() {
     where: { active: true, studioId },
     orderBy: { name: "asc" },
   })
+
+  const role = session?.user?.role
+  const dashboardHref = role === "ADMIN" ? "/admin" : role === "TRAINER" ? "/trainer" : null
+  const userInitial = (session?.user?.name || session?.user?.email || "?").trim().charAt(0).toUpperCase()
 
   return (
     <div className="min-h-screen bg-[#F5F4F0]">
@@ -30,13 +36,34 @@ export default async function HomePage() {
               <div>Group classes</div>
               <div className="text-xs">Up to 6 people</div>
             </div>
-            <Link
-              href="/login"
-              aria-label="Staff sign in"
-              className="text-gray-300 hover:text-[#2C6E49] text-xs"
-            >
-              Sign in
-            </Link>
+            {dashboardHref ? (
+              <Link
+                href={dashboardHref}
+                title={`Signed in as ${session?.user?.name || session?.user?.email} (${role?.toLowerCase()}) — open dashboard`}
+                className="group flex items-center gap-2"
+              >
+                <span className="hidden sm:flex flex-col items-end leading-tight">
+                  <span className="text-[10px] uppercase tracking-wider text-gray-400">{role?.toLowerCase()}</span>
+                  <span className="text-xs text-gray-600 group-hover:text-[#2C6E49] transition-colors">
+                    {session?.user?.name || session?.user?.email}
+                  </span>
+                </span>
+                <span className="relative inline-flex">
+                  <span className="w-9 h-9 rounded-full bg-[#2C6E49] text-white text-sm font-semibold flex items-center justify-center shadow-sm ring-2 ring-white group-hover:ring-[#2C6E49]/20 transition-shadow">
+                    {userInitial}
+                  </span>
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" aria-hidden />
+                </span>
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                aria-label="Staff sign in"
+                className="text-gray-300 hover:text-[#2C6E49] text-xs"
+              >
+                Sign in
+              </Link>
+            )}
           </div>
         </div>
       </header>
