@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma"
 import { getStudioIdBySubdomain } from "@/lib/studio"
 import { isSlotBookable } from "@/lib/booking-cutoff"
 import { sendTrainerBookingNotification, sendClientBookingConfirmation } from "@/lib/mailer"
+import {
+  sendClientBookingConfirmationWA,
+  sendTrainerBookingNotificationWA,
+} from "@/lib/whatsapp-cloud"
 import { z } from "zod"
 
 const BookingSchema = z.object({
@@ -100,7 +104,9 @@ export async function POST(request: NextRequest) {
       const slotWithTrainer = await prisma.timeSlot.findUnique({
         where: { id: data.slotId },
         include: {
-          trainer: { include: { user: { select: { email: true } } } },
+          trainer: {
+            include: { user: { select: { email: true } } },
+          },
           studio: { select: { name: true, slug: true } },
         },
       })
@@ -146,6 +152,53 @@ export async function POST(request: NextRequest) {
       }
     } catch (err) {
       console.error("[bookings] mailing block exception:", err)
+    }
+
+    // WhatsApp Cloud API notifications. Best-effort, never throws.
+    try {
+      const slotForWA = await prisma.timeSlot.findUnique({
+        where: { id: data.slotId },
+        include: { trainer: { select: { name: true, whatsapp: true } } },
+      })
+      if (slotForWA) {
+        const prettyDate = slotForWA.date // YYYY-MM-DD; template can format
+        const prettyTime = `${slotForWA.startTime}–${slotForWA.endTime}`
+
+        const clientPromise = sendClientBookingConfirmationWA({
+          clientPhone: data.clientPhone,
+          clientName: data.clientName,
+          date: prettyDate,
+          time: prettyTime,
+          ticketCode: bookings[0].ticketCode,
+        }).then((r) => {
+          if (!r.ok) console.warn("[bookings] WA client send failed:", r.error)
+          else console.log("[bookings] WA client sent:", r.messageId)
+        })
+
+        const trainerWA = slotForWA.trainer?.whatsapp
+        const trainerName = slotForWA.trainer?.name
+        const trainerPromise =
+          trainerWA && trainerName
+            ? sendTrainerBookingNotificationWA({
+                trainerPhone: trainerWA,
+                trainerName,
+                date: prettyDate,
+                time: prettyTime,
+                clientName: data.clientName,
+                clientPhone: data.clientPhone,
+                partySize: data.partySize,
+              }).then((r) => {
+                if (!r.ok) console.warn("[bookings] WA trainer send failed:", r.error)
+                else console.log("[bookings] WA trainer sent:", r.messageId)
+              })
+            : Promise.resolve(
+                console.warn("[bookings] WA trainer notify SKIPPED — no whatsapp on trainer"),
+              )
+
+        await Promise.all([clientPromise, trainerPromise])
+      }
+    } catch (err) {
+      console.error("[bookings] whatsapp block exception:", err)
     }
 
     // Return the lead booking (first one)
