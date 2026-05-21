@@ -62,7 +62,12 @@ const PUBLIC_BASE_URL = (
 ).replace(/\/+$/, "")
 
 function logoTagFor(slug: string) {
-  const url = `${PUBLIC_BASE_URL}/api/logo?s=${encodeURIComponent(slug)}`
+  // Cache-bust query param so Gmail/Apple Mail image proxies always fetch the
+  // current logo. Without this, the first delivered version of /api/logo?s=…
+  // gets cached at the proxy CDN for hours/days and subsequent emails keep
+  // showing the stale image even after the studio admin updates the logo.
+  const v = Date.now().toString(36)
+  const url = `${PUBLIC_BASE_URL}/api/logo?s=${encodeURIComponent(slug)}&v=${v}`
   return `<div style="text-align:center;margin:0 0 18px"><img src="${url}" alt="" style="max-width:180px;max-height:120px;height:auto;display:inline-block"/></div>`
 }
 
