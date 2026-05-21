@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
         where: { id: data.slotId },
         include: {
           trainer: { include: { user: { select: { email: true } } } },
-          studio: { select: { name: true } },
+          studio: { select: { name: true, slug: true } },
         },
       })
       if (slotWithTrainer) {
@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
           endTime: slotWithTrainer.endTime,
           classType: slotWithTrainer.classType,
           studioName: slotWithTrainer.studio.name,
+          studioSlug: slotWithTrainer.studio.slug,
           partySize: data.partySize,
         }
 

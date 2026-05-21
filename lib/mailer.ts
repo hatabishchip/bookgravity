@@ -47,7 +47,23 @@ export type BookingNotificationData = {
   endTime: string     // "HH:mm"
   classType: string   // GROUP | KIDS | PRIVATE
   studioName: string
+  studioSlug: string  // used to build the per-studio logo URL
   partySize: number
+}
+
+// Root URL the email's <img> tags resolve against. Prefer the explicit
+// MAIL_PUBLIC_URL → NEXTAUTH_URL → hardcoded bookgravity.com fallback so
+// emails always have a working absolute URL no matter which subdomain the
+// booking was made on.
+const PUBLIC_BASE_URL = (
+  process.env.MAIL_PUBLIC_URL ??
+  process.env.NEXTAUTH_URL ??
+  "https://bookgravity.com"
+).replace(/\/+$/, "")
+
+function logoTagFor(slug: string) {
+  const url = `${PUBLIC_BASE_URL}/api/logo?s=${encodeURIComponent(slug)}`
+  return `<div style="text-align:center;margin:0 0 18px"><img src="${url}" alt="" style="max-width:180px;max-height:120px;height:auto;display:inline-block"/></div>`
 }
 
 function classTypeLabel(t: string) {
@@ -78,8 +94,9 @@ export async function sendClientBookingConfirmation(
   const subject = `Booking confirmed · ${data.studioName} · ${data.date} ${data.startTime}`
   const html = `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#222">
-      <h2 style="color:#2C6E49;margin:0 0 4px">You're booked! ✓</h2>
-      <p style="color:#666;margin:0 0 18px">
+      ${logoTagFor(data.studioSlug)}
+      <h2 style="color:#2C6E49;margin:0 0 4px;text-align:center">You're booked! ✓</h2>
+      <p style="color:#666;margin:0 0 18px;text-align:center">
         Hi ${escapeHtml(data.clientName)}, thanks for booking with
         <strong style="color:#2C6E49">${escapeHtml(data.studioName)}</strong>.
       </p>
@@ -131,8 +148,9 @@ export async function sendTrainerBookingNotification(
   const typeLabel = data.classType === "PRIVATE" ? "Private" : data.classType === "KIDS" ? "Kids" : "Group"
   const html = `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
-      <h2 style="color:#2C6E49;margin-bottom:4px">New booking</h2>
-      <p style="color:#666;margin-top:0">Hi ${escapeHtml(trainerName)}, a client just booked your class at ${escapeHtml(data.studioName)}.</p>
+      ${logoTagFor(data.studioSlug)}
+      <h2 style="color:#2C6E49;margin-bottom:4px;text-align:center">New booking</h2>
+      <p style="color:#666;margin-top:0;text-align:center">Hi ${escapeHtml(trainerName)}, a client just booked your class at <strong>${escapeHtml(data.studioName)}</strong>.</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:6px 0;color:#888;width:120px">Class</td><td style="padding:6px 0;font-weight:600">${escapeHtml(typeLabel)} class${partyLine}</td></tr>
         <tr><td style="padding:6px 0;color:#888">When</td><td style="padding:6px 0;font-weight:600">${escapeHtml(data.date)} · ${escapeHtml(data.startTime)}–${escapeHtml(data.endTime)}</td></tr>
