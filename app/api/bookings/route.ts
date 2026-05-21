@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getStudioIdBySubdomain } from "@/lib/studio"
 import { isSlotBookable } from "@/lib/booking-cutoff"
-import { sendTrainerBookingNotification } from "@/lib/mailer"
+import { sendTrainerBookingNotification, sendClientBookingConfirmation } from "@/lib/mailer"
 import { z } from "zod"
 
 const BookingSchema = z.object({
@@ -92,8 +92,9 @@ export async function POST(request: NextRequest) {
       bookings.push(b)
     }
 
-    // Notify the assigned trainer that a client booked. Fire-and-forget so a
-    // mail-service hiccup never blocks the booking response.
+    // Send the booking confirmation email to the client AND notify the
+    // assigned trainer. Both are fire-and-forget so a mail-service hiccup
+    // never blocks the booking response.
     try {
       const slotWithTrainer = await prisma.timeSlot.findUnique({
         where: { id: data.slotId },
@@ -102,11 +103,8 @@ export async function POST(request: NextRequest) {
           studio: { select: { name: true } },
         },
       })
-      const trainerEmail = slotWithTrainer?.trainer?.user?.email
-      const trainerName = slotWithTrainer?.trainer?.name
-      if (trainerEmail && trainerName && slotWithTrainer) {
-        // Do not await — keep the response fast.
-        sendTrainerBookingNotification(trainerEmail, trainerName, {
+      if (slotWithTrainer) {
+        const sharedData = {
           clientName: data.clientName,
           clientPhone: data.clientPhone,
           clientEmail: data.clientEmail,
@@ -116,7 +114,22 @@ export async function POST(request: NextRequest) {
           classType: slotWithTrainer.classType,
           studioName: slotWithTrainer.studio.name,
           partySize: data.partySize,
+        }
+
+        // Client confirmation — include their ticket code and trainer name
+        sendClientBookingConfirmation(data.clientEmail, {
+          ...sharedData,
+          ticketCode: bookings[0].ticketCode,
+          trainerName: slotWithTrainer.trainer?.name ?? null,
         }).catch(() => { /* swallow */ })
+
+        // Trainer notification (if the trainer has a user account with email)
+        const trainerEmail = slotWithTrainer.trainer?.user?.email
+        const trainerName = slotWithTrainer.trainer?.name
+        if (trainerEmail && trainerName) {
+          sendTrainerBookingNotification(trainerEmail, trainerName, sharedData)
+            .catch(() => { /* swallow */ })
+        }
       }
     } catch {
       // Mailer or DB lookup failed — booking still succeeded
