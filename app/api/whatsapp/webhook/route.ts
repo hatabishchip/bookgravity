@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createHmac, timingSafeEqual } from "crypto"
+import { prisma } from "@/lib/prisma"
+import {
+  upsertConversation,
+  appendInboundMessage,
+  updateMessageStatus,
+} from "@/lib/whatsapp-conversation"
 
 // WhatsApp Cloud API webhook.
 //
@@ -9,6 +15,10 @@ import { createHmac, timingSafeEqual } from "crypto"
 //      We must echo hub.challenge as plain text if verify_token matches.
 //   2. POST with message events (incoming messages, delivery statuses).
 //      Signed with HMAC-SHA256 using your App Secret in X-Hub-Signature-256.
+//
+// Inbound messages are persisted into WhatsAppConversation + WhatsAppMessage so
+// they show up in /admin/inbox and /trainer/inbox. Strangers (no booking ever
+// made on that number) end up with assignedTrainerId=null → admin-only view.
 //
 // Required env:
 //   WHATSAPP_VERIFY_TOKEN   — arbitrary string, also entered in App Dashboard
@@ -44,8 +54,86 @@ function verifySignature(rawBody: string, signatureHeader: string | null, appSec
   }
 }
 
-type WAStatus = { id: string; status: string; recipient_id: string; errors?: { code: number; title: string }[] }
-type WAMessage = { from: string; id: string; type: string; text?: { body: string }; timestamp: string }
+type WAStatusError = { code: number; title?: string; error_data?: { details?: string } }
+type WAStatus = {
+  id: string
+  status: string
+  recipient_id: string
+  errors?: WAStatusError[]
+}
+type WAMessage = {
+  from: string
+  id: string
+  type: string
+  text?: { body: string }
+  image?: { id: string; mime_type?: string; caption?: string }
+  audio?: { id: string; mime_type?: string }
+  video?: { id: string; mime_type?: string; caption?: string }
+  document?: { id: string; mime_type?: string; filename?: string; caption?: string }
+  sticker?: { id: string; mime_type?: string }
+  timestamp: string
+}
+type WAContact = { wa_id: string; profile?: { name?: string } }
+
+/** Best-effort lookup of the default studio. We don't have studio mapping in
+ *  the webhook payload (Meta sends only WABA id) — for single-studio deployments
+ *  this is fine. Future: map WABA id → Studio. */
+async function getDefaultStudioId(): Promise<string | null> {
+  const studio =
+    (await prisma.studio.findFirst({ where: { isDefault: true }, select: { id: true } })) ||
+    (await prisma.studio.findFirst({ select: { id: true } }))
+  return studio?.id ?? null
+}
+
+/** Pull message body + media-id + type into our normalized shape. */
+function describeIncomingMessage(msg: WAMessage): {
+  type: string
+  body: string | null
+  mediaUrl: string | null
+  mediaMime: string | null
+} {
+  switch (msg.type) {
+    case "text":
+      return { type: "text", body: msg.text?.body ?? null, mediaUrl: null, mediaMime: null }
+    case "image":
+      return {
+        type: "image",
+        body: msg.image?.caption ?? null,
+        mediaUrl: msg.image?.id ?? null, // store Meta media_id for later download
+        mediaMime: msg.image?.mime_type ?? null,
+      }
+    case "audio":
+      return {
+        type: "audio",
+        body: null,
+        mediaUrl: msg.audio?.id ?? null,
+        mediaMime: msg.audio?.mime_type ?? null,
+      }
+    case "video":
+      return {
+        type: "video",
+        body: msg.video?.caption ?? null,
+        mediaUrl: msg.video?.id ?? null,
+        mediaMime: msg.video?.mime_type ?? null,
+      }
+    case "document":
+      return {
+        type: "document",
+        body: msg.document?.filename ?? msg.document?.caption ?? null,
+        mediaUrl: msg.document?.id ?? null,
+        mediaMime: msg.document?.mime_type ?? null,
+      }
+    case "sticker":
+      return {
+        type: "sticker",
+        body: null,
+        mediaUrl: msg.sticker?.id ?? null,
+        mediaMime: msg.sticker?.mime_type ?? null,
+      }
+    default:
+      return { type: msg.type, body: null, mediaUrl: null, mediaMime: null }
+  }
+}
 
 export async function POST(request: NextRequest) {
   const raw = await request.text()
@@ -65,28 +153,81 @@ export async function POST(request: NextRequest) {
       entry?: {
         changes?: {
           value?: {
+            contacts?: WAContact[]
             messages?: WAMessage[]
             statuses?: WAStatus[]
           }
         }[]
       }[]
     }
+    const studioId = await getDefaultStudioId()
+    if (!studioId) {
+      console.warn("[whatsapp-webhook] no Studio in DB — skipping persistence")
+    }
+
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value ?? {}
+        const contactName = value.contacts?.[0]?.profile?.name ?? null
+
+        // -- Incoming messages --
         for (const msg of value.messages ?? []) {
-          console.log("[whatsapp-webhook] message in:", {
-            from: msg.from,
-            type: msg.type,
-            text: msg.text?.body,
-          })
-          // TODO: route incoming messages (e.g. /cancel, /code 123) here.
+          if (!studioId) continue
+          const { type, body: msgBody, mediaUrl, mediaMime } = describeIncomingMessage(msg)
+          const tsSec = parseInt(msg.timestamp || "0", 10)
+          const receivedAt = tsSec > 0 ? new Date(tsSec * 1000) : new Date()
+
+          try {
+            // Look up booking history for this phone — if we find one, assign
+            // the most recent slot's trainer.
+            const phone = msg.from
+            const recentBooking = await prisma.booking.findFirst({
+              where: { clientPhone: { contains: phone.slice(-10) }, status: "CONFIRMED" },
+              orderBy: { createdAt: "desc" },
+              include: { slot: { select: { trainerId: true } } },
+            })
+            const assignedTrainerId = recentBooking?.slot?.trainerId ?? null
+
+            const convo = await upsertConversation({
+              studioId,
+              clientPhone: phone,
+              clientName: contactName ?? recentBooking?.clientName ?? null,
+              assignedTrainerId,
+            })
+            await appendInboundMessage({
+              conversationId: convo.id,
+              type,
+              body: msgBody,
+              mediaUrl,
+              mediaMime,
+              waMessageId: msg.id,
+              receivedAt,
+            })
+            console.log("[whatsapp-webhook] saved inbound:", {
+              from: phone,
+              type,
+              conversationId: convo.id,
+              hasTrainer: !!assignedTrainerId,
+            })
+          } catch (err) {
+            console.error("[whatsapp-webhook] persist inbound failed:", err)
+          }
         }
+
+        // -- Delivery / read status updates --
         for (const st of value.statuses ?? []) {
+          const errDetail = st.errors?.[0]?.error_data?.details ?? st.errors?.[0]?.title ?? null
+          try {
+            await updateMessageStatus({
+              waMessageId: st.id,
+              status: st.status,
+              errorDetail: errDetail,
+            })
+          } catch (err) {
+            console.error("[whatsapp-webhook] status update failed:", err)
+          }
           if (st.status === "failed" || st.errors?.length) {
-            console.warn("[whatsapp-webhook] status:", st)
-          } else {
-            console.log("[whatsapp-webhook] status:", st.status, st.id)
+            console.warn("[whatsapp-webhook] status:", st.status, st.id, errDetail)
           }
         }
       }

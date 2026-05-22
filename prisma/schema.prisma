@@ -26,6 +26,7 @@ model Studio {
   payments     TrainerPayment[]
   expenses     Expense[]
   services     AdditionalService[]
+  whatsappConversations WhatsAppConversation[]
 }
 
 model User {
@@ -63,6 +64,8 @@ model Trainer {
   commissionRate Int              @default(20)
   color          String           @default("#6366F1")
   payments       TrainerPayment[]
+  assignedConversations WhatsAppConversation[] @relation("ConversationAssignedTrainer")
+  sentMessages          WhatsAppMessage[]      @relation("MessageFromTrainer")
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 }
@@ -164,4 +167,64 @@ model BookingService {
   service   AdditionalService @relation(fields: [serviceId], references: [id])
 
   @@unique([bookingId, serviceId])
+}
+
+// ---------------------------------------------------------------------------
+// WhatsApp inbox
+//
+// One Conversation per (studio, clientPhone). The "assignedTrainer" determines
+// which trainer can see the chat in /trainer/inbox; null means admin-only
+// (e.g. when a stranger writes to the business number before any booking).
+//
+// Assignment is updated by /api/bookings when a client books a slot: the new
+// booking's trainer takes over the conversation.
+//
+// 24-hour rule (Meta): we can send free-form messages only when
+// lastInboundAt is within the past 24h. Outside that window only approved
+// templates work. We store lastInboundAt to render that UI affordance.
+// ---------------------------------------------------------------------------
+model WhatsAppConversation {
+  id                String   @id @default(cuid())
+  studioId          String
+  studio            Studio   @relation(fields: [studioId], references: [id])
+  clientPhone       String   // normalized to digits only, no leading +
+  clientName        String?  // best-known name (latest booking or WhatsApp profile)
+  assignedTrainerId String?
+  assignedTrainer   Trainer? @relation("ConversationAssignedTrainer", fields: [assignedTrainerId], references: [id])
+  lastMessageAt     DateTime @default(now())
+  lastInboundAt     DateTime?
+  // Unread counters tracked separately per role so admin & trainer don't
+  // clobber each other when one of them reads.
+  unreadAdmin       Int      @default(0)
+  unreadTrainer     Int      @default(0)
+  messages          WhatsAppMessage[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([studioId, clientPhone])
+  @@index([studioId, lastMessageAt])
+  @@index([assignedTrainerId])
+}
+
+model WhatsAppMessage {
+  id              String   @id @default(cuid())
+  conversationId  String
+  conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction       String   // "INBOUND" | "OUTBOUND"
+  type            String   // "text" | "image" | "audio" | "video" | "document" | "sticker" | "template" | "system"
+  body            String?  // text body (or template-rendered text for outbound templates)
+  mediaUrl        String?  // we don't download media yet; store Meta media_id here for later fetching
+  mediaMime       String?
+  templateName    String?  // for outbound type=template
+  waMessageId     String?  @unique // Meta's wamid.* for status correlation
+  status          String   @default("queued") // queued | sent | delivered | read | failed
+  errorDetail     String?
+  fromTrainerId   String?  // OUTBOUND only: which trainer sent it (null = admin or system/booking-confirmation)
+  fromTrainer     Trainer? @relation("MessageFromTrainer", fields: [fromTrainerId], references: [id])
+  // Marker for messages imported from a previous WhatsApp export (one-time migration).
+  importedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([waMessageId])
 }

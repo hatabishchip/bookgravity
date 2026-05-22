@@ -7,6 +7,10 @@ import {
   sendClientBookingConfirmationWA,
   sendTrainerBookingNotificationWA,
 } from "@/lib/whatsapp-cloud"
+import {
+  upsertConversation,
+  appendOutboundMessage,
+} from "@/lib/whatsapp-conversation"
 import { z } from "zod"
 
 const BookingSchema = z.object({
@@ -164,15 +168,53 @@ export async function POST(request: NextRequest) {
         const prettyDate = slotForWA.date // YYYY-MM-DD; template can format
         const prettyTime = `${slotForWA.startTime}–${slotForWA.endTime}`
 
+        // 1) Ensure a Conversation exists for this client and is assigned to
+        //    the slot's trainer. This is what powers /admin/inbox + /trainer/inbox.
+        let conversationId: string | null = null
+        try {
+          const convo = await upsertConversation({
+            studioId,
+            clientPhone: data.clientPhone,
+            clientName: data.clientName,
+            assignedTrainerId: slotForWA.trainerId ?? null,
+            forceReassign: true, // latest booking's trainer takes ownership of the chat
+          })
+          conversationId = convo.id
+        } catch (err) {
+          console.error("[bookings] upsertConversation failed:", err)
+        }
+
+        const clientMessageBody =
+          `Hi ${data.clientName}, your booking is confirmed.\n` +
+          `Date: ${prettyDate}\nTime: ${prettyTime}\nTicket: ${bookings[0].ticketCode}\n\n` +
+          `Please show your ticket to the trainer at the studio. See you on the mat!`
+
         const clientPromise = sendClientBookingConfirmationWA({
           clientPhone: data.clientPhone,
           clientName: data.clientName,
           date: prettyDate,
           time: prettyTime,
           ticketCode: bookings[0].ticketCode,
-        }).then((r) => {
+        }).then(async (r) => {
           if (!r.ok) console.warn("[bookings] WA client send failed:", r.error)
           else console.log("[bookings] WA client sent:", r.messageId)
+          if (conversationId) {
+            try {
+              await appendOutboundMessage({
+                conversationId,
+                type: "template",
+                body: clientMessageBody,
+                templateName:
+                  process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed",
+                waMessageId: r.ok ? r.messageId : null,
+                status: r.ok ? "sent" : "failed",
+                errorDetail: r.ok ? null : r.error,
+                fromTrainerId: null, // system-sent, not a specific trainer
+              })
+            } catch (err) {
+              console.error("[bookings] appendOutboundMessage (client) failed:", err)
+            }
+          }
         })
 
         const trainerWA = slotForWA.trainer?.whatsapp
