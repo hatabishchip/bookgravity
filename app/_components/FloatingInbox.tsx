@@ -82,11 +82,14 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
       <button
         onClick={() => setOpen(true)}
         className={cn(
-          "fixed bottom-5 right-5 lg:bottom-6 lg:right-6 z-40",
+          "fixed right-5 lg:right-6 z-40",
           "w-14 h-14 rounded-full bg-[#2C6E49] hover:bg-[#1E4D34] text-white shadow-lg",
           "flex items-center justify-center transition-transform active:scale-95",
           "ring-4 ring-white/80",
         )}
+        // Sit 20px above the iOS home indicator / address bar safe area, so
+        // the button is never hidden by Safari chrome on iPhone.
+        style={{ bottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
         aria-label={
           unreadChats > 0
             ? `Open inbox (${unreadChats} unread chat${unreadChats === 1 ? "" : "s"})`

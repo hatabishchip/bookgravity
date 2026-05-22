@@ -571,8 +571,13 @@ export default function Inbox({
         )}
       </div>
 
-      {/* Composer */}
-      <div className="bg-white border-t border-gray-100 px-3 sm:px-4 py-3 flex-shrink-0">
+      {/* Composer. The bottom padding combines a normal 12px gap with the
+          iOS home-indicator safe area so the textarea is never hidden by
+          the address bar / home indicator. */}
+      <div
+        className="bg-white border-t border-gray-100 px-3 sm:px-4 pt-3 flex-shrink-0"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+      >
         {!windowOpen && (
           <div className="mb-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
             <Sparkles size={14} />
@@ -618,11 +623,14 @@ export default function Inbox({
       className={cn(
         "flex bg-white overflow-hidden",
         embedded
-          ? // Inside a fullscreen modal — fill the viewport directly.
-            "h-screen w-screen"
+          ? // Inside a fullscreen modal — fill the *dynamic* viewport.
+            // Using dvh (not vh) makes the bottom of the composer track
+            // iOS Safari's address-bar collapse/expand, so "Напиши
+            // сообщение" stays visible above the URL bar.
+            "h-[100dvh] w-screen"
           : // Inside the page <main> with its 16/32px padding — escape it
             // and fit to the available height below the top bar.
-            "h-[calc(100vh-72px)] lg:h-[calc(100vh-64px)] -m-4 lg:-m-8",
+            "h-[calc(100dvh-72px)] lg:h-[calc(100dvh-64px)] -m-4 lg:-m-8",
       )}
     >
       {/* Desktop: side-by-side. Mobile: show list, or chat if selected */}
