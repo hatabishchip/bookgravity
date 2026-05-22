@@ -55,36 +55,51 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     pathname.startsWith("/admin/inbox/") ||
     pathname.startsWith("/trainer/inbox/")
 
-  // Lock the body while the modal is open. `overflow: hidden` alone isn't
-  // enough on iOS Safari — focusing the textarea inside a `position: fixed`
-  // child still lets Safari scroll the underlying document. The reliable
-  // pattern is to freeze the body at its current scroll position with
-  // `position: fixed` and restore it on close.
+  // Lock body scroll while the modal is open. We deliberately DON'T use the
+  // `position: fixed; top: -scrollY` pattern here — that turns the body into
+  // a positioned ancestor and on iOS Safari it ends up reparenting our
+  // `position: fixed inset-0` modal's coordinate space, making the modal
+  // slide up by the page's scroll offset when the keyboard opens. Plain
+  // overflow:hidden on html+body is enough and keeps the modal anchored
+  // to the actual viewport.
   useEffect(() => {
     if (!open) return
-    const scrollY = window.scrollY
-    const prev = {
-      position: document.body.style.position,
-      top: document.body.style.top,
-      left: document.body.style.left,
-      right: document.body.style.right,
-      width: document.body.style.width,
-      overflow: document.body.style.overflow,
-    }
-    document.body.style.position = "fixed"
-    document.body.style.top = `-${scrollY}px`
-    document.body.style.left = "0"
-    document.body.style.right = "0"
-    document.body.style.width = "100%"
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
     document.body.style.overflow = "hidden"
+    document.documentElement.style.overflow = "hidden"
     return () => {
-      document.body.style.position = prev.position
-      document.body.style.top = prev.top
-      document.body.style.left = prev.left
-      document.body.style.right = prev.right
-      document.body.style.width = prev.width
-      document.body.style.overflow = prev.overflow
-      window.scrollTo(0, scrollY)
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+    }
+  }, [open])
+
+  // Track keyboard height so we can push the inbox content up by exactly the
+  // keyboard's height. This is a safety net for browsers where
+  // `interactive-widget: resizes-content` doesn't (yet) take effect — most
+  // notably iOS Safari < 17. With the padding, the composer always sits
+  // flush above the keyboard regardless of how the layout viewport behaves.
+  const [keyboardInset, setKeyboardInset] = useState(0)
+  useEffect(() => {
+    if (!open) return
+    const visual = window.visualViewport
+    if (!visual) return
+    let raf = 0
+    const update = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const layoutHeight = window.innerHeight
+        const inset = Math.max(0, layoutHeight - visual.height - visual.offsetTop)
+        setKeyboardInset(inset)
+      })
+    }
+    update()
+    visual.addEventListener("resize", update)
+    visual.addEventListener("scroll", update)
+    return () => {
+      cancelAnimationFrame(raf)
+      visual.removeEventListener("resize", update)
+      visual.removeEventListener("scroll", update)
     }
   }, [open])
 
@@ -137,11 +152,16 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
 
       {open && (
         <div
-          className="fixed inset-0 z-[60] bg-white overflow-hidden"
-          // With viewport meta `interactiveWidget: resizes-content`, the
-          // layout viewport (what `inset-0` and `100dvh` measure against)
-          // shrinks when the iOS keyboard opens. So a plain `fixed inset-0`
-          // box automatically tracks the visible area — no JS needed.
+          className="fixed top-0 left-0 z-[60] bg-white overflow-hidden"
+          // Always full visible viewport — never shrinks. The keyboard, if
+          // any, sits *on top of* the modal's bottom region. The Inbox
+          // below uses `paddingBottom: keyboardInset` to shift its
+          // contents up so the composer is always above the keyboard.
+          style={{
+            width: "100vw",
+            height: "100dvh",
+            paddingBottom: keyboardInset,
+          }}
           role="dialog"
           aria-modal="true"
           aria-label="WhatsApp Inbox"
