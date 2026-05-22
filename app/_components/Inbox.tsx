@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { format, formatDistanceToNowStrict } from "date-fns"
 import {
   ArrowLeft,
+  AArrowDown,
+  AArrowUp,
   Check,
   CheckCheck,
   ChevronDown,
@@ -116,16 +118,25 @@ function WindowBadge({ lastInboundAt }: { lastInboundAt: string | null }) {
   )
 }
 
-function MessageBubble({ m, role }: { m: MessageRow; role: "ADMIN" | "TRAINER" }) {
+function MessageBubble({
+  m,
+  role,
+  fontScale,
+}: {
+  m: MessageRow
+  role: "ADMIN" | "TRAINER"
+  fontScale: number
+}) {
   const isOut = m.direction === "OUTBOUND"
   return (
     <div className={cn("flex", isOut ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[78%] rounded-2xl px-3 py-2 text-sm leading-snug shadow-sm",
+          "max-w-[78%] rounded-2xl px-3 py-2 leading-snug shadow-sm",
           isOut ? "bg-[#DCF8C6] text-gray-900" : "bg-white text-gray-900 border border-gray-100",
           m.importedAt && "opacity-80",
         )}
+        style={{ fontSize: `${fontScale * 0.875}rem` }}
       >
         {m.type === "template" && (
           <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium mb-1 flex items-center gap-1">
@@ -178,6 +189,28 @@ export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   const [sendError, setSendError] = useState<string | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+
+  // Font-scale toggle for the inbox. 5 steps so the difference between adjacent
+  // sizes is meaningful but the extremes don't break the layout. Persisted to
+  // localStorage so each user keeps their preference across sessions.
+  const FONT_STEPS = [0.85, 0.95, 1.05, 1.2, 1.4] as const
+  const [fontStep, setFontStep] = useState<number>(2) // default = "1.05" (medium-large)
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem("wa-inbox-font") : null
+    if (raw !== null) {
+      const n = parseInt(raw, 10)
+      if (!Number.isNaN(n) && n >= 0 && n < FONT_STEPS.length) setFontStep(n)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const setFontStepPersist = useCallback((next: number) => {
+    const clamped = Math.max(0, Math.min(FONT_STEPS.length - 1, next))
+    setFontStep(clamped)
+    try {
+      window.localStorage.setItem("wa-inbox-font", String(clamped))
+    } catch {}
+  }, [])
+  const fontScale = FONT_STEPS[fontStep]
 
   // Load list
   const refreshList = useCallback(async () => {
@@ -290,14 +323,40 @@ export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   // ---------- List column ----------
   const listColumn = (
     <div className="bg-white border-r border-gray-100 flex flex-col h-full">
-      <div className="px-5 py-4 border-b border-gray-100">
-        <h1 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <MessageSquare size={18} className="text-[#2C6E49]" />
-          Inbox
-        </h1>
-        <p className="text-xs text-gray-400 mt-0.5">
-          {role === "ADMIN" ? "Все переписки студии" : "Переписки с твоими клиентами"}
-        </p>
+      <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+            <MessageSquare size={18} className="text-[#2C6E49]" />
+            Inbox
+          </h1>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {role === "ADMIN" ? "Все переписки студии" : "Переписки с твоими клиентами"}
+          </p>
+        </div>
+        {/* Font-size control: applies to bubble/list/composer text inside this Inbox only. */}
+        <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-0.5 flex-shrink-0">
+          <button
+            onClick={() => setFontStepPersist(fontStep - 1)}
+            disabled={fontStep <= 0}
+            className="p-1.5 rounded-md hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent text-gray-600"
+            aria-label="Smaller text"
+            title="Smaller"
+          >
+            <AArrowDown size={16} />
+          </button>
+          <div className="text-[10px] text-gray-400 font-mono w-8 text-center select-none">
+            {Math.round(fontScale * 100)}%
+          </div>
+          <button
+            onClick={() => setFontStepPersist(fontStep + 1)}
+            disabled={fontStep >= FONT_STEPS.length - 1}
+            className="p-1.5 rounded-md hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent text-gray-600"
+            aria-label="Larger text"
+            title="Larger"
+          >
+            <AArrowUp size={16} />
+          </button>
+        </div>
       </div>
 
       {!convos ? (
@@ -330,7 +389,10 @@ export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium text-gray-800 text-sm truncate">
+                  <div
+                    className="font-medium text-gray-800 truncate"
+                    style={{ fontSize: `${fontScale * 0.875}rem` }}
+                  >
                     {c.clientName || formatPhone(c.clientPhone)}
                   </div>
                   <div className="text-[10px] text-gray-400 flex-shrink-0">
@@ -338,7 +400,10 @@ export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <div className="text-xs text-gray-500 truncate flex-1">
+                  <div
+                    className="text-gray-500 truncate flex-1"
+                    style={{ fontSize: `${fontScale * 0.75}rem` }}
+                  >
                     {c.lastMessage?.direction === "OUTBOUND" && (
                       <span className="text-gray-400">Вы: </span>
                     )}
@@ -400,10 +465,18 @@ export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
           {(detail?.clientName?.[0] ?? "?").toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-gray-800 truncate">
+          <div
+            className="font-medium text-gray-800 truncate"
+            style={{ fontSize: `${fontScale}rem` }}
+          >
             {detail?.clientName || formatPhone(detail?.clientPhone ?? "")}
           </div>
-          <div className="text-xs text-gray-500 truncate">{formatPhone(detail?.clientPhone ?? "")}</div>
+          <div
+            className="text-gray-500 truncate"
+            style={{ fontSize: `${fontScale * 0.75}rem` }}
+          >
+            {formatPhone(detail?.clientPhone ?? "")}
+          </div>
         </div>
 
         <div className="hidden sm:block">
@@ -456,7 +529,7 @@ export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
         ) : (
           <>
             {detail?.messages.map((m) => (
-              <MessageBubble key={m.id} m={m} role={role} />
+              <MessageBubble key={m.id} m={m} role={role} fontScale={fontScale} />
             ))}
             <div ref={messagesEndRef} />
           </>
@@ -487,8 +560,8 @@ export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
             placeholder={windowOpen ? "Напиши сообщение..." : "Окно закрыто — нужен шаблон"}
             disabled={!windowOpen || sending}
             rows={1}
-            className="flex-1 resize-none border border-gray-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:bg-gray-50 disabled:text-gray-400 max-h-32"
-            style={{ minHeight: 40 }}
+            className="flex-1 resize-none border border-gray-200 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:bg-gray-50 disabled:text-gray-400 max-h-32"
+            style={{ minHeight: 40, fontSize: `${fontScale * 0.875}rem` }}
           />
           <button
             onClick={send}
