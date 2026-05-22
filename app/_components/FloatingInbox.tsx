@@ -88,39 +88,44 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     }
   }, [open])
 
-  // Track the visual viewport so the modal height follows the iOS soft
-  // keyboard. We deliberately ignore `visualViewport.offsetTop` and pin the
-  // modal to top:0 — using offsetTop as `top` was leaking intermediate
-  // values during the keyboard show/hide animation and the whole modal
-  // jumped down by ~300px after Send. Height-only is jitter-free.
-  const [vvHeight, setVvHeight] = useState<number | null>(null)
+  // Track the visual viewport (width/height/offset). On iOS Safari, when the
+  // soft keyboard opens, the visual viewport shrinks *and moves down* within
+  // the layout viewport. If we leave the modal at position:fixed top:0, the
+  // modal stays glued to the layout's top and visually slides off the screen,
+  // exposing the page underneath (the bug shown in the user's screen recording).
+  //
+  // Instead we anchor the modal at top:0/left:0 and translate it by the visual
+  // viewport's offset, with width/height matching the visible area. That way
+  // the modal always covers exactly what the user can see and the textarea
+  // sits flush above the keyboard.
+  const [vv, setVv] = useState<{ x: number; y: number; w: number; h: number } | null>(
+    null,
+  )
   useEffect(() => {
     if (!open) return
-    const vv = window.visualViewport
-    if (!vv) {
-      // Browsers without visualViewport (very old) — leave it null and we
-      // fall back to 100dvh below.
-      return
-    }
+    const visual = window.visualViewport
+    if (!visual) return
     let raf = 0
     const update = () => {
-      // Defer setState to next frame to coalesce the burst of resize events
-      // iOS Safari fires while the keyboard is animating in/out.
       cancelAnimationFrame(raf)
+      // Coalesce the burst of resize/scroll events iOS fires while animating
+      // the keyboard — one apply per frame instead of 10.
       raf = requestAnimationFrame(() => {
-        // Clamp: never exceed the layout viewport (iOS can briefly report
-        // values larger than window.innerHeight during orientation change).
-        const h = Math.min(vv.height, window.innerHeight || vv.height)
-        setVvHeight(h)
+        setVv({
+          x: visual.offsetLeft,
+          y: visual.offsetTop,
+          w: visual.width,
+          h: visual.height,
+        })
       })
     }
     update()
-    vv.addEventListener("resize", update)
-    vv.addEventListener("scroll", update)
+    visual.addEventListener("resize", update)
+    visual.addEventListener("scroll", update)
     return () => {
       cancelAnimationFrame(raf)
-      vv.removeEventListener("resize", update)
-      vv.removeEventListener("scroll", update)
+      visual.removeEventListener("resize", update)
+      visual.removeEventListener("scroll", update)
     }
   }, [open])
 
@@ -173,11 +178,24 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
 
       {open && (
         <div
-          className="fixed inset-x-0 top-0 z-[60] bg-white overflow-hidden"
-          // Height tracks the visual viewport so the keyboard never covers
-          // the composer; top stays pinned to 0 to avoid the animation
-          // jitter that visualViewport.offsetTop introduces on iOS.
-          style={{ height: vvHeight ?? "100dvh" }}
+          className="fixed top-0 left-0 z-[60] bg-white overflow-hidden"
+          style={
+            vv
+              ? {
+                  width: vv.w,
+                  height: vv.h,
+                  // translate3d is GPU-composited — applied without a layout
+                  // pass, which keeps the modal smooth while the keyboard
+                  // animates in and out.
+                  transform: `translate3d(${vv.x}px, ${vv.y}px, 0)`,
+                }
+              : {
+                  // Pre-measurement fallback (also covers browsers without
+                  // visualViewport).
+                  width: "100vw",
+                  height: "100dvh",
+                }
+          }
           role="dialog"
           aria-modal="true"
           aria-label="WhatsApp Inbox"
