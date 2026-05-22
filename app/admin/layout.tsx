@@ -6,6 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Calendar, BookOpen, Users, Package, LayoutDashboard, LogOut, Banknote, Settings, ExternalLink, X, Menu, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
+import FloatingInbox from "@/app/_components/FloatingInbox"
 
 const navItems: { href: string; label: string; icon: React.ComponentType<{ size?: number }>; beta?: boolean }[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -149,6 +150,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <MobileTopBar onMenuClick={() => setNavOpen(true)} />
           <main className="flex-1 p-4 lg:p-8 min-w-0 overflow-x-hidden">{children}</main>
         </div>
+        <FloatingInbox role="ADMIN" />
       </div>
     </SessionProvider>
   )

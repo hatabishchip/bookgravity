@@ -6,6 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Calendar, BookOpen, Banknote, LogOut, KeyRound, X, Menu, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
+import FloatingInbox from "@/app/_components/FloatingInbox"
 
 const navItems = [
   { href: "/trainer", label: "My Schedule", icon: Calendar },
@@ -205,6 +206,7 @@ export default function TrainerLayout({ children }: { children: React.ReactNode 
           <MobileTopBar onMenuClick={() => setNavOpen(true)} />
           <main className="flex-1 p-4 lg:p-8 min-w-0 overflow-x-hidden pt-[72px] lg:pt-8">{children}</main>
         </div>
+        <FloatingInbox role="TRAINER" />
       </div>
     </SessionProvider>
   )

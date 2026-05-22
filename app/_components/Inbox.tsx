@@ -16,6 +16,7 @@ import {
   Send,
   Sparkles,
   UserCircle2,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -175,10 +176,24 @@ function MessageBubble({
   )
 }
 
-export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
+export default function Inbox({
+  role,
+  embedded = false,
+  onClose,
+}: {
+  role: "ADMIN" | "TRAINER"
+  /** When true, the Inbox tracks its own selection in component state and
+   *  doesn't write to the URL. Use this when the Inbox lives inside a modal
+   *  that may be closed/reopened independently of navigation. */
+  embedded?: boolean
+  /** Optional close handler. When provided, an X button is rendered in the
+   *  list-column header (only meaningful in embedded mode). */
+  onClose?: () => void
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const selectedId = searchParams.get("c")
+  const [embeddedSelectedId, setEmbeddedSelectedId] = useState<string | null>(null)
+  const selectedId = embedded ? embeddedSelectedId : searchParams.get("c")
 
   const [convos, setConvos] = useState<ConversationListItem[] | null>(null)
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
@@ -263,11 +278,19 @@ export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   }, [detail?.messages.length])
 
   const openConvo = (id: string) => {
+    if (embedded) {
+      setEmbeddedSelectedId(id)
+      return
+    }
     const params = new URLSearchParams(Array.from(searchParams.entries()))
     params.set("c", id)
     router.push(`?${params.toString()}`)
   }
   const closeConvo = () => {
+    if (embedded) {
+      setEmbeddedSelectedId(null)
+      return
+    }
     const params = new URLSearchParams(Array.from(searchParams.entries()))
     params.delete("c")
     router.push(params.toString() ? `?${params.toString()}` : "?")
@@ -333,29 +356,41 @@ export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
             {role === "ADMIN" ? "Все переписки студии" : "Переписки с твоими клиентами"}
           </p>
         </div>
-        {/* Font-size control: applies to bubble/list/composer text inside this Inbox only. */}
-        <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-0.5 flex-shrink-0">
-          <button
-            onClick={() => setFontStepPersist(fontStep - 1)}
-            disabled={fontStep <= 0}
-            className="p-1.5 rounded-md hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent text-gray-600"
-            aria-label="Smaller text"
-            title="Smaller"
-          >
-            <AArrowDown size={16} />
-          </button>
-          <div className="text-[10px] text-gray-400 font-mono w-8 text-center select-none">
-            {Math.round(fontScale * 100)}%
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Font-size control: applies to bubble/list/composer text inside this Inbox only. */}
+          <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-0.5">
+            <button
+              onClick={() => setFontStepPersist(fontStep - 1)}
+              disabled={fontStep <= 0}
+              className="p-1.5 rounded-md hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent text-gray-600"
+              aria-label="Smaller text"
+              title="Smaller"
+            >
+              <AArrowDown size={16} />
+            </button>
+            <div className="text-[10px] text-gray-400 font-mono w-8 text-center select-none">
+              {Math.round(fontScale * 100)}%
+            </div>
+            <button
+              onClick={() => setFontStepPersist(fontStep + 1)}
+              disabled={fontStep >= FONT_STEPS.length - 1}
+              className="p-1.5 rounded-md hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent text-gray-600"
+              aria-label="Larger text"
+              title="Larger"
+            >
+              <AArrowUp size={16} />
+            </button>
           </div>
-          <button
-            onClick={() => setFontStepPersist(fontStep + 1)}
-            disabled={fontStep >= FONT_STEPS.length - 1}
-            className="p-1.5 rounded-md hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent text-gray-600"
-            aria-label="Larger text"
-            title="Larger"
-          >
-            <AArrowUp size={16} />
-          </button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+              aria-label="Close inbox"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -579,7 +614,17 @@ export default function Inbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   )
 
   return (
-    <div className="h-[calc(100vh-72px)] lg:h-[calc(100vh-64px)] -m-4 lg:-m-8 flex bg-white overflow-hidden">
+    <div
+      className={cn(
+        "flex bg-white overflow-hidden",
+        embedded
+          ? // Inside a fullscreen modal — fill the viewport directly.
+            "h-screen w-screen"
+          : // Inside the page <main> with its 16/32px padding — escape it
+            // and fit to the available height below the top bar.
+            "h-[calc(100vh-72px)] lg:h-[calc(100vh-64px)] -m-4 lg:-m-8",
+      )}
+    >
       {/* Desktop: side-by-side. Mobile: show list, or chat if selected */}
       <div
         className={cn(
