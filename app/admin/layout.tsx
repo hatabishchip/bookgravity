@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, BookOpen, Users, Package, LayoutDashboard, LogOut, Banknote, Settings, ExternalLink, X, Menu, MessageSquare } from "lucide-react"
+import { Calendar, BookOpen, Users, Package, LayoutDashboard, LogOut, Banknote, Settings, ExternalLink, X, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 
@@ -13,7 +13,6 @@ const navItems: { href: string; label: string; icon: React.ComponentType<{ size?
   { href: "/admin/schedule", label: "Schedule", icon: Calendar },
   { href: "/admin/beta-schedule", label: "Schedule", icon: Calendar, beta: true },
   { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
-  { href: "/admin/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/admin/trainers", label: "Trainers", icon: Users },
   { href: "/admin/services", label: "Services", icon: Package },
   { href: "/admin/salary", label: "Salary", icon: Banknote },
