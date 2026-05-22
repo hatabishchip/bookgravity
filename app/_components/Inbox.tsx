@@ -623,11 +623,11 @@ export default function Inbox({
       className={cn(
         "flex bg-white overflow-hidden",
         embedded
-          ? // Inside a fullscreen modal — fill the *dynamic* viewport.
-            // Using dvh (not vh) makes the bottom of the composer track
-            // iOS Safari's address-bar collapse/expand, so "Напиши
-            // сообщение" stays visible above the URL bar.
-            "h-[100dvh] w-screen"
+          ? // Inside the FloatingInbox modal we fill the *fixed* parent
+            // exactly, not the viewport. The modal itself sets its own
+            // height (tracking visualViewport so iOS' keyboard doesn't
+            // push the composer behind the URL bar).
+            "absolute inset-0"
           : // Inside the page <main> with its 16/32px padding — escape it
             // and fit to the available height below the top bar.
             "h-[calc(100dvh-72px)] lg:h-[calc(100dvh-64px)] -m-4 lg:-m-8",

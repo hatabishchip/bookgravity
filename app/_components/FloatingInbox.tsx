@@ -55,13 +55,58 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     pathname.startsWith("/admin/inbox/") ||
     pathname.startsWith("/trainer/inbox/")
 
-  // Suppress page scroll while the modal is open.
+  // Lock the body while the modal is open. `overflow: hidden` alone isn't
+  // enough on iOS Safari — focusing the textarea inside a `position: fixed`
+  // child still lets Safari scroll the underlying document. The reliable
+  // pattern is to freeze the body at its current scroll position with
+  // `position: fixed` and restore it on close.
   useEffect(() => {
     if (!open) return
-    const prev = document.body.style.overflow
+    const scrollY = window.scrollY
+    const prev = {
+      position: document.body.style.position,
+      top: document.body.style.top,
+      left: document.body.style.left,
+      right: document.body.style.right,
+      width: document.body.style.width,
+      overflow: document.body.style.overflow,
+    }
+    document.body.style.position = "fixed"
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.left = "0"
+    document.body.style.right = "0"
+    document.body.style.width = "100%"
     document.body.style.overflow = "hidden"
     return () => {
-      document.body.style.overflow = prev
+      document.body.style.position = prev.position
+      document.body.style.top = prev.top
+      document.body.style.left = prev.left
+      document.body.style.right = prev.right
+      document.body.style.width = prev.width
+      document.body.style.overflow = prev.overflow
+      window.scrollTo(0, scrollY)
+    }
+  }, [open])
+
+  // Track the visual viewport so the modal height follows the iOS soft
+  // keyboard. Without this, focusing the textarea makes Safari reflow the
+  // page underneath and the chat header slides off the top.
+  const [vvHeight, setVvHeight] = useState<number | null>(null)
+  const [vvOffsetTop, setVvOffsetTop] = useState(0)
+  useEffect(() => {
+    if (!open) return
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      setVvHeight(vv.height)
+      setVvOffsetTop(vv.offsetTop)
+    }
+    update()
+    vv.addEventListener("resize", update)
+    vv.addEventListener("scroll", update)
+    return () => {
+      vv.removeEventListener("resize", update)
+      vv.removeEventListener("scroll", update)
     }
   }, [open])
 
@@ -114,9 +159,14 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
 
       {open && (
         <div
-          className="fixed inset-0 z-[60] bg-white"
-          // Backdrop blocks pointer events to elements behind; ESC handler
-          // is on window above.
+          className="fixed left-0 right-0 z-[60] bg-white overflow-hidden"
+          // The modal is sized to the *visual* viewport (excluding the iOS
+          // keyboard / chrome) so the composer at the bottom never disappears
+          // and the page beneath never peeks through.
+          style={{
+            top: vvOffsetTop,
+            height: vvHeight ?? "100dvh",
+          }}
           role="dialog"
           aria-modal="true"
           aria-label="WhatsApp Inbox"
