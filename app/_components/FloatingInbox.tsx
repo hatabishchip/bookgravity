@@ -89,22 +89,36 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   }, [open])
 
   // Track the visual viewport so the modal height follows the iOS soft
-  // keyboard. Without this, focusing the textarea makes Safari reflow the
-  // page underneath and the chat header slides off the top.
+  // keyboard. We deliberately ignore `visualViewport.offsetTop` and pin the
+  // modal to top:0 — using offsetTop as `top` was leaking intermediate
+  // values during the keyboard show/hide animation and the whole modal
+  // jumped down by ~300px after Send. Height-only is jitter-free.
   const [vvHeight, setVvHeight] = useState<number | null>(null)
-  const [vvOffsetTop, setVvOffsetTop] = useState(0)
   useEffect(() => {
     if (!open) return
     const vv = window.visualViewport
-    if (!vv) return
+    if (!vv) {
+      // Browsers without visualViewport (very old) — leave it null and we
+      // fall back to 100dvh below.
+      return
+    }
+    let raf = 0
     const update = () => {
-      setVvHeight(vv.height)
-      setVvOffsetTop(vv.offsetTop)
+      // Defer setState to next frame to coalesce the burst of resize events
+      // iOS Safari fires while the keyboard is animating in/out.
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        // Clamp: never exceed the layout viewport (iOS can briefly report
+        // values larger than window.innerHeight during orientation change).
+        const h = Math.min(vv.height, window.innerHeight || vv.height)
+        setVvHeight(h)
+      })
     }
     update()
     vv.addEventListener("resize", update)
     vv.addEventListener("scroll", update)
     return () => {
+      cancelAnimationFrame(raf)
       vv.removeEventListener("resize", update)
       vv.removeEventListener("scroll", update)
     }
@@ -159,14 +173,11 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
 
       {open && (
         <div
-          className="fixed left-0 right-0 z-[60] bg-white overflow-hidden"
-          // The modal is sized to the *visual* viewport (excluding the iOS
-          // keyboard / chrome) so the composer at the bottom never disappears
-          // and the page beneath never peeks through.
-          style={{
-            top: vvOffsetTop,
-            height: vvHeight ?? "100dvh",
-          }}
+          className="fixed inset-x-0 top-0 z-[60] bg-white overflow-hidden"
+          // Height tracks the visual viewport so the keyboard never covers
+          // the composer; top stays pinned to 0 to avoid the animation
+          // jitter that visualViewport.offsetTop introduces on iOS.
+          style={{ height: vvHeight ?? "100dvh" }}
           role="dialog"
           aria-modal="true"
           aria-label="WhatsApp Inbox"
