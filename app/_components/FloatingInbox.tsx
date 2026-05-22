@@ -88,47 +88,6 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     }
   }, [open])
 
-  // Track the visual viewport (width/height/offset). On iOS Safari, when the
-  // soft keyboard opens, the visual viewport shrinks *and moves down* within
-  // the layout viewport. If we leave the modal at position:fixed top:0, the
-  // modal stays glued to the layout's top and visually slides off the screen,
-  // exposing the page underneath (the bug shown in the user's screen recording).
-  //
-  // Instead we anchor the modal at top:0/left:0 and translate it by the visual
-  // viewport's offset, with width/height matching the visible area. That way
-  // the modal always covers exactly what the user can see and the textarea
-  // sits flush above the keyboard.
-  const [vv, setVv] = useState<{ x: number; y: number; w: number; h: number } | null>(
-    null,
-  )
-  useEffect(() => {
-    if (!open) return
-    const visual = window.visualViewport
-    if (!visual) return
-    let raf = 0
-    const update = () => {
-      cancelAnimationFrame(raf)
-      // Coalesce the burst of resize/scroll events iOS fires while animating
-      // the keyboard — one apply per frame instead of 10.
-      raf = requestAnimationFrame(() => {
-        setVv({
-          x: visual.offsetLeft,
-          y: visual.offsetTop,
-          w: visual.width,
-          h: visual.height,
-        })
-      })
-    }
-    update()
-    visual.addEventListener("resize", update)
-    visual.addEventListener("scroll", update)
-    return () => {
-      cancelAnimationFrame(raf)
-      visual.removeEventListener("resize", update)
-      visual.removeEventListener("scroll", update)
-    }
-  }, [open])
-
   // ESC closes the modal.
   useEffect(() => {
     if (!open) return
@@ -178,24 +137,11 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
 
       {open && (
         <div
-          className="fixed top-0 left-0 z-[60] bg-white overflow-hidden"
-          style={
-            vv
-              ? {
-                  width: vv.w,
-                  height: vv.h,
-                  // translate3d is GPU-composited — applied without a layout
-                  // pass, which keeps the modal smooth while the keyboard
-                  // animates in and out.
-                  transform: `translate3d(${vv.x}px, ${vv.y}px, 0)`,
-                }
-              : {
-                  // Pre-measurement fallback (also covers browsers without
-                  // visualViewport).
-                  width: "100vw",
-                  height: "100dvh",
-                }
-          }
+          className="fixed inset-0 z-[60] bg-white overflow-hidden"
+          // With viewport meta `interactiveWidget: resizes-content`, the
+          // layout viewport (what `inset-0` and `100dvh` measure against)
+          // shrinks when the iOS keyboard opens. So a plain `fixed inset-0`
+          // box automatically tracks the visible area — no JS needed.
           role="dialog"
           aria-modal="true"
           aria-label="WhatsApp Inbox"

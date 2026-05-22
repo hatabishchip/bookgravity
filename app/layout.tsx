@@ -50,6 +50,13 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: "cover",
   themeColor: "#2C6E49",
+  // Tell iOS Safari (and Chrome Android) to shrink the *layout* viewport when
+  // the soft keyboard appears, not just the visual viewport. This is what
+  // makes `position: fixed inset-0` (and 100dvh) automatically size to the
+  // visible area above the keyboard — without it, fixed modals on iOS render
+  // at full-screen size with the keyboard covering the bottom and Safari then
+  // scrolls inside, hiding the chat header and exposing the page underneath.
+  interactiveWidget: "resizes-content",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
