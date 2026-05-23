@@ -23,9 +23,16 @@ const MAX_BYTES = {
   video: 16 * 1024 * 1024, // 16 MB
   audio: 16 * 1024 * 1024,
   document: 100 * 1024 * 1024,
+  // Stickers: 100 KB static / 500 KB animated. We accept up to 500 KB.
+  sticker: 500 * 1024,
 } as const
 
-function classifyMime(mime: string): "image" | "video" | "audio" | "document" {
+function classifyMime(mime: string, filename: string): "image" | "video" | "audio" | "document" | "sticker" {
+  // WhatsApp distinguishes sticker (webp, square, ≤500KB) from regular
+  // image. If the user picks a .webp from their library or drag-drops a
+  // sticker exported from another chat, send it as a sticker so it shows
+  // up native-style on the recipient side.
+  if (mime === "image/webp" || /\.webp$/i.test(filename)) return "sticker"
   if (mime.startsWith("image/")) return "image"
   if (mime.startsWith("video/")) return "video"
   if (mime.startsWith("audio/")) return "audio"
@@ -81,7 +88,7 @@ export async function POST(
   }
 
   const mimeType = file.type || "application/octet-stream"
-  const type = classifyMime(mimeType)
+  const type = classifyMime(mimeType, file.name || "")
   const limit = MAX_BYTES[type]
   if (file.size > limit) {
     return NextResponse.json(

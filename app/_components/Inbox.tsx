@@ -83,7 +83,7 @@ function previewText(m: ConversationListItem["lastMessage"]): string {
   if (m.type === "audio") return "🎤 Voice message"
   if (m.type === "video") return "🎬 Video"
   if (m.type === "document") return "📄 " + (m.body ?? "Document")
-  if (m.type === "sticker") return "💟 Sticker"
+  if (m.type === "sticker") return "Стикер"
   return m.body ?? `[${m.type}]`
 }
 
@@ -133,6 +133,34 @@ function MessageBubble({
   fontScale: number
 }) {
   const isOut = m.direction === "OUTBOUND"
+
+  // Stickers render WITHOUT a bubble — floating on the chat background,
+  // like WhatsApp. Status / time line sits just below the image.
+  if (m.type === "sticker") {
+    const src = m.mediaUrl?.startsWith("blob:")
+      ? m.mediaUrl
+      : `/api/whatsapp/media/${m.id}`
+    return (
+      <div className={cn("flex", isOut ? "justify-end" : "justify-start")}>
+        <div className="flex flex-col" style={{ alignItems: isOut ? "flex-end" : "flex-start" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt="sticker"
+            className="w-[140px] h-[140px] object-contain select-none"
+            draggable={false}
+          />
+          <div className="flex items-center gap-1 mt-0.5 px-1">
+            <span className="text-[11px] text-gray-500 dark:text-[#8696A0] tabular-nums">
+              {format(new Date(m.createdAt), "HH:mm")}
+            </span>
+            {isOut && <StatusTick status={m.status} />}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={cn("flex", isOut ? "justify-end" : "justify-start")}>
       <div
@@ -461,13 +489,16 @@ export default function Inbox({
       if (!detail) return
       const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
       const localUrl = URL.createObjectURL(file)
-      const guessType: MessageRow["type"] = file.type.startsWith("video/")
-        ? "video"
-        : file.type.startsWith("audio/")
-          ? "audio"
-          : file.type.startsWith("image/")
-            ? "image"
-            : "document"
+      const isWebp = file.type === "image/webp" || /\.webp$/i.test(file.name)
+      const guessType: MessageRow["type"] = isWebp
+        ? "sticker"
+        : file.type.startsWith("video/")
+          ? "video"
+          : file.type.startsWith("audio/")
+            ? "audio"
+            : file.type.startsWith("image/")
+              ? "image"
+              : "document"
       const optimistic: MessageRow = {
         id: tempId,
         direction: "OUTBOUND",
@@ -576,23 +607,11 @@ export default function Inbox({
   // ---------- List column ----------
   const listColumn = (
     <div className="bg-white border-r border-gray-100 flex flex-col h-full dark:bg-[#0B141A] dark:border-transparent">
-      {/* WhatsApp-style header: big title centered, action icons right. */}
+      {/* WhatsApp-style header: title left, action icons + close on the right. */}
       <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="w-9 h-9 rounded-full bg-gray-100 dark:bg-[#2A3942] flex items-center justify-center text-gray-700 dark:text-gray-200 flex-shrink-0"
-              aria-label="Close inbox"
-              title="Close"
-            >
-              <X size={18} />
-            </button>
-          )}
-          <h1 className="text-[26px] font-bold text-gray-900 dark:text-white truncate">
-            Inbox
-          </h1>
-        </div>
+        <h1 className="text-[26px] font-bold text-gray-900 dark:text-white truncate">
+          Inbox
+        </h1>
         <div className="flex items-center gap-1 flex-shrink-0">
           {/* Font-size control: applies to bubble/list/composer text inside this Inbox only. */}
           <button
@@ -611,6 +630,16 @@ export default function Inbox({
           >
             <AArrowUp size={18} />
           </button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-full bg-gray-100 dark:bg-[#2A3942] flex items-center justify-center text-gray-700 dark:text-gray-200 ml-1"
+              aria-label="Close inbox"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
       </div>
 

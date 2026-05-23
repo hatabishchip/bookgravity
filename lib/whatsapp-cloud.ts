@@ -103,7 +103,7 @@ export async function uploadMediaToMeta(
  */
 export async function sendWhatsAppMedia(opts: {
   toPhone: string
-  type: "image" | "video" | "audio" | "document"
+  type: "image" | "video" | "audio" | "document" | "sticker"
   mediaId: string
   caption?: string
   filename?: string // documents only
@@ -113,7 +113,7 @@ export async function sendWhatsAppMedia(opts: {
   const to = normalizePhone(opts.toPhone)
   if (!to) return { ok: false, error: "empty_phone" }
   const mediaObj: Record<string, string> = { id: opts.mediaId }
-  // Captions only allowed for image / video.
+  // Captions only allowed for image / video (NOT sticker / audio / document).
   if (opts.caption && (opts.type === "image" || opts.type === "video")) {
     mediaObj.caption = opts.caption
   }

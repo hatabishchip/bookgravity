@@ -143,7 +143,7 @@ export default function Composer({ onSend, onAttach, fontScale }: ComposerProps)
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,video/*"
+            accept="image/*,video/*,image/webp"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0]
