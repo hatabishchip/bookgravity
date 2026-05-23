@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { flushSync } from "react-dom"
 import { useRouter, useSearchParams } from "next/navigation"
 import { format, formatDistanceToNowStrict } from "date-fns"
 import {
@@ -324,17 +325,24 @@ export default function Inbox({
       importedAt: null,
       createdAt: new Date().toISOString(),
     }
-    setDetail((prev) =>
-      prev ? { ...prev, messages: [...prev.messages, optimisticMsg] } : prev,
-    )
-    setText("")
-    setSendError(null)
-    // Keep focus / keyboard up after Send — WhatsApp/Telegram behaviour.
+    // flushSync forces the optimistic bubble + cleared text to commit to
+    // the DOM in the same synchronous task as our re-focus call below. If
+    // we let React batch these updates, iOS Safari sees the textarea's
+    // value change (via re-render) AFTER the click handler finishes and
+    // dismisses the keyboard. Keeping it synchronous lets us re-focus
+    // immediately while iOS still considers the textarea active.
+    flushSync(() => {
+      setDetail((prev) =>
+        prev ? { ...prev, messages: [...prev.messages, optimisticMsg] } : prev,
+      )
+      setText("")
+      setSendError(null)
+    })
     textareaRef.current?.focus()
     // Scroll to the bottom so the new bubble is visible.
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
-    }, 0)
+    })
 
     setSending(true)
     try {

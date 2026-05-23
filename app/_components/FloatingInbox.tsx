@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { usePathname } from "next/navigation"
 import { MessageSquare } from "lucide-react"
 import Inbox from "@/app/_components/Inbox"
@@ -9,20 +10,23 @@ import { cn } from "@/lib/utils"
 /**
  * Floating chat button anchored to the bottom-right of every page in the
  * admin/trainer area. Shows a badge with the number of CONVERSATIONS that
- * have unread inbound messages (not the total message count). Click opens a
- * fullscreen modal containing the Inbox.
+ * have unread inbound messages (not the total message count). Click opens
+ * a fullscreen modal containing the Inbox.
  *
- * Hidden on the dedicated /admin/inbox and /trainer/inbox pages to avoid
- * UI duplication.
+ * The modal is rendered via a React portal directly under document.body so
+ * no ancestor's positioning context (flex layouts, transforms in parent
+ * components, etc.) can affect it. The body is fully locked while it's
+ * open: position:fixed at top:0 + overflow:hidden so iOS Safari can't
+ * scroll the document underneath us when the user focuses the textarea.
  */
 export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [unreadChats, setUnreadChats] = useState(0)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
-  // Poll the conversations list so the badge stays roughly fresh without
-  // pushing for a websocket layer just for this. Server-side `unread` is
-  // already per-role-aware so we just count rows where it's > 0.
+  // Poll the conversations list so the badge stays roughly fresh.
   const refresh = useCallback(async () => {
     try {
       const r = await fetch("/api/whatsapp/conversations", { cache: "no-store" })
@@ -36,7 +40,6 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
 
   useEffect(() => {
     refresh()
-    // Less aggressive than the inbox itself (which polls every 8-15s while open).
     const t = setInterval(refresh, 20_000)
     return () => clearInterval(t)
   }, [refresh])
@@ -47,38 +50,59 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     if (!open) refresh()
   }, [open, refresh])
 
-  // Hide the FAB on the dedicated inbox pages — the inline page already
-  // serves the same purpose, and stacking a button over it is noisy.
+  // Hide the FAB on the dedicated inbox pages.
   const hidden =
     pathname === "/admin/inbox" ||
     pathname === "/trainer/inbox" ||
     pathname.startsWith("/admin/inbox/") ||
     pathname.startsWith("/trainer/inbox/")
 
-  // Lock body scroll while the modal is open. We deliberately DON'T use the
-  // `position: fixed; top: -scrollY` pattern here — that turns the body into
-  // a positioned ancestor and on iOS Safari it ends up reparenting our
-  // `position: fixed inset-0` modal's coordinate space, making the modal
-  // slide up by the page's scroll offset when the keyboard opens. Plain
-  // overflow:hidden on html+body is enough and keeps the modal anchored
-  // to the actual viewport.
+  // Body lock. We use `position: fixed; top: 0` instead of `top: -scrollY`
+  // because the latter — although it preserves the page's scroll position
+  // visually — turns the body into a positioned ancestor and on iOS Safari
+  // ends up reparenting our `position: fixed inset-0` modal's coordinate
+  // space, which made the whole modal "slide up by the page's scrollY"
+  // when the keyboard opened. By holding body at top:0 we keep the
+  // modal's anchor honest; we save and restore the scroll position
+  // ourselves on close.
   useEffect(() => {
     if (!open) return
-    const prevBody = document.body.style.overflow
-    const prevHtml = document.documentElement.style.overflow
-    document.body.style.overflow = "hidden"
-    document.documentElement.style.overflow = "hidden"
+    const scrollY = window.scrollY
+    const body = document.body
+    const html = document.documentElement
+    const prev = {
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+      bodyOverflow: body.style.overflow,
+      htmlOverflow: html.style.overflow,
+    }
+    body.style.position = "fixed"
+    body.style.top = "0"
+    body.style.left = "0"
+    body.style.right = "0"
+    body.style.width = "100%"
+    body.style.overflow = "hidden"
+    html.style.overflow = "hidden"
     return () => {
-      document.body.style.overflow = prevBody
-      document.documentElement.style.overflow = prevHtml
+      body.style.position = prev.bodyPosition
+      body.style.top = prev.bodyTop
+      body.style.left = prev.bodyLeft
+      body.style.right = prev.bodyRight
+      body.style.width = prev.bodyWidth
+      body.style.overflow = prev.bodyOverflow
+      html.style.overflow = prev.htmlOverflow
+      window.scrollTo(0, scrollY)
     }
   }, [open])
 
-  // Track the visual viewport rect so we can park the chat region exactly
-  // over the visible area, even when iOS Safari scrolls itself in response
-  // to a textarea focus. The outer modal layer is a full-screen white
-  // backdrop so nothing peeks through, and this inner rect floats over it
-  // following the keyboard/URL-bar geometry.
+  // Track the visual viewport so the inner chat region parks over the
+  // visible area even when iOS auto-scrolls the page on focus. We listen
+  // only to `resize` (keyboard show/hide) and ignore `scroll` to avoid the
+  // jitter we saw earlier when iOS fires intermediate scroll events during
+  // the keyboard animation.
   const [vv, setVv] = useState<{ x: number; y: number; w: number; h: number } | null>(
     null,
   )
@@ -100,15 +124,9 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     }
     update()
     visual.addEventListener("resize", update)
-    visual.addEventListener("scroll", update)
-    // Also listen to plain window scroll because iOS sometimes scrolls the
-    // window (not just the visual viewport) when bringing inputs into view.
-    window.addEventListener("scroll", update, { passive: true })
     return () => {
       cancelAnimationFrame(raf)
       visual.removeEventListener("resize", update)
-      visual.removeEventListener("scroll", update)
-      window.removeEventListener("scroll", update)
     }
   }, [open])
 
@@ -124,6 +142,28 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
 
   if (hidden) return null
 
+  const modal = open ? (
+    <div
+      className="fixed inset-0 z-[2147483646] bg-white overflow-hidden"
+      // The outer layer NEVER moves and is fully opaque — this is what
+      // guarantees the underlying admin page can't peek through.
+      role="dialog"
+      aria-modal="true"
+      aria-label="WhatsApp Inbox"
+    >
+      <div
+        className="absolute bg-white overflow-hidden"
+        style={
+          vv
+            ? { top: vv.y, left: vv.x, width: vv.w, height: vv.h }
+            : { inset: 0 }
+        }
+      >
+        <Inbox role={role} embedded onClose={() => setOpen(false)} />
+      </div>
+    </div>
+  ) : null
+
   return (
     <>
       <button
@@ -134,8 +174,6 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
           "flex items-center justify-center transition-transform active:scale-95",
           "ring-4 ring-white/80",
         )}
-        // Sit 20px above the iOS home indicator / address bar safe area, so
-        // the button is never hidden by Safari chrome on iPhone.
         style={{ bottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
         aria-label={
           unreadChats > 0
@@ -151,7 +189,6 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
               "absolute -top-1 -right-1 min-w-[22px] h-[22px] px-1.5",
               "rounded-full bg-red-500 text-white text-[11px] font-bold",
               "flex items-center justify-center border-2 border-white shadow",
-              "animate-in fade-in zoom-in-95",
             )}
           >
             {unreadChats > 99 ? "99+" : unreadChats}
@@ -159,32 +196,7 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
         )}
       </button>
 
-      {open && (
-        // Two-layer modal:
-        //   • outer = full-viewport white backdrop, never moves (covers the
-        //     page underneath at all times, including when iOS scrolls the
-        //     window for a focused input)
-        //   • inner = chat region parked over the *visual* viewport so the
-        //     composer always sits above the keyboard and the chat header
-        //     stays glued to the top of the visible area
-        <div
-          className="fixed inset-0 z-[60] bg-white overflow-hidden"
-          role="dialog"
-          aria-modal="true"
-          aria-label="WhatsApp Inbox"
-        >
-          <div
-            className="absolute bg-white overflow-hidden"
-            style={
-              vv
-                ? { top: vv.y, left: vv.x, width: vv.w, height: vv.h }
-                : { inset: 0 }
-            }
-          >
-            <Inbox role={role} embedded onClose={() => setOpen(false)} />
-          </div>
-        </div>
-      )}
+      {mounted && modal && createPortal(modal, document.body)}
     </>
   )
 }
