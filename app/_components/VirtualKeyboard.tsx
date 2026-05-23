@@ -1,25 +1,21 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { ArrowUp, ChevronUp, Delete, Globe, Send } from "lucide-react"
+import { ArrowUp, Delete, Globe } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
-// Lightweight in-page keyboard for the WhatsApp inbox composer.
+// WhatsApp-styled in-page keyboard for the Inbox composer.
 //
-// Why: on iOS Safari the native soft keyboard caused weeks of headaches with
-// modal positioning (visualViewport jumps, sticky elements drifting, etc.).
-// Using a virtual keyboard means the OS keyboard never appears, so the
-// modal never gets resized and we never have to chase iOS' auto-scroll.
+// Visual reference: iOS WhatsApp dark keyboard.
+//   • Dark background, light gray pill-shaped keys, white text
+//   • 11 / 11 / 9 layout for Russian (and English padded to match)
+//   • Special keys (Shift, Backspace, 123, Globe, Return) are a touch
+//     darker than letter keys
+//   • Language abbreviation shown bottom-right inside the space bar
 //
-// Scope intentionally kept tight:
-//   • English QWERTY + Russian ЙЦУКЕН + numbers/symbols layer
-//   • Shift for one-shot uppercase
-//   • Backspace, Space, newline, language switch, Send
-//   • Append/delete at the END of the input (no caret manipulation)
-//
-// Trade-offs vs. native keyboard the user explicitly accepted:
-//   • No autocorrect / suggestions / dictation / emoji picker / swipe typing
+// We render NO Send button — the green Send button in the composer above
+// handles that, matching WhatsApp where the keyboard itself never sends.
 // ---------------------------------------------------------------------------
 
 type Lang = "en" | "ru"
@@ -39,26 +35,21 @@ const LETTERS_RU: string[][] = [
 
 const SYMBOLS: string[][] = [
   ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-  ["-", "/", ":", ";", "(", ")", "₽", "&", "@", "\""],
-  [".", ",", "?", "!", "'", "*", "+", "="],
+  ["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""],
+  ["#", "+", "=", ".", ",", "?", "!", "'"],
 ]
 
+const SPACE_LABEL: Record<Lang, string> = { en: "english", ru: "русский" }
+const LANG_HINT: Record<Lang, string> = { en: "en", ru: "ру" }
+
 export interface VirtualKeyboardProps {
-  /** Append one or more characters to the input. */
   onInsert: (text: string) => void
-  /** Remove the last character. */
   onBackspace: () => void
-  /** Send the current message. Called from the green Send button. */
-  onSend: () => void
-  /** Disable Send when there's nothing to send. */
-  canSend: boolean
 }
 
 export default function VirtualKeyboard({
   onInsert,
   onBackspace,
-  onSend,
-  canSend,
 }: VirtualKeyboardProps) {
   const [lang, setLang] = useState<Lang>("ru")
   const [layer, setLayer] = useState<Layer>("letters")
@@ -69,31 +60,27 @@ export default function VirtualKeyboard({
 
   const pressKey = useCallback(
     (ch: string) => {
-      onInsert(shift ? ch.toUpperCase() : ch)
-      if (shift) setShift(false) // one-shot shift like iOS
+      onInsert(shift && layer === "letters" ? ch.toUpperCase() : ch)
+      if (shift) setShift(false) // one-shot shift, iOS-style
     },
-    [onInsert, shift],
+    [onInsert, shift, layer],
   )
 
-  // Prevent the textarea from losing focus when a key is pressed.
-  // mousedown on a button by default moves focus to the button; we cancel
-  // that, then the click handler still fires and inserts the character.
-  const noFocusSteal = (e: React.MouseEvent | React.PointerEvent) => {
-    e.preventDefault()
-  }
+  // Cancel default mousedown/pointerdown so the textarea above never loses
+  // focus when a key is tapped. (preventDefault on the synthetic mousedown
+  // also blocks Safari's default "focus the button" path.)
+  const noFocusSteal = (e: React.SyntheticEvent) => e.preventDefault()
 
   const Key = ({
     label,
     onPress,
     flex = 1,
-    variant = "default",
-    disabled = false,
+    variant = "letter",
   }: {
     label: React.ReactNode
     onPress: () => void
     flex?: number
-    variant?: "default" | "modifier" | "send" | "active"
-    disabled?: boolean
+    variant?: "letter" | "modifier" | "active" | "space"
   }) => (
     <button
       type="button"
@@ -101,16 +88,15 @@ export default function VirtualKeyboard({
       onMouseDown={noFocusSteal}
       onPointerDown={noFocusSteal}
       onClick={onPress}
-      disabled={disabled}
       style={{ flex }}
       className={cn(
-        "h-10 sm:h-11 rounded-lg text-base font-medium transition-colors active:scale-95 select-none",
-        "flex items-center justify-center",
-        variant === "default" && "bg-white text-gray-800 shadow-sm hover:bg-gray-50",
-        variant === "modifier" && "bg-gray-300 text-gray-800 shadow-sm hover:bg-gray-400",
-        variant === "active" && "bg-[#2C6E49] text-white shadow",
-        variant === "send" &&
-          "bg-[#2C6E49] text-white shadow disabled:bg-gray-200 disabled:text-gray-400",
+        "rounded-[6px] font-normal select-none active:opacity-70 transition-opacity",
+        "flex items-center justify-center text-white",
+        "h-[44px] sm:h-[46px]",
+        variant === "letter" && "bg-[#6C6C70] text-[22px] sm:text-[24px]",
+        variant === "space" && "bg-[#6C6C70] text-[15px]",
+        variant === "modifier" && "bg-[#3C3C3F] text-[18px]",
+        variant === "active" && "bg-white text-black text-[18px]",
       )}
     >
       {label}
@@ -119,20 +105,22 @@ export default function VirtualKeyboard({
 
   return (
     <div
-      className="bg-gray-200 px-1.5 pt-1.5 pb-2 select-none"
+      className="bg-[#1F1F22] px-1 pt-2 pb-1.5 select-none"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 6px)" }}
     >
       {/* Letter / symbol rows */}
       {rows.map((row, i) => {
         const isLast = i === rows.length - 1
         return (
-          <div key={i} className="flex gap-1.5 mb-1.5">
-            {/* Last letter row gets Shift on the left + Backspace on the right */}
+          <div key={i} className="flex gap-[5px] mb-[6px]">
+            {/* Shift on the left of the last letter row.
+                In the symbols layer Shift's slot is taken by #+= toggle
+                (we keep it simple and just skip it). */}
             {isLast && layer === "letters" && (
               <Key
-                label={<ArrowUp size={16} />}
+                label={<ArrowUp size={20} />}
                 onPress={() => setShift((s) => !s)}
-                flex={1.5}
+                flex={1.6}
                 variant={shift ? "active" : "modifier"}
               />
             )}
@@ -145,9 +133,9 @@ export default function VirtualKeyboard({
             ))}
             {isLast && (
               <Key
-                label={<Delete size={16} />}
+                label={<Delete size={20} />}
                 onPress={onBackspace}
-                flex={1.5}
+                flex={1.6}
                 variant="modifier"
               />
             )}
@@ -155,35 +143,43 @@ export default function VirtualKeyboard({
         )
       })}
 
-      {/* Bottom action row */}
-      <div className="flex gap-1.5">
+      {/* Bottom action row: 123 | globe | space | ↵ */}
+      <div className="flex gap-[5px]">
         <Key
           label={layer === "letters" ? "123" : "АБВ"}
           onPress={() => setLayer((l) => (l === "letters" ? "symbols" : "letters"))}
-          flex={1.5}
+          flex={1.6}
           variant="modifier"
         />
         <Key
-          label={<Globe size={16} />}
+          label={<Globe size={20} />}
           onPress={() => {
             setLang((l) => (l === "en" ? "ru" : "en"))
             setLayer("letters")
           }}
-          flex={1.2}
+          flex={1.3}
           variant="modifier"
         />
+        {/* Space bar with language hint bottom-right, like iOS. */}
+        <button
+          type="button"
+          tabIndex={-1}
+          onMouseDown={noFocusSteal}
+          onPointerDown={noFocusSteal}
+          onClick={() => onInsert(" ")}
+          style={{ flex: 5 }}
+          className="relative rounded-[6px] bg-[#6C6C70] text-white h-[44px] sm:h-[46px] active:opacity-70 transition-opacity flex items-center justify-center text-[15px]"
+        >
+          <span className="opacity-90">{SPACE_LABEL[lang]}</span>
+          <span className="absolute right-2 bottom-1 text-[11px] opacity-60">
+            {LANG_HINT[lang]}
+          </span>
+        </button>
         <Key
-          label={lang === "ru" ? "пробел" : "space"}
-          onPress={() => onInsert(" ")}
-          flex={5}
-        />
-        <Key label="↵" onPress={() => onInsert("\n")} flex={1.2} variant="modifier" />
-        <Key
-          label={<Send size={16} />}
-          onPress={onSend}
-          flex={1.5}
-          variant="send"
-          disabled={!canSend}
+          label={<span className="text-[20px]">⏎</span>}
+          onPress={() => onInsert("\n")}
+          flex={1.6}
+          variant="modifier"
         />
       </div>
     </div>

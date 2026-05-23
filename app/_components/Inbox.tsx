@@ -742,12 +742,11 @@ export default function Inbox({
         {sendError && <div className="mt-2 text-xs text-red-600">{sendError}</div>}
         </div>
         {/* In-page keyboard. Replaces the OS soft keyboard entirely — see
-            the textarea's `inputMode="none"`. */}
+            the textarea's `inputMode="none"`. The keyboard never sends —
+            the green Send button in the composer above does that. */}
         <VirtualKeyboard
           onInsert={(ch) => setText((t) => t + ch)}
           onBackspace={() => setText((t) => t.slice(0, -1))}
-          onSend={send}
-          canSend={windowOpen && !sending && text.trim().length > 0}
         />
       </div>
     </div>
