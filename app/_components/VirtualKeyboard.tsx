@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { ArrowUp, Delete, Globe } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -65,6 +65,37 @@ export default function VirtualKeyboard({
     },
     [onInsert, shift, layer],
   )
+
+  // Press-and-hold helper. On pointerdown we fire once immediately,
+  // then schedule a repeating tick after a short initial delay. On
+  // pointerup/leave/cancel we clear the timers. Mirrors how native
+  // keyboards auto-repeat when the user holds backspace.
+  const holdTimers = useRef<{ initial: ReturnType<typeof setTimeout> | null; tick: ReturnType<typeof setInterval> | null }>({ initial: null, tick: null })
+  const stopHold = useCallback(() => {
+    if (holdTimers.current.initial) {
+      clearTimeout(holdTimers.current.initial)
+      holdTimers.current.initial = null
+    }
+    if (holdTimers.current.tick) {
+      clearInterval(holdTimers.current.tick)
+      holdTimers.current.tick = null
+    }
+  }, [])
+  const startHold = useCallback(
+    (action: () => void) => {
+      // First fire immediately so the action feels instant on tap.
+      action()
+      // After 400ms, begin repeating every 50ms.
+      holdTimers.current.initial = setTimeout(() => {
+        holdTimers.current.tick = setInterval(action, 50)
+      }, 400)
+    },
+    [],
+  )
+  // Safety: clear timers if the component unmounts mid-hold.
+  useEffect(() => {
+    return () => stopHold()
+  }, [stopHold])
 
   const Key = ({
     label,
@@ -142,12 +173,28 @@ export default function VirtualKeyboard({
               />
             ))}
             {isLast && (
-              <Key
-                label={<Delete size={20} />}
-                onPress={onBackspace}
-                flex={1.6}
-                variant="modifier"
-              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  startHold(onBackspace)
+                }}
+                onPointerUp={stopHold}
+                onPointerLeave={stopHold}
+                onPointerCancel={stopHold}
+                onMouseDown={(e) => e.preventDefault()}
+                style={{ flex: 1.6 }}
+                className={cn(
+                  "rounded-[6px] font-normal select-none active:opacity-70 transition-opacity",
+                  "flex items-center justify-center",
+                  "h-[44px] sm:h-[46px]",
+                  "bg-[#ADB3BC] text-black text-[18px] dark:bg-[#3C3C3F] dark:text-white",
+                )}
+                aria-label="Backspace"
+              >
+                <Delete size={20} />
+              </button>
             )}
           </div>
         )

@@ -1,9 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { flushSync } from "react-dom"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
+import Composer from "@/app/_components/Composer"
 import { format, formatDistanceToNowStrict } from "date-fns"
 import {
   ArrowLeft,
@@ -209,13 +208,10 @@ export default function Inbox({
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [trainers, setTrainers] = useState<Trainer[]>([])
-  const [text, setText] = useState("")
-  const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Font-scale toggle for the inbox. 5 steps so the difference between adjacent
   // sizes is meaningful but the extremes don't break the layout. Persisted to
@@ -293,48 +289,9 @@ export default function Inbox({
     el.scrollTop = el.scrollHeight
   }, [detail?.messages.length])
 
-  // Keep the caret blinking in the textarea any time a chat is open, even
-  // if the user taps somewhere else in the modal. Without this the caret
-  // disappears as soon as the textarea loses focus, which makes it look
-  // like typing won't work (although our VirtualKeyboard still drives it).
-  // Because the textarea has inputMode="none", refocusing it does NOT
-  // pop the OS soft keyboard.
-  useEffect(() => {
-    if (!selectedId) return
-    const t = textareaRef.current
-    if (!t) return
-    t.focus()
-  }, [selectedId])
-
-  // Auto-grow the textarea up to 3 lines, then become an internal scroll
-  // region. Mirrors WhatsApp/Telegram composer behaviour: starts at one
-  // line, expands as the user types, caps at 3 lines, beyond which older
-  // lines scroll out of view and the latest line is always visible.
-  // useLayoutEffect (not useEffect) so the new height is applied *before*
-  // the browser paints the typed character — eliminating the tiny
-  // "typed-but-not-resized" flicker you'd otherwise see.
-  useLayoutEffect(() => {
-    const t = textareaRef.current
-    if (!t) return
-    // Reset to "auto" first so scrollHeight reflects the natural content
-    // height regardless of the previous value.
-    t.style.height = "auto"
-    const style = window.getComputedStyle(t)
-    const lineHeight = parseFloat(style.lineHeight) || 20
-    const paddingTop = parseFloat(style.paddingTop) || 0
-    const paddingBottom = parseFloat(style.paddingBottom) || 0
-    const borderTop = parseFloat(style.borderTopWidth) || 0
-    const borderBottom = parseFloat(style.borderBottomWidth) || 0
-    const verticalPadding = paddingTop + paddingBottom + borderTop + borderBottom
-    const maxH = lineHeight * 3 + verticalPadding
-    const naturalH = t.scrollHeight
-    t.style.height = Math.min(naturalH, maxH) + "px"
-    // When content exceeds 3 lines the textarea scrolls internally; keep
-    // the latest line in view.
-    if (naturalH > maxH) {
-      t.scrollTop = t.scrollHeight
-    }
-  }, [text, fontScale])
+  // (Composer owns the textarea, its focus, and its auto-grow logic now —
+  // see app/_components/Composer.tsx. The "always-on caret" and
+  // "expand-up-to-3-lines" behaviours moved with it.)
 
   const openConvo = (id: string) => {
     if (embedded) {
@@ -355,9 +312,8 @@ export default function Inbox({
     router.push(params.toString() ? `?${params.toString()}` : "?")
   }
 
-  const send = async () => {
-    if (!detail || !text.trim() || sending) return
-    const draft = text.trim()
+  const send = useCallback(async (draft: string) => {
+    if (!detail || !draft.trim()) return
     const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 
     // ---- Optimistic UI ----
@@ -381,29 +337,19 @@ export default function Inbox({
       importedAt: null,
       createdAt: new Date().toISOString(),
     }
-    // flushSync forces the optimistic bubble + cleared text to commit to
-    // the DOM in the same synchronous task as our re-focus call below. If
-    // we let React batch these updates, iOS Safari sees the textarea's
-    // value change (via re-render) AFTER the click handler finishes and
-    // dismisses the keyboard. Keeping it synchronous lets us re-focus
-    // immediately while iOS still considers the textarea active.
-    flushSync(() => {
-      setDetail((prev) =>
-        prev ? { ...prev, messages: [...prev.messages, optimisticMsg] } : prev,
-      )
-      setText("")
-      setSendError(null)
-    })
-    textareaRef.current?.focus()
-    // Scroll to the bottom so the new bubble is visible. Direct scrollTop
-    // assignment avoids triggering iOS Safari's "scroll the page" path
-    // that scrollIntoView can take.
+    // Composer owns the textarea state and clears its own value when it
+    // calls onSend(draft); we just append the optimistic bubble and run
+    // the network request.
+    setDetail((prev) =>
+      prev ? { ...prev, messages: [...prev.messages, optimisticMsg] } : prev,
+    )
+    setSendError(null)
+    // Scroll to the bottom so the new bubble is visible.
     requestAnimationFrame(() => {
       const el = messagesScrollRef.current
       if (el) el.scrollTop = el.scrollHeight
     })
 
-    setSending(true)
     try {
       const r = await fetch(`/api/whatsapp/conversations/${detail.id}/messages`, {
         method: "POST",
@@ -459,10 +405,8 @@ export default function Inbox({
             }
           : prev,
       )
-    } finally {
-      setSending(false)
     }
-  }
+  }, [detail, refreshList])
 
   const reassign = async (trainerId: string | null) => {
     if (!detail) return
@@ -632,11 +576,6 @@ export default function Inbox({
   ) : (
     <div
       ref={messagesScrollRef}
-      onTouchMove={() => {
-        if (document.activeElement === textareaRef.current) {
-          textareaRef.current?.blur()
-        }
-      }}
       className="flex-1 min-w-0 h-full overflow-y-auto bg-[#ECE5DD] dark:bg-[#0B141A]"
     >
       {/* Single-scroll-container pattern (mirrors WhatsApp/Telegram web):
@@ -743,93 +682,26 @@ export default function Inbox({
         {/* WhatsApp-style composer row: + on the left, pill input with the
             textarea, white circular Send button on the right. Sits over the
             chat doodle background, no separate border. */}
-        <div
-          className="px-2 pt-2 bg-[#ECE5DD] dark:bg-[#0B141A]"
-          style={{ paddingBottom: 6 }}
-        >
         {windowOpen ? (
-          <div className="flex gap-2 items-end">
-            {/* "+" attachment button — decorative placeholder for now. */}
-            <button
-              type="button"
-              tabIndex={-1}
-              onPointerDown={(e) => e.preventDefault()}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0"
-              aria-label="Attach"
-            >
-              <span className="text-2xl leading-none">+</span>
-            </button>
-
-            {/* Pill input with the textarea inside. */}
-            <div className="flex-1 min-w-0 flex items-end bg-white dark:bg-[#1F2C34] rounded-3xl px-4 py-1 shadow-sm">
-              <textarea
-                ref={textareaRef}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onBlur={() => {
-                  requestAnimationFrame(() => {
-                    const active = document.activeElement
-                    if (
-                      textareaRef.current &&
-                      (active === document.body || active === null)
-                    ) {
-                      textareaRef.current.focus({ preventScroll: true })
-                    }
-                  })
-                }}
-                inputMode="none"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                placeholder="Сообщение"
-                disabled={sending}
-                rows={1}
-                className="flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0] disabled:text-gray-400 dark:disabled:text-[#5C6970]"
-                style={{ fontSize: `${fontScale * 0.95}rem` }}
-              />
-            </div>
-
-            {/* Send button: white circle with up-arrow icon, matches WhatsApp. */}
-            <button
-              onClick={send}
-              tabIndex={-1}
-              onMouseDown={(e) => e.preventDefault()}
-              onPointerDown={(e) => e.preventDefault()}
-              disabled={sending || !text.trim()}
-              className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center transition-colors flex-shrink-0",
-                "bg-white text-[#1F2C34] dark:bg-white dark:text-[#1F2C34]",
-                "disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-[#2A3942] dark:disabled:text-[#5C6970]",
-              )}
-              aria-label="Send"
-            >
-              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            </button>
-          </div>
+          // Composer owns its own text state (uncontrolled textarea), so
+          // typing does not re-render Inbox. See app/_components/Composer.tsx.
+          <Composer onSend={send} fontScale={fontScale} />
         ) : (
-          // Window closed: hide the whole composer row (textarea / Send / +)
-          // and show only the WhatsApp-style notice. Sending is impossible
-          // until the client writes back, so there's nothing to type into.
-          <div className="mx-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2 dark:text-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
-            <Sparkles size={14} className="mt-0.5 flex-shrink-0" />
-            <span>
-              24-часовое окно закрыто. Клиент должен написать первым, либо
-              отправь утверждённый шаблон (в этой версии — через бронирование).
-            </span>
+          // Window closed: no composer + no keyboard, just a notice.
+          <div className="px-2 pt-2 pb-2 bg-[#ECE5DD] dark:bg-[#0B141A]">
+            <div className="mx-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2 dark:text-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
+              <Sparkles size={14} className="mt-0.5 flex-shrink-0" />
+              <span>
+                24-часовое окно закрыто. Клиент должен написать первым, либо
+                отправь утверждённый шаблон (в этой версии — через бронирование).
+              </span>
+            </div>
           </div>
         )}
-        {sendError && <div className="mt-2 mx-2 text-xs text-red-600 dark:text-red-400">{sendError}</div>}
-        </div>
-        {/* In-page keyboard. Replaces the OS soft keyboard entirely — see
-            the textarea's `inputMode="none"`. The keyboard never sends —
-            the green Send button in the composer above does that. Hidden
-            when the 24h window is closed since there's no field to type
-            into anyway. */}
-        {windowOpen && (
-          <VirtualKeyboard
-            onInsert={(ch) => setText((t) => t + ch)}
-            onBackspace={() => setText((t) => t.slice(0, -1))}
-          />
+        {sendError && (
+          <div className="px-3 pb-1 text-xs text-red-600 dark:text-red-400 bg-[#ECE5DD] dark:bg-[#0B141A]">
+            {sendError}
+          </div>
         )}
       </div>
     </div>

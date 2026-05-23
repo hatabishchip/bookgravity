@@ -140,11 +140,33 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     return () => window.removeEventListener("keydown", onKey)
   }, [open])
 
+  // Block iOS Safari's two-finger pinch-to-zoom while the modal is open.
+  // The viewport meta + CSS touch-action take care of most cases, but iOS
+  // still fires non-standard `gesturestart` events for pinch — calling
+  // preventDefault on those keeps the modal at 1× zoom.
+  useEffect(() => {
+    if (!open) return
+    const prevent = (e: Event) => e.preventDefault()
+    document.addEventListener("gesturestart", prevent, { passive: false })
+    document.addEventListener("gesturechange", prevent, { passive: false })
+    document.addEventListener("gestureend", prevent, { passive: false })
+    return () => {
+      document.removeEventListener("gesturestart", prevent)
+      document.removeEventListener("gesturechange", prevent)
+      document.removeEventListener("gestureend", prevent)
+    }
+  }, [open])
+
   if (hidden) return null
 
   const modal = open ? (
     <div
-      className="fixed inset-0 z-[2147483646] bg-white dark:bg-[#0B141A] overflow-hidden"
+      // `touch-action: pan-y` blocks pinch-to-zoom on iOS Safari while still
+      // allowing vertical scroll of the chat thread (we don't need horizontal
+      // pan anywhere inside the modal). Without this iOS lets two-finger
+      // gestures zoom the page even though the viewport meta has
+      // user-scalable=no.
+      className="fixed inset-0 z-[2147483646] bg-white dark:bg-[#0B141A] overflow-hidden touch-pan-y"
       // The outer layer NEVER moves and is fully opaque — this is what
       // guarantees the underlying admin page can't peek through.
       role="dialog"
