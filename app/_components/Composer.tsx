@@ -1,9 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Loader2, Send } from "lucide-react"
+import { Keyboard, Loader2, Send, Smile } from "lucide-react"
 import { cn } from "@/lib/utils"
 import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
+import StickerPicker from "@/app/_components/StickerPicker"
 
 // ---------------------------------------------------------------------------
 // Inbox composer (pill input + virtual keyboard).
@@ -32,6 +33,8 @@ export default function Composer({ onSend, onAttach, fontScale }: ComposerProps)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasText, setHasText] = useState(false)
   const [sending, setSending] = useState(false)
+  // Bottom panel mode — either the typing keyboard or the sticker picker.
+  const [bottomPanel, setBottomPanel] = useState<"keyboard" | "stickers">("keyboard")
 
   // Recompute the textarea's height (up to 3 lines, then internal scroll).
   // Read-then-write in the same task to avoid layout thrashing. Coalesced
@@ -164,6 +167,21 @@ export default function Composer({ onSend, onAttach, fontScale }: ComposerProps)
           >
             <span className="text-2xl leading-none">+</span>
           </button>
+          {/* Sticker / keyboard toggle. The icon flips depending on which
+              panel is currently shown below, mirroring WhatsApp. */}
+          <button
+            type="button"
+            tabIndex={-1}
+            onPointerDown={(e) => e.preventDefault()}
+            onClick={() =>
+              setBottomPanel((m) => (m === "keyboard" ? "stickers" : "keyboard"))
+            }
+            disabled={!onAttach}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0 disabled:opacity-40 active:opacity-60"
+            aria-label={bottomPanel === "keyboard" ? "Open stickers" : "Open keyboard"}
+          >
+            {bottomPanel === "keyboard" ? <Smile size={22} /> : <Keyboard size={22} />}
+          </button>
 
           {/* Pill input with the textarea inside. */}
           <div className="flex-1 min-w-0 flex items-end bg-white dark:bg-[#1F2C34] rounded-3xl px-4 py-1 shadow-sm">
@@ -216,7 +234,20 @@ export default function Composer({ onSend, onAttach, fontScale }: ComposerProps)
         </div>
       </div>
 
-      <VirtualKeyboard onInsert={insertText} onBackspace={backspace} />
+      {bottomPanel === "keyboard" ? (
+        <VirtualKeyboard onInsert={insertText} onBackspace={backspace} />
+      ) : (
+        <StickerPicker
+          onPick={async (file) => {
+            // Reuse the same attach flow as a photo upload — the server
+            // promotes image/webp to a sticker message automatically.
+            if (onAttach) await onAttach(file)
+            // Return focus to the textarea so the caret keeps blinking
+            // when the user comes back to typing.
+            textareaRef.current?.focus({ preventScroll: true })
+          }}
+        />
+      )}
     </>
   )
 }
