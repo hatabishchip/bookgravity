@@ -275,9 +275,13 @@ export default function Inbox({
     return () => clearInterval(t)
   }, [selectedId, refreshDetail])
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom when messages change. Use the container's
+  // scrollTop directly (not scrollIntoView) so we don't accidentally
+  // smooth-scroll the underlying page on iOS Safari.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    const el = messagesScrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
   }, [detail?.messages.length])
 
   const openConvo = (id: string) => {
@@ -339,9 +343,12 @@ export default function Inbox({
       setSendError(null)
     })
     textareaRef.current?.focus()
-    // Scroll to the bottom so the new bubble is visible.
+    // Scroll to the bottom so the new bubble is visible. Direct scrollTop
+    // assignment avoids triggering iOS Safari's "scroll the page" path
+    // that scrollIntoView can take.
     requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+      const el = messagesScrollRef.current
+      if (el) el.scrollTop = el.scrollHeight
     })
 
     setSending(true)
@@ -570,11 +577,24 @@ export default function Inbox({
       </div>
     </div>
   ) : (
-    <div className="flex-1 flex flex-col bg-[#ECE5DD] min-w-0 h-full overflow-hidden">
-      {/* Chat header. `sticky top:0` is a belt-and-suspenders so that even
-          if iOS Safari auto-scrolls something inside the column on focus,
-          the header stays pinned to the top of the visible chat area. */}
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 flex-shrink-0">
+    <div
+      ref={messagesScrollRef}
+      onTouchMove={() => {
+        if (document.activeElement === textareaRef.current) {
+          textareaRef.current?.blur()
+        }
+      }}
+      className="flex-1 min-w-0 h-full overflow-y-auto bg-[#ECE5DD]"
+    >
+      {/* Single-scroll-container pattern (mirrors WhatsApp/Telegram web):
+          the chatColumn itself is the scroll container, the header sticks
+          to its top and the composer sticks to its bottom. When iOS Safari
+          auto-scrolls the focused textarea into view, it scrolls *this*
+          container — the sticky elements naturally remain glued to the top
+          and bottom of the visible area, so the header no longer flies off
+          and the composer stays pinned above the keyboard. */}
+      {/* Chat header */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
         <button
           onClick={closeConvo}
           className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
@@ -641,20 +661,9 @@ export default function Inbox({
         )}
       </div>
 
-      {/* Messages. `min-h-0` lets the flex child actually shrink (default
-          flex min-height is `auto` which would let it bleed past the parent
-          and push the header off the top of the modal). A touchmove
-          listener dismisses the keyboard the same way WhatsApp does when
-          you start scrolling the chat. */}
-      <div
-        ref={messagesScrollRef}
-        onTouchMove={() => {
-          if (document.activeElement === textareaRef.current) {
-            textareaRef.current?.blur()
-          }
-        }}
-        className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-2"
-      >
+      {/* Messages — now direct children of the scroll container itself,
+          so iOS Safari has exactly one scrollable element to work with. */}
+      <div className="px-3 sm:px-6 py-4 space-y-2">
         {loadingDetail && !detail ? (
           <div className="text-center text-gray-400 text-sm py-8">
             <Loader2 size={16} className="animate-spin inline mr-2" /> Loading...
@@ -669,11 +678,12 @@ export default function Inbox({
         )}
       </div>
 
-      {/* Composer. The bottom padding combines a normal 12px gap with the
-          iOS home-indicator safe area so the textarea is never hidden by
-          the address bar / home indicator. */}
+      {/* Composer pinned to the bottom of the scroll container. When iOS
+          shrinks the viewport (keyboard up) and scrolls the container to
+          show the textarea, `sticky bottom:0` keeps this row glued to the
+          bottom of the visible area — i.e. right above the keyboard. */}
       <div
-        className="bg-white border-t border-gray-100 px-3 sm:px-4 pt-3 flex-shrink-0"
+        className="sticky bottom-0 z-20 bg-white border-t border-gray-100 px-3 sm:px-4 pt-3"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
       >
         {!windowOpen && (
