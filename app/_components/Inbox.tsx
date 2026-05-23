@@ -301,6 +301,33 @@ export default function Inbox({
     t.focus()
   }, [selectedId])
 
+  // Auto-grow the textarea up to 3 lines, then become an internal scroll
+  // region. Mirrors WhatsApp/Telegram composer behaviour: starts at one
+  // line, expands as the user types, caps at 3 lines, beyond which older
+  // lines scroll out of view and the latest line is always visible.
+  useEffect(() => {
+    const t = textareaRef.current
+    if (!t) return
+    // Reset to "auto" first so scrollHeight reflects the natural content
+    // height regardless of the previous value.
+    t.style.height = "auto"
+    const style = window.getComputedStyle(t)
+    const lineHeight = parseFloat(style.lineHeight) || 20
+    const paddingTop = parseFloat(style.paddingTop) || 0
+    const paddingBottom = parseFloat(style.paddingBottom) || 0
+    const borderTop = parseFloat(style.borderTopWidth) || 0
+    const borderBottom = parseFloat(style.borderBottomWidth) || 0
+    const verticalPadding = paddingTop + paddingBottom + borderTop + borderBottom
+    const maxH = lineHeight * 3 + verticalPadding
+    const naturalH = t.scrollHeight
+    t.style.height = Math.min(naturalH, maxH) + "px"
+    // When content exceeds 3 lines the textarea scrolls internally; keep
+    // the latest line in view.
+    if (naturalH > maxH) {
+      t.scrollTop = t.scrollHeight
+    }
+  }, [text, fontScale])
+
   const openConvo = (id: string) => {
     if (embedded) {
       setEmbeddedSelectedId(id)
@@ -747,8 +774,11 @@ export default function Inbox({
             placeholder={windowOpen ? "Напиши сообщение..." : "Окно закрыто — нужен шаблон"}
             disabled={!windowOpen || sending}
             rows={1}
-            className="flex-1 resize-none border border-gray-200 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:bg-gray-50 disabled:text-gray-400 max-h-32 dark:bg-[#2A3942] dark:border-transparent dark:text-white dark:placeholder-gray-400 dark:disabled:bg-[#1F2C34]"
-            style={{ minHeight: 40, fontSize: `${fontScale * 0.875}rem` }}
+            // Auto-grow logic (up to 3 lines) lives in the useEffect above;
+            // this className just sets the visual look + ensures we render
+            // a scrollbar when content overflows the 3-line cap.
+            className="flex-1 resize-none overflow-y-auto leading-snug border border-gray-200 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:bg-gray-50 disabled:text-gray-400 dark:bg-[#2A3942] dark:border-transparent dark:text-white dark:placeholder-gray-400 dark:disabled:bg-[#1F2C34]"
+            style={{ fontSize: `${fontScale * 0.875}rem` }}
           />
           <button
             onClick={send}
