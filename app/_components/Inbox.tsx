@@ -288,6 +288,19 @@ export default function Inbox({
     el.scrollTop = el.scrollHeight
   }, [detail?.messages.length])
 
+  // Keep the caret blinking in the textarea any time a chat is open, even
+  // if the user taps somewhere else in the modal. Without this the caret
+  // disappears as soon as the textarea loses focus, which makes it look
+  // like typing won't work (although our VirtualKeyboard still drives it).
+  // Because the textarea has inputMode="none", refocusing it does NOT
+  // pop the OS soft keyboard.
+  useEffect(() => {
+    if (!selectedId) return
+    const t = textareaRef.current
+    if (!t) return
+    t.focus()
+  }, [selectedId])
+
   const openConvo = (id: string) => {
     if (embedded) {
       setEmbeddedSelectedId(id)
@@ -706,6 +719,21 @@ export default function Inbox({
             ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onBlur={() => {
+              // Keep the caret visible — refocus on the next frame unless
+              // focus was deliberately handed off to another control
+              // (e.g. the assign-trainer dropdown). We only refocus when
+              // nothing else grabbed focus.
+              requestAnimationFrame(() => {
+                const active = document.activeElement
+                if (
+                  textareaRef.current &&
+                  (active === document.body || active === null)
+                ) {
+                  textareaRef.current.focus({ preventScroll: true })
+                }
+              })
+            }}
             // inputMode="none" tells iOS Safari / Chrome Android to NOT pop
             // the OS soft keyboard when this textarea is focused. The
             // VirtualKeyboard below handles all input. We still leave the
