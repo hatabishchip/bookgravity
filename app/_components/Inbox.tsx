@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import { useRouter, useSearchParams } from "next/navigation"
 import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
@@ -305,7 +305,10 @@ export default function Inbox({
   // region. Mirrors WhatsApp/Telegram composer behaviour: starts at one
   // line, expands as the user types, caps at 3 lines, beyond which older
   // lines scroll out of view and the latest line is always visible.
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so the new height is applied *before*
+  // the browser paints the typed character — eliminating the tiny
+  // "typed-but-not-resized" flicker you'd otherwise see.
+  useLayoutEffect(() => {
     const t = textareaRef.current
     if (!t) return
     // Reset to "auto" first so scrollHeight reflects the natural content

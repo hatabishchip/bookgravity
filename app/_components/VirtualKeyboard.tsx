@@ -66,11 +66,6 @@ export default function VirtualKeyboard({
     [onInsert, shift, layer],
   )
 
-  // Cancel default mousedown/pointerdown so the textarea above never loses
-  // focus when a key is tapped. (preventDefault on the synthetic mousedown
-  // also blocks Safari's default "focus the button" path.)
-  const noFocusSteal = (e: React.SyntheticEvent) => e.preventDefault()
-
   const Key = ({
     label,
     onPress,
@@ -85,9 +80,18 @@ export default function VirtualKeyboard({
     <button
       type="button"
       tabIndex={-1}
-      onMouseDown={noFocusSteal}
-      onPointerDown={noFocusSteal}
-      onClick={onPress}
+      // Insert on POINTERDOWN, not click — the character appears the
+      // instant the finger touches the key instead of waiting for the
+      // touchend+click round-trip (~70-150ms on iOS). preventDefault
+      // also stops Safari from moving focus to the button, so the
+      // textarea above keeps its caret.
+      onPointerDown={(e) => {
+        e.preventDefault()
+        onPress()
+      }}
+      // mousedown is preventDefault'd as a fallback for older browsers
+      // that don't dispatch pointer events.
+      onMouseDown={(e) => e.preventDefault()}
       style={{ flex }}
       className={cn(
         "rounded-[6px] font-normal select-none active:opacity-70 transition-opacity",
@@ -170,9 +174,11 @@ export default function VirtualKeyboard({
         <button
           type="button"
           tabIndex={-1}
-          onMouseDown={noFocusSteal}
-          onPointerDown={noFocusSteal}
-          onClick={() => onInsert(" ")}
+          onPointerDown={(e) => {
+            e.preventDefault()
+            onInsert(" ")
+          }}
+          onMouseDown={(e) => e.preventDefault()}
           style={{ flex: 5 }}
           className="relative rounded-[6px] bg-white text-black shadow-sm dark:bg-[#6C6C70] dark:text-white dark:shadow-none h-[44px] sm:h-[46px] active:opacity-70 transition-opacity flex items-center justify-center text-[15px]"
         >
