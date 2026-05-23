@@ -747,82 +747,90 @@ export default function Inbox({
           className="px-2 pt-2 bg-[#ECE5DD] dark:bg-[#0B141A]"
           style={{ paddingBottom: 6 }}
         >
-        {!windowOpen && (
-          <div className="mb-2 mx-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2 dark:text-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
-            <Sparkles size={14} />
+        {windowOpen ? (
+          <div className="flex gap-2 items-end">
+            {/* "+" attachment button — decorative placeholder for now. */}
+            <button
+              type="button"
+              tabIndex={-1}
+              onPointerDown={(e) => e.preventDefault()}
+              className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0"
+              aria-label="Attach"
+            >
+              <span className="text-2xl leading-none">+</span>
+            </button>
+
+            {/* Pill input with the textarea inside. */}
+            <div className="flex-1 min-w-0 flex items-end bg-white dark:bg-[#1F2C34] rounded-3xl px-4 py-1 shadow-sm">
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onBlur={() => {
+                  requestAnimationFrame(() => {
+                    const active = document.activeElement
+                    if (
+                      textareaRef.current &&
+                      (active === document.body || active === null)
+                    ) {
+                      textareaRef.current.focus({ preventScroll: true })
+                    }
+                  })
+                }}
+                inputMode="none"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                placeholder="Сообщение"
+                disabled={sending}
+                rows={1}
+                className="flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0] disabled:text-gray-400 dark:disabled:text-[#5C6970]"
+                style={{ fontSize: `${fontScale * 0.95}rem` }}
+              />
+            </div>
+
+            {/* Send button: white circle with up-arrow icon, matches WhatsApp. */}
+            <button
+              onClick={send}
+              tabIndex={-1}
+              onMouseDown={(e) => e.preventDefault()}
+              onPointerDown={(e) => e.preventDefault()}
+              disabled={sending || !text.trim()}
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center transition-colors flex-shrink-0",
+                "bg-white text-[#1F2C34] dark:bg-white dark:text-[#1F2C34]",
+                "disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-[#2A3942] dark:disabled:text-[#5C6970]",
+              )}
+              aria-label="Send"
+            >
+              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            </button>
+          </div>
+        ) : (
+          // Window closed: hide the whole composer row (textarea / Send / +)
+          // and show only the WhatsApp-style notice. Sending is impossible
+          // until the client writes back, so there's nothing to type into.
+          <div className="mx-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2 dark:text-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
+            <Sparkles size={14} className="mt-0.5 flex-shrink-0" />
             <span>
-              24-часовое окно закрыто. Клиент должен написать первым, либо отправь утверждённый
-              шаблон (в этой версии — через бронирование). Free-form text заблокирован.
+              24-часовое окно закрыто. Клиент должен написать первым, либо
+              отправь утверждённый шаблон (в этой версии — через бронирование).
             </span>
           </div>
         )}
-        <div className="flex gap-2 items-end">
-          {/* "+" attachment button — decorative placeholder for now. */}
-          <button
-            type="button"
-            tabIndex={-1}
-            onPointerDown={(e) => e.preventDefault()}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0"
-            aria-label="Attach"
-          >
-            <span className="text-2xl leading-none">+</span>
-          </button>
-
-          {/* Pill input with the textarea inside. */}
-          <div className="flex-1 min-w-0 flex items-end bg-white dark:bg-[#1F2C34] rounded-3xl px-4 py-1 shadow-sm">
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onBlur={() => {
-                requestAnimationFrame(() => {
-                  const active = document.activeElement
-                  if (
-                    textareaRef.current &&
-                    (active === document.body || active === null)
-                  ) {
-                    textareaRef.current.focus({ preventScroll: true })
-                  }
-                })
-              }}
-              inputMode="none"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              placeholder={windowOpen ? "Сообщение" : "Окно закрыто — нужен шаблон"}
-              disabled={!windowOpen || sending}
-              rows={1}
-              className="flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0] disabled:text-gray-400 dark:disabled:text-[#5C6970]"
-              style={{ fontSize: `${fontScale * 0.95}rem` }}
-            />
-          </div>
-
-          {/* Send button: white circle with up-arrow icon, matches WhatsApp. */}
-          <button
-            onClick={send}
-            tabIndex={-1}
-            onMouseDown={(e) => e.preventDefault()}
-            onPointerDown={(e) => e.preventDefault()}
-            disabled={!windowOpen || sending || !text.trim()}
-            className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center transition-colors flex-shrink-0",
-              "bg-white text-[#1F2C34] dark:bg-white dark:text-[#1F2C34]",
-              "disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-[#2A3942] dark:disabled:text-[#5C6970]",
-            )}
-            aria-label="Send"
-          >
-            {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-          </button>
-        </div>
         {sendError && <div className="mt-2 mx-2 text-xs text-red-600 dark:text-red-400">{sendError}</div>}
         </div>
         {/* In-page keyboard. Replaces the OS soft keyboard entirely — see
             the textarea's `inputMode="none"`. The keyboard never sends —
-            the green Send button in the composer above does that. */}
-        <VirtualKeyboard
-          onInsert={(ch) => setText((t) => t + ch)}
-          onBackspace={() => setText((t) => t.slice(0, -1))}
-        />
+            the green Send button in the composer above does that. Hidden
+            when the 24h window is closed since there's no field to type
+            into anyway. */}
+        {windowOpen && (
+          <VirtualKeyboard
+            onInsert={(ch) => setText((t) => t + ch)}
+            onBackspace={() => setText((t) => t.slice(0, -1))}
+          />
+        )}
       </div>
     </div>
   )
