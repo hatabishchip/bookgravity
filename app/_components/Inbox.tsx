@@ -300,28 +300,98 @@ export default function Inbox({
 
   const send = async () => {
     if (!detail || !text.trim() || sending) return
-    setSending(true)
+    const draft = text.trim()
+    const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+
+    // ---- Optimistic UI ----
+    // Push a pending bubble into the thread immediately so the message
+    // appears in the chat the instant the user hits Send (and the input
+    // clears straight away). The server round-trip happens in the
+    // background; when it lands we either replace the bubble's id/status
+    // with the real row, or mark it as failed so the user can retry.
+    const optimisticMsg: MessageRow = {
+      id: tempId,
+      direction: "OUTBOUND",
+      type: "text",
+      body: draft,
+      mediaUrl: null,
+      mediaMime: null,
+      templateName: null,
+      status: "queued",
+      errorDetail: null,
+      fromTrainerId: null,
+      fromTrainer: null,
+      importedAt: null,
+      createdAt: new Date().toISOString(),
+    }
+    setDetail((prev) =>
+      prev ? { ...prev, messages: [...prev.messages, optimisticMsg] } : prev,
+    )
+    setText("")
     setSendError(null)
+    // Keep focus / keyboard up after Send — WhatsApp/Telegram behaviour.
+    textareaRef.current?.focus()
+    // Scroll to the bottom so the new bubble is visible.
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    }, 0)
+
+    setSending(true)
     try {
       const r = await fetch(`/api/whatsapp/conversations/${detail.id}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.trim() }),
+        body: JSON.stringify({ text: draft }),
       })
-      const data = await r.json()
+      const data = (await r.json().catch(() => ({}))) as {
+        message?: MessageRow
+        error?: string
+      }
       if (!r.ok) {
         setSendError(data.error || `HTTP ${r.status}`)
+        // Mark the optimistic bubble as failed but keep it in the thread.
+        setDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: prev.messages.map((m) =>
+                  m.id === tempId
+                    ? { ...m, status: "failed", errorDetail: data.error ?? `HTTP ${r.status}` }
+                    : m,
+                ),
+              }
+            : prev,
+        )
       } else {
-        setText("")
-        await refreshDetail(detail.id)
-        await refreshList()
-        // Keep keyboard open after send — WhatsApp / Telegram both do this.
-        // Without an explicit focus call, iOS treats the network round-trip
-        // as a context change and dismisses the keyboard.
-        textareaRef.current?.focus()
+        // Replace the optimistic bubble with the server row so we get the
+        // real id, wamid, and any later status updates correlate correctly.
+        setDetail((prev) =>
+          prev && data.message
+            ? {
+                ...prev,
+                messages: prev.messages.map((m) =>
+                  m.id === tempId ? (data.message as MessageRow) : m,
+                ),
+              }
+            : prev,
+        )
+        // Refresh the sidebar (last-message preview / order) in the
+        // background — no UI block.
+        refreshList()
       }
     } catch (e) {
-      setSendError(e instanceof Error ? e.message : String(e))
+      const msg = e instanceof Error ? e.message : String(e)
+      setSendError(msg)
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === tempId ? { ...m, status: "failed", errorDetail: msg } : m,
+              ),
+            }
+          : prev,
+      )
     } finally {
       setSending(false)
     }

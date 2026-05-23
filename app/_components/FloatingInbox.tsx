@@ -151,22 +151,23 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
       </button>
 
       {open && (
+        // Two-layer modal:
+        //   • outer = full-viewport white backdrop, never shrinks
+        //     (covers the underlying admin page even when the keyboard is up)
+        //   • inner = the actual chat region, shrunk from the bottom by the
+        //     keyboard inset so the composer always sits above the keyboard
         <div
-          className="fixed top-0 left-0 z-[60] bg-white overflow-hidden"
-          // Always full visible viewport — never shrinks. The keyboard, if
-          // any, sits *on top of* the modal's bottom region. The Inbox
-          // below uses `paddingBottom: keyboardInset` to shift its
-          // contents up so the composer is always above the keyboard.
-          style={{
-            width: "100vw",
-            height: "100dvh",
-            paddingBottom: keyboardInset,
-          }}
+          className="fixed inset-0 z-[60] bg-white overflow-hidden"
           role="dialog"
           aria-modal="true"
           aria-label="WhatsApp Inbox"
         >
-          <Inbox role={role} embedded onClose={() => setOpen(false)} />
+          <div
+            className="absolute inset-0 bg-white"
+            style={{ paddingBottom: keyboardInset }}
+          >
+            <Inbox role={role} embedded onClose={() => setOpen(false)} />
+          </div>
         </div>
       )}
     </>
