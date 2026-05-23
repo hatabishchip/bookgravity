@@ -89,11 +89,14 @@ function previewText(m: ConversationListItem["lastMessage"]): string {
 }
 
 function StatusTick({ status }: { status: string }) {
-  if (status === "read") return <CheckCheck size={14} className="text-blue-500" />
-  if (status === "delivered") return <CheckCheck size={14} className="text-gray-400" />
-  if (status === "sent") return <Check size={14} className="text-gray-400" />
-  if (status === "failed") return <span className="text-[10px] text-red-500">!</span>
-  return <Loader2 size={12} className="text-gray-300 animate-spin" />
+  // WhatsApp colors: read = #53BDEB (light blue), sent/delivered = gray
+  if (status === "read") return <CheckCheck size={15} className="text-[#53BDEB]" />
+  if (status === "delivered")
+    return <CheckCheck size={15} className="text-gray-500 dark:text-[#8696A0]" />
+  if (status === "sent")
+    return <Check size={15} className="text-gray-500 dark:text-[#8696A0]" />
+  if (status === "failed") return <span className="text-[11px] text-red-500">!</span>
+  return <Loader2 size={12} className="text-gray-400 dark:text-[#8696A0] animate-spin" />
 }
 
 function WindowBadge({ lastInboundAt }: { lastInboundAt: string | null }) {
@@ -172,8 +175,10 @@ function MessageBubble({
           <div className="text-[10px] text-red-600 mt-1">Error: {m.errorDetail}</div>
         )}
 
-        <div className="flex items-center justify-end gap-1 mt-1">
-          <span className="text-[10px] text-gray-500">{format(new Date(m.createdAt), "HH:mm")}</span>
+        <div className="flex items-center justify-end gap-1 mt-1 -mr-1">
+          <span className="text-[11px] text-gray-500 dark:text-[#8696A0] tabular-nums">
+            {format(new Date(m.createdAt), "HH:mm")}
+          </span>
           {isOut && <StatusTick status={m.status} />}
         </div>
       </div>
@@ -483,52 +488,42 @@ export default function Inbox({
 
   // ---------- List column ----------
   const listColumn = (
-    <div className="bg-white border-r border-gray-100 flex flex-col h-full dark:bg-[#111B21] dark:border-[#2A3942]">
-      <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-gray-800 flex items-center gap-2 dark:text-white">
-            <MessageSquare size={18} className="text-[#2C6E49]" />
-            Inbox
-          </h1>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {role === "ADMIN" ? "Все переписки студии" : "Переписки с твоими клиентами"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Font-size control: applies to bubble/list/composer text inside this Inbox only. */}
-          <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-0.5">
-            <button
-              onClick={() => setFontStepPersist(fontStep - 1)}
-              disabled={fontStep <= 0}
-              className="p-1.5 rounded-md hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent text-gray-600"
-              aria-label="Smaller text"
-              title="Smaller"
-            >
-              <AArrowDown size={16} />
-            </button>
-            <div className="text-[10px] text-gray-400 font-mono w-8 text-center select-none">
-              {Math.round(fontScale * 100)}%
-            </div>
-            <button
-              onClick={() => setFontStepPersist(fontStep + 1)}
-              disabled={fontStep >= FONT_STEPS.length - 1}
-              className="p-1.5 rounded-md hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent text-gray-600"
-              aria-label="Larger text"
-              title="Larger"
-            >
-              <AArrowUp size={16} />
-            </button>
-          </div>
+    <div className="bg-white border-r border-gray-100 flex flex-col h-full dark:bg-[#0B141A] dark:border-transparent">
+      {/* WhatsApp-style header: big title centered, action icons right. */}
+      <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+              className="w-9 h-9 rounded-full bg-gray-100 dark:bg-[#2A3942] flex items-center justify-center text-gray-700 dark:text-gray-200 flex-shrink-0"
               aria-label="Close inbox"
               title="Close"
             >
               <X size={18} />
             </button>
           )}
+          <h1 className="text-[26px] font-bold text-gray-900 dark:text-white truncate">
+            Inbox
+          </h1>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Font-size control: applies to bubble/list/composer text inside this Inbox only. */}
+          <button
+            onClick={() => setFontStepPersist(fontStep - 1)}
+            disabled={fontStep <= 0}
+            className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-[#2A3942] disabled:opacity-30 text-gray-600 dark:text-gray-300 flex items-center justify-center"
+            aria-label="Smaller text"
+          >
+            <AArrowDown size={18} />
+          </button>
+          <button
+            onClick={() => setFontStepPersist(fontStep + 1)}
+            disabled={fontStep >= FONT_STEPS.length - 1}
+            className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-[#2A3942] disabled:opacity-30 text-gray-600 dark:text-gray-300 flex items-center justify-center"
+            aria-label="Larger text"
+          >
+            <AArrowUp size={18} />
+          </button>
         </div>
       </div>
 
@@ -548,68 +543,79 @@ export default function Inbox({
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          {convos.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => openConvo(c.id)}
-              className={cn(
-                "w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors flex gap-3",
-                selectedId === c.id && "bg-[#F0F7F2]",
-              )}
-            >
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2C6E49] to-[#43A06B] text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">
-                {(c.clientName?.[0] ?? "?").toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <div
-                    className="font-medium text-gray-800 truncate dark:text-white"
-                    style={{ fontSize: `${fontScale * 0.875}rem` }}
-                  >
-                    {c.clientName || formatPhone(c.clientPhone)}
-                  </div>
-                  <div className="text-[10px] text-gray-400 flex-shrink-0">
-                    {formatDistanceToNowStrict(new Date(c.lastMessageAt), { addSuffix: false })}
-                  </div>
+          {convos.map((c) => {
+            const hasUnread = c.unread > 0
+            return (
+              <button
+                key={c.id}
+                onClick={() => openConvo(c.id)}
+                className={cn(
+                  "w-full text-left pl-4 pr-3 py-2.5 flex gap-3 items-center transition-colors",
+                  "hover:bg-gray-50 dark:hover:bg-[#202C33]",
+                  selectedId === c.id && "bg-gray-100 dark:bg-[#202C33]",
+                )}
+              >
+                {/* Avatar — WhatsApp uses ~52px, default to a neutral gradient
+                    if no profile photo is set. */}
+                <div className="w-[52px] h-[52px] rounded-full bg-gradient-to-br from-[#3B4A54] to-[#54656F] text-white flex items-center justify-center font-semibold text-xl flex-shrink-0 select-none">
+                  {(c.clientName?.[0] ?? "?").toUpperCase()}
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <div
-                    className="text-gray-500 truncate flex-1"
-                    style={{ fontSize: `${fontScale * 0.75}rem` }}
-                  >
-                    {c.lastMessage?.direction === "OUTBOUND" && (
-                      <span className="text-gray-400">Вы: </span>
+                <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-[#222D34] pb-2.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div
+                      className="font-medium text-gray-900 dark:text-white truncate"
+                      style={{ fontSize: `${fontScale}rem` }}
+                    >
+                      {c.clientName || formatPhone(c.clientPhone)}
+                    </div>
+                    <div
+                      className={cn(
+                        "text-[12px] flex-shrink-0 tabular-nums",
+                        hasUnread
+                          ? "text-[#25D366] font-semibold"
+                          : "text-gray-400 dark:text-[#8696A0]",
+                      )}
+                    >
+                      {formatDistanceToNowStrict(new Date(c.lastMessageAt), { addSuffix: false })}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <div
+                      className="text-gray-500 dark:text-[#8696A0] truncate flex-1 flex items-center gap-1"
+                      style={{ fontSize: `${fontScale * 0.8125}rem` }}
+                    >
+                      {c.lastMessage?.direction === "OUTBOUND" && (
+                        <CheckCheck size={14} className="text-gray-400 dark:text-[#8696A0] flex-shrink-0" />
+                      )}
+                      <span className="truncate">{previewText(c.lastMessage)}</span>
+                    </div>
+                    {/* WhatsApp-style green unread badge on the right */}
+                    {hasUnread && (
+                      <span className="bg-[#25D366] text-white text-[11px] min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center font-semibold tabular-nums flex-shrink-0">
+                        {c.unread > 99 ? "99+" : c.unread}
+                      </span>
                     )}
-                    {previewText(c.lastMessage)}
                   </div>
-                  {c.unread > 0 && (
-                    <span className="bg-[#2C6E49] text-white text-[10px] min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center font-semibold">
-                      {c.unread}
-                    </span>
-                  )}
-                </div>
-                {role === "ADMIN" && (
-                  <div className="mt-1">
-                    {c.assignedTrainer ? (
+                  {role === "ADMIN" && c.assignedTrainer && (
+                    <div className="mt-1 flex items-center gap-1.5">
                       <span
-                        className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                        style={{
-                          backgroundColor: (c.assignedTrainer.color ?? "#6366F1") + "20",
-                          color: c.assignedTrainer.color ?? "#6366F1",
-                        }}
-                      >
+                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: c.assignedTrainer.color ?? "#6366F1" }}
+                      />
+                      <span className="text-[11px] text-gray-400 dark:text-[#8696A0]">
                         {c.assignedTrainer.name}
                       </span>
-                    ) : (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium bg-gray-100 text-gray-500">
-                        Не назначен
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </button>
-          ))}
+                    </div>
+                  )}
+                  {role === "ADMIN" && !c.assignedTrainer && (
+                    <div className="mt-1 text-[11px] text-gray-300 dark:text-[#5C6970] italic">
+                      без тренера
+                    </div>
+                  )}
+                </div>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
@@ -640,34 +646,37 @@ export default function Inbox({
           container — the sticky elements naturally remain glued to the top
           and bottom of the visible area, so the header no longer flies off
           and the composer stays pinned above the keyboard. */}
-      {/* Chat header */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 dark:bg-[#1F2C34] dark:border-transparent">
+      {/* Chat header — WhatsApp style: round back button, avatar + name,
+          action icons on the right. */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-2 py-2 flex items-center gap-2 dark:bg-[#1F2C34] dark:border-transparent">
         <button
           onClick={closeConvo}
-          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+          className="lg:hidden w-9 h-9 rounded-full bg-gray-100 dark:bg-[#2A3942] flex items-center justify-center text-gray-700 dark:text-gray-200 flex-shrink-0"
           aria-label="Back"
         >
           <ArrowLeft size={18} />
         </button>
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#2C6E49] to-[#43A06B] text-white flex items-center justify-center font-semibold text-sm">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#3B4A54] to-[#54656F] text-white flex items-center justify-center font-semibold text-base flex-shrink-0 select-none">
           {(detail?.clientName?.[0] ?? "?").toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
           <div
-            className="font-medium text-gray-800 truncate dark:text-white"
+            className="font-medium text-gray-900 dark:text-white truncate"
             style={{ fontSize: `${fontScale}rem` }}
           >
             {detail?.clientName || formatPhone(detail?.clientPhone ?? "")}
           </div>
-          <div
-            className="text-gray-500 truncate"
-            style={{ fontSize: `${fontScale * 0.75}rem` }}
-          >
-            {formatPhone(detail?.clientPhone ?? "")}
-          </div>
+          {detail?.clientName && (
+            <div
+              className="text-gray-500 dark:text-[#8696A0] truncate"
+              style={{ fontSize: `${fontScale * 0.75}rem` }}
+            >
+              {formatPhone(detail.clientPhone)}
+            </div>
+          )}
         </div>
 
-        <div className="hidden sm:block">
+        <div className="hidden md:block">
           <WindowBadge lastInboundAt={detail?.lastInboundAt ?? null} />
         </div>
 
@@ -675,10 +684,10 @@ export default function Inbox({
           <div className="relative">
             <button
               onClick={() => setAssignOpen((v) => !v)}
-              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1.5"
+              className="text-xs px-2.5 py-1.5 rounded-full border border-gray-200 dark:border-[#2A3942] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-[#2A3942] flex items-center gap-1.5"
             >
               <UserCircle2 size={14} />
-              {detail?.assignedTrainer?.name ?? "Назначить"}
+              <span className="max-w-[80px] truncate">{detail?.assignedTrainer?.name ?? "Назначить"}</span>
               <ChevronDown size={12} />
             </button>
             {assignOpen && (
@@ -730,13 +739,16 @@ export default function Inbox({
           keyboard entirely (textarea has inputMode="none"), so the modal
           never has to resize for it — both rows stay at the bottom of the
           visible area as the user scrolls older messages. */}
-      <div className="sticky bottom-0 z-20 bg-white border-t border-gray-100 dark:bg-[#1F2C34] dark:border-transparent">
+      <div className="sticky bottom-0 z-20 bg-transparent dark:bg-transparent">
+        {/* WhatsApp-style composer row: + on the left, pill input with the
+            textarea, white circular Send button on the right. Sits over the
+            chat doodle background, no separate border. */}
         <div
-          className="px-3 sm:px-4 pt-3"
-          style={{ paddingBottom: 8 }}
+          className="px-2 pt-2 bg-[#ECE5DD] dark:bg-[#0B141A]"
+          style={{ paddingBottom: 6 }}
         >
         {!windowOpen && (
-          <div className="mb-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
+          <div className="mb-2 mx-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2 dark:text-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
             <Sparkles size={14} />
             <span>
               24-часовое окно закрыто. Клиент должен написать первым, либо отправь утверждённый
@@ -745,65 +757,64 @@ export default function Inbox({
           </div>
         )}
         <div className="flex gap-2 items-end">
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onBlur={() => {
-              // Keep the caret visible — refocus on the next frame unless
-              // focus was deliberately handed off to another control
-              // (e.g. the assign-trainer dropdown). We only refocus when
-              // nothing else grabbed focus.
-              requestAnimationFrame(() => {
-                const active = document.activeElement
-                if (
-                  textareaRef.current &&
-                  (active === document.body || active === null)
-                ) {
-                  textareaRef.current.focus({ preventScroll: true })
-                }
-              })
-            }}
-            // inputMode="none" tells iOS Safari / Chrome Android to NOT pop
-            // the OS soft keyboard when this textarea is focused. The
-            // VirtualKeyboard below handles all input. We still leave the
-            // textarea editable so users on desktops with hardware keyboards
-            // can type normally.
-            inputMode="none"
-            // Hide autocorrect/autocomplete chrome since we drive input ourselves.
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            placeholder={windowOpen ? "Напиши сообщение..." : "Окно закрыто — нужен шаблон"}
-            disabled={!windowOpen || sending}
-            rows={1}
-            // Auto-grow logic (up to 3 lines) lives in the useEffect above;
-            // this className just sets the visual look + ensures we render
-            // a scrollbar when content overflows the 3-line cap.
-            className="flex-1 resize-none overflow-y-auto leading-snug border border-gray-200 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:bg-gray-50 disabled:text-gray-400 dark:bg-[#2A3942] dark:border-transparent dark:text-white dark:placeholder-gray-400 dark:disabled:bg-[#1F2C34]"
-            style={{ fontSize: `${fontScale * 0.875}rem` }}
-          />
+          {/* "+" attachment button — decorative placeholder for now. */}
+          <button
+            type="button"
+            tabIndex={-1}
+            onPointerDown={(e) => e.preventDefault()}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0"
+            aria-label="Attach"
+          >
+            <span className="text-2xl leading-none">+</span>
+          </button>
+
+          {/* Pill input with the textarea inside. */}
+          <div className="flex-1 min-w-0 flex items-end bg-white dark:bg-[#1F2C34] rounded-3xl px-4 py-1 shadow-sm">
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onBlur={() => {
+                requestAnimationFrame(() => {
+                  const active = document.activeElement
+                  if (
+                    textareaRef.current &&
+                    (active === document.body || active === null)
+                  ) {
+                    textareaRef.current.focus({ preventScroll: true })
+                  }
+                })
+              }}
+              inputMode="none"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              placeholder={windowOpen ? "Сообщение" : "Окно закрыто — нужен шаблон"}
+              disabled={!windowOpen || sending}
+              rows={1}
+              className="flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0] disabled:text-gray-400 dark:disabled:text-[#5C6970]"
+              style={{ fontSize: `${fontScale * 0.95}rem` }}
+            />
+          </div>
+
+          {/* Send button: white circle with up-arrow icon, matches WhatsApp. */}
           <button
             onClick={send}
-            // tabIndex=-1 + preventDefault on mousedown keep the textarea
-            // focused (and therefore the keyboard up) when the user taps
-            // Send. Without these iOS moves focus to the button, dismisses
-            // the keyboard, and the user has to re-tap the textarea to
-            // continue typing. `onPointerDown` is the modern equivalent
-            // that also covers touch-only interaction without blocking
-            // the synthetic click that iOS still needs to fire.
             tabIndex={-1}
             onMouseDown={(e) => e.preventDefault()}
             onPointerDown={(e) => e.preventDefault()}
             disabled={!windowOpen || sending || !text.trim()}
-            className="bg-[#2C6E49] hover:bg-[#1E4D34] disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 transition-colors flex-shrink-0"
+            className={cn(
+              "w-10 h-10 rounded-full flex items-center justify-center transition-colors flex-shrink-0",
+              "bg-white text-[#1F2C34] dark:bg-white dark:text-[#1F2C34]",
+              "disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-[#2A3942] dark:disabled:text-[#5C6970]",
+            )}
             aria-label="Send"
           >
-            {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            <span className="hidden sm:inline">Send</span>
+            {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           </button>
         </div>
-        {sendError && <div className="mt-2 text-xs text-red-600">{sendError}</div>}
+        {sendError && <div className="mt-2 mx-2 text-xs text-red-600 dark:text-red-400">{sendError}</div>}
         </div>
         {/* In-page keyboard. Replaces the OS soft keyboard entirely — see
             the textarea's `inputMode="none"`. The keyboard never sends —
