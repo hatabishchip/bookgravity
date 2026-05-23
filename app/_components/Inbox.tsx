@@ -857,7 +857,7 @@ export default function Inbox({
         {windowOpen ? (
           // Composer owns its own text state (uncontrolled textarea), so
           // typing does not re-render Inbox. See app/_components/Composer.tsx.
-          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} />
+          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} />
         ) : (
           // Window closed: no composer + no keyboard, just a notice.
           <div className="px-2 pt-2 pb-2 bg-[#ECE5DD] dark:bg-[#0B141A]">

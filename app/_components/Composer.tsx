@@ -22,13 +22,17 @@ import StickerPicker from "@/app/_components/StickerPicker"
 export interface ComposerProps {
   /** Called when the Send button (or programmatic send) fires with non-empty text. */
   onSend: (text: string) => Promise<void> | void
-  /** Called when the user picks a photo/video via the "+" button. */
+  /** Called when the user picks a photo/video via the "+" button OR sends a
+   *  sticker from the picker. Both go through the same media route. */
   onAttach?: (file: File) => Promise<void> | void
   /** Current font scale for the composer text and 3-line cap calculations. */
   fontScale: number
+  /** Which user role is viewing — trainers don't get the photo/video "+"
+   *  button (admin-only feature), but they still get the sticker picker. */
+  role: "ADMIN" | "TRAINER"
 }
 
-export default function Composer({ onSend, onAttach, fontScale }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale, role }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasText, setHasText] = useState(false)
@@ -80,25 +84,58 @@ export default function Composer({ onSend, onAttach, fontScale }: ComposerProps)
     setHasText((prev) => (prev === next ? prev : next))
   }, [])
 
-  // VirtualKeyboard → insert one or more characters at the end.
+  // VirtualKeyboard → insert characters at the current caret position
+  // (or replace the current selection). Falls back to "append at end" when
+  // the textarea has never been focused (selectionStart is null).
   const insertText = useCallback(
     (ch: string) => {
       const t = textareaRef.current
       if (!t) return
-      // Direct DOM write — no React state change, no re-render.
-      t.value += ch
+      const value = t.value
+      const hasSelection = t.selectionStart !== null && t.selectionEnd !== null
+      const start = hasSelection ? (t.selectionStart as number) : value.length
+      const end = hasSelection ? (t.selectionEnd as number) : value.length
+      t.value = value.slice(0, start) + ch + value.slice(end)
+      const next = start + ch.length
+      try {
+        t.setSelectionRange(next, next)
+      } catch {
+        // Some browsers throw if the textarea is detached; ignore.
+      }
       updateHeight()
       syncHasText()
     },
     [updateHeight, syncHasText],
   )
 
-  // VirtualKeyboard → backspace last character.
+  // VirtualKeyboard → backspace. If the user has a selection (e.g. they
+  // long-pressed and "Select All"), delete the selection wholesale.
+  // Otherwise delete the single character before the caret.
   const backspace = useCallback(() => {
     const t = textareaRef.current
     if (!t) return
-    if (t.value.length === 0) return
-    t.value = t.value.slice(0, -1)
+    const value = t.value
+    if (value.length === 0) return
+    const hasSelection = t.selectionStart !== null && t.selectionEnd !== null
+    const start = hasSelection ? (t.selectionStart as number) : value.length
+    const end = hasSelection ? (t.selectionEnd as number) : value.length
+    if (start !== end) {
+      // Selection mode — drop everything between start and end.
+      t.value = value.slice(0, start) + value.slice(end)
+      try {
+        t.setSelectionRange(start, start)
+      } catch {}
+    } else if (start > 0) {
+      // No selection — delete one character before the caret.
+      t.value = value.slice(0, start - 1) + value.slice(start)
+      const prev = start - 1
+      try {
+        t.setSelectionRange(prev, prev)
+      } catch {}
+    } else {
+      // Caret at the very start with nothing selected → nothing to delete.
+      return
+    }
     updateHeight()
     syncHasText()
   }, [updateHeight, syncHasText])
@@ -143,30 +180,36 @@ export default function Composer({ onSend, onAttach, fontScale }: ComposerProps)
           {/* "+" attachment button — opens the native picker. We deliberately
               fire on `click` (not pointerdown) because the file input dialog
               must be invoked from a user-initiated click for iOS to allow it. */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,video/*,image/webp"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f && onAttach) {
-                void onAttach(f)
-              }
-              // Reset so picking the same file twice still fires onChange.
-              e.target.value = ""
-            }}
-          />
-          <button
-            type="button"
-            tabIndex={-1}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!onAttach}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0 disabled:opacity-40 active:opacity-60"
-            aria-label="Attach photo or video"
-          >
-            <span className="text-2xl leading-none">+</span>
-          </button>
+          {/* Attachment "+" — admin only. Trainers don't need it (and the
+              extra button just steals horizontal space from the input). */}
+          {role === "ADMIN" && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f && onAttach) {
+                    void onAttach(f)
+                  }
+                  // Reset so picking the same file twice still fires onChange.
+                  e.target.value = ""
+                }}
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!onAttach}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0 disabled:opacity-40 active:opacity-60"
+                aria-label="Attach photo or video"
+              >
+                <span className="text-2xl leading-none">+</span>
+              </button>
+            </>
+          )}
           {/* Sticker / keyboard toggle. The icon flips depending on which
               panel is currently shown below, mirroring WhatsApp. */}
           <button
