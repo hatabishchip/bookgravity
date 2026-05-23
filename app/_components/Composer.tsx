@@ -34,8 +34,11 @@ export default function Composer({ onSend, onAttach, fontScale }: ComposerProps)
   const [sending, setSending] = useState(false)
 
   // Recompute the textarea's height (up to 3 lines, then internal scroll).
-  // Read-then-write in the same task to avoid layout thrashing.
-  const updateHeight = useCallback(() => {
+  // Read-then-write in the same task to avoid layout thrashing. Coalesced
+  // through requestAnimationFrame so a burst of keystrokes only triggers
+  // one layout pass per frame, not one per character.
+  const heightRafRef = useRef<number | null>(null)
+  const updateHeightNow = useCallback(() => {
     const t = textareaRef.current
     if (!t) return
     t.style.height = "auto"
@@ -50,11 +53,18 @@ export default function Composer({ onSend, onAttach, fontScale }: ComposerProps)
     t.style.height = Math.min(naturalH, maxH) + "px"
     if (naturalH > maxH) t.scrollTop = t.scrollHeight
   }, [])
+  const updateHeight = useCallback(() => {
+    if (heightRafRef.current != null) return
+    heightRafRef.current = requestAnimationFrame(() => {
+      heightRafRef.current = null
+      updateHeightNow()
+    })
+  }, [updateHeightNow])
 
   // Recompute height when font scale changes (line-height tracks font-size).
   useLayoutEffect(() => {
-    updateHeight()
-  }, [fontScale, updateHeight])
+    updateHeightNow()
+  }, [fontScale, updateHeightNow])
 
   // Helper: update hasText flag if the empty/non-empty state actually changed.
   // We deliberately do NOT call setState on every character because hasText

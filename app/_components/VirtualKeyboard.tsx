@@ -1,21 +1,28 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
-import { ArrowUp, Delete, Globe } from "lucide-react"
+import { ArrowUp, Delete, Globe, Mic } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
 // WhatsApp-styled in-page keyboard for the Inbox composer.
 //
-// Visual reference: iOS WhatsApp dark keyboard.
-//   • Dark background, light gray pill-shaped keys, white text
-//   • 11 / 11 / 9 layout for Russian (and English padded to match)
-//   • Special keys (Shift, Backspace, 123, Globe, Return) are a touch
-//     darker than letter keys
-//   • Language abbreviation shown bottom-right inside the space bar
+// Tradeoffs accepted by the user vs. native keyboard:
+//   • No autocorrect / suggestions
+//   • No emoji picker
+//   • No swipe typing
+// Native dictation is exposed via the mic button next to Return — it uses
+// the Web Speech API (webkitSpeechRecognition on iOS Safari, SpeechRecognition
+// on Chrome Android).
 //
-// We render NO Send button — the green Send button in the composer above
-// handles that, matching WhatsApp where the keyboard itself never sends.
+// Performance notes:
+//   • KeyButton is a top-level component (not redefined on every render of
+//     VirtualKeyboard), so React reconciles by identity and never re-mounts
+//     the buttons.
+//   • Key presses fire on POINTERDOWN, not click. Saves ~70-150ms of
+//     touchend→click latency on iOS.
+//   • Backspace auto-repeats while held (initial 400ms delay, then 50ms
+//     interval).
 // ---------------------------------------------------------------------------
 
 type Lang = "en" | "ru"
@@ -41,95 +48,58 @@ const SYMBOLS: string[][] = [
 
 const SPACE_LABEL: Record<Lang, string> = { en: "english", ru: "русский" }
 const LANG_HINT: Record<Lang, string> = { en: "en", ru: "ру" }
+const SPEECH_LANG: Record<Lang, string> = { en: "en-US", ru: "ru-RU" }
 
-export interface VirtualKeyboardProps {
-  onInsert: (text: string) => void
-  onBackspace: () => void
+// Tiny haptic ping on every keypress. iOS Safari ignores this entirely
+// (no Web Vibration API there), but Android Chrome and PWAs respect it
+// and we get a single-cycle (2ms) buzz that reads as a tap.
+function buzz(ms = 2) {
+  if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+    try {
+      navigator.vibrate(ms)
+    } catch {
+      // some browsers reject vibrate without a user gesture context;
+      // pointerdown is fine but the throw still happens occasionally.
+    }
+  }
 }
 
-export default function VirtualKeyboard({
-  onInsert,
-  onBackspace,
-}: VirtualKeyboardProps) {
-  const [lang, setLang] = useState<Lang>("ru")
-  const [layer, setLayer] = useState<Layer>("letters")
-  const [shift, setShift] = useState(false)
+// ---------------------------------------------------------------------------
+// Top-level button so React doesn't re-create a new function component on
+// every parent render — without this, every keystroke unmounted+remounted
+// 30+ buttons.
+// ---------------------------------------------------------------------------
+type Variant = "letter" | "modifier" | "active" | "space"
 
-  const rows: string[][] =
-    layer === "symbols" ? SYMBOLS : lang === "ru" ? LETTERS_RU : LETTERS_EN
-
-  const pressKey = useCallback(
-    (ch: string) => {
-      onInsert(shift && layer === "letters" ? ch.toUpperCase() : ch)
-      if (shift) setShift(false) // one-shot shift, iOS-style
-    },
-    [onInsert, shift, layer],
-  )
-
-  // Press-and-hold helper. On pointerdown we fire once immediately,
-  // then schedule a repeating tick after a short initial delay. On
-  // pointerup/leave/cancel we clear the timers. Mirrors how native
-  // keyboards auto-repeat when the user holds backspace.
-  const holdTimers = useRef<{ initial: ReturnType<typeof setTimeout> | null; tick: ReturnType<typeof setInterval> | null }>({ initial: null, tick: null })
-  const stopHold = useCallback(() => {
-    if (holdTimers.current.initial) {
-      clearTimeout(holdTimers.current.initial)
-      holdTimers.current.initial = null
-    }
-    if (holdTimers.current.tick) {
-      clearInterval(holdTimers.current.tick)
-      holdTimers.current.tick = null
-    }
-  }, [])
-  const startHold = useCallback(
-    (action: () => void) => {
-      // First fire immediately so the action feels instant on tap.
-      action()
-      // After 400ms, begin repeating every 50ms.
-      holdTimers.current.initial = setTimeout(() => {
-        holdTimers.current.tick = setInterval(action, 50)
-      }, 400)
-    },
-    [],
-  )
-  // Safety: clear timers if the component unmounts mid-hold.
-  useEffect(() => {
-    return () => stopHold()
-  }, [stopHold])
-
-  const Key = ({
-    label,
-    onPress,
-    flex = 1,
-    variant = "letter",
-  }: {
-    label: React.ReactNode
-    onPress: () => void
-    flex?: number
-    variant?: "letter" | "modifier" | "active" | "space"
-  }) => (
+function KeyButton({
+  label,
+  onPress,
+  flex = 1,
+  variant = "letter",
+  ariaLabel,
+}: {
+  label: React.ReactNode
+  onPress: () => void
+  flex?: number
+  variant?: Variant
+  ariaLabel?: string
+}) {
+  return (
     <button
       type="button"
       tabIndex={-1}
-      // Insert on POINTERDOWN, not click — the character appears the
-      // instant the finger touches the key instead of waiting for the
-      // touchend+click round-trip (~70-150ms on iOS). preventDefault
-      // also stops Safari from moving focus to the button, so the
-      // textarea above keeps its caret.
       onPointerDown={(e) => {
         e.preventDefault()
+        buzz(2)
         onPress()
       }}
-      // mousedown is preventDefault'd as a fallback for older browsers
-      // that don't dispatch pointer events.
       onMouseDown={(e) => e.preventDefault()}
       style={{ flex }}
+      aria-label={ariaLabel}
       className={cn(
-        "rounded-[6px] font-normal select-none active:opacity-70 transition-opacity",
+        "rounded-[6px] font-normal select-none transition-[transform,opacity] duration-75 active:scale-[0.92] active:opacity-80",
         "flex items-center justify-center",
         "h-[44px] sm:h-[46px]",
-        // Light theme palette (matches iOS light keyboard)
-        // Dark theme palette (matches iOS dark keyboard, our previous look)
         variant === "letter" &&
           "bg-white text-black shadow-sm text-[22px] sm:text-[24px] dark:bg-[#6C6C70] dark:text-white dark:shadow-none",
         variant === "space" &&
@@ -143,6 +113,156 @@ export default function VirtualKeyboard({
       {label}
     </button>
   )
+}
+
+// ---------------------------------------------------------------------------
+
+export interface VirtualKeyboardProps {
+  onInsert: (text: string) => void
+  onBackspace: () => void
+}
+
+export default function VirtualKeyboard({
+  onInsert,
+  onBackspace,
+}: VirtualKeyboardProps) {
+  const [lang, setLang] = useState<Lang>("ru")
+  const [layer, setLayer] = useState<Layer>("letters")
+  const [shift, setShift] = useState(false)
+  const [dictating, setDictating] = useState(false)
+
+  const rows: string[][] =
+    layer === "symbols" ? SYMBOLS : lang === "ru" ? LETTERS_RU : LETTERS_EN
+
+  const pressKey = useCallback(
+    (ch: string) => {
+      onInsert(shift && layer === "letters" ? ch.toUpperCase() : ch)
+      if (shift) setShift(false) // one-shot shift, iOS-style
+    },
+    [onInsert, shift, layer],
+  )
+
+  // Press-and-hold for Backspace: first fire immediately, then after a
+  // 400ms initial delay tick every 50ms.
+  const holdTimers = useRef<{ initial: ReturnType<typeof setTimeout> | null; tick: ReturnType<typeof setInterval> | null }>({ initial: null, tick: null })
+  const stopHold = useCallback(() => {
+    if (holdTimers.current.initial) {
+      clearTimeout(holdTimers.current.initial)
+      holdTimers.current.initial = null
+    }
+    if (holdTimers.current.tick) {
+      clearInterval(holdTimers.current.tick)
+      holdTimers.current.tick = null
+    }
+  }, [])
+  const startHoldBackspace = useCallback(() => {
+    buzz(2)
+    onBackspace()
+    holdTimers.current.initial = setTimeout(() => {
+      holdTimers.current.tick = setInterval(onBackspace, 50)
+    }, 400)
+  }, [onBackspace])
+  useEffect(() => () => stopHold(), [stopHold])
+
+  // ----------------- Voice dictation (Web Speech API) -----------------
+  // Lazily-typed reference to the SpeechRecognition object. We don't keep
+  // the class itself in state — just the active instance — so we can stop
+  // mid-utterance if the user taps the mic again.
+  type SRType = {
+    new (): {
+      continuous: boolean
+      interimResults: boolean
+      lang: string
+      start: () => void
+      stop: () => void
+      onresult: ((e: SpeechRecognitionEventLike) => void) | null
+      onerror: ((e: { error: string }) => void) | null
+      onend: (() => void) | null
+    }
+  }
+  type SpeechRecognitionEventLike = {
+    results: ArrayLike<{
+      isFinal: boolean
+      0: { transcript: string }
+    }>
+    resultIndex: number
+  }
+  const recognitionRef = useRef<ReturnType<SRType["prototype"]["start"]> extends void ? InstanceType<SRType> | null : null>(null) as React.MutableRefObject<InstanceType<SRType> | null>
+  const lastInterimRef = useRef<string>("")
+
+  const stopDictation = useCallback(() => {
+    const rec = recognitionRef.current
+    if (rec) {
+      try {
+        rec.stop()
+      } catch {}
+    }
+    recognitionRef.current = null
+    setDictating(false)
+    lastInterimRef.current = ""
+  }, [])
+
+  const startDictation = useCallback(() => {
+    if (typeof window === "undefined") return
+    const SR = (window as unknown as { SpeechRecognition?: SRType; webkitSpeechRecognition?: SRType })
+      .SpeechRecognition ||
+      (window as unknown as { SpeechRecognition?: SRType; webkitSpeechRecognition?: SRType })
+        .webkitSpeechRecognition
+    if (!SR) {
+      alert("Голосовой ввод не поддерживается этим браузером.")
+      return
+    }
+    const rec = new SR()
+    rec.continuous = true
+    rec.interimResults = true
+    rec.lang = SPEECH_LANG[lang]
+    let lastFinalText = ""
+    rec.onresult = (e) => {
+      // Build the final text from results that are marked as final, and a
+      // separate interim string for the in-progress chunk. We commit each
+      // final chunk to the textarea once.
+      let finalChunk = ""
+      let interim = ""
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i]
+        if (r.isFinal) {
+          finalChunk += r[0].transcript
+        } else {
+          interim += r[0].transcript
+        }
+      }
+      if (finalChunk && finalChunk !== lastFinalText) {
+        // Insert just the new final piece plus a trailing space.
+        const newText = finalChunk.slice(lastFinalText.length)
+        if (newText) onInsert(newText + " ")
+        lastFinalText = finalChunk
+      }
+      lastInterimRef.current = interim
+    }
+    rec.onerror = (event) => {
+      console.warn("[VirtualKeyboard] dictation error:", event.error)
+      stopDictation()
+    }
+    rec.onend = () => {
+      // Sometimes Safari ends the recognition before the user taps stop
+      // (e.g. after a long silence). Reflect that in the UI.
+      setDictating(false)
+      recognitionRef.current = null
+    }
+    try {
+      rec.start()
+      recognitionRef.current = rec
+      setDictating(true)
+    } catch (err) {
+      console.warn("[VirtualKeyboard] failed to start dictation:", err)
+      stopDictation()
+    }
+  }, [lang, onInsert, stopDictation])
+
+  useEffect(() => {
+    // Clean up if the keyboard unmounts mid-dictation.
+    return () => stopDictation()
+  }, [stopDictation])
 
   return (
     <div
@@ -154,19 +274,21 @@ export default function VirtualKeyboard({
         const isLast = i === rows.length - 1
         return (
           <div key={i} className="flex gap-[5px] mb-[6px]">
-            {/* Shift on the left of the last letter row.
-                In the symbols layer Shift's slot is taken by #+= toggle
-                (we keep it simple and just skip it). */}
+            {/* Shift on the left of the last letter row. */}
             {isLast && layer === "letters" && (
-              <Key
+              <KeyButton
                 label={<ArrowUp size={20} />}
-                onPress={() => setShift((s) => !s)}
+                onPress={() => {
+                  buzz(2)
+                  setShift((s) => !s)
+                }}
                 flex={1.6}
                 variant={shift ? "active" : "modifier"}
+                ariaLabel="Shift"
               />
             )}
             {row.map((ch) => (
-              <Key
+              <KeyButton
                 key={ch}
                 label={shift && layer === "letters" ? ch.toUpperCase() : ch}
                 onPress={() => pressKey(ch)}
@@ -178,7 +300,7 @@ export default function VirtualKeyboard({
                 tabIndex={-1}
                 onPointerDown={(e) => {
                   e.preventDefault()
-                  startHold(onBackspace)
+                  startHoldBackspace()
                 }}
                 onPointerUp={stopHold}
                 onPointerLeave={stopHold}
@@ -186,7 +308,7 @@ export default function VirtualKeyboard({
                 onMouseDown={(e) => e.preventDefault()}
                 style={{ flex: 1.6 }}
                 className={cn(
-                  "rounded-[6px] font-normal select-none active:opacity-70 transition-opacity",
+                  "rounded-[6px] font-normal select-none transition-[transform,opacity] duration-75 active:scale-[0.92] active:opacity-80",
                   "flex items-center justify-center",
                   "h-[44px] sm:h-[46px]",
                   "bg-[#ADB3BC] text-black text-[18px] dark:bg-[#3C3C3F] dark:text-white",
@@ -200,15 +322,15 @@ export default function VirtualKeyboard({
         )
       })}
 
-      {/* Bottom action row: 123 | globe | space | ↵ */}
+      {/* Bottom action row: 123 | globe | space | mic | ↵ */}
       <div className="flex gap-[5px]">
-        <Key
+        <KeyButton
           label={layer === "letters" ? "123" : "АБВ"}
           onPress={() => setLayer((l) => (l === "letters" ? "symbols" : "letters"))}
           flex={1.6}
           variant="modifier"
         />
-        <Key
+        <KeyButton
           label={<Globe size={20} />}
           onPress={() => {
             setLang((l) => (l === "en" ? "ru" : "en"))
@@ -216,6 +338,7 @@ export default function VirtualKeyboard({
           }}
           flex={1.3}
           variant="modifier"
+          ariaLabel="Change language"
         />
         {/* Space bar with language hint bottom-right, like iOS. */}
         <button
@@ -223,22 +346,36 @@ export default function VirtualKeyboard({
           tabIndex={-1}
           onPointerDown={(e) => {
             e.preventDefault()
+            buzz(2)
             onInsert(" ")
           }}
           onMouseDown={(e) => e.preventDefault()}
           style={{ flex: 5 }}
-          className="relative rounded-[6px] bg-white text-black shadow-sm dark:bg-[#6C6C70] dark:text-white dark:shadow-none h-[44px] sm:h-[46px] active:opacity-70 transition-opacity flex items-center justify-center text-[15px]"
+          className="relative rounded-[6px] bg-white text-black shadow-sm dark:bg-[#6C6C70] dark:text-white dark:shadow-none h-[44px] sm:h-[46px] active:scale-[0.96] active:opacity-80 transition-[transform,opacity] duration-75 flex items-center justify-center text-[15px]"
         >
           <span className="opacity-80">{SPACE_LABEL[lang]}</span>
           <span className="absolute right-2 bottom-1 text-[11px] opacity-60">
             {LANG_HINT[lang]}
           </span>
         </button>
-        <Key
+        {/* Mic dictation button — toggles between idle and recording. */}
+        <KeyButton
+          label={<Mic size={18} />}
+          onPress={() => {
+            buzz(4)
+            if (dictating) stopDictation()
+            else startDictation()
+          }}
+          flex={1.3}
+          variant={dictating ? "active" : "modifier"}
+          ariaLabel={dictating ? "Stop dictation" : "Start dictation"}
+        />
+        <KeyButton
           label={<span className="text-[20px]">⏎</span>}
           onPress={() => onInsert("\n")}
           flex={1.6}
           variant="modifier"
+          ariaLabel="New line"
         />
       </div>
     </div>
