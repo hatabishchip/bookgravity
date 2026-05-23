@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import { useRouter, useSearchParams } from "next/navigation"
+import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
 import { format, formatDistanceToNowStrict } from "date-fns"
 import {
   ArrowLeft,
@@ -678,14 +679,16 @@ export default function Inbox({
         )}
       </div>
 
-      {/* Composer pinned to the bottom of the scroll container. When iOS
-          shrinks the viewport (keyboard up) and scrolls the container to
-          show the textarea, `sticky bottom:0` keeps this row glued to the
-          bottom of the visible area — i.e. right above the keyboard. */}
-      <div
-        className="sticky bottom-0 z-20 bg-white border-t border-gray-100 px-3 sm:px-4 pt-3"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
-      >
+      {/* Composer + VirtualKeyboard pinned together to the bottom of the
+          scroll container. The VirtualKeyboard replaces the OS soft
+          keyboard entirely (textarea has inputMode="none"), so the modal
+          never has to resize for it — both rows stay at the bottom of the
+          visible area as the user scrolls older messages. */}
+      <div className="sticky bottom-0 z-20 bg-white border-t border-gray-100">
+        <div
+          className="px-3 sm:px-4 pt-3"
+          style={{ paddingBottom: 8 }}
+        >
         {!windowOpen && (
           <div className="mb-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
             <Sparkles size={14} />
@@ -700,12 +703,16 @@ export default function Inbox({
             ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                send()
-              }
-            }}
+            // inputMode="none" tells iOS Safari / Chrome Android to NOT pop
+            // the OS soft keyboard when this textarea is focused. The
+            // VirtualKeyboard below handles all input. We still leave the
+            // textarea editable so users on desktops with hardware keyboards
+            // can type normally.
+            inputMode="none"
+            // Hide autocorrect/autocomplete chrome since we drive input ourselves.
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             placeholder={windowOpen ? "Напиши сообщение..." : "Окно закрыто — нужен шаблон"}
             disabled={!windowOpen || sending}
             rows={1}
@@ -733,6 +740,15 @@ export default function Inbox({
           </button>
         </div>
         {sendError && <div className="mt-2 text-xs text-red-600">{sendError}</div>}
+        </div>
+        {/* In-page keyboard. Replaces the OS soft keyboard entirely — see
+            the textarea's `inputMode="none"`. */}
+        <VirtualKeyboard
+          onInsert={(ch) => setText((t) => t + ch)}
+          onBackspace={() => setText((t) => t.slice(0, -1))}
+          onSend={send}
+          canSend={windowOpen && !sending && text.trim().length > 0}
+        />
       </div>
     </div>
   )
