@@ -204,6 +204,8 @@ export default function Inbox({
   const [sendError, setSendError] = useState<string | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Font-scale toggle for the inbox. 5 steps so the difference between adjacent
   // sizes is meaningful but the extremes don't break the layout. Persisted to
@@ -313,6 +315,10 @@ export default function Inbox({
         setText("")
         await refreshDetail(detail.id)
         await refreshList()
+        // Keep keyboard open after send — WhatsApp / Telegram both do this.
+        // Without an explicit focus call, iOS treats the network round-trip
+        // as a context change and dismisses the keyboard.
+        textareaRef.current?.focus()
       }
     } catch (e) {
       setSendError(e instanceof Error ? e.message : String(e))
@@ -486,9 +492,11 @@ export default function Inbox({
       </div>
     </div>
   ) : (
-    <div className="flex-1 flex flex-col bg-[#ECE5DD] min-w-0 h-full">
-      {/* Chat header */}
-      <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 flex-shrink-0">
+    <div className="flex-1 flex flex-col bg-[#ECE5DD] min-w-0 h-full overflow-hidden">
+      {/* Chat header. `sticky top:0` is a belt-and-suspenders so that even
+          if iOS Safari auto-scrolls something inside the column on focus,
+          the header stays pinned to the top of the visible chat area. */}
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 flex-shrink-0">
         <button
           onClick={closeConvo}
           className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
@@ -555,8 +563,20 @@ export default function Inbox({
         )}
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-2">
+      {/* Messages. `min-h-0` lets the flex child actually shrink (default
+          flex min-height is `auto` which would let it bleed past the parent
+          and push the header off the top of the modal). A touchmove
+          listener dismisses the keyboard the same way WhatsApp does when
+          you start scrolling the chat. */}
+      <div
+        ref={messagesScrollRef}
+        onTouchMove={() => {
+          if (document.activeElement === textareaRef.current) {
+            textareaRef.current?.blur()
+          }
+        }}
+        className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-2"
+      >
         {loadingDetail && !detail ? (
           <div className="text-center text-gray-400 text-sm py-8">
             <Loader2 size={16} className="animate-spin inline mr-2" /> Loading...
@@ -589,6 +609,7 @@ export default function Inbox({
         )}
         <div className="flex gap-2 items-end">
           <textarea
+            ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
@@ -605,6 +626,16 @@ export default function Inbox({
           />
           <button
             onClick={send}
+            // tabIndex=-1 + preventDefault on mousedown keep the textarea
+            // focused (and therefore the keyboard up) when the user taps
+            // Send. Without these iOS moves focus to the button, dismisses
+            // the keyboard, and the user has to re-tap the textarea to
+            // continue typing. `onPointerDown` is the modern equivalent
+            // that also covers touch-only interaction without blocking
+            // the synthetic click that iOS still needs to fire.
+            tabIndex={-1}
+            onMouseDown={(e) => e.preventDefault()}
+            onPointerDown={(e) => e.preventDefault()}
             disabled={!windowOpen || sending || !text.trim()}
             className="bg-[#2C6E49] hover:bg-[#1E4D34] disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 transition-colors flex-shrink-0"
             aria-label="Send"
