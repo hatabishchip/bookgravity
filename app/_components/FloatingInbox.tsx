@@ -74,12 +74,14 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     }
   }, [open])
 
-  // Track keyboard height so we can push the inbox content up by exactly the
-  // keyboard's height. This is a safety net for browsers where
-  // `interactive-widget: resizes-content` doesn't (yet) take effect — most
-  // notably iOS Safari < 17. With the padding, the composer always sits
-  // flush above the keyboard regardless of how the layout viewport behaves.
-  const [keyboardInset, setKeyboardInset] = useState(0)
+  // Track the visual viewport rect so we can park the chat region exactly
+  // over the visible area, even when iOS Safari scrolls itself in response
+  // to a textarea focus. The outer modal layer is a full-screen white
+  // backdrop so nothing peeks through, and this inner rect floats over it
+  // following the keyboard/URL-bar geometry.
+  const [vv, setVv] = useState<{ x: number; y: number; w: number; h: number } | null>(
+    null,
+  )
   useEffect(() => {
     if (!open) return
     const visual = window.visualViewport
@@ -88,18 +90,25 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     const update = () => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        const layoutHeight = window.innerHeight
-        const inset = Math.max(0, layoutHeight - visual.height - visual.offsetTop)
-        setKeyboardInset(inset)
+        setVv({
+          x: visual.offsetLeft,
+          y: visual.offsetTop,
+          w: visual.width,
+          h: visual.height,
+        })
       })
     }
     update()
     visual.addEventListener("resize", update)
     visual.addEventListener("scroll", update)
+    // Also listen to plain window scroll because iOS sometimes scrolls the
+    // window (not just the visual viewport) when bringing inputs into view.
+    window.addEventListener("scroll", update, { passive: true })
     return () => {
       cancelAnimationFrame(raf)
       visual.removeEventListener("resize", update)
       visual.removeEventListener("scroll", update)
+      window.removeEventListener("scroll", update)
     }
   }, [open])
 
@@ -152,10 +161,12 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
 
       {open && (
         // Two-layer modal:
-        //   • outer = full-viewport white backdrop, never shrinks
-        //     (covers the underlying admin page even when the keyboard is up)
-        //   • inner = the actual chat region, shrunk from the bottom by the
-        //     keyboard inset so the composer always sits above the keyboard
+        //   • outer = full-viewport white backdrop, never moves (covers the
+        //     page underneath at all times, including when iOS scrolls the
+        //     window for a focused input)
+        //   • inner = chat region parked over the *visual* viewport so the
+        //     composer always sits above the keyboard and the chat header
+        //     stays glued to the top of the visible area
         <div
           className="fixed inset-0 z-[60] bg-white overflow-hidden"
           role="dialog"
@@ -163,8 +174,12 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
           aria-label="WhatsApp Inbox"
         >
           <div
-            className="absolute inset-0 bg-white"
-            style={{ paddingBottom: keyboardInset }}
+            className="absolute bg-white overflow-hidden"
+            style={
+              vv
+                ? { top: vv.y, left: vv.x, width: vv.w, height: vv.h }
+                : { inset: 0 }
+            }
           >
             <Inbox role={role} embedded onClose={() => setOpen(false)} />
           </div>
