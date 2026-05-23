@@ -151,17 +151,62 @@ function MessageBubble({
             <Sparkles size={11} /> {m.templateName ?? "Template"}
           </div>
         )}
+
+        {/* Inline media. For pending optimistic messages we use the local
+            objectURL stored in mediaUrl; for persisted ones we go through
+            our /api/whatsapp/media proxy (which resolves the Meta media_id
+            on demand). */}
         {m.type === "image" && (
-          <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
-            <ImageIcon size={12} /> Image (open in WhatsApp)
-          </div>
+          (() => {
+            const src = m.mediaUrl?.startsWith("blob:")
+              ? m.mediaUrl
+              : `/api/whatsapp/media/${m.id}`
+            return (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={src}
+                alt={m.body ?? "photo"}
+                className="rounded-xl max-w-full max-h-72 object-cover mb-1 bg-black/10"
+              />
+            )
+          })()
         )}
-        {m.type === "audio" && <div className="text-xs text-gray-500 mb-1">🎤 Voice message</div>}
+        {m.type === "video" && (
+          (() => {
+            const src = m.mediaUrl?.startsWith("blob:")
+              ? m.mediaUrl
+              : `/api/whatsapp/media/${m.id}`
+            return (
+              <video
+                src={src}
+                controls
+                playsInline
+                className="rounded-xl max-w-full max-h-72 mb-1 bg-black"
+              />
+            )
+          })()
+        )}
+        {m.type === "audio" && (
+          <audio
+            src={m.mediaUrl?.startsWith("blob:") ? m.mediaUrl : `/api/whatsapp/media/${m.id}`}
+            controls
+            className="mb-1 max-w-full"
+          />
+        )}
         {m.type === "document" && (
-          <div className="text-xs text-gray-500 mb-1">📄 {m.body ?? "document"}</div>
+          <a
+            href={m.mediaUrl?.startsWith("blob:") ? m.mediaUrl : `/api/whatsapp/media/${m.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 text-blue-600 dark:text-[#53BDEB] underline-offset-2 hover:underline mb-1"
+          >
+            📄 {m.body ?? "document"}
+          </a>
         )}
 
-        {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
+        {m.body && m.type !== "document" && (
+          <div className="whitespace-pre-wrap break-words">{m.body}</div>
+        )}
 
         {m.fromTrainer && isOut && (
           <div className="text-[10px] text-gray-500 mt-1 italic">— {m.fromTrainer.name}</div>
@@ -407,6 +452,104 @@ export default function Inbox({
       )
     }
   }, [detail, refreshList])
+
+  // Send a photo/video. Optimistic bubble uses a local objectURL so the
+  // image shows up instantly while the server uploads to Meta and dispatches
+  // the message.
+  const sendMedia = useCallback(
+    async (file: File) => {
+      if (!detail) return
+      const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+      const localUrl = URL.createObjectURL(file)
+      const guessType: MessageRow["type"] = file.type.startsWith("video/")
+        ? "video"
+        : file.type.startsWith("audio/")
+          ? "audio"
+          : file.type.startsWith("image/")
+            ? "image"
+            : "document"
+      const optimistic: MessageRow = {
+        id: tempId,
+        direction: "OUTBOUND",
+        type: guessType,
+        body: null,
+        mediaUrl: localUrl, // local objectURL for instant preview
+        mediaMime: file.type,
+        templateName: null,
+        status: "queued",
+        errorDetail: null,
+        fromTrainerId: null,
+        fromTrainer: null,
+        importedAt: null,
+        createdAt: new Date().toISOString(),
+      }
+      setDetail((prev) =>
+        prev ? { ...prev, messages: [...prev.messages, optimistic] } : prev,
+      )
+      setSendError(null)
+      requestAnimationFrame(() => {
+        const el = messagesScrollRef.current
+        if (el) el.scrollTop = el.scrollHeight
+      })
+
+      try {
+        const form = new FormData()
+        form.append("file", file)
+        const r = await fetch(`/api/whatsapp/conversations/${detail.id}/media`, {
+          method: "POST",
+          body: form,
+        })
+        const data = (await r.json().catch(() => ({}))) as {
+          message?: MessageRow
+          error?: string
+        }
+        if (!r.ok) {
+          setSendError(data.error || `HTTP ${r.status}`)
+          setDetail((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  messages: prev.messages.map((m) =>
+                    m.id === tempId
+                      ? { ...m, status: "failed", errorDetail: data.error ?? `HTTP ${r.status}` }
+                      : m,
+                  ),
+                }
+              : prev,
+          )
+        } else if (data.message) {
+          // Replace the optimistic bubble with the server row; revoke the
+          // local objectURL since the bubble now points to the proxy.
+          URL.revokeObjectURL(localUrl)
+          setDetail((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  messages: prev.messages.map((m) =>
+                    m.id === tempId ? (data.message as MessageRow) : m,
+                  ),
+                }
+              : prev,
+          )
+          refreshList()
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        setSendError(msg)
+        setDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: prev.messages.map((m) =>
+                  m.id === tempId ? { ...m, status: "failed", errorDetail: msg } : m,
+                ),
+              }
+            : prev,
+        )
+      }
+    },
+    [detail, refreshList],
+  )
 
   const reassign = async (trainerId: string | null) => {
     if (!detail) return
@@ -685,7 +828,7 @@ export default function Inbox({
         {windowOpen ? (
           // Composer owns its own text state (uncontrolled textarea), so
           // typing does not re-render Inbox. See app/_components/Composer.tsx.
-          <Composer onSend={send} fontScale={fontScale} />
+          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} />
         ) : (
           // Window closed: no composer + no keyboard, just a notice.
           <div className="px-2 pt-2 pb-2 bg-[#ECE5DD] dark:bg-[#0B141A]">

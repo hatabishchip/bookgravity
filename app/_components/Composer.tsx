@@ -21,12 +21,15 @@ import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
 export interface ComposerProps {
   /** Called when the Send button (or programmatic send) fires with non-empty text. */
   onSend: (text: string) => Promise<void> | void
+  /** Called when the user picks a photo/video via the "+" button. */
+  onAttach?: (file: File) => Promise<void> | void
   /** Current font scale for the composer text and 3-line cap calculations. */
   fontScale: number
 }
 
-export default function Composer({ onSend, fontScale }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasText, setHasText] = useState(false)
   const [sending, setSending] = useState(false)
 
@@ -124,13 +127,30 @@ export default function Composer({ onSend, fontScale }: ComposerProps) {
         style={{ paddingBottom: 6 }}
       >
         <div className="flex gap-2 items-end">
-          {/* "+" attachment button — decorative placeholder for now. */}
+          {/* "+" attachment button — opens the native picker. We deliberately
+              fire on `click` (not pointerdown) because the file input dialog
+              must be invoked from a user-initiated click for iOS to allow it. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f && onAttach) {
+                void onAttach(f)
+              }
+              // Reset so picking the same file twice still fires onChange.
+              e.target.value = ""
+            }}
+          />
           <button
             type="button"
             tabIndex={-1}
-            onPointerDown={(e) => e.preventDefault()}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0"
-            aria-label="Attach"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!onAttach}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0 disabled:opacity-40 active:opacity-60"
+            aria-label="Attach photo or video"
           >
             <span className="text-2xl leading-none">+</span>
           </button>

@@ -57,6 +57,115 @@ async function postMessage(cfg: CloudConfig, body: unknown): Promise<SendResult>
 }
 
 /**
+ * Upload a media file (Buffer / Blob) to Meta and return its media_id.
+ *
+ * Meta limits: images 5 MB, video 16 MB, audio 16 MB, documents 100 MB.
+ * The returned id is single-use — pass it to sendWhatsAppMedia immediately
+ * (Meta keeps it valid for ~30 days but the API contract treats it as
+ * one-shot per send).
+ */
+export async function uploadMediaToMeta(
+  data: Buffer | Blob,
+  mimeType: string,
+  filename = "upload",
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const cfg = getConfig()
+  if (!cfg) return { ok: false, error: "not_configured" }
+  try {
+    const blob = data instanceof Blob ? data : new Blob([new Uint8Array(data)], { type: mimeType })
+    const form = new FormData()
+    form.append("file", blob, filename)
+    form.append("type", mimeType)
+    form.append("messaging_product", "whatsapp")
+    const url = `${GRAPH_BASE}/${cfg.apiVersion}/${cfg.phoneNumberId}/media`
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.accessToken}` },
+      body: form,
+    })
+    const json = (await res.json().catch(() => ({}))) as {
+      id?: string
+      error?: { message?: string; error_data?: { details?: string } }
+    }
+    if (!res.ok || !json.id) {
+      const detail = json.error?.error_data?.details || json.error?.message || `HTTP ${res.status}`
+      return { ok: false, error: detail }
+    }
+    return { ok: true, id: json.id }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/**
+ * Send a previously-uploaded media file to a recipient. Pair with
+ * `uploadMediaToMeta` to upload, then `sendWhatsAppMedia` to deliver.
+ */
+export async function sendWhatsAppMedia(opts: {
+  toPhone: string
+  type: "image" | "video" | "audio" | "document"
+  mediaId: string
+  caption?: string
+  filename?: string // documents only
+}): Promise<SendResult> {
+  const cfg = getConfig()
+  if (!cfg) return { ok: false, error: "not_configured" }
+  const to = normalizePhone(opts.toPhone)
+  if (!to) return { ok: false, error: "empty_phone" }
+  const mediaObj: Record<string, string> = { id: opts.mediaId }
+  // Captions only allowed for image / video.
+  if (opts.caption && (opts.type === "image" || opts.type === "video")) {
+    mediaObj.caption = opts.caption
+  }
+  if (opts.type === "document" && opts.filename) {
+    mediaObj.filename = opts.filename
+  }
+  return postMessage(cfg, {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: opts.type,
+    [opts.type]: mediaObj,
+  })
+}
+
+/**
+ * Resolve a media_id (received via webhook or upload) into Meta's short-lived
+ * download URL + bytes. Returns the raw bytes ready to stream back to the
+ * browser. URL itself expires after a few minutes so we never cache it; the
+ * caller is expected to add HTTP-level caching.
+ */
+export async function fetchMetaMedia(
+  mediaId: string,
+): Promise<{ ok: true; mimeType: string; bytes: ArrayBuffer } | { ok: false; error: string }> {
+  const cfg = getConfig()
+  if (!cfg) return { ok: false, error: "not_configured" }
+  try {
+    // Step 1: resolve media_id → temporary signed URL.
+    const metaRes = await fetch(`${GRAPH_BASE}/${cfg.apiVersion}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${cfg.accessToken}` },
+    })
+    if (!metaRes.ok) {
+      return { ok: false, error: `meta lookup HTTP ${metaRes.status}` }
+    }
+    const meta = (await metaRes.json()) as { url?: string; mime_type?: string }
+    if (!meta.url) return { ok: false, error: "no_url_in_meta_response" }
+
+    // Step 2: download the bytes (must include Authorization).
+    const fileRes = await fetch(meta.url, {
+      headers: { Authorization: `Bearer ${cfg.accessToken}` },
+    })
+    if (!fileRes.ok) {
+      return { ok: false, error: `download HTTP ${fileRes.status}` }
+    }
+    const bytes = await fileRes.arrayBuffer()
+    return { ok: true, mimeType: meta.mime_type || "application/octet-stream", bytes }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/**
  * Free-form text message. Works ONLY inside a 24h customer service window
  * (i.e. the recipient must have sent us a message in the last 24 hours).
  * Use for trainer notifications once they've replied to the bot at least once.
