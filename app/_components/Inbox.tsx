@@ -136,7 +136,10 @@ function MessageBubble({
       <div
         className={cn(
           "max-w-[78%] rounded-2xl px-3 py-2 leading-snug shadow-sm",
-          isOut ? "bg-[#DCF8C6] text-gray-900" : "bg-white text-gray-900 border border-gray-100",
+          // WhatsApp bubble colors — light theme + dark theme via prefers-color-scheme
+          isOut
+            ? "bg-[#DCF8C6] text-gray-900 dark:bg-[#005C4B] dark:text-white"
+            : "bg-white text-gray-900 border border-gray-100 dark:bg-[#1F2C34] dark:text-white dark:border-transparent",
           m.importedAt && "opacity-80",
         )}
         style={{ fontSize: `${fontScale * 0.875}rem` }}
@@ -437,10 +440,10 @@ export default function Inbox({
 
   // ---------- List column ----------
   const listColumn = (
-    <div className="bg-white border-r border-gray-100 flex flex-col h-full">
+    <div className="bg-white border-r border-gray-100 flex flex-col h-full dark:bg-[#111B21] dark:border-[#2A3942]">
       <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+          <h1 className="text-lg font-semibold text-gray-800 flex items-center gap-2 dark:text-white">
             <MessageSquare size={18} className="text-[#2C6E49]" />
             Inbox
           </h1>
@@ -517,7 +520,7 @@ export default function Inbox({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <div
-                    className="font-medium text-gray-800 truncate"
+                    className="font-medium text-gray-800 truncate dark:text-white"
                     style={{ fontSize: `${fontScale * 0.875}rem` }}
                   >
                     {c.clientName || formatPhone(c.clientPhone)}
@@ -585,7 +588,7 @@ export default function Inbox({
           textareaRef.current?.blur()
         }
       }}
-      className="flex-1 min-w-0 h-full overflow-y-auto bg-[#ECE5DD]"
+      className="flex-1 min-w-0 h-full overflow-y-auto bg-[#ECE5DD] dark:bg-[#0B141A]"
     >
       {/* Single-scroll-container pattern (mirrors WhatsApp/Telegram web):
           the chatColumn itself is the scroll container, the header sticks
@@ -595,7 +598,7 @@ export default function Inbox({
           and bottom of the visible area, so the header no longer flies off
           and the composer stays pinned above the keyboard. */}
       {/* Chat header */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 dark:bg-[#1F2C34] dark:border-transparent">
         <button
           onClick={closeConvo}
           className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
@@ -608,7 +611,7 @@ export default function Inbox({
         </div>
         <div className="flex-1 min-w-0">
           <div
-            className="font-medium text-gray-800 truncate"
+            className="font-medium text-gray-800 truncate dark:text-white"
             style={{ fontSize: `${fontScale}rem` }}
           >
             {detail?.clientName || formatPhone(detail?.clientPhone ?? "")}
@@ -684,7 +687,7 @@ export default function Inbox({
           keyboard entirely (textarea has inputMode="none"), so the modal
           never has to resize for it — both rows stay at the bottom of the
           visible area as the user scrolls older messages. */}
-      <div className="sticky bottom-0 z-20 bg-white border-t border-gray-100">
+      <div className="sticky bottom-0 z-20 bg-white border-t border-gray-100 dark:bg-[#1F2C34] dark:border-transparent">
         <div
           className="px-3 sm:px-4 pt-3"
           style={{ paddingBottom: 8 }}
@@ -716,7 +719,7 @@ export default function Inbox({
             placeholder={windowOpen ? "Напиши сообщение..." : "Окно закрыто — нужен шаблон"}
             disabled={!windowOpen || sending}
             rows={1}
-            className="flex-1 resize-none border border-gray-200 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:bg-gray-50 disabled:text-gray-400 max-h-32"
+            className="flex-1 resize-none border border-gray-200 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:bg-gray-50 disabled:text-gray-400 max-h-32 dark:bg-[#2A3942] dark:border-transparent dark:text-white dark:placeholder-gray-400 dark:disabled:bg-[#1F2C34]"
             style={{ minHeight: 40, fontSize: `${fontScale * 0.875}rem` }}
           />
           <button
@@ -755,7 +758,7 @@ export default function Inbox({
   return (
     <div
       className={cn(
-        "flex bg-white overflow-hidden",
+        "flex bg-white overflow-hidden dark:bg-[#0B141A]",
         embedded
           ? // Inside the FloatingInbox modal we fill the *fixed* parent
             // exactly, not the viewport. The modal itself sets its own

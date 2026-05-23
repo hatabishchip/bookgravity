@@ -91,12 +91,18 @@ export default function VirtualKeyboard({
       style={{ flex }}
       className={cn(
         "rounded-[6px] font-normal select-none active:opacity-70 transition-opacity",
-        "flex items-center justify-center text-white",
+        "flex items-center justify-center",
         "h-[44px] sm:h-[46px]",
-        variant === "letter" && "bg-[#6C6C70] text-[22px] sm:text-[24px]",
-        variant === "space" && "bg-[#6C6C70] text-[15px]",
-        variant === "modifier" && "bg-[#3C3C3F] text-[18px]",
-        variant === "active" && "bg-white text-black text-[18px]",
+        // Light theme palette (matches iOS light keyboard)
+        // Dark theme palette (matches iOS dark keyboard, our previous look)
+        variant === "letter" &&
+          "bg-white text-black shadow-sm text-[22px] sm:text-[24px] dark:bg-[#6C6C70] dark:text-white dark:shadow-none",
+        variant === "space" &&
+          "bg-white text-black shadow-sm text-[15px] dark:bg-[#6C6C70] dark:text-white dark:shadow-none",
+        variant === "modifier" &&
+          "bg-[#ADB3BC] text-black text-[18px] dark:bg-[#3C3C3F] dark:text-white",
+        variant === "active" &&
+          "bg-black text-white text-[18px] dark:bg-white dark:text-black",
       )}
     >
       {label}
@@ -105,7 +111,7 @@ export default function VirtualKeyboard({
 
   return (
     <div
-      className="bg-[#1F1F22] px-1 pt-2 pb-1.5 select-none"
+      className="bg-[#D1D5DB] dark:bg-[#1F1F22] px-1 pt-2 pb-1.5 select-none"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 6px)" }}
     >
       {/* Letter / symbol rows */}
@@ -168,9 +174,9 @@ export default function VirtualKeyboard({
           onPointerDown={noFocusSteal}
           onClick={() => onInsert(" ")}
           style={{ flex: 5 }}
-          className="relative rounded-[6px] bg-[#6C6C70] text-white h-[44px] sm:h-[46px] active:opacity-70 transition-opacity flex items-center justify-center text-[15px]"
+          className="relative rounded-[6px] bg-white text-black shadow-sm dark:bg-[#6C6C70] dark:text-white dark:shadow-none h-[44px] sm:h-[46px] active:opacity-70 transition-opacity flex items-center justify-center text-[15px]"
         >
-          <span className="opacity-90">{SPACE_LABEL[lang]}</span>
+          <span className="opacity-80">{SPACE_LABEL[lang]}</span>
           <span className="absolute right-2 bottom-1 text-[11px] opacity-60">
             {LANG_HINT[lang]}
           </span>

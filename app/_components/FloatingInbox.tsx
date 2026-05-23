@@ -144,7 +144,7 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
 
   const modal = open ? (
     <div
-      className="fixed inset-0 z-[2147483646] bg-white overflow-hidden"
+      className="fixed inset-0 z-[2147483646] bg-white dark:bg-[#0B141A] overflow-hidden"
       // The outer layer NEVER moves and is fully opaque — this is what
       // guarantees the underlying admin page can't peek through.
       role="dialog"
@@ -152,7 +152,7 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
       aria-label="WhatsApp Inbox"
     >
       <div
-        className="absolute bg-white overflow-hidden"
+        className="absolute bg-white dark:bg-[#0B141A] overflow-hidden"
         style={
           vv
             ? { top: vv.y, left: vv.x, width: vv.w, height: vv.h }
