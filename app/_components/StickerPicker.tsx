@@ -5,19 +5,16 @@ import { Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
-// Built-in sticker picker.
+// Emoji picker for the composer.
 //
-// WhatsApp stickers are 512×512 WebP files (static or animated). We don't
-// ship binary sticker assets; instead, when the user taps an emoji we
-// render that emoji at high res onto a canvas and export it as WebP. The
-// result is a real .webp file that Meta accepts as a `type: sticker`.
+// Tapping an emoji inserts the character at the caret in the textarea
+// (handled by the parent Composer), so the user can mix emoji with text:
+//   "Спасибо за бронь 🙏 жду тебя завтра"
 //
-// Rendered blobs are cached in-memory so the second tap on the same
-// sticker is instant.
-//
-// Categories ship a curated 60-emoji starter pack across faces / gestures /
-// objects / animals / love / sports. Future work: allow admin-uploaded
-// custom packs to appear alongside.
+// "Recent" tracks which emoji you've actually used and surfaces them in
+// the first tab. (Previously the picker rendered each emoji to WebP and
+// sent it as a real Meta sticker — that mode is gone since the user
+// wanted in-line emoji rather than standalone stickers.)
 // ---------------------------------------------------------------------------
 
 type Category = {
@@ -83,43 +80,7 @@ const CATEGORIES: Category[] = [
   },
 ]
 
-const STICKER_SIZE = 512 // px — matches Meta's requirement
-
-// Cache of rendered emoji → WebP blob so repeat sends are instant.
-const blobCache = new Map<string, Blob>()
-
-async function renderEmojiToWebP(emoji: string): Promise<Blob> {
-  const cached = blobCache.get(emoji)
-  if (cached) return cached
-  const canvas = document.createElement("canvas")
-  canvas.width = STICKER_SIZE
-  canvas.height = STICKER_SIZE
-  const ctx = canvas.getContext("2d")
-  if (!ctx) throw new Error("Canvas 2D context unavailable")
-  // Transparent background — Meta expects sticker WebPs without solid bg.
-  ctx.clearRect(0, 0, STICKER_SIZE, STICKER_SIZE)
-  ctx.textAlign = "center"
-  ctx.textBaseline = "middle"
-  // Use the platform's emoji font. On iOS the device renders Apple Color
-  // Emoji; on Android it's Noto Color Emoji. The exact glyph differs
-  // between platforms but the *recipient* sees what their own OS renders
-  // because WhatsApp simply forwards the WebP we built.
-  ctx.font = `${STICKER_SIZE * 0.78}px 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif`
-  // Emoji baseline sits slightly above center; nudge up a bit.
-  ctx.fillText(emoji, STICKER_SIZE / 2, STICKER_SIZE / 2 + STICKER_SIZE * 0.04)
-
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error("toBlob returned null"))),
-      "image/webp",
-      0.9,
-    )
-  })
-  blobCache.set(emoji, blob)
-  return blob
-}
-
-const RECENT_KEY = "wa-inbox-recent-stickers"
+const RECENT_KEY = "wa-inbox-recent-emojis"
 const RECENT_LIMIT = 16
 
 function loadRecent(): string[] {
@@ -140,40 +101,29 @@ function saveRecent(list: string[]) {
 }
 
 export interface StickerPickerProps {
-  /** Called when the user picks a sticker. The handler is responsible for
-   *  uploading + sending — the picker just hands over a ready-to-send File. */
-  onPick: (file: File) => Promise<void> | void
+  /** Called when the user picks an emoji. Composer is expected to insert the
+   *  character into the textarea at the caret position. */
+  onPick: (emoji: string) => void
 }
 
 export default function StickerPicker({ onPick }: StickerPickerProps) {
   const [activeCat, setActiveCat] = useState<string>("recent")
   const [recent, setRecent] = useState<string[]>(() => loadRecent())
-  const [busy, setBusy] = useState<string | null>(null)
   const recentRef = useRef(recent)
   recentRef.current = recent
 
   const handlePick = useCallback(
-    async (emoji: string) => {
-      if (busy) return
-      setBusy(emoji)
-      try {
-        const blob = await renderEmojiToWebP(emoji)
-        const file = new File([blob], "sticker.webp", { type: "image/webp" })
-        await onPick(file)
-        // Promote to "recent": move to front, dedupe, cap.
-        const next = [emoji, ...recentRef.current.filter((e) => e !== emoji)].slice(
-          0,
-          RECENT_LIMIT,
-        )
-        setRecent(next)
-        saveRecent(next)
-      } catch (err) {
-        console.warn("[StickerPicker] failed to send sticker:", err)
-      } finally {
-        setBusy(null)
-      }
+    (emoji: string) => {
+      onPick(emoji)
+      // Promote to "recent": move to front, dedupe, cap.
+      const next = [emoji, ...recentRef.current.filter((e) => e !== emoji)].slice(
+        0,
+        RECENT_LIMIT,
+      )
+      setRecent(next)
+      saveRecent(next)
     },
-    [busy, onPick],
+    [onPick],
   )
 
   const visibleCats: Category[] = CATEGORIES.map((c) =>
@@ -228,16 +178,19 @@ export default function StickerPicker({ onPick }: StickerPickerProps) {
             key={emoji + activeCat}
             type="button"
             tabIndex={-1}
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => handlePick(emoji)}
-            disabled={busy === emoji}
+            // Insert on pointerdown for the same "instant" feel as the
+            // virtual keyboard keys — no waiting for click.
+            onPointerDown={(e) => {
+              e.preventDefault()
+              handlePick(emoji)
+            }}
+            onMouseDown={(e) => e.preventDefault()}
             className={cn(
               "aspect-square rounded-lg flex items-center justify-center transition-[transform,opacity] duration-75",
               "text-4xl sm:text-5xl select-none",
               "active:scale-90 active:opacity-70",
-              busy === emoji && "opacity-40",
             )}
-            aria-label={`Отправить стикер ${emoji}`}
+            aria-label={`Вставить эмодзи ${emoji}`}
           >
             {emoji}
           </button>

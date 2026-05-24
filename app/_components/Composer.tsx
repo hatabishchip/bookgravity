@@ -281,12 +281,11 @@ export default function Composer({ onSend, onAttach, fontScale, role }: Composer
         <VirtualKeyboard onInsert={insertText} onBackspace={backspace} />
       ) : (
         <StickerPicker
-          onPick={async (file) => {
-            // Reuse the same attach flow as a photo upload — the server
-            // promotes image/webp to a sticker message automatically.
-            if (onAttach) await onAttach(file)
-            // Return focus to the textarea so the caret keeps blinking
-            // when the user comes back to typing.
+          onPick={(emoji) => {
+            // Insert the emoji character at the caret instead of sending
+            // it as a standalone sticker — so users can mix emoji with
+            // text: "Спасибо за бронь 🙏 жду тебя завтра"
+            insertText(emoji)
             textareaRef.current?.focus({ preventScroll: true })
           }}
         />
