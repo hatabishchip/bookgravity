@@ -23,6 +23,11 @@
 import "dotenv/config"
 
 const PHONE_NUMBER_ID = "1163623746829979"
+// WhatsApp Business Account ID for Gravity Stretching Canggu — recorded
+// during the initial Cloud API onboarding. The system-user token has
+// "whatsapp_business_management" scope for this WABA, which is what lets
+// us POST a new template to /{WABA_ID}/message_templates.
+const WABA_ID = "1376456617641220"
 const GRAPH = "https://graph.facebook.com/v21.0"
 const TEMPLATE_NAME = "trainer_booking_v3"
 const LANGUAGE = "en"
@@ -40,22 +45,6 @@ const BODY_TEXT =
 
 const BODY_EXAMPLE = [["Friday, 28 May", "7:00-9:00", "1/6", "Anna"]]
 
-async function discoverWabaId(token: string): Promise<string> {
-  const url = `${GRAPH}/${PHONE_NUMBER_ID}?fields=whatsapp_business_account&access_token=${encodeURIComponent(token)}`
-  const r = await fetch(url)
-  const j = (await r.json()) as {
-    whatsapp_business_account?: { id: string }
-    error?: { message: string }
-  }
-  if (!r.ok || !j.whatsapp_business_account?.id) {
-    throw new Error(
-      "Could not discover WABA id from phone number: " +
-        (j.error?.message ?? JSON.stringify(j)),
-    )
-  }
-  return j.whatsapp_business_account.id
-}
-
 async function main() {
   const token = process.env.WHATSAPP_ACCESS_TOKEN
   if (!token) {
@@ -63,12 +52,11 @@ async function main() {
     process.exit(1)
   }
 
-  console.log("— discovering WABA id …")
-  const wabaId = await discoverWabaId(token)
-  console.log("  WABA:", wabaId)
+  console.log("  WABA:", WABA_ID)
+  console.log(`  phone: ${PHONE_NUMBER_ID}`)
 
   console.log(`\n— submitting template "${TEMPLATE_NAME}" …`)
-  const url = `${GRAPH}/${wabaId}/message_templates`
+  const url = `${GRAPH}/${WABA_ID}/message_templates`
   const payload = {
     name: TEMPLATE_NAME,
     language: LANGUAGE,
