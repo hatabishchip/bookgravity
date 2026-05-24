@@ -23,11 +23,15 @@
 import "dotenv/config"
 
 const PHONE_NUMBER_ID = "1163623746829979"
-// WhatsApp Business Account ID for Gravity Stretching Canggu — recorded
-// during the initial Cloud API onboarding. The system-user token has
-// "whatsapp_business_management" scope for this WABA, which is what lets
-// us POST a new template to /{WABA_ID}/message_templates.
-const WABA_ID = "1376456617641220"
+// Production WhatsApp Business Account ID = "GravityStretchingСanggu", the
+// real one the +62 821-3130-468 number is attached to. Templates submitted
+// here are what the booking flow uses in production.
+//
+// NB: There's a second WABA (1376456617641220 = "Test WhatsApp Business
+// Account") that Meta auto-creates when you set up Cloud API through the
+// developers portal. It's only used with the +1 555 test number — DO NOT
+// submit production templates there, they're invisible to the real phone.
+const WABA_ID = "1571637721189360"
 const GRAPH = "https://graph.facebook.com/v21.0"
 const TEMPLATE_NAME = "trainer_booking_v3"
 const LANGUAGE = "en"
