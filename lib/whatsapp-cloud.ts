@@ -8,7 +8,19 @@
 // If WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN are missing, all sends
 // no-op and log a warning so the booking flow stays unaffected during setup.
 
+import { format, parseISO } from "date-fns"
+
 const GRAPH_BASE = "https://graph.facebook.com"
+
+// Format "YYYY-MM-DD" → "Friday, 28 May" for the trainer-notification body.
+// Falls back to the raw value if parsing fails so we never break the message.
+function formatLongDate(ymd: string): string {
+  try {
+    return format(parseISO(ymd), "EEEE, d MMMM")
+  } catch {
+    return ymd
+  }
+}
 
 type CloudConfig = {
   phoneNumberId: string
@@ -409,13 +421,19 @@ export async function sendTrainerBookingNotificationWA(opts: {
   maxCapacity: number
 }): Promise<SendResult> {
   const namesLine = opts.clientNames.join(", ")
-  // User-requested format: just the data, no leading "you have a new
-  // booking" / no trailing "open the admin". Free-form text isn't subject
-  // to Meta's template character ratio rule so we can keep it terse.
+  // Owner-specified format. Date is rendered long-form (e.g. "Friday, 28 May")
+  // without a "Date:" prefix. Time keeps the prefix. Free-form text isn't
+  // subject to Meta's template character ratio rule so we can keep it terse.
+  //
+  //   New booking
+  //
+  //   Friday, 28 May
+  //   Time: 7:00-9:00
+  //   Booked 1/6: test 88
   const text = [
     `New booking`,
     ``,
-    `Date: ${opts.date}`,
+    formatLongDate(opts.date),
     `Time: ${opts.time}`,
     `Booked ${opts.bookedCount}/${opts.maxCapacity}: ${namesLine}`,
   ].join("\n")
@@ -441,10 +459,14 @@ export async function sendTrainerBookingNotificationWA(opts: {
     // at, so we can swap to the new template the moment Meta approves it
     // without a code change.
     const isV2 = templateName === "trainer_class_booking"
+    // Use long-form date ("Friday, 28 May") as the {{1}} variable so the
+    // template's "Date: {{1}}" line renders like the owner-specified format
+    // even when we fall back to the template path.
+    const longDate = formatLongDate(opts.date)
     const variables = isV2
-      ? [opts.date, opts.time, `${opts.bookedCount}/${opts.maxCapacity}`, namesLine || "—"]
+      ? [longDate, opts.time, `${opts.bookedCount}/${opts.maxCapacity}`, namesLine || "—"]
       : [
-          opts.date,
+          longDate,
           opts.time,
           String(opts.bookedCount),
           String(opts.maxCapacity),
