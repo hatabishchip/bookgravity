@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Plus, Trash2, X, User, CalendarDays } from "lucide-react"
 import TrainerSchedule from "./TrainerSchedule"
+import PhoneInput from "@/app/_components/PhoneInput"
+import { formatPhoneInput, validatePhone } from "@/lib/phone"
 
 const COLOR_OPTIONS = [
   { value: "#6366F1", label: "Indigo" },
@@ -91,7 +93,15 @@ export default function TrainersPage() {
 
   const fetchTrainers = useCallback(async () => {
     const res = await fetch("/api/admin/trainers")
-    setTrainers(await res.json())
+    const data = (await res.json()) as Trainer[]
+    // Format raw whatsapp values from the DB so the field renders pretty
+    // ("+62 821-4554-6405") instead of "+6282145546405".
+    setTrainers(
+      data.map((t) => ({
+        ...t,
+        whatsapp: t.whatsapp ? formatPhoneInput(t.whatsapp) : "",
+      })),
+    )
   }, [])
 
   useEffect(() => { fetchTrainers() }, [fetchTrainers])
@@ -170,17 +180,28 @@ export default function TrainersPage() {
                   {trainer.name}
                 </div>
                 <div className="text-sm text-gray-500 mt-0.5 truncate">{trainer.user.email}</div>
-                <input
-                  type="tel"
-                  defaultValue={trainer.whatsapp}
-                  placeholder="WhatsApp number"
-                  onBlur={(e) => {
-                    if (e.target.value !== trainer.whatsapp) {
-                      handleWhatsappChange(trainer.id, e.target.value)
+                <div className="mt-1.5">
+                  <PhoneInput
+                    compact
+                    value={trainer.whatsapp || ""}
+                    onChange={(next) =>
+                      setTrainers((prev) =>
+                        prev.map((t) => (t.id === trainer.id ? { ...t, whatsapp: next } : t)),
+                      )
                     }
-                  }}
-                  className="mt-1.5 w-full text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-300 placeholder:text-gray-300"
-                />
+                    // Save on blur, but only when the value is either empty
+                    // (clearing the field) or fully valid for its country —
+                    // matches the request "не давала сохранять при
+                    // недостающем количестве цифр".
+                    onBlur={(value) => {
+                      const v = validatePhone(value)
+                      const canSave = value === "" || v.kind === "ok"
+                      if (canSave && value !== trainer.whatsapp) {
+                        handleWhatsappChange(trainer.id, value)
+                      }
+                    }}
+                  />
+                </div>
               </div>
               <button
                 onClick={() => handleDelete(trainer.id)}
