@@ -136,73 +136,53 @@ export default function TrainersPage() {
     })
   }
 
-  // Track which field is currently in "edit" mode per trainer. Only one
-  // field per trainer can be edited at a time. Once saved/cancelled the
-  // entry is dropped and the row goes back to read-only.
-  const [editing, setEditing] = useState<Record<string, "name" | "email" | "phone" | undefined>>({})
-  const [draft, setDraft] = useState<Record<string, string>>({})
-  const [editError, setEditError] = useState<Record<string, string | undefined>>({})
+  // Single "edit mode" per trainer card. Clicking the pencil flips the card
+  // into a draft where all three fields (name / email / WhatsApp) become
+  // editable at once; one Save patches them all in one PATCH call.
+  type EditDraft = { name: string; email: string; whatsapp: string }
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draft, setDraft] = useState<EditDraft>({ name: "", email: "", whatsapp: "" })
+  const [editError, setEditError] = useState<string | null>(null)
 
-  const startEdit = (id: string, field: "name" | "email" | "phone", initial: string) => {
-    setEditing((prev) => ({ ...prev, [id]: field }))
-    setDraft((prev) => ({ ...prev, [id]: initial }))
-    setEditError((prev) => ({ ...prev, [id]: undefined }))
+  const startEdit = (t: Trainer) => {
+    setEditingId(t.id)
+    setDraft({ name: t.name, email: t.user.email, whatsapp: t.whatsapp ?? "" })
+    setEditError(null)
   }
 
-  const cancelEdit = (id: string) => {
-    setEditing((prev) => ({ ...prev, [id]: undefined }))
-    setDraft((prev) => {
-      const { [id]: _drop, ...rest } = prev
-      return rest
-    })
-    setEditError((prev) => ({ ...prev, [id]: undefined }))
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditError(null)
   }
 
-  const saveEdit = async (id: string) => {
-    const field = editing[id]
-    if (!field) return
-    const value = (draft[id] ?? "").trim()
-    const trainer = trainers.find((t) => t.id === id)
-    if (!trainer) return
+  const saveEdit = async () => {
+    if (!editingId) return
+    const name = draft.name.trim()
+    const email = draft.email.trim()
+    const whatsapp = draft.whatsapp.trim()
 
-    // Field-specific validation
-    let body: Record<string, string>
-    if (field === "name") {
-      if (value.length < 2) {
-        setEditError((p) => ({ ...p, [id]: "Минимум 2 символа" }))
-        return
-      }
-      body = { name: value }
-    } else if (field === "email") {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        setEditError((p) => ({ ...p, [id]: "Неверный email" }))
-        return
-      }
-      body = { email: value }
-    } else {
-      // phone — accept empty (clearing) or fully valid
-      const v = validatePhone(value)
-      if (!(value === "" || v.kind === "ok")) {
-        setEditError((p) => ({ ...p, [id]: "Номер некорректен" }))
-        return
-      }
-      body = { whatsapp: value }
+    if (name.length < 2) { setEditError("Имя — минимум 2 символа"); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setEditError("Неверный email"); return }
+    if (whatsapp !== "") {
+      const v = validatePhone(whatsapp)
+      if (v.kind !== "ok") { setEditError("Номер WhatsApp некорректен"); return }
     }
 
-    const res = await fetch(`/api/admin/trainers?id=${id}`, {
+    const body = { name, email, whatsapp }
+    const res = await fetch(`/api/admin/trainers?id=${editingId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      setEditError((p) => ({ ...p, [id]: data.error ?? `HTTP ${res.status}` }))
+      setEditError(data.error ?? `HTTP ${res.status}`)
       return
     }
     const updated = await res.json()
     setTrainers((prev) =>
       prev.map((t) =>
-        t.id === id
+        t.id === editingId
           ? {
               ...t,
               name: updated.name ?? t.name,
@@ -212,7 +192,7 @@ export default function TrainersPage() {
           : t,
       ),
     )
-    cancelEdit(id)
+    cancelEdit()
   }
 
   return (
@@ -242,146 +222,100 @@ export default function TrainersPage() {
                 <User size={20} style={{ color: trainer.color }} />
               </div>
               <div className="flex-1 min-w-0">
-                {/* Name: display + pencil; click pencil → inline input. */}
-                {editing[trainer.id] === "name" ? (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      autoFocus
-                      value={draft[trainer.id] ?? ""}
-                      onChange={(e) => setDraft((p) => ({ ...p, [trainer.id]: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveEdit(trainer.id)
-                        else if (e.key === "Escape") cancelEdit(trainer.id)
-                      }}
-                      className="flex-1 min-w-0 font-semibold text-gray-900 border border-[#2C6E49]/30 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
-                    />
-                    <button
-                      onClick={() => saveEdit(trainer.id)}
-                      className="p-1 text-[#2C6E49] hover:bg-[#2C6E49]/10 rounded"
-                      aria-label="Save name"
-                    >
-                      <Check size={14} />
-                    </button>
-                    <button
-                      onClick={() => cancelEdit(trainer.id)}
-                      className="p-1 text-gray-400 hover:bg-gray-100 rounded"
-                      aria-label="Cancel"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="font-semibold text-gray-900 flex items-center gap-2">
-                    <span
-                      className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: trainer.color }}
-                    />
-                    <span className="truncate">{trainer.name}</span>
-                    <button
-                      onClick={() => startEdit(trainer.id, "name", trainer.name)}
-                      className="p-1 text-gray-300 hover:text-[#2C6E49] hover:bg-[#2C6E49]/10 rounded"
-                      aria-label="Edit name"
-                    >
-                      <Pencil size={12} />
-                    </button>
-                  </div>
-                )}
-
-                {/* Email: display + pencil. */}
-                {editing[trainer.id] === "email" ? (
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <input
-                      autoFocus
-                      type="email"
-                      value={draft[trainer.id] ?? ""}
-                      onChange={(e) => setDraft((p) => ({ ...p, [trainer.id]: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveEdit(trainer.id)
-                        else if (e.key === "Escape") cancelEdit(trainer.id)
-                      }}
-                      className="flex-1 min-w-0 text-sm text-gray-700 border border-[#2C6E49]/30 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
-                    />
-                    <button
-                      onClick={() => saveEdit(trainer.id)}
-                      className="p-1 text-[#2C6E49] hover:bg-[#2C6E49]/10 rounded"
-                      aria-label="Save email"
-                    >
-                      <Check size={14} />
-                    </button>
-                    <button
-                      onClick={() => cancelEdit(trainer.id)}
-                      className="p-1 text-gray-400 hover:bg-gray-100 rounded"
-                      aria-label="Cancel"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
-                    <span className="truncate min-w-0">{trainer.user.email}</span>
-                    <button
-                      onClick={() => startEdit(trainer.id, "email", trainer.user.email)}
-                      className="p-1 text-gray-300 hover:text-[#2C6E49] hover:bg-[#2C6E49]/10 rounded flex-shrink-0"
-                      aria-label="Edit email"
-                    >
-                      <Pencil size={12} />
-                    </button>
-                  </div>
-                )}
-
-                {/* WhatsApp: read-only chip + pencil; click → inline PhoneInput
-                    with Save/Cancel. Save only fires when validation passes. */}
-                {editing[trainer.id] === "phone" ? (
-                  <div className="mt-1.5">
-                    <PhoneInput
-                      compact
-                      autoFocus
-                      value={draft[trainer.id] ?? ""}
-                      onChange={(next) => setDraft((p) => ({ ...p, [trainer.id]: next }))}
-                    />
-                    <div className="flex items-center gap-1.5 mt-1.5">
+                {editingId === trainer.id ? (
+                  // EDIT MODE: name + email + WhatsApp all editable at once.
+                  // Single Save / Cancel pair below.
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">Name</label>
+                      <input
+                        autoFocus
+                        value={draft.name}
+                        onChange={(e) => setDraft((p) => ({ ...p, name: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit()
+                          else if (e.key === "Escape") cancelEdit()
+                        }}
+                        className="w-full font-semibold text-gray-900 border border-[#2C6E49]/30 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={draft.email}
+                        onChange={(e) => setDraft((p) => ({ ...p, email: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit()
+                          else if (e.key === "Escape") cancelEdit()
+                        }}
+                        className="w-full text-sm text-gray-700 border border-[#2C6E49]/30 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">WhatsApp</label>
+                      <PhoneInput
+                        compact
+                        value={draft.whatsapp}
+                        onChange={(next) => setDraft((p) => ({ ...p, whatsapp: next }))}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-1">
                       <button
-                        onClick={() => saveEdit(trainer.id)}
-                        className="text-xs px-2 py-1 bg-[#2C6E49] text-white rounded-lg hover:bg-[#1E4D34] flex items-center gap-1"
+                        onClick={saveEdit}
+                        className="text-xs px-3 py-1.5 bg-[#2C6E49] text-white rounded-lg hover:bg-[#1E4D34] flex items-center gap-1 font-medium"
                       >
-                        <Check size={12} /> Сохранить
+                        <Check size={12} /> Save
                       </button>
                       <button
-                        onClick={() => cancelEdit(trainer.id)}
-                        className="text-xs px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center gap-1"
+                        onClick={cancelEdit}
+                        className="text-xs px-3 py-1.5 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center gap-1"
                       >
-                        <X size={12} /> Отмена
+                        <X size={12} /> Cancel
                       </button>
                     </div>
+                    {editError && <p className="text-xs text-red-500 mt-1">{editError}</p>}
                   </div>
                 ) : (
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <span className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 truncate min-w-0 flex-1">
-                      {trainer.whatsapp || (
-                        <span className="text-gray-300">WhatsApp number</span>
-                      )}
-                    </span>
-                    <button
-                      onClick={() => startEdit(trainer.id, "phone", trainer.whatsapp || "")}
-                      className="p-1 text-gray-300 hover:text-[#2C6E49] hover:bg-[#2C6E49]/10 rounded flex-shrink-0"
-                      aria-label="Edit WhatsApp"
-                    >
-                      <Pencil size={12} />
-                    </button>
-                  </div>
-                )}
-
-                {editError[trainer.id] && (
-                  <p className="text-xs text-red-500 mt-1">{editError[trainer.id]}</p>
+                  // VIEW MODE: read-only name + email + WhatsApp chip.
+                  <>
+                    <div className="font-semibold text-gray-900 flex items-center gap-2">
+                      <span
+                        className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: trainer.color }}
+                      />
+                      <span className="truncate">{trainer.name}</span>
+                    </div>
+                    <div className="text-sm text-gray-500 mt-0.5 truncate">{trainer.user.email}</div>
+                    <div className="mt-1.5">
+                      <span className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 inline-block max-w-full truncate">
+                        {trainer.whatsapp || <span className="text-gray-300">WhatsApp number</span>}
+                      </span>
+                    </div>
+                  </>
                 )}
               </div>
-              <button
-                onClick={() => handleDelete(trainer.id)}
-                disabled={deleting === trainer.id}
-                className="p-1.5 hover:bg-black/5 rounded-lg text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
-              >
-                <Trash2 size={15} />
-              </button>
+
+              {/* Top-right action stack — Trash above, Pencil below. Both hidden in edit mode. */}
+              {editingId !== trainer.id && (
+                <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => handleDelete(trainer.id)}
+                    disabled={deleting === trainer.id}
+                    aria-label="Delete trainer"
+                    className="p-1.5 hover:bg-rose-50 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                  <button
+                    onClick={() => startEdit(trainer)}
+                    aria-label="Edit trainer"
+                    className="p-1.5 hover:bg-[#2C6E49]/10 rounded-lg text-gray-400 hover:text-[#2C6E49] transition-colors"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Divider */}
