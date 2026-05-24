@@ -151,6 +151,16 @@ model Booking {
   checkedIn      Boolean          @default(false)
   notes          String?
   services       BookingService[]
+  // Diagnostic fields for the trainer's WhatsApp notification — populated by
+  // the booking POST handler so we can audit why a trainer didn't get pinged
+  // even though the message was "accepted" by Meta. Values:
+  //   sent       — Meta accepted the message (template / free-form text)
+  //   failed     — Meta rejected it; reason in waNotifyTrainerError
+  //   skipped    — Trainer has no whatsapp number set
+  //   not_sent   — Default; row hasn't been processed yet
+  waNotifyTrainerStatus    String?  @default("not_sent")
+  waNotifyTrainerError     String?
+  waNotifyTrainerMessageId String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 }

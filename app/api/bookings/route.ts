@@ -79,7 +79,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Create N bookings (one per person), all sharing the same lead's name+phone
-    const bookings = []
+    type BookingRow = Awaited<ReturnType<typeof prisma.booking.create>>
+    const bookings: BookingRow[] = []
     for (let i = 0; i < data.partySize; i++) {
       const ticketCode = await generateUniqueCode(data.slotId)
       const b = await prisma.booking.create({
@@ -227,8 +228,30 @@ export async function POST(request: NextRequest) {
         const trainerWA = slotForWA.trainer?.whatsapp
         const trainerName = slotForWA.trainer?.name
         const trainerPromise = (async () => {
+          // Helper to persist outcome on the lead booking so we have a DB
+          // audit trail for why the trainer did/didn't get a notification.
+          const recordStatus = async (
+            status: "sent" | "failed" | "skipped",
+            error?: string | null,
+            messageId?: string | null,
+          ) => {
+            try {
+              await prisma.booking.update({
+                where: { id: bookings[0].id },
+                data: {
+                  waNotifyTrainerStatus: status,
+                  waNotifyTrainerError: error ?? null,
+                  waNotifyTrainerMessageId: messageId ?? null,
+                },
+              })
+            } catch (err) {
+              console.error("[bookings] could not persist trainer-notify status:", err)
+            }
+          }
+
           if (!trainerWA || !trainerName) {
             console.warn("[bookings] WA trainer notify SKIPPED — no whatsapp on trainer")
+            await recordStatus("skipped", "no whatsapp on trainer")
             return
           }
           // Look up every confirmed booking on this slot (the new ones we
@@ -258,8 +281,13 @@ export async function POST(request: NextRequest) {
             bookedCount: slotBookings.length,
             maxCapacity: slotForWA.maxCapacity,
           })
-          if (!r.ok) console.warn("[bookings] WA trainer send failed:", r.error)
-          else console.log("[bookings] WA trainer sent:", r.messageId)
+          if (!r.ok) {
+            console.warn("[bookings] WA trainer send failed:", r.error)
+            await recordStatus("failed", r.error)
+          } else {
+            console.log("[bookings] WA trainer sent:", r.messageId)
+            await recordStatus("sent", null, r.messageId)
+          }
         })()
 
         await Promise.all([clientPromise, trainerPromise])
