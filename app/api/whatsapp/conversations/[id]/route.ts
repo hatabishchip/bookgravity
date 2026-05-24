@@ -2,10 +2,19 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { markConversationRead } from "@/lib/whatsapp-conversation"
+import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
 async function loadConvoForUser(convoId: string) {
   const ctx = await requireAuth()
   if (!ctx) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+  if (!(await isStudioWhatsAppEnabled(ctx.studioId))) {
+    return {
+      error: NextResponse.json(
+        { error: "WhatsApp not enabled for this studio" },
+        { status: 403 },
+      ),
+    }
+  }
   const convo = await prisma.whatsAppConversation.findFirst({
     where: { id: convoId, studioId: ctx.studioId },
     include: { assignedTrainer: { select: { id: true, name: true, color: true } } },

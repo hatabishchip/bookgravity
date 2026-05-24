@@ -17,6 +17,12 @@ model Studio {
   groupPrice    Float    @default(300000)
   kidsPrice     Float    @default(200000)
   privatePrice  Float    @default(800000)
+  // WhatsApp Cloud API integration: gated per-studio. New studios start
+  // disabled; a super-admin (not built yet) flips this to `true` only after
+  // the studio's number has been verified + registered in Meta Cloud API.
+  // While false, the FloatingInbox FAB / /admin/inbox / /trainer/inbox
+  // pages stay hidden and the inbox API rejects requests for this studio.
+  whatsappEnabled Boolean @default(false)
   createdAt     DateTime @default(now())
 
   users        User[]

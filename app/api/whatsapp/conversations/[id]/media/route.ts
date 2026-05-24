@@ -9,6 +9,7 @@ import {
   appendOutboundMessage,
   isInsideCustomerWindow,
 } from "@/lib/whatsapp-conversation"
+import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
 // POST /api/whatsapp/conversations/[id]/media
 // multipart/form-data: file (required), caption (optional)
@@ -45,6 +46,9 @@ export async function POST(
 ) {
   const ctx = await requireAuth()
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!(await isStudioWhatsAppEnabled(ctx.studioId))) {
+    return NextResponse.json({ error: "WhatsApp not enabled for this studio" }, { status: 403 })
+  }
 
   const { id } = await params
   const convo = await prisma.whatsAppConversation.findFirst({

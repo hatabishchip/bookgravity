@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { fetchMetaMedia } from "@/lib/whatsapp-cloud"
+import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
 // GET /api/whatsapp/media/[messageId]
 //
@@ -22,6 +23,9 @@ export async function GET(
 ) {
   const ctx = await requireAuth()
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!(await isStudioWhatsAppEnabled(ctx.studioId))) {
+    return NextResponse.json({ error: "WhatsApp not enabled for this studio" }, { status: 403 })
+  }
 
   const { messageId } = await params
   const msg = await prisma.whatsAppMessage.findFirst({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
 // GET /api/whatsapp/conversations
 // Admin: all conversations in their studio.
@@ -8,6 +9,11 @@ import { prisma } from "@/lib/prisma"
 export async function GET(_req: NextRequest) {
   const ctx = await requireAuth()
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  // Per-studio gate.
+  if (!(await isStudioWhatsAppEnabled(ctx.studioId))) {
+    return NextResponse.json({ error: "WhatsApp not enabled for this studio" }, { status: 403 })
+  }
 
   let trainerId: string | null = null
   if (ctx.role === "TRAINER") {

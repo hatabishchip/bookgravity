@@ -1,7 +1,19 @@
 import { Suspense } from "react"
+import { redirect } from "next/navigation"
 import Inbox from "@/app/_components/Inbox"
+import { prisma } from "@/lib/prisma"
+import { getStudioIdBySubdomain } from "@/lib/studio"
 
-export default function AdminInboxPage() {
+// Per-studio gate. If this studio hasn't been opted into WhatsApp yet by a
+// super-admin, bounce direct URL visits to the dashboard so the feature is
+// invisible end-to-end (FAB hidden + page hidden + API rejects).
+export default async function AdminInboxPage() {
+  const studioId = await getStudioIdBySubdomain()
+  const studio = await prisma.studio.findUnique({
+    where: { id: studioId },
+    select: { whatsappEnabled: true },
+  })
+  if (!studio?.whatsappEnabled) redirect("/admin")
   return (
     <Suspense fallback={<div className="p-4 text-sm text-gray-400">Loading…</div>}>
       <Inbox role="ADMIN" />

@@ -11,6 +11,7 @@ import {
   upsertConversation,
   appendOutboundMessage,
 } from "@/lib/whatsapp-conversation"
+import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { z } from "zod"
 
 const BookingSchema = z.object({
@@ -159,7 +160,13 @@ export async function POST(request: NextRequest) {
     }
 
     // WhatsApp Cloud API notifications. Best-effort, never throws.
+    // Skipped entirely for studios where the super-admin hasn't enabled
+    // the WhatsApp feature yet (e.g. Ubud while it's still being set up).
     try {
+      if (!(await isStudioWhatsAppEnabled(studioId))) {
+        console.log("[bookings] WA disabled for this studio — skip notifications")
+        return NextResponse.json(bookings[0], { status: 201 })
+      }
       const slotForWA = await prisma.timeSlot.findUnique({
         where: { id: data.slotId },
         include: { trainer: { select: { name: true, whatsapp: true } } },

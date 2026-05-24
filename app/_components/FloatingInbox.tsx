@@ -24,7 +24,25 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   const [open, setOpen] = useState(false)
   const [unreadChats, setUnreadChats] = useState(0)
   const [mounted, setMounted] = useState(false)
+  // Per-studio gate. We default to `null` while loading so the FAB doesn't
+  // flash for studios that don't have WhatsApp enabled.
+  const [waEnabled, setWaEnabled] = useState<boolean | null>(null)
   useEffect(() => setMounted(true), [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/studio", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled) setWaEnabled(Boolean(d?.whatsappEnabled))
+      })
+      .catch(() => {
+        if (!cancelled) setWaEnabled(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Poll the conversations list so the badge stays roughly fresh.
   const refresh = useCallback(async () => {
@@ -158,6 +176,10 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   }, [open])
 
   if (hidden) return null
+  // Per-studio WhatsApp gate: hide entirely until the super-admin enables
+  // it. While we're still fetching the flag, render nothing — prevents the
+  // FAB from briefly flashing in studios that don't have it.
+  if (waEnabled !== true) return null
 
   const modal = open ? (
     <div

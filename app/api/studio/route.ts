@@ -11,7 +11,15 @@ export async function GET() {
     const studioId = await getStudioIdBySubdomain()
     const studio = await prisma.studio.findUnique({
       where: { id: studioId },
-      select: { id: true, name: true, slug: true, isDefault: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        isDefault: true,
+        // Per-studio feature flag for the WhatsApp inbox. False studios
+        // hide the FAB and the /admin|/trainer/inbox pages entirely.
+        whatsappEnabled: true,
+      },
     })
     if (!studio) return NextResponse.json({ error: "Not found" }, { status: 404 })
     return NextResponse.json(studio)
