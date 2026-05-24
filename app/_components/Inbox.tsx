@@ -123,6 +123,29 @@ function WindowBadge({ lastInboundAt }: { lastInboundAt: string | null }) {
   )
 }
 
+// True when the text is *only* emoji (plus optional whitespace / variation
+// selectors / ZWJ). Mirrors WhatsApp's "jumbo emoji" rendering rule —
+// emoji-only messages get a larger font while everything else stays at the
+// normal text size.
+function isEmojiOnly(text: string | null | undefined): boolean {
+  if (!text) return false
+  const trimmed = text.trim()
+  if (!trimmed.length) return false
+  const stripped = trimmed.replace(
+    /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Emoji_Component}‍️\s]/gu,
+    "",
+  )
+  return stripped.length === 0
+}
+
+// Count of standalone emoji characters in an emoji-only string. We cap the
+// jumbo size when there are many emoji so they don't overflow the bubble.
+function emojiCount(text: string): number {
+  let count = 0
+  for (const _ of text.replace(/\s+/g, "")) count++
+  return count
+}
+
 function MessageBubble({
   m,
   role,
@@ -133,6 +156,14 @@ function MessageBubble({
   fontScale: number
 }) {
   const isOut = m.direction === "OUTBOUND"
+  const jumbo = isEmojiOnly(m.body)
+  const jumboScale = jumbo
+    ? emojiCount(m.body || "") <= 3
+      ? 2.8 // 1-3 emoji → big like WhatsApp
+      : emojiCount(m.body || "") <= 6
+        ? 1.8 // 4-6 emoji → medium
+        : 1.2 // 7+ → barely larger than normal
+    : 1
 
   // Stickers render WITHOUT a bubble — floating on the chat background,
   // like WhatsApp. Status / time line sits just below the image.
@@ -165,7 +196,8 @@ function MessageBubble({
     <div className={cn("flex", isOut ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[78%] rounded-2xl px-3 py-2 leading-snug shadow-sm",
+          "max-w-[78%] rounded-2xl leading-snug shadow-sm",
+          jumbo ? "px-2.5 py-1.5" : "px-3 py-2",
           // WhatsApp bubble colors — light theme + dark theme via prefers-color-scheme
           isOut
             ? "bg-[#DCF8C6] text-gray-900 dark:bg-[#005C4B] dark:text-white"
@@ -233,7 +265,17 @@ function MessageBubble({
         )}
 
         {m.body && m.type !== "document" && (
-          <div className="whitespace-pre-wrap break-words">{m.body}</div>
+          <div
+            className="whitespace-pre-wrap break-words"
+            style={
+              jumbo
+                ? // Jumbo emoji-only — much larger than the bubble text.
+                  { fontSize: `${jumboScale * 1.8}em`, lineHeight: 1.1 }
+                : undefined
+            }
+          >
+            {m.body}
+          </div>
         )}
 
         {m.fromTrainer && isOut && (

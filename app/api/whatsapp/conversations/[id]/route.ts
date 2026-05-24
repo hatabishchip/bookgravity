@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { markConversationRead } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
+import { markMessageRead } from "@/lib/whatsapp-cloud"
 
 async function loadConvoForUser(convoId: string) {
   const ctx = await requireAuth()
@@ -52,6 +53,27 @@ export async function GET(
 
   // Mark read for the viewer.
   await markConversationRead(convo.id, ctx.role === "ADMIN" ? "admin" : "trainer")
+
+  // Send Meta "read" receipts for any inbound messages we haven't ack'd yet
+  // so the client sees blue double-checks on their side. Done in the
+  // background — never blocks the API response.
+  const unread = messages.filter(
+    (m) => m.direction === "INBOUND" && m.waMessageId && m.status !== "read",
+  )
+  if (unread.length > 0) {
+    void Promise.all(
+      unread.map(async (m) => {
+        const r = await markMessageRead(m.waMessageId!)
+        if (r.ok) {
+          await prisma.whatsAppMessage
+            .update({ where: { id: m.id }, data: { status: "read" } })
+            .catch(() => {})
+        } else {
+          console.warn("[conversations] markMessageRead failed:", m.waMessageId, r.error)
+        }
+      }),
+    )
+  }
 
   return NextResponse.json({
     id: convo.id,

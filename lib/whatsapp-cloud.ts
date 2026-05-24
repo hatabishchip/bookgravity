@@ -166,6 +166,47 @@ export async function fetchMetaMedia(
 }
 
 /**
+ * Mark an inbound message as read. Sends Meta the "read" status so the
+ * blue double-check appears on the client's WhatsApp. The wamid is the
+ * one we got from the inbound webhook (stored in WhatsAppMessage.waMessageId).
+ *
+ * Meta silently 200s for invalid / already-read wamids, so failures here
+ * are non-fatal. We surface errors so callers can decide whether to retry.
+ */
+export async function markMessageRead(
+  waMessageId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const cfg = getConfig()
+  if (!cfg) return { ok: false, error: "not_configured" }
+  if (!waMessageId) return { ok: false, error: "empty_wamid" }
+  try {
+    const url = `${GRAPH_BASE}/${cfg.apiVersion}/${cfg.phoneNumberId}/messages`
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cfg.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: waMessageId,
+      }),
+    })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      return {
+        ok: false,
+        error: (j as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`,
+      }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/**
  * Free-form text message. Works ONLY inside a 24h customer service window
  * (i.e. the recipient must have sent us a message in the last 24 hours).
  * Use for trainer notifications once they've replied to the bot at least once.
