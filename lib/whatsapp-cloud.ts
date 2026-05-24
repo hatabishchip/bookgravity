@@ -354,24 +354,29 @@ export async function sendTrainerBookingNotificationWA(opts: {
     textResult.error.toLowerCase().includes("24 hours")
   ) {
     const templateName =
-      process.env.WHATSAPP_TEMPLATE_TRAINER_NOTIFICATION || "trainer_class_booking"
+      process.env.WHATSAPP_TEMPLATE_TRAINER_NOTIFICATION || "trainer_new_booking"
     const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
-    // New template has 4 vars (count/cap merged into single "X/Y" string)
-    // because Meta rejected the 5-var version as "too many parameters
-    // relative to body length". The trailing "This is an automatic
-    // notification from Gravity Stretching Canggu." in the template body
-    // is also a Meta-imposed minimum — they refuse to publish a body that's
-    // too sparse around variables.
+    // Two template variants are live in our WABA. The new, terse one
+    // (`trainer_class_booking`) carries 4 variables but is still PENDING
+    // Meta approval; the old one (`trainer_new_booking`) carries 5 and is
+    // APPROVED. We dispatch the right shape based on whatever env points
+    // at, so we can swap to the new template the moment Meta approves it
+    // without a code change.
+    const isV2 = templateName === "trainer_class_booking"
+    const variables = isV2
+      ? [opts.date, opts.time, `${opts.bookedCount}/${opts.maxCapacity}`, namesLine || "—"]
+      : [
+          opts.date,
+          opts.time,
+          String(opts.bookedCount),
+          String(opts.maxCapacity),
+          namesLine || "—",
+        ]
     return sendWhatsAppTemplate({
       toPhone: opts.trainerPhone,
       templateName,
       languageCode: lang,
-      variables: [
-        opts.date,
-        opts.time,
-        `${opts.bookedCount}/${opts.maxCapacity}`,
-        namesLine || "—",
-      ],
+      variables,
     })
   }
   return textResult
