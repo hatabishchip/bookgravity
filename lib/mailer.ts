@@ -126,7 +126,6 @@ export async function sendClientBookingConfirmation(
       </div>
 
       <p style="color:#666;font-size:13px;margin:0 0 6px">Please arrive <b>10 minutes before</b> the class starts.</p>
-      <p style="color:#666;font-size:13px;margin:0 0 6px">Show your ticket code at the front desk when you arrive.</p>
       <p style="color:#888;font-size:12px;margin:18px 0 0">
         Need to cancel? Reply to this email or reach out via WhatsApp.
       </p>

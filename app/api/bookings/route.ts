@@ -194,8 +194,7 @@ export async function POST(request: NextRequest) {
         const clientMessageBody =
           `Hi ${data.clientName}, your booking is confirmed.\n` +
           `Date: ${prettyDate}\nTime: ${prettyTime}\nTicket: ${bookings[0].ticketCode}\n\n` +
-          `Please arrive 10 minutes before the class starts.\n` +
-          `Show your ticket to the trainer at the studio. See you on the mat!`
+          `Please arrive 10 minutes before the class starts.`
 
         const clientPromise = sendClientBookingConfirmationWA({
           clientPhone: data.clientPhone,
