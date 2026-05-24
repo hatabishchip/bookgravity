@@ -5,6 +5,8 @@ import { Plus, Trash2, X, User, CalendarDays, Pencil, Check } from "lucide-react
 import TrainerSchedule from "./TrainerSchedule"
 import PhoneInput from "@/app/_components/PhoneInput"
 import { formatPhoneInput, validatePhone } from "@/lib/phone"
+import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
+import { whatsappLink } from "@/lib/whatsapp"
 
 const COLOR_OPTIONS = [
   { value: "#6366F1", label: "Indigo" },
@@ -292,9 +294,34 @@ export default function TrainersPage() {
                     </div>
                     <div className="text-sm text-gray-500 mt-0.5 truncate">{trainer.user.email}</div>
                     <div className="mt-1.5">
-                      <span className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 inline-block max-w-full truncate">
-                        {trainer.whatsapp || <span className="text-gray-300">WhatsApp number</span>}
-                      </span>
+                      {(() => {
+                        // Tappable WhatsApp chip — wa.me opens the installed
+                        // WhatsApp app on mobile (chat with this trainer,
+                        // pre-filled greeting) and web.whatsapp.com on desktop.
+                        const link = trainer.whatsapp
+                          ? whatsappLink(trainer.whatsapp, `Hi ${trainer.name}!`)
+                          : null
+                        if (link) {
+                          return (
+                            <a
+                              href={link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Open WhatsApp chat with this trainer"
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#075E54] bg-[#25D366]/10 border border-[#25D366]/30 rounded-lg px-2 py-1 max-w-full truncate hover:bg-[#25D366]/20 transition-colors touch-manipulation"
+                            >
+                              <WhatsAppIcon size={12} />
+                              <span className="truncate">{trainer.whatsapp}</span>
+                            </a>
+                          )
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
+                            <WhatsAppIcon size={12} />
+                            <span>No WhatsApp number</span>
+                          </span>
+                        )
+                      })()}
                     </div>
                   </>
                 )}
