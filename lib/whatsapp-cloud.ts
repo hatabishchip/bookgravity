@@ -261,40 +261,50 @@ export async function sendClientBookingConfirmationWA(opts: {
 }
 
 /**
- * Notify trainer of a new booking. Tries free-form text first (cheap, works
- * if trainer is in the 24h window). If Meta rejects with a re-engagement
- * error, falls back to a utility template.
+ * Notify trainer of a new booking. Tries free-form text first (works if
+ * trainer is in the 24h window), falls back to a utility template if not.
  *
- * Expected template body (4 vars):
- *   New booking — {{1}} at {{2}}. Client: {{3}} ({{4}}).
+ * Privacy: we deliberately DON'T include the client's phone number in
+ * either path — trainers see only names. The slot's overall occupancy is
+ * surfaced as "Booked X/Y: Anna, John" so the trainer knows how full the
+ * class is at a glance.
+ *
+ * Template body (5 vars):
+ *   New booking
+ *   You have a new booking for your class.
+ *   Date: {{1}}
+ *   Time: {{2}}
+ *   Booked {{3}}/{{4}}: {{5}}
+ *   Open the admin to view details.
  */
 export async function sendTrainerBookingNotificationWA(opts: {
   trainerPhone: string
   trainerName: string
   date: string
   time: string
-  clientName: string
-  clientPhone: string
-  partySize?: number
+  /** All client names already booked on this slot (including the new one). */
+  clientNames: string[]
+  /** Total bookings on the slot after the new one(s) landed. */
+  bookedCount: number
+  /** Slot capacity. */
+  maxCapacity: number
 }): Promise<SendResult> {
-  const partyText =
-    opts.partySize && opts.partySize > 1 ? ` (+${opts.partySize - 1} more)` : ""
+  const namesLine = opts.clientNames.join(", ")
   const text = [
     `Hi ${opts.trainerName} 👋`,
     ``,
     `New booking for your class:`,
     `📅 ${opts.date}`,
     `⏰ ${opts.time}`,
-    `👤 ${opts.clientName}${partyText}`,
-    `📞 ${opts.clientPhone}`,
+    `👥 Booked ${opts.bookedCount}/${opts.maxCapacity}: ${namesLine}`,
   ].join("\n")
 
   const textResult = await sendWhatsAppText(opts.trainerPhone, text)
   if (textResult.ok) return textResult
 
   // Re-engagement / 24h window errors → fall back to template.
-  // Meta error code 131047 = "Message failed to send because more than 24 hours
-  // have passed since the customer last replied."
+  // Meta error code 131047 = "Message failed to send because more than 24
+  // hours have passed since the customer last replied."
   if (
     textResult.error.includes("131047") ||
     textResult.error.toLowerCase().includes("re-engagement") ||
@@ -310,8 +320,9 @@ export async function sendTrainerBookingNotificationWA(opts: {
       variables: [
         opts.date,
         opts.time,
-        opts.clientName + partyText,
-        opts.clientPhone,
+        String(opts.bookedCount),
+        String(opts.maxCapacity),
+        namesLine || "—",
       ],
     })
   }

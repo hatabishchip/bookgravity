@@ -682,7 +682,13 @@ export default function Inbox({
                       className="font-medium text-gray-900 dark:text-white truncate"
                       style={{ fontSize: `${fontScale}rem` }}
                     >
-                      {c.clientName || formatPhone(c.clientPhone)}
+                      {/* Trainers never see phone numbers — even when a
+                          client has no name set, fall back to a neutral
+                          label. Admin can still see the phone. */}
+                      {c.clientName ||
+                        (role === "TRAINER"
+                          ? "Клиент"
+                          : formatPhone(c.clientPhone))}
                     </div>
                     <div
                       className={cn(
@@ -775,9 +781,11 @@ export default function Inbox({
             className="font-medium text-gray-900 dark:text-white truncate"
             style={{ fontSize: `${fontScale}rem` }}
           >
-            {detail?.clientName || formatPhone(detail?.clientPhone ?? "")}
+            {detail?.clientName ||
+              (role === "TRAINER" ? "Клиент" : formatPhone(detail?.clientPhone ?? ""))}
           </div>
-          {detail?.clientName && (
+          {/* Phone subtitle: admin only. Trainers never see client phones. */}
+          {detail?.clientName && role === "ADMIN" && (
             <div
               className="text-gray-500 dark:text-[#8696A0] truncate"
               style={{ fontSize: `${fontScale * 0.75}rem` }}

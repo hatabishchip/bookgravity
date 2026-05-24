@@ -219,23 +219,41 @@ export async function POST(request: NextRequest) {
 
         const trainerWA = slotForWA.trainer?.whatsapp
         const trainerName = slotForWA.trainer?.name
-        const trainerPromise =
-          trainerWA && trainerName
-            ? sendTrainerBookingNotificationWA({
-                trainerPhone: trainerWA,
-                trainerName,
-                date: prettyDate,
-                time: prettyTime,
-                clientName: data.clientName,
-                clientPhone: data.clientPhone,
-                partySize: data.partySize,
-              }).then((r) => {
-                if (!r.ok) console.warn("[bookings] WA trainer send failed:", r.error)
-                else console.log("[bookings] WA trainer sent:", r.messageId)
-              })
-            : Promise.resolve(
-                console.warn("[bookings] WA trainer notify SKIPPED — no whatsapp on trainer"),
-              )
+        const trainerPromise = (async () => {
+          if (!trainerWA || !trainerName) {
+            console.warn("[bookings] WA trainer notify SKIPPED — no whatsapp on trainer")
+            return
+          }
+          // Look up every confirmed booking on this slot (the new ones we
+          // just inserted are included) so the notification tells the
+          // trainer how full the class is and who's attending — without
+          // exposing any phone numbers.
+          const slotBookings = await prisma.booking.findMany({
+            where: { slotId: data.slotId, status: "CONFIRMED" },
+            select: { clientName: true },
+            orderBy: { createdAt: "asc" },
+          })
+          const clientNames = Array.from(
+            // Deduplicate "John (1/2)" / "John (2/2)" multi-seat entries to
+            // just "John" so the list is compact.
+            new Set(
+              slotBookings
+                .map((b) => (b.clientName ?? "").replace(/\s*\(\d+\/\d+\)\s*$/, "").trim())
+                .filter(Boolean),
+            ),
+          )
+          const r = await sendTrainerBookingNotificationWA({
+            trainerPhone: trainerWA,
+            trainerName,
+            date: prettyDate,
+            time: prettyTime,
+            clientNames,
+            bookedCount: slotBookings.length,
+            maxCapacity: slotForWA.maxCapacity,
+          })
+          if (!r.ok) console.warn("[bookings] WA trainer send failed:", r.error)
+          else console.log("[bookings] WA trainer sent:", r.messageId)
+        })()
 
         await Promise.all([clientPromise, trainerPromise])
       }
