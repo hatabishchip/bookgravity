@@ -58,7 +58,11 @@ function ColorPicker({ color, onChange }: { color: string; onChange: (c: string)
         style={{ backgroundColor: color }}
       />
       {open && (
-        <div className="absolute top-7 left-0 z-20 bg-white rounded-xl shadow-xl border border-gray-100 p-2.5 flex flex-col gap-1 min-w-[140px]">
+        // Anchor to the right edge of the swatch so the popup opens LEFTWARD
+        // into the card. The swatch sits on the right side of the row, so a
+        // left-anchored popup would overflow off-screen on mobile (only the
+        // first 4 colors would be visible). Right-anchored = always inside.
+        <div className="absolute top-7 right-0 z-20 bg-white rounded-xl shadow-xl border border-gray-100 p-2.5 flex flex-col gap-1 min-w-[140px]">
           <div className="grid grid-cols-5 gap-1.5 mb-1">
             {COLOR_OPTIONS.map((opt) => (
               <button
