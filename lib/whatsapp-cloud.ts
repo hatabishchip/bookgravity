@@ -331,10 +331,11 @@ export async function sendTrainerBookingNotificationWA(opts: {
   maxCapacity: number
 }): Promise<SendResult> {
   const namesLine = opts.clientNames.join(", ")
-  // Match the template exactly — no "Hi {name}" greeting, no phone number.
-  // Just the booking facts: date, time, occupancy, names.
+  // User-requested format: just the data, no leading "you have a new
+  // booking" / no trailing "open the admin". Free-form text isn't subject
+  // to Meta's template character ratio rule so we can keep it terse.
   const text = [
-    `New booking for your class.`,
+    `New booking`,
     ``,
     `Date: ${opts.date}`,
     `Time: ${opts.time}`,
@@ -353,8 +354,14 @@ export async function sendTrainerBookingNotificationWA(opts: {
     textResult.error.toLowerCase().includes("24 hours")
   ) {
     const templateName =
-      process.env.WHATSAPP_TEMPLATE_TRAINER_NOTIFICATION || "trainer_new_booking"
+      process.env.WHATSAPP_TEMPLATE_TRAINER_NOTIFICATION || "trainer_class_booking"
     const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+    // New template has 4 vars (count/cap merged into single "X/Y" string)
+    // because Meta rejected the 5-var version as "too many parameters
+    // relative to body length". The trailing "This is an automatic
+    // notification from Gravity Stretching Canggu." in the template body
+    // is also a Meta-imposed minimum — they refuse to publish a body that's
+    // too sparse around variables.
     return sendWhatsAppTemplate({
       toPhone: opts.trainerPhone,
       templateName,
@@ -362,8 +369,7 @@ export async function sendTrainerBookingNotificationWA(opts: {
       variables: [
         opts.date,
         opts.time,
-        String(opts.bookedCount),
-        String(opts.maxCapacity),
+        `${opts.bookedCount}/${opts.maxCapacity}`,
         namesLine || "—",
       ],
     })
