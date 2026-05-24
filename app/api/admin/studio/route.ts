@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { setWhatsAppProfilePictureFromDataUrl } from "@/lib/whatsapp-cloud"
+import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
 const MAX_DATA_URL_LEN = 1_500_000 // ~1MB of base64 = ~750KB of real image
 
@@ -46,5 +48,25 @@ export async function PATCH(request: NextRequest) {
     data: parsed.data,
     select: { id: true, name: true, slug: true, logoUrl: true, faviconUrl: true, isDefault: true, groupPrice: true, kidsPrice: true, privatePrice: true },
   })
+
+  // Auto-sync the studio logo to the WhatsApp Business profile picture
+  // whenever the admin uploads / replaces it. Fire-and-forget so a slow
+  // Meta API call doesn't block the admin save.
+  if (parsed.data.logoUrl && parsed.data.logoUrl.startsWith("data:")) {
+    void (async () => {
+      try {
+        if (!(await isStudioWhatsAppEnabled(ctx.studioId))) return
+        const r = await setWhatsAppProfilePictureFromDataUrl(parsed.data.logoUrl as string)
+        if (!r.ok) {
+          console.warn("[admin/studio] WA profile picture sync failed:", r.error)
+        } else {
+          console.log("[admin/studio] WA profile picture synced")
+        }
+      } catch (err) {
+        console.error("[admin/studio] WA profile picture sync exception:", err)
+      }
+    })()
+  }
+
   return NextResponse.json(studio)
 }

@@ -166,6 +166,84 @@ export async function fetchMetaMedia(
 }
 
 /**
+ * Update the WhatsApp Business profile picture from a data: URI (the format
+ * we store studio logos in). Resilient — returns ok:false on any failure
+ * so callers can fire-and-forget without breaking the caller's flow.
+ *
+ * Three-step Meta flow:
+ *   1. POST /{app_id}/uploads      — open resumable upload session
+ *   2. POST /{session_id}          — push raw bytes (OAuth scheme)
+ *   3. POST /{phone_number_id}/whatsapp_business_profile
+ *                                  — bind handle as profile_picture_handle
+ */
+export async function setWhatsAppProfilePictureFromDataUrl(
+  dataUrl: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const cfg = getConfig()
+  if (!cfg) return { ok: false, error: "not_configured" }
+  const appId = process.env.WHATSAPP_APP_ID || "1872775433439200"
+  if (!dataUrl.startsWith("data:")) return { ok: false, error: "not_a_data_uri" }
+  const m = dataUrl.match(/^data:(image\/(?:jpeg|png|jpg|webp));base64,(.+)$/)
+  if (!m) return { ok: false, error: "unsupported_mime" }
+  const mimeType = m[1] === "image/jpg" ? "image/jpeg" : m[1]
+  const bytes = Buffer.from(m[2], "base64")
+
+  try {
+    // 1) start upload session
+    const startUrl = `${GRAPH_BASE}/${cfg.apiVersion}/${appId}/uploads?file_length=${bytes.length}&file_type=${encodeURIComponent(mimeType)}&access_token=${encodeURIComponent(cfg.accessToken)}`
+    const startRes = await fetch(startUrl, { method: "POST" })
+    const startJson = (await startRes.json().catch(() => ({}))) as {
+      id?: string
+      error?: { message?: string }
+    }
+    if (!startRes.ok || !startJson.id) {
+      return { ok: false, error: startJson.error?.message ?? `start HTTP ${startRes.status}` }
+    }
+    // 2) upload bytes
+    const uploadRes = await fetch(`${GRAPH_BASE}/${cfg.apiVersion}/${startJson.id}`, {
+      method: "POST",
+      headers: { Authorization: `OAuth ${cfg.accessToken}`, file_offset: "0" },
+      body: new Uint8Array(bytes),
+    })
+    const uploadJson = (await uploadRes.json().catch(() => ({}))) as {
+      h?: string
+      error?: { message?: string }
+    }
+    if (!uploadRes.ok || !uploadJson.h) {
+      return { ok: false, error: uploadJson.error?.message ?? `upload HTTP ${uploadRes.status}` }
+    }
+    // 3) attach handle
+    const profileRes = await fetch(
+      `${GRAPH_BASE}/${cfg.apiVersion}/${cfg.phoneNumberId}/whatsapp_business_profile`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${cfg.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          profile_picture_handle: uploadJson.h,
+        }),
+      },
+    )
+    const profileJson = (await profileRes.json().catch(() => ({}))) as {
+      success?: boolean
+      error?: { message?: string }
+    }
+    if (!profileRes.ok || !profileJson.success) {
+      return {
+        ok: false,
+        error: profileJson.error?.message ?? `profile HTTP ${profileRes.status}`,
+      }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/**
  * Mark an inbound message as read. Sends Meta the "read" status so the
  * blue double-check appears on the client's WhatsApp. The wamid is the
  * one we got from the inbound webhook (stored in WhatsAppMessage.waMessageId).
