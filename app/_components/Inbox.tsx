@@ -794,20 +794,18 @@ export default function Inbox({
       </div>
     </div>
   ) : (
-    <div
-      ref={messagesScrollRef}
-      className="flex-1 min-w-0 h-full overflow-y-auto bg-[#ECE5DD] dark:bg-[#0B141A]"
-    >
-      {/* Single-scroll-container pattern (mirrors WhatsApp/Telegram web):
-          the chatColumn itself is the scroll container, the header sticks
-          to its top and the composer sticks to its bottom. When iOS Safari
-          auto-scrolls the focused textarea into view, it scrolls *this*
-          container — the sticky elements naturally remain glued to the top
-          and bottom of the visible area, so the header no longer flies off
-          and the composer stays pinned above the keyboard. */}
+    // Flex-column layout: header pinned at top, messages take all remaining
+    // height and scroll internally, composer+keyboard pinned at bottom.
+    // We used to use a single scroll container with sticky header/composer,
+    // but since we replaced iOS' native keyboard with VirtualKeyboard
+    // (textarea has inputMode="none"), there's no longer a reason to fight
+    // iOS keyboard scroll behavior — and sticky-bottom misbehaves when the
+    // thread has only a few messages (composer drifts up to sit just below
+    // the last message instead of being glued to the bottom of the chat).
+    <div className="flex-1 min-w-0 h-full flex flex-col bg-[#ECE5DD] dark:bg-[#0B141A]">
       {/* Chat header — WhatsApp style: round back button, avatar + name,
           action icons on the right. */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-2 py-2 flex items-center gap-2 dark:bg-[#1F2C34] dark:border-transparent">
+      <div className="flex-shrink-0 bg-white border-b border-gray-100 px-2 py-2 flex items-center gap-2 dark:bg-[#1F2C34] dark:border-transparent">
         <button
           onClick={closeConvo}
           className="lg:hidden w-9 h-9 rounded-full bg-gray-100 dark:bg-[#2A3942] flex items-center justify-center text-gray-700 dark:text-gray-200 flex-shrink-0"
@@ -878,9 +876,12 @@ export default function Inbox({
         )}
       </div>
 
-      {/* Messages — now direct children of the scroll container itself,
-          so iOS Safari has exactly one scrollable element to work with. */}
-      <div className="px-3 sm:px-6 py-4 space-y-2">
+      {/* Messages — own flex child that scrolls independently. min-h-0 is
+          essential so flex-1 can actually shrink below content size. */}
+      <div
+        ref={messagesScrollRef}
+        className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-2"
+      >
         {loadingDetail && !detail ? (
           <div className="text-center text-gray-400 text-sm py-8">
             <Loader2 size={16} className="animate-spin inline mr-2" /> Loading...
@@ -895,12 +896,12 @@ export default function Inbox({
         )}
       </div>
 
-      {/* Composer + VirtualKeyboard pinned together to the bottom of the
-          scroll container. The VirtualKeyboard replaces the OS soft
-          keyboard entirely (textarea has inputMode="none"), so the modal
-          never has to resize for it — both rows stay at the bottom of the
-          visible area as the user scrolls older messages. */}
-      <div className="sticky bottom-0 z-20 bg-transparent dark:bg-transparent">
+      {/* Composer + VirtualKeyboard always at the bottom of the chat column
+          (flex-shrink-0). The VirtualKeyboard replaces the OS soft keyboard
+          entirely (textarea has inputMode="none"), so the modal never has to
+          resize and the composer stays glued to the bottom regardless of how
+          many messages are above. */}
+      <div className="flex-shrink-0">
         {/* WhatsApp-style composer row: + on the left, pill input with the
             textarea, white circular Send button on the right. Sits over the
             chat doodle background, no separate border. */}
