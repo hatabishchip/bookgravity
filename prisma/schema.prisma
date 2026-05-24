@@ -71,6 +71,7 @@ model Trainer {
   color          String           @default("#6366F1")
   payments       TrainerPayment[]
   assignedConversations WhatsAppConversation[] @relation("ConversationAssignedTrainer")
+  conversationAccess    WhatsAppConversationAccess[] @relation("TrainerConversationAccess")
   sentMessages          WhatsAppMessage[]      @relation("MessageFromTrainer")
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
@@ -205,8 +206,13 @@ model WhatsAppConversation {
   studio            Studio   @relation(fields: [studioId], references: [id])
   clientPhone       String   // normalized to digits only, no leading +
   clientName        String?  // best-known name (latest booking or WhatsApp profile)
+  // assignedTrainerId — kept as the "primary / most-recent trainer" for sort
+  // & display (chip in admin list). Actual access control is via the
+  // WhatsAppConversationAccess join table below, which lets multiple
+  // trainers see the same chat when a client booked with each of them.
   assignedTrainerId String?
   assignedTrainer   Trainer? @relation("ConversationAssignedTrainer", fields: [assignedTrainerId], references: [id])
+  access            WhatsAppConversationAccess[]
   lastMessageAt     DateTime @default(now())
   lastInboundAt     DateTime?
   // Unread counters tracked separately per role so admin & trainer don't
@@ -220,6 +226,22 @@ model WhatsAppConversation {
   @@unique([studioId, clientPhone])
   @@index([studioId, lastMessageAt])
   @@index([assignedTrainerId])
+}
+
+// Join table for "this trainer can see this conversation". One row per
+// (conversation, trainer). Populated by the booking flow when a client books
+// a slot — the slot's trainer gets a row here (idempotent), so multiple
+// trainers can share access to a chat when the same client books with each.
+model WhatsAppConversationAccess {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  trainerId      String
+  trainer        Trainer  @relation("TrainerConversationAccess", fields: [trainerId], references: [id])
+  grantedAt      DateTime @default(now())
+
+  @@unique([conversationId, trainerId])
+  @@index([trainerId])
 }
 
 model WhatsAppMessage {

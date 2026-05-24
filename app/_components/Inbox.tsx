@@ -28,6 +28,9 @@ type ConversationListItem = {
   clientPhone: string
   clientName: string | null
   assignedTrainer: Trainer | null
+  /** Every trainer that has access to this chat (multi-assign). Includes the
+   *  assignedTrainer. Order = insertion (older bookings first). */
+  accessTrainers: Trainer[]
   lastMessageAt: string
   lastInboundAt: string | null
   unread: number
@@ -61,6 +64,7 @@ type ConversationDetail = {
   clientPhone: string
   clientName: string | null
   assignedTrainer: Trainer | null
+  accessTrainers: Trainer[]
   lastInboundAt: string | null
   lastMessageAt: string
   messages: MessageRow[]
@@ -760,18 +764,27 @@ export default function Inbox({
                       </span>
                     )}
                   </div>
-                  {role === "ADMIN" && c.assignedTrainer && (
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <span
-                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: c.assignedTrainer.color ?? "#6366F1" }}
-                      />
-                      <span className="text-[11px] text-gray-400 dark:text-[#8696A0]">
-                        {c.assignedTrainer.name}
-                      </span>
+                  {role === "ADMIN" && c.accessTrainers.length > 0 && (
+                    // Multi-assign: every trainer who has access (= booked
+                    // by this client) appears as a colored dot + name. Names
+                    // wrap to a second line if there are many.
+                    <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                      {c.accessTrainers.map((t) => (
+                        <span
+                          key={t.id}
+                          className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-[#8696A0]"
+                          title={`Закреплён за ${t.name}`}
+                        >
+                          <span
+                            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: t.color ?? "#6366F1" }}
+                          />
+                          {t.name}
+                        </span>
+                      ))}
                     </div>
                   )}
-                  {role === "ADMIN" && !c.assignedTrainer && (
+                  {role === "ADMIN" && c.accessTrainers.length === 0 && (
                     <div className="mt-1 text-[11px] text-gray-300 dark:text-[#5C6970] italic">
                       без тренера
                     </div>

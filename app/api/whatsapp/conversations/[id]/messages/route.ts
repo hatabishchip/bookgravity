@@ -6,6 +6,7 @@ import { sendWhatsAppText, sendWhatsAppTemplate } from "@/lib/whatsapp-cloud"
 import {
   appendOutboundMessage,
   isInsideCustomerWindow,
+  trainerHasAccess,
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
@@ -46,7 +47,7 @@ export async function POST(
       where: { userId: ctx.userId, studioId: ctx.studioId },
       select: { id: true },
     })
-    if (!trainer || convo.assignedTrainerId !== trainer.id) {
+    if (!trainer || !(await trainerHasAccess(convo.id, trainer.id))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
     fromTrainerId = trainer.id

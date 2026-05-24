@@ -28,10 +28,18 @@ export async function GET(_req: NextRequest) {
   const conversations = await prisma.whatsAppConversation.findMany({
     where: {
       studioId: ctx.studioId,
-      ...(ctx.role === "TRAINER" ? { assignedTrainerId: trainerId! } : {}),
+      // Trainer sees a chat if they're in the access list (populated by every
+      // booking they were the trainer for). Admin sees everything.
+      ...(ctx.role === "TRAINER"
+        ? { access: { some: { trainerId: trainerId! } } }
+        : {}),
     },
     include: {
       assignedTrainer: { select: { id: true, name: true, color: true } },
+      // All trainers who can see this chat — shown as colored dots in admin.
+      access: {
+        include: { trainer: { select: { id: true, name: true, color: true } } },
+      },
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: { lastMessageAt: "desc" },
@@ -44,6 +52,7 @@ export async function GET(_req: NextRequest) {
       clientPhone: c.clientPhone,
       clientName: c.clientName,
       assignedTrainer: c.assignedTrainer,
+      accessTrainers: c.access.map((a) => a.trainer),
       lastMessageAt: c.lastMessageAt,
       lastInboundAt: c.lastInboundAt,
       unread: ctx.role === "ADMIN" ? c.unreadAdmin : c.unreadTrainer,

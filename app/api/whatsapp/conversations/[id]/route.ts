@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
-import { markConversationRead } from "@/lib/whatsapp-conversation"
+import { markConversationRead, trainerHasAccess } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { markMessageRead } from "@/lib/whatsapp-cloud"
 
@@ -18,16 +18,21 @@ async function loadConvoForUser(convoId: string) {
   }
   const convo = await prisma.whatsAppConversation.findFirst({
     where: { id: convoId, studioId: ctx.studioId },
-    include: { assignedTrainer: { select: { id: true, name: true, color: true } } },
+    include: {
+      assignedTrainer: { select: { id: true, name: true, color: true } },
+      access: {
+        include: { trainer: { select: { id: true, name: true, color: true } } },
+      },
+    },
   })
   if (!convo) return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) }
-  // Trainer can only access conversations assigned to them.
+  // Trainer can access a chat if they're in the access list (multi-assign).
   if (ctx.role === "TRAINER") {
     const trainer = await prisma.trainer.findFirst({
       where: { userId: ctx.userId, studioId: ctx.studioId },
       select: { id: true },
     })
-    if (!trainer || convo.assignedTrainerId !== trainer.id) {
+    if (!trainer || !(await trainerHasAccess(convo.id, trainer.id))) {
       return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
     }
   }
@@ -80,6 +85,7 @@ export async function GET(
     clientPhone: convo.clientPhone,
     clientName: convo.clientName,
     assignedTrainer: convo.assignedTrainer,
+    accessTrainers: convo.access.map((a) => a.trainer),
     lastInboundAt: convo.lastInboundAt,
     lastMessageAt: convo.lastMessageAt,
     messages,
@@ -109,7 +115,27 @@ export async function PATCH(
   const updated = await prisma.whatsAppConversation.update({
     where: { id: convo.id },
     data: { assignedTrainerId: assignedTrainerId ?? null },
-    include: { assignedTrainer: { select: { id: true, name: true, color: true } } },
+    include: {
+      assignedTrainer: { select: { id: true, name: true, color: true } },
+      access: {
+        include: { trainer: { select: { id: true, name: true, color: true } } },
+      },
+    },
   })
-  return NextResponse.json({ assignedTrainer: updated.assignedTrainer })
+  // Also grant the new trainer access (additive — doesn't revoke anyone).
+  if (assignedTrainerId) {
+    await prisma.whatsAppConversationAccess
+      .upsert({
+        where: {
+          conversationId_trainerId: { conversationId: convo.id, trainerId: assignedTrainerId },
+        },
+        update: {},
+        create: { conversationId: convo.id, trainerId: assignedTrainerId },
+      })
+      .catch(() => {})
+  }
+  return NextResponse.json({
+    assignedTrainer: updated.assignedTrainer,
+    accessTrainers: updated.access.map((a) => a.trainer),
+  })
 }

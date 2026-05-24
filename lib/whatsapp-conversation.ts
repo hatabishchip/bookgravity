@@ -24,6 +24,12 @@ export function customerWindowRemainingMs(lastInboundAt: Date | null | undefined
 /**
  * Find or create a Conversation for (studio, clientPhone). Optionally updates
  * clientName / assignedTrainerId when fresher info is available (e.g. booking).
+ *
+ * When `assignedTrainerId` is provided we ALSO add a row to the access table
+ * for that trainer (idempotent — no-op if the trainer already had access).
+ * This is what makes multi-trainer access work: every booking grants the
+ * slot's trainer the right to see the chat, without revoking access from any
+ * trainer who previously had it.
  */
 export async function upsertConversation(opts: {
   studioId: string
@@ -40,8 +46,9 @@ export async function upsertConversation(opts: {
     where: { studioId_clientPhone: { studioId: opts.studioId, clientPhone: phone } },
   })
 
+  let convo
   if (!existing) {
-    return prisma.whatsAppConversation.create({
+    convo = await prisma.whatsAppConversation.create({
       data: {
         studioId: opts.studioId,
         clientPhone: phone,
@@ -50,32 +57,69 @@ export async function upsertConversation(opts: {
         lastMessageAt: new Date(),
       },
     })
+  } else {
+    // Update name only if we have a non-empty new value (don't overwrite with null/empty).
+    // Update assignedTrainerId when (a) reassign forced, or (b) was null + we have one now.
+    const patch: {
+      clientName?: string
+      assignedTrainerId?: string | null
+    } = {}
+    if (opts.clientName && opts.clientName !== existing.clientName) {
+      patch.clientName = opts.clientName
+    }
+    if (
+      opts.assignedTrainerId &&
+      (opts.forceReassign || !existing.assignedTrainerId) &&
+      existing.assignedTrainerId !== opts.assignedTrainerId
+    ) {
+      patch.assignedTrainerId = opts.assignedTrainerId
+    }
+    convo =
+      Object.keys(patch).length > 0
+        ? await prisma.whatsAppConversation.update({
+            where: { id: existing.id },
+            data: patch,
+          })
+        : existing
   }
 
-  // Update name only if we have a non-empty new value (don't overwrite with null/empty).
-  // Update assignedTrainerId when (a) reassign forced, or (b) was null + we have one now.
-  const patch: {
-    clientName?: string
-    assignedTrainerId?: string | null
-  } = {}
-  if (opts.clientName && opts.clientName !== existing.clientName) {
-    patch.clientName = opts.clientName
-  }
-  if (
-    opts.assignedTrainerId &&
-    (opts.forceReassign || !existing.assignedTrainerId) &&
-    existing.assignedTrainerId !== opts.assignedTrainerId
-  ) {
-    patch.assignedTrainerId = opts.assignedTrainerId
+  // Grant the trainer access (idempotent). Using upsert with unique
+  // (conversationId, trainerId) — second+ bookings with same trainer are no-ops.
+  if (opts.assignedTrainerId) {
+    try {
+      await prisma.whatsAppConversationAccess.upsert({
+        where: {
+          conversationId_trainerId: {
+            conversationId: convo.id,
+            trainerId: opts.assignedTrainerId,
+          },
+        },
+        update: {},
+        create: {
+          conversationId: convo.id,
+          trainerId: opts.assignedTrainerId,
+        },
+      })
+    } catch (err) {
+      // Don't fail the whole upsert if the access grant has a transient hiccup —
+      // the conversation still exists and the next booking will retry.
+      console.error("[upsertConversation] access grant failed:", err)
+    }
   }
 
-  if (Object.keys(patch).length > 0) {
-    return prisma.whatsAppConversation.update({
-      where: { id: existing.id },
-      data: patch,
-    })
-  }
-  return existing
+  return convo
+}
+
+/** Check whether a trainer has access to a conversation. */
+export async function trainerHasAccess(
+  conversationId: string,
+  trainerId: string,
+): Promise<boolean> {
+  const row = await prisma.whatsAppConversationAccess.findUnique({
+    where: { conversationId_trainerId: { conversationId, trainerId } },
+    select: { id: true },
+  })
+  return !!row
 }
 
 /** Append an INBOUND message + bump unread counters + update lastInboundAt/lastMessageAt. */

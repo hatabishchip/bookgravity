@@ -8,6 +8,7 @@ import {
 import {
   appendOutboundMessage,
   isInsideCustomerWindow,
+  trainerHasAccess,
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
@@ -56,14 +57,14 @@ export async function POST(
   })
   if (!convo) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  // Permission: trainer can only send into their own assigned chats.
+  // Permission: trainer can send into a chat they have access to (booking-granted).
   let fromTrainerId: string | null = null
   if (ctx.role === "TRAINER") {
     const trainer = await prisma.trainer.findFirst({
       where: { userId: ctx.userId, studioId: ctx.studioId },
       select: { id: true },
     })
-    if (!trainer || convo.assignedTrainerId !== trainer.id) {
+    if (!trainer || !(await trainerHasAccess(convo.id, trainer.id))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
     fromTrainerId = trainer.id
