@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Plus, Trash2, X, User, CalendarDays } from "lucide-react"
+import { Plus, Trash2, X, User, CalendarDays, Pencil, Check } from "lucide-react"
 import TrainerSchedule from "./TrainerSchedule"
 import PhoneInput from "@/app/_components/PhoneInput"
 import { formatPhoneInput, validatePhone } from "@/lib/phone"
@@ -136,13 +136,83 @@ export default function TrainersPage() {
     })
   }
 
-  const handleWhatsappChange = async (id: string, whatsapp: string) => {
-    setTrainers((prev) => prev.map((t) => (t.id === id ? { ...t, whatsapp } : t)))
-    await fetch(`/api/admin/trainers?id=${id}`, {
+  // Track which field is currently in "edit" mode per trainer. Only one
+  // field per trainer can be edited at a time. Once saved/cancelled the
+  // entry is dropped and the row goes back to read-only.
+  const [editing, setEditing] = useState<Record<string, "name" | "email" | "phone" | undefined>>({})
+  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [editError, setEditError] = useState<Record<string, string | undefined>>({})
+
+  const startEdit = (id: string, field: "name" | "email" | "phone", initial: string) => {
+    setEditing((prev) => ({ ...prev, [id]: field }))
+    setDraft((prev) => ({ ...prev, [id]: initial }))
+    setEditError((prev) => ({ ...prev, [id]: undefined }))
+  }
+
+  const cancelEdit = (id: string) => {
+    setEditing((prev) => ({ ...prev, [id]: undefined }))
+    setDraft((prev) => {
+      const { [id]: _drop, ...rest } = prev
+      return rest
+    })
+    setEditError((prev) => ({ ...prev, [id]: undefined }))
+  }
+
+  const saveEdit = async (id: string) => {
+    const field = editing[id]
+    if (!field) return
+    const value = (draft[id] ?? "").trim()
+    const trainer = trainers.find((t) => t.id === id)
+    if (!trainer) return
+
+    // Field-specific validation
+    let body: Record<string, string>
+    if (field === "name") {
+      if (value.length < 2) {
+        setEditError((p) => ({ ...p, [id]: "Минимум 2 символа" }))
+        return
+      }
+      body = { name: value }
+    } else if (field === "email") {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        setEditError((p) => ({ ...p, [id]: "Неверный email" }))
+        return
+      }
+      body = { email: value }
+    } else {
+      // phone — accept empty (clearing) or fully valid
+      const v = validatePhone(value)
+      if (!(value === "" || v.kind === "ok")) {
+        setEditError((p) => ({ ...p, [id]: "Номер некорректен" }))
+        return
+      }
+      body = { whatsapp: value }
+    }
+
+    const res = await fetch(`/api/admin/trainers?id=${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ whatsapp }),
+      body: JSON.stringify(body),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setEditError((p) => ({ ...p, [id]: data.error ?? `HTTP ${res.status}` }))
+      return
+    }
+    const updated = await res.json()
+    setTrainers((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              name: updated.name ?? t.name,
+              user: updated.user ?? t.user,
+              whatsapp: updated.whatsapp ? formatPhoneInput(updated.whatsapp) : "",
+            }
+          : t,
+      ),
+    )
+    cancelEdit(id)
   }
 
   return (
@@ -172,36 +242,138 @@ export default function TrainersPage() {
                 <User size={20} style={{ color: trainer.color }} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-gray-900 flex items-center gap-2">
-                  <span
-                    className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: trainer.color }}
-                  />
-                  {trainer.name}
-                </div>
-                <div className="text-sm text-gray-500 mt-0.5 truncate">{trainer.user.email}</div>
-                <div className="mt-1.5">
-                  <PhoneInput
-                    compact
-                    value={trainer.whatsapp || ""}
-                    onChange={(next) =>
-                      setTrainers((prev) =>
-                        prev.map((t) => (t.id === trainer.id ? { ...t, whatsapp: next } : t)),
-                      )
-                    }
-                    // Save on blur, but only when the value is either empty
-                    // (clearing the field) or fully valid for its country —
-                    // matches the request "не давала сохранять при
-                    // недостающем количестве цифр".
-                    onBlur={(value) => {
-                      const v = validatePhone(value)
-                      const canSave = value === "" || v.kind === "ok"
-                      if (canSave && value !== trainer.whatsapp) {
-                        handleWhatsappChange(trainer.id, value)
-                      }
-                    }}
-                  />
-                </div>
+                {/* Name: display + pencil; click pencil → inline input. */}
+                {editing[trainer.id] === "name" ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      value={draft[trainer.id] ?? ""}
+                      onChange={(e) => setDraft((p) => ({ ...p, [trainer.id]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEdit(trainer.id)
+                        else if (e.key === "Escape") cancelEdit(trainer.id)
+                      }}
+                      className="flex-1 min-w-0 font-semibold text-gray-900 border border-[#2C6E49]/30 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+                    />
+                    <button
+                      onClick={() => saveEdit(trainer.id)}
+                      className="p-1 text-[#2C6E49] hover:bg-[#2C6E49]/10 rounded"
+                      aria-label="Save name"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={() => cancelEdit(trainer.id)}
+                      className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                      aria-label="Cancel"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="font-semibold text-gray-900 flex items-center gap-2">
+                    <span
+                      className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: trainer.color }}
+                    />
+                    <span className="truncate">{trainer.name}</span>
+                    <button
+                      onClick={() => startEdit(trainer.id, "name", trainer.name)}
+                      className="p-1 text-gray-300 hover:text-[#2C6E49] hover:bg-[#2C6E49]/10 rounded"
+                      aria-label="Edit name"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Email: display + pencil. */}
+                {editing[trainer.id] === "email" ? (
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <input
+                      autoFocus
+                      type="email"
+                      value={draft[trainer.id] ?? ""}
+                      onChange={(e) => setDraft((p) => ({ ...p, [trainer.id]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEdit(trainer.id)
+                        else if (e.key === "Escape") cancelEdit(trainer.id)
+                      }}
+                      className="flex-1 min-w-0 text-sm text-gray-700 border border-[#2C6E49]/30 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+                    />
+                    <button
+                      onClick={() => saveEdit(trainer.id)}
+                      className="p-1 text-[#2C6E49] hover:bg-[#2C6E49]/10 rounded"
+                      aria-label="Save email"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={() => cancelEdit(trainer.id)}
+                      className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                      aria-label="Cancel"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+                    <span className="truncate min-w-0">{trainer.user.email}</span>
+                    <button
+                      onClick={() => startEdit(trainer.id, "email", trainer.user.email)}
+                      className="p-1 text-gray-300 hover:text-[#2C6E49] hover:bg-[#2C6E49]/10 rounded flex-shrink-0"
+                      aria-label="Edit email"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </div>
+                )}
+
+                {/* WhatsApp: read-only chip + pencil; click → inline PhoneInput
+                    with Save/Cancel. Save only fires when validation passes. */}
+                {editing[trainer.id] === "phone" ? (
+                  <div className="mt-1.5">
+                    <PhoneInput
+                      compact
+                      autoFocus
+                      value={draft[trainer.id] ?? ""}
+                      onChange={(next) => setDraft((p) => ({ ...p, [trainer.id]: next }))}
+                    />
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <button
+                        onClick={() => saveEdit(trainer.id)}
+                        className="text-xs px-2 py-1 bg-[#2C6E49] text-white rounded-lg hover:bg-[#1E4D34] flex items-center gap-1"
+                      >
+                        <Check size={12} /> Сохранить
+                      </button>
+                      <button
+                        onClick={() => cancelEdit(trainer.id)}
+                        className="text-xs px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center gap-1"
+                      >
+                        <X size={12} /> Отмена
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <span className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 truncate min-w-0 flex-1">
+                      {trainer.whatsapp || (
+                        <span className="text-gray-300">WhatsApp number</span>
+                      )}
+                    </span>
+                    <button
+                      onClick={() => startEdit(trainer.id, "phone", trainer.whatsapp || "")}
+                      className="p-1 text-gray-300 hover:text-[#2C6E49] hover:bg-[#2C6E49]/10 rounded flex-shrink-0"
+                      aria-label="Edit WhatsApp"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </div>
+                )}
+
+                {editError[trainer.id] && (
+                  <p className="text-xs text-red-500 mt-1">{editError[trainer.id]}</p>
+                )}
               </div>
               <button
                 onClick={() => handleDelete(trainer.id)}

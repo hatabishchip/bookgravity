@@ -88,14 +88,49 @@ export async function PATCH(request: NextRequest) {
     updateData.whatsapp = String(body.whatsapp)
   }
 
+  if (body.name !== undefined) {
+    const name = String(body.name).trim()
+    if (name.length < 2) {
+      return NextResponse.json({ error: "Name must be at least 2 characters" }, { status: 400 })
+    }
+    updateData.name = name
+  }
+
   const existing = await prisma.trainer.findFirst({ where: { id, studioId: ctx.studioId } })
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  // Email lives on the linked User row, not on Trainer — update it via the
+  // user relation so login still works after the change.
+  let newEmail: string | undefined
+  if (body.email !== undefined) {
+    const email = String(body.email).trim().toLowerCase()
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    if (!ok) {
+      return NextResponse.json({ error: "Invalid email" }, { status: 400 })
+    }
+    // Reject duplicates against any other user.
+    const dup = await prisma.user.findFirst({ where: { email, NOT: { id: existing.userId } } })
+    if (dup) {
+      return NextResponse.json({ error: "Email already in use" }, { status: 409 })
+    }
+    newEmail = email
+  }
 
   const trainer = await prisma.trainer.update({
     where: { id: existing.id },
     data: updateData,
     include: { user: { select: { email: true } } },
   })
+
+  if (newEmail) {
+    const u = await prisma.user.update({
+      where: { id: existing.userId },
+      data: { email: newEmail },
+      select: { email: true },
+    })
+    return NextResponse.json({ ...trainer, user: u })
+  }
+
   return NextResponse.json(trainer)
 }
 

@@ -331,13 +331,14 @@ export async function sendTrainerBookingNotificationWA(opts: {
   maxCapacity: number
 }): Promise<SendResult> {
   const namesLine = opts.clientNames.join(", ")
+  // Match the template exactly — no "Hi {name}" greeting, no phone number.
+  // Just the booking facts: date, time, occupancy, names.
   const text = [
-    `Hi ${opts.trainerName} 👋`,
+    `New booking for your class.`,
     ``,
-    `New booking for your class:`,
-    `📅 ${opts.date}`,
-    `⏰ ${opts.time}`,
-    `👥 Booked ${opts.bookedCount}/${opts.maxCapacity}: ${namesLine}`,
+    `Date: ${opts.date}`,
+    `Time: ${opts.time}`,
+    `Booked ${opts.bookedCount}/${opts.maxCapacity}: ${namesLine}`,
   ].join("\n")
 
   const textResult = await sendWhatsAppText(opts.trainerPhone, text)
