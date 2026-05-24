@@ -64,15 +64,15 @@ function ColorPicker({ color, onChange }: { color: string; onChange: (c: string)
         // into the card. The swatch sits on the right side of the row, so a
         // left-anchored popup would overflow off-screen on mobile (only the
         // first 4 colors would be visible). Right-anchored = always inside.
-        <div className="absolute top-7 right-0 z-20 bg-white rounded-xl shadow-xl border border-gray-100 p-2.5 flex flex-col gap-1 min-w-[140px]">
-          <div className="grid grid-cols-5 gap-1.5 mb-1">
+        <div className="absolute top-7 right-0 z-20 bg-white rounded-xl shadow-xl border border-gray-100 p-3.5 flex flex-col gap-2 min-w-[220px]">
+          <div className="grid grid-cols-5 gap-3 mb-1">
             {COLOR_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
                 title={opt.label}
                 onClick={() => { onChange(opt.value); setOpen(false) }}
-                className="w-6 h-6 rounded-full transition-transform hover:scale-110 ring-offset-1"
+                className="w-7 h-7 rounded-full transition-transform hover:scale-110 ring-offset-1 touch-manipulation"
                 style={{
                   backgroundColor: opt.value,
                   outline: color === opt.value ? `2px solid ${opt.value}` : "none",
