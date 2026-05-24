@@ -874,14 +874,14 @@ function SlotCreator({
     })
     setAssignments((prev) => {
       if (prev[t]) return prev
-      return { ...prev, [t]: { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: true } }
+      return { ...prev, [t]: { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: false } }
     })
   }
 
   const updateAssignment = (t: string, change: Partial<Assignment>) => {
     setAssignments((prev) => ({
       ...prev,
-      [t]: { ...(prev[t] ?? { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: true }), ...change },
+      [t]: { ...(prev[t] ?? { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: false }), ...change },
     }))
   }
 
@@ -901,7 +901,7 @@ function SlotCreator({
     for (const t of startTimes) {
       const slot = existingByTime.get(t)
       if (!slot) continue
-      const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
+      const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
       const curT = slot.trainer?.id ?? ""
       const curA = slot.assistant?.id ?? ""
       const curType = slot.classType
@@ -934,7 +934,7 @@ function SlotCreator({
     }
 
     for (const startTime of toCreate) {
-      const a = assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
+      const a = assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
       const isPrivate = a.classType === "PRIVATE"
       payloads.push({
         url: "/api/admin/slots",
@@ -982,7 +982,7 @@ function SlotCreator({
     for (const t of startTimes) {
       const slot = existingByTime.get(t)
       if (!slot) continue
-      const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
+      const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
       const desiredCap = a.classType === "PRIVATE" ? 1 : a.maxCapacity
       if (
         a.trainerId !== (slot.trainer?.id ?? "") ||
@@ -1098,7 +1098,7 @@ function SlotCreator({
                     <div className="space-y-1.5">
                       {startTimes.map((t) => {
                         const isExisting = existingTimes.has(t)
-                        const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
+                        const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
                         const existingSlotForTime = isExisting ? existingSlots.find((s) => s.startTime === t) : null
                         const bookingCount = existingSlotForTime?._count.bookings ?? 0
                         const hasBookings = bookingCount > 0

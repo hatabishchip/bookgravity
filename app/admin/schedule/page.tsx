@@ -261,7 +261,7 @@ export default function SchedulePage() {
     for (const t of form.startTimes) {
       const slot = existingByTime.get(t)
       if (!slot) continue
-      const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
+      const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
       const currentTrainer = slot.trainer?.id ?? ""
       const currentAssistant = slot.assistant?.id ?? ""
       const currentType = (slot.classType as ClassType) ?? "GROUP"
@@ -307,7 +307,7 @@ export default function SchedulePage() {
     }
 
     for (const startTime of toCreate) {
-      const a = form.assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
+      const a = form.assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
       const isPrivate = a.classType === "PRIVATE"
       const tr = a.trainerId ? trainers.find((x) => x.id === a.trainerId) : null
       const as = a.assistantId ? trainers.find((x) => x.id === a.assistantId) : null
@@ -829,7 +829,7 @@ export default function SchedulePage() {
                             } else {
                               const newTimes = sortTimes([...form.startTimes, t])
                               const newA = { ...form.assignments }
-                              if (!newA[t]) newA[t] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: true }
+                              if (!newA[t]) newA[t] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: false }
                               setForm({ ...form, startTimes: newTimes, assignments: newA })
                               setFormError("")
                             }
@@ -864,7 +864,7 @@ export default function SchedulePage() {
                           return
                         }
                         const newA = { ...form.assignments }
-                        if (!newA[form.customTime]) newA[form.customTime] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: true }
+                        if (!newA[form.customTime]) newA[form.customTime] = { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: false }
                         setForm({ ...form, startTimes: sortTimes([...form.startTimes, form.customTime]), assignments: newA })
                         setFormError("")
                       }}
@@ -886,7 +886,7 @@ export default function SchedulePage() {
                             <div className="space-y-1.5">
                               {form.startTimes.map((t) => {
                                 const isExisting = existingTimes.has(t)
-                                const assignment = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
+                                const assignment = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
                                 const updateAssignment = (patch: Partial<SlotAssignment>) => {
                                   setForm((prev) => ({
                                     ...prev,
@@ -1098,7 +1098,7 @@ export default function SchedulePage() {
                     for (const t of form.startTimes) {
                       const slot = existingByTime.get(t)
                       if (!slot) continue
-                      const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: true }
+                      const a = form.assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
                       const desiredCap = a.classType === "PRIVATE" ? 1 : a.maxCapacity
                       if (
                         a.trainerId !== (slot.trainer?.id ?? "") ||
