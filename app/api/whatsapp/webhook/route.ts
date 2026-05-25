@@ -6,6 +6,7 @@ import {
   appendInboundMessage,
   updateMessageStatus,
 } from "@/lib/whatsapp-conversation"
+import { forwardInboundToOwner } from "@/lib/whatsapp-cloud"
 
 // WhatsApp Cloud API webhook.
 //
@@ -209,6 +210,27 @@ export async function POST(request: NextRequest) {
               conversationId: convo.id,
               hasTrainer: !!assignedTrainerId,
             })
+
+            // Fire-and-forget copy to owner's personal WhatsApp. We don't
+            // await — webhook must return 200 to Meta fast (under 5s) or
+            // they'll retry. Loop-guard, env-gate and 24h-window failures
+            // are all handled inside forwardInboundToOwner.
+            void forwardInboundToOwner({
+              fromPhone: phone,
+              fromName: contactName,
+              type,
+              body: msgBody,
+              mediaId: mediaUrl, // we stored the Meta media_id here
+              filename: msg.document?.filename ?? null,
+            })
+              .then((r) => {
+                if (!r.ok && r.error !== "skip_owner_self") {
+                  console.warn("[whatsapp-webhook] forward to owner failed:", r.error)
+                }
+              })
+              .catch((err) => {
+                console.error("[whatsapp-webhook] forward to owner threw:", err)
+              })
           } catch (err) {
             console.error("[whatsapp-webhook] persist inbound failed:", err)
           }
