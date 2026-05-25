@@ -182,3 +182,118 @@ export async function sendTrainerBookingNotification(
     console.error("[mailer] trainer notification exception:", err, "→", trainerEmail)
   }
 }
+
+// ---------------------------------------------------------------------------
+// Forward every inbound WhatsApp message (received on the corporate number)
+// to the owner's email as a copy. This sidesteps Meta's 24h customer-service
+// window — which made the WhatsApp-to-WhatsApp forward impractical — by
+// using email instead. Recipient is OWNER_NOTIFY_EMAIL (Vercel env).
+//
+// Media attachments are passed through verbatim: the webhook fetches the
+// bytes from Meta and hands them off; we just attach. If decoding the
+// media failed, the email still goes with a short note explaining why.
+// ---------------------------------------------------------------------------
+
+/** Pretty type-aware subject header. */
+function describeInboundType(t: string): { emoji: string; label: string } {
+  switch (t) {
+    case "text":
+      return { emoji: "📨", label: "message" }
+    case "image":
+      return { emoji: "📷", label: "photo" }
+    case "video":
+      return { emoji: "🎬", label: "video" }
+    case "audio":
+      return { emoji: "🎤", label: "voice" }
+    case "sticker":
+      return { emoji: "💬", label: "sticker" }
+    case "document":
+      return { emoji: "📄", label: "document" }
+    default:
+      return { emoji: "📨", label: t }
+  }
+}
+
+export async function sendInboundWhatsAppCopy(opts: {
+  /** Bare digits Meta gave us in `from`. We render it with a leading +. */
+  fromPhone: string
+  /** WhatsApp profile name if Meta provided it. */
+  fromName?: string | null
+  /** Inbound type — text / image / video / audio / sticker / document / ... */
+  type: string
+  /** Text body or media caption. */
+  body: string | null
+  /** Optional decoded media to attach. */
+  media?: {
+    bytes: Buffer
+    mimeType: string
+    /** Filename for the email attachment + Meta document filename, if any. */
+    filename: string
+  } | null
+  /** Receive time from Meta (defaults to now). */
+  receivedAt?: Date
+}): Promise<{ ok: boolean; error?: string }> {
+  const to = process.env.OWNER_NOTIFY_EMAIL
+  if (!to) return { ok: false, error: "OWNER_NOTIFY_EMAIL not set" }
+  const r = getResend()
+  if (!r) return { ok: false, error: "resend_not_configured" }
+
+  const senderLabel = opts.fromName?.trim()
+    ? `${opts.fromName.trim()} (+${opts.fromPhone})`
+    : `+${opts.fromPhone}`
+  const { emoji, label } = describeInboundType(opts.type)
+  const subject = `${emoji} WhatsApp ${label} from ${senderLabel}`
+  const when = (opts.receivedAt ?? new Date()).toLocaleString("en-GB", {
+    timeZone: "Asia/Makassar", // Bali — owner-local
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+  const bodyHtml = opts.body
+    ? `<div style="white-space:pre-wrap;font-size:15px;line-height:1.5;color:#222;border-left:3px solid #2C6E49;padding:8px 12px;background:#F6F8F6;border-radius:6px;margin:12px 0">${escapeHtml(
+        opts.body,
+      )}</div>`
+    : ""
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;color:#222">
+      <div style="font-size:13px;color:#888;margin-bottom:4px">${escapeHtml(when)} • Asia/Makassar</div>
+      <div style="font-size:17px;font-weight:600;color:#2C6E49;margin-bottom:8px">${emoji} ${escapeHtml(senderLabel)}</div>
+      <div style="font-size:13px;color:#888;margin-bottom:8px">Type: <b>${escapeHtml(opts.type)}</b>${
+        opts.media ? ` • <b>${escapeHtml(opts.media.filename)}</b> (${escapeHtml(opts.media.mimeType)})` : ""
+      }</div>
+      ${bodyHtml || (opts.media ? `<div style="font-size:13px;color:#888">(attachment below)</div>` : `<div style="font-size:13px;color:#888">(no text)</div>`)}
+      <hr style="border:0;border-top:1px solid #eee;margin:20px 0" />
+      <div style="font-size:12px;color:#aaa">Forwarded from the corporate WhatsApp number to ${escapeHtml(to)}.</div>
+    </div>
+  `
+
+  try {
+    const res = await r.emails.send({
+      from: FROM,
+      to,
+      subject,
+      html,
+      ...(opts.media
+        ? {
+            attachments: [
+              {
+                filename: opts.media.filename,
+                content: opts.media.bytes,
+              },
+            ],
+          }
+        : {}),
+    })
+    if (res.error) {
+      console.error("[mailer] wa inbound copy failed:", res.error, "→", to)
+      return { ok: false, error: String(res.error) }
+    }
+    console.log("[mailer] wa inbound copy sent:", res.data?.id, "→", to)
+    return { ok: true }
+  } catch (err) {
+    console.error("[mailer] wa inbound copy exception:", err, "→", to)
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}

@@ -6,7 +6,8 @@ import {
   appendInboundMessage,
   updateMessageStatus,
 } from "@/lib/whatsapp-conversation"
-import { forwardInboundToOwner } from "@/lib/whatsapp-cloud"
+import { fetchMetaMedia } from "@/lib/whatsapp-cloud"
+import { sendInboundWhatsAppCopy } from "@/lib/mailer"
 
 // WhatsApp Cloud API webhook.
 //
@@ -211,26 +212,52 @@ export async function POST(request: NextRequest) {
               hasTrainer: !!assignedTrainerId,
             })
 
-            // Fire-and-forget copy to owner's personal WhatsApp. We don't
-            // await — webhook must return 200 to Meta fast (under 5s) or
-            // they'll retry. Loop-guard, env-gate and 24h-window failures
-            // are all handled inside forwardInboundToOwner.
-            void forwardInboundToOwner({
-              fromPhone: phone,
-              fromName: contactName,
-              type,
-              body: msgBody,
-              mediaId: mediaUrl, // we stored the Meta media_id here
-              filename: msg.document?.filename ?? null,
-            })
-              .then((r) => {
-                if (!r.ok && r.error !== "skip_owner_self") {
-                  console.warn("[whatsapp-webhook] forward to owner failed:", r.error)
+            // Fire-and-forget copy to owner's email. We don't await —
+            // webhook must return 200 to Meta within ~5s or they retry. For
+            // media inbound we fetch the bytes from Meta here so the mailer
+            // can attach them; for text we just pass the body.
+            void (async () => {
+              try {
+                let mediaAttachment:
+                  | { bytes: Buffer; mimeType: string; filename: string }
+                  | null = null
+                if (mediaUrl && type !== "text") {
+                  const fetched = await fetchMetaMedia(mediaUrl)
+                  if (fetched.ok) {
+                    const ext = (fetched.mimeType.split("/")[1] || "bin").split(";")[0]
+                    const filename =
+                      msg.document?.filename ||
+                      `${type}-${msg.id.slice(-8)}.${ext}`
+                    mediaAttachment = {
+                      bytes: Buffer.from(fetched.bytes),
+                      mimeType: fetched.mimeType,
+                      filename,
+                    }
+                  } else {
+                    console.warn(
+                      "[whatsapp-webhook] media fetch for email failed:",
+                      fetched.error,
+                    )
+                  }
                 }
-              })
-              .catch((err) => {
-                console.error("[whatsapp-webhook] forward to owner threw:", err)
-              })
+                const r = await sendInboundWhatsAppCopy({
+                  fromPhone: phone,
+                  fromName: contactName,
+                  type,
+                  body: msgBody,
+                  media: mediaAttachment,
+                  receivedAt,
+                })
+                if (!r.ok) {
+                  console.warn(
+                    "[whatsapp-webhook] email copy to owner failed:",
+                    r.error,
+                  )
+                }
+              } catch (err) {
+                console.error("[whatsapp-webhook] email copy threw:", err)
+              }
+            })()
           } catch (err) {
             console.error("[whatsapp-webhook] persist inbound failed:", err)
           }
