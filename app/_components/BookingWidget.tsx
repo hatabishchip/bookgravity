@@ -498,11 +498,38 @@ export default function BookingWidget({ services, studio }: {
   const sundayBased = getDay(startOfMonth(currentMonth))
   const firstDayOfWeek = (sundayBased + 6) % 7
 
-  const currentMonthStart = startOfMonth(currentMonth)
-  const thisMonthStart = startOfMonth(today)
-  const nextMonthStart = startOfMonth(addMonths(today, 1))
-  const canGoPrev = isAfter(currentMonthStart, thisMonthStart)
-  const canGoNext = isBefore(currentMonthStart, nextMonthStart)
+  // Set of "yyyy-MM" keys that have at least one bookable date with seats
+  // for this party. Empty months get skipped entirely on navigation and
+  // are never the initial view.
+  const monthsWithBookable = new Set<string>()
+  for (const d of availableDates) monthsWithBookable.add(d.slice(0, 7))
+  const sortedBookableMonths = Array.from(monthsWithBookable).sort()
+  const hasAnyBookable = sortedBookableMonths.length > 0
+
+  // If the current month has no bookable dates but there's a future month
+  // that does, hop to it once the slot data has loaded. Anonymous visitor
+  // landing on May should not have to manually click Next to find June.
+  const currentKey = format(currentMonth, "yyyy-MM")
+  const todayKey = format(today, "yyyy-MM")
+  useEffect(() => {
+    if (allSlots.length === 0) return
+    if (monthsWithBookable.has(currentKey)) return
+    const future = sortedBookableMonths.find((k) => k >= todayKey)
+    if (future) {
+      const [y, m] = future.split("-").map(Number)
+      setCurrentMonth(new Date(y, m - 1, 1))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allSlots.length, currentKey, todayKey])
+
+  const prevBookableKey = sortedBookableMonths.filter((k) => k < currentKey).pop()
+  const nextBookableKey = sortedBookableMonths.find((k) => k > currentKey)
+  const canGoPrev = !!prevBookableKey
+  const canGoNext = !!nextBookableKey
+  const goToMonth = (key: string) => {
+    const [y, m] = key.split("-").map(Number)
+    setCurrentMonth(new Date(y, m - 1, 1))
+  }
 
   const days = Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1))
   const blanks = Array.from({ length: firstDayOfWeek })
@@ -766,30 +793,46 @@ export default function BookingWidget({ services, studio }: {
             </div>
           </div>
 
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={() => canGoPrev && setCurrentMonth(subMonths(currentMonth, 1))}
-              className={cn("p-2 rounded-full hover:bg-gray-100 transition-colors", !canGoPrev && "opacity-30 cursor-not-allowed")}
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <h2 className="text-lg font-semibold text-gray-800">
-              {format(currentMonth, "MMMM yyyy")}
-            </h2>
-            <button
-              onClick={() => canGoNext && setCurrentMonth(addMonths(currentMonth, 1))}
-              className={cn("p-2 rounded-full hover:bg-gray-100 transition-colors", !canGoNext && "opacity-30 cursor-not-allowed")}
-            >
-              <ChevronRight size={20} />
-            </button>
-          </div>
+          {hasAnyBookable ? (
+            <div className="flex items-center justify-between mb-6">
+              <button
+                onClick={() => prevBookableKey && goToMonth(prevBookableKey)}
+                className={cn("p-2 rounded-full hover:bg-gray-100 transition-colors", !canGoPrev && "opacity-30 cursor-not-allowed")}
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <h2 className="text-lg font-semibold text-gray-800">
+                {format(currentMonth, "MMMM yyyy")}
+              </h2>
+              <button
+                onClick={() => nextBookableKey && goToMonth(nextBookableKey)}
+                className={cn("p-2 rounded-full hover:bg-gray-100 transition-colors", !canGoNext && "opacity-30 cursor-not-allowed")}
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          ) : (
+            // No bookable dates anywhere — replace the whole calendar (header
+            // + grid + legend) with a single empty-state card. The studio
+            // hasn't created any schedule yet, or every slot is past the cutoff.
+            <div className="text-center py-12 px-4">
+              <div className="text-4xl mb-3">📅</div>
+              <div className="text-base font-semibold text-gray-800">Нет доступных дат для букирования</div>
+              <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">
+                Похоже, расписание ещё не опубликовано. Загляните чуть позже или напишите нам.
+              </p>
+            </div>
+          )}
 
+          {hasAnyBookable && (
           <div className="grid grid-cols-7 gap-1 mb-2">
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
               <div key={d} className="text-center text-xs font-semibold text-gray-700 py-2 uppercase tracking-wider">{d}</div>
             ))}
           </div>
+          )}
 
+          {hasAnyBookable && (
           <div className="grid grid-cols-7 gap-1">
             {blanks.map((_, i) => <div key={`b${i}`} />)}
             {days.map((day) => {
@@ -841,8 +884,9 @@ export default function BookingWidget({ services, studio }: {
               )
             })}
           </div>
+          )}
 
-          {/* Legend */}
+          {hasAnyBookable && (
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 text-xs">
             <div className="flex items-center gap-1.5 text-gray-600">
               <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
@@ -857,6 +901,7 @@ export default function BookingWidget({ services, studio }: {
               <span>Past class</span>
             </div>
           </div>
+          )}
         </div>
       )}
 
