@@ -84,7 +84,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           <Settings size={18} />
           Settings
         </Link>
-        <button onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
+        <button onClick={() => signOut({ callbackUrl: `${window.location.origin}/` })}
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full">
           <LogOut size={18} />
           Sign Out
