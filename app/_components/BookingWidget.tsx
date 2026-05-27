@@ -317,10 +317,17 @@ export default function BookingWidget({ services, studio }: {
   const nextMonthEnd = addMonths(startOfMonth(today), 2)
   const maxDate = new Date(nextMonthEnd.getTime() - 1)
 
+  // True once /api/slots has answered at least once. Lets us distinguish
+  // "still loading" (skeleton) from "loaded and there's nothing bookable"
+  // (empty state). Without this, the empty-state card flashed for ~500 ms
+  // on every open before the first month with slots rendered.
+  const [slotsLoaded, setSlotsLoaded] = useState(false)
+
   const fetchAvailableDates = useCallback(async () => {
     const res = await fetch("/api/slots")
     const data: Slot[] = await res.json()
     setAllSlots(data)
+    setSlotsLoaded(true)
   }, [])
 
   const todayStr = format(today, "yyyy-MM-dd")
@@ -793,7 +800,16 @@ export default function BookingWidget({ services, studio }: {
             </div>
           </div>
 
-          {hasAnyBookable ? (
+          {!slotsLoaded ? (
+            // First load — show a neutral skeleton so the empty-state card
+            // doesn't flash before the slot data arrives. We don't yet know
+            // which month is the first with bookable dates.
+            <div className="flex items-center justify-between mb-6">
+              <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse" />
+              <div className="h-5 w-32 bg-gray-100 rounded animate-pulse" />
+              <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse" />
+            </div>
+          ) : hasAnyBookable ? (
             <div className="flex items-center justify-between mb-6">
               <button
                 onClick={() => prevBookableKey && goToMonth(prevBookableKey)}
@@ -812,9 +828,9 @@ export default function BookingWidget({ services, studio }: {
               </button>
             </div>
           ) : (
-            // No bookable dates anywhere — replace the whole calendar (header
-            // + grid + legend) with a single empty-state card. The studio
-            // hasn't created any schedule yet, or every slot is past the cutoff.
+            // Loaded, confirmed no bookable dates anywhere — replace the whole
+            // calendar with a single empty-state card. The studio hasn't
+            // created any schedule yet, or every slot is past the cutoff.
             <div className="text-center py-12 px-4">
               <div className="text-4xl mb-3">📅</div>
               <div className="text-base font-semibold text-gray-800">Нет доступных дат для букирования</div>
@@ -824,7 +840,7 @@ export default function BookingWidget({ services, studio }: {
             </div>
           )}
 
-          {hasAnyBookable && (
+          {slotsLoaded && hasAnyBookable && (
           <div className="grid grid-cols-7 gap-1 mb-2">
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
               <div key={d} className="text-center text-xs font-semibold text-gray-700 py-2 uppercase tracking-wider">{d}</div>
@@ -832,7 +848,7 @@ export default function BookingWidget({ services, studio }: {
           </div>
           )}
 
-          {hasAnyBookable && (
+          {slotsLoaded && hasAnyBookable && (
           <div className="grid grid-cols-7 gap-1">
             {blanks.map((_, i) => <div key={`b${i}`} />)}
             {days.map((day) => {
@@ -886,7 +902,7 @@ export default function BookingWidget({ services, studio }: {
           </div>
           )}
 
-          {hasAnyBookable && (
+          {slotsLoaded && hasAnyBookable && (
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 text-xs">
             <div className="flex items-center gap-1.5 text-gray-600">
               <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
