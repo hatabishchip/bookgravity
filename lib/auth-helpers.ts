@@ -1,5 +1,6 @@
 import { auth } from "@/auth"
 import { getStudioIdBySubdomain } from "@/lib/studio"
+import type { Session } from "next-auth"
 
 export type UserRole = "ADMIN" | "TRAINER" | "SUPER_ADMIN"
 
@@ -14,7 +15,7 @@ export type SessionContext = {
 // - SUPER_ADMIN: studio of the current subdomain — lets the platform owner
 //   manage Ubud by visiting ubud.bookgravity.com/admin, etc. Falls back to
 //   their own studioId if the subdomain lookup throws.
-async function studioForSession(session: NonNullable<Awaited<ReturnType<typeof auth>>>): Promise<string> {
+async function studioForSession(session: Session): Promise<string> {
   if (session.user.role === "SUPER_ADMIN") {
     try {
       return await getStudioIdBySubdomain()
