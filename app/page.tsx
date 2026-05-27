@@ -57,13 +57,7 @@ export default async function HomePage() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-10">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">Book Your Session</h2>
-          <p className="text-gray-500 max-w-md mx-auto">
-            Choose a date and time for your group stretching class. Small groups of up to 6 people for personalized attention.
-          </p>
-        </div>
+      <div className="max-w-4xl mx-auto px-4 py-6">
         <BookingWidget services={services} studio={studio ?? undefined} />
       </div>
     </div>

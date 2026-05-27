@@ -683,7 +683,9 @@ export default function BookingWidget({ services, studio }: {
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      {/* Steps indicator */}
+      {/* Compact step indicator — just three dots with the current one
+          highlighted. No labels, no big circles, no connectors taking up
+          vertical space. Clicking a completed step jumps back. */}
       {(() => {
         const stepList = ["date", "time", "details"] as Step[]
         const currentIdx = step === "done" ? 3 : stepList.indexOf(step)
@@ -695,29 +697,23 @@ export default function BookingWidget({ services, studio }: {
           return true
         }
         return (
-          <div className="flex items-center justify-center gap-2 mb-8">
+          <div className="flex items-center justify-center gap-1.5 mb-3">
             {stepList.map((s, i) => {
               const isCompleted = currentIdx > i
               const isCurrent = currentIdx === i
               const clickable = canNavigateTo(s)
               return (
-                <div key={s} className="flex items-center gap-2">
-                  <button
-                    onClick={() => clickable && setStep(s)}
-                    disabled={!clickable}
-                    className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all",
-                      isCompleted || isCurrent ? "bg-[#2C6E49] text-white" : "bg-gray-200 text-gray-500",
-                      clickable ? "cursor-pointer hover:opacity-80 hover:scale-105" : "cursor-default"
-                    )}
-                  >
-                    {isCompleted ? <CheckCircle size={16} /> : i + 1}
-                  </button>
-                  <span className={cn("text-sm hidden sm:block", isCurrent || isCompleted ? "text-gray-700" : "text-gray-400")}>
-                    {s === "date" ? "Choose Date" : s === "time" ? "Choose Time" : "Your Details"}
-                  </span>
-                  {i < 2 && <div className="w-8 h-px bg-gray-300" />}
-                </div>
+                <button
+                  key={s}
+                  onClick={() => clickable && setStep(s)}
+                  disabled={!clickable}
+                  aria-label={`Step ${i + 1}`}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all",
+                    isCurrent ? "w-6 bg-[#2C6E49]" : isCompleted ? "w-1.5 bg-[#2C6E49]" : "w-1.5 bg-gray-300",
+                    clickable ? "cursor-pointer hover:opacity-80" : "cursor-default"
+                  )}
+                />
               )
             })}
           </div>
@@ -739,32 +735,34 @@ export default function BookingWidget({ services, studio }: {
             </div>
           </div>
 
-          {/* Party size */}
-          <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 mb-5 flex items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-medium text-gray-800">How many people?</div>
-              <div className="text-xs text-gray-400 mt-0.5">Including yourself · max 6 per class</div>
-            </div>
-            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl p-1 flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setPartySize(Math.max(1, partySize - 1))}
-                disabled={partySize <= 1}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                aria-label="Decrease"
-              >
-                −
-              </button>
-              <span className="w-6 text-center font-bold text-base text-gray-900 tabular-nums">{partySize}</span>
-              <button
-                type="button"
-                onClick={() => setPartySize(Math.min(6, partySize + 1))}
-                disabled={partySize >= 6}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                aria-label="Increase"
-              >
-                +
-              </button>
+          {/* Party size — single compact row. "How many people" sits next
+              to the stepper; the "max 6" hint moved under the count so the
+              whole control fits on one line on a phone. */}
+          <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 mb-4 flex items-center justify-between gap-3">
+            <div className="text-sm font-medium text-gray-800">How many people</div>
+            <div className="flex flex-col items-end flex-shrink-0">
+              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPartySize(Math.max(1, partySize - 1))}
+                  disabled={partySize <= 1}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Decrease"
+                >
+                  −
+                </button>
+                <span className="w-5 text-center font-bold text-base text-gray-900 tabular-nums">{partySize}</span>
+                <button
+                  type="button"
+                  onClick={() => setPartySize(Math.min(6, partySize + 1))}
+                  disabled={partySize >= 6}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Increase"
+                >
+                  +
+                </button>
+              </div>
+              <div className="text-[10px] text-gray-400 mt-1 leading-none">max 6 per class</div>
             </div>
           </div>
 
@@ -852,16 +850,13 @@ export default function BookingWidget({ services, studio }: {
             </div>
             <div className="flex items-center gap-1.5 text-gray-600">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-              <span>Fully booked</span>
+              <span>Booked</span>
             </div>
             <div className="flex items-center gap-1.5 text-gray-600">
               <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
               <span>Past class</span>
             </div>
           </div>
-          <p className="text-center text-xs text-gray-400 mt-2">
-            Booking opens up to 1 month ahead
-          </p>
         </div>
       )}
 
