@@ -34,7 +34,7 @@ export default function LoginPage() {
     const role = session?.user?.role
 
     if (role === "SUPER_ADMIN") {
-      router.push("/super-admin")
+      router.push("/sadmin")
     } else if (role === "ADMIN") {
       router.push("/admin")
     } else if (role === "TRAINER") {

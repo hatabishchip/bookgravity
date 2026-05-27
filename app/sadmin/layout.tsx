@@ -19,7 +19,7 @@ export default async function SuperAdminLayout({ children }: { children: React.R
               <ShieldCheck size={18} className="text-emerald-400" />
             </div>
             <div className="min-w-0">
-              <Link href="/super-admin" className="font-bold text-base block leading-tight">Super Admin</Link>
+              <Link href="/sadmin" className="font-bold text-base block leading-tight">Super Admin</Link>
               <div className="text-xs text-slate-400 truncate">{session.user.email}</div>
             </div>
           </div>

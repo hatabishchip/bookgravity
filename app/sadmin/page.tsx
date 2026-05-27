@@ -36,7 +36,7 @@ export default function SuperAdminPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch("/api/super-admin/studios", { cache: "no-store" })
+      const res = await fetch("/api/sadmin/studios", { cache: "no-store" })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setStudios(await res.json())
     } catch (e) {
@@ -113,7 +113,7 @@ function StudioCard({ studio, onConnect, onChanged }: {
   const fullyLive = connected && wa.enabled
 
   const toggle = async () => {
-    await fetch("/api/super-admin/studios", {
+    await fetch("/api/sadmin/studios", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: studio.id, whatsappEnabled: !wa.enabled }),
@@ -251,7 +251,7 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true); setError(null)
-    const res = await fetch("/api/super-admin/studios", {
+    const res = await fetch("/api/sadmin/studios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
@@ -359,7 +359,7 @@ function WhatsAppConnectModal({ studio, onClose, onSaved }: {
     if (form.accessToken.trim().length > 0) {
       body.whatsappAccessToken = form.accessToken.trim()
     }
-    const res = await fetch("/api/super-admin/studios", {
+    const res = await fetch("/api/sadmin/studios", {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     })
     if (!res.ok) {
@@ -374,7 +374,7 @@ function WhatsAppConnectModal({ studio, onClose, onSaved }: {
   const disconnect = async () => {
     if (!confirm("Disconnect WhatsApp from this studio? The inbox will go offline for clients and trainers.")) return
     setSaving(true)
-    await fetch("/api/super-admin/studios", {
+    await fetch("/api/sadmin/studios", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id: studio.id,
