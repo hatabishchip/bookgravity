@@ -137,15 +137,31 @@ function StudioCard({ studio, onConnect, onChanged }: {
               </span>
             )}
           </div>
-          <a
-            href={`https://${studio.slug === "default" || studio.isDefault ? "" : studio.slug + "."}bookgravity.com`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-gray-500 hover:text-emerald-600 inline-flex items-center gap-1 mt-0.5"
-          >
-            {studio.slug === "default" || studio.isDefault ? "bookgravity.com" : `${studio.slug}.bookgravity.com`}
-            <ExternalLink size={10} />
-          </a>
+          {(() => {
+            const host = studio.isDefault ? "bookgravity.com" : `${studio.slug}.bookgravity.com`
+            return (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-0.5">
+                <a
+                  href={`https://${host}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-gray-500 hover:text-emerald-600 inline-flex items-center gap-1"
+                  title="Public booking page"
+                >
+                  {host} <ExternalLink size={10} />
+                </a>
+                <a
+                  href={`https://${host}/admin`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-1 font-medium"
+                  title="Open this studio's admin"
+                >
+                  /admin <ExternalLink size={10} />
+                </a>
+              </div>
+            )
+          })()}
 
           <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500">
             <span className="inline-flex items-center gap-1"><Users size={12} />{studio.counts.users + studio.counts.trainers} people</span>
