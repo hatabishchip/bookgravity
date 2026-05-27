@@ -41,9 +41,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) return null
 
-        // Enforce studio isolation: user can only log in on their own studio's subdomain
-        const currentStudioId = await getStudioIdBySubdomain()
-        if (user.studioId !== currentStudioId) return null
+        // Enforce studio isolation: an ADMIN / TRAINER can only log in on
+        // their own studio's subdomain. SUPER_ADMIN bypasses this — they
+        // own the platform and must reach /super-admin from any host.
+        if (user.role !== "SUPER_ADMIN") {
+          const currentStudioId = await getStudioIdBySubdomain()
+          if (user.studioId !== currentStudioId) return null
+        }
 
         return { id: user.id, email: user.email, role: user.role, studioId: user.studioId, name: user.email }
       },
