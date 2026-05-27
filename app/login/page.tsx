@@ -33,9 +33,10 @@ export default function LoginPage() {
     const session = await sessionRes.json()
     const role = session?.user?.role
 
-    if (role === "SUPER_ADMIN") {
-      router.push("/sadmin")
-    } else if (role === "ADMIN") {
+    // SUPER_ADMIN is also an admin of their home studio (Canggu in our case),
+    // so a fresh login lands on the per-studio admin dashboard. The dedicated
+    // /sadmin panel is reachable by typing the URL — not auto-redirected to.
+    if (role === "ADMIN" || role === "SUPER_ADMIN") {
       router.push("/admin")
     } else if (role === "TRAINER") {
       router.push("/trainer")
