@@ -14,36 +14,44 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
     setLoading(true)
     setError("")
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      })
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    })
+      if (result?.error) {
+        setError("Invalid email or password")
+        return
+      }
 
-    if (result?.error) {
-      setError("Invalid email or password")
+      const sessionRes = await fetch("/api/auth/session", { cache: "no-store" })
+      const session = await sessionRes.json()
+      const role = session?.user?.role
+
+      // SUPER_ADMIN is also an admin of their home studio (Canggu in our case),
+      // so a fresh login lands on the per-studio admin dashboard. The dedicated
+      // /sadmin panel is reachable by typing the URL — not auto-redirected to.
+      if (role === "ADMIN" || role === "SUPER_ADMIN") {
+        router.push("/admin")
+      } else if (role === "TRAINER") {
+        router.push("/trainer")
+      } else {
+        router.push("/")
+      }
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-in failed. Try again.")
+    } finally {
+      // Always clear the button's "Signing in…" state even on success — the
+      // router.push is fire-and-forget and if navigation stalls (cold cache,
+      // network blip) the button would otherwise stay greyed out forever.
       setLoading(false)
-      return
     }
-
-    const sessionRes = await fetch("/api/auth/session")
-    const session = await sessionRes.json()
-    const role = session?.user?.role
-
-    // SUPER_ADMIN is also an admin of their home studio (Canggu in our case),
-    // so a fresh login lands on the per-studio admin dashboard. The dedicated
-    // /sadmin panel is reachable by typing the URL — not auto-redirected to.
-    if (role === "ADMIN" || role === "SUPER_ADMIN") {
-      router.push("/admin")
-    } else if (role === "TRAINER") {
-      router.push("/trainer")
-    } else {
-      router.push("/")
-    }
-    router.refresh()
   }
 
   return (
