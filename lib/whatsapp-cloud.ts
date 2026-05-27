@@ -36,6 +36,24 @@ function getConfig(): CloudConfig | null {
   return { phoneNumberId, accessToken, apiVersion }
 }
 
+/**
+ * Per-studio config preferred over the env-var fallback. Returns null if
+ * neither source has both phoneNumberId + accessToken — caller no-ops.
+ */
+export function getConfigFor(studio: {
+  whatsappPhoneNumberId: string | null
+  whatsappAccessToken: string | null
+} | null | undefined): CloudConfig | null {
+  if (studio?.whatsappPhoneNumberId && studio.whatsappAccessToken) {
+    return {
+      phoneNumberId: studio.whatsappPhoneNumberId,
+      accessToken: studio.whatsappAccessToken,
+      apiVersion: process.env.WHATSAPP_API_VERSION || "v21.0",
+    }
+  }
+  return getConfig()
+}
+
 /** Strip everything but digits — Meta requires bare international number. */
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "")
