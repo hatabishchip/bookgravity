@@ -12,9 +12,11 @@ export async function GET() {
   const ctx = await requireAdmin()
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  // Admin sees ALL services (active + inactive). The public /api/slots etc.
+  // still filter active: true, so hidden services stay invisible to clients.
   const services = await prisma.additionalService.findMany({
-    where: { active: true, studioId: ctx.studioId },
-    orderBy: { name: "asc" },
+    where: { studioId: ctx.studioId },
+    orderBy: [{ active: "desc" }, { name: "asc" }],
   })
   return NextResponse.json(services)
 }
@@ -33,6 +35,7 @@ const ServiceUpdateSchema = z.object({
   id: z.string(),
   name: z.string().min(2).optional(),
   price: z.number().min(0).optional(),
+  active: z.boolean().optional(),
 })
 
 export async function PATCH(request: NextRequest) {
@@ -57,10 +60,24 @@ export async function DELETE(request: NextRequest) {
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  const result = await prisma.additionalService.updateMany({
+  // BookingService.serviceId has no cascade — try hard delete, but if the
+  // service was used in historical bookings, fall back to soft-delete so
+  // admin doesn't lose the visibility-toggle option for it.
+  const existing = await prisma.additionalService.findFirst({
     where: { id, studioId: ctx.studioId },
-    data: { active: false },
+    include: { _count: { select: { bookings: true } } },
   })
-  if (result.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  if (existing._count.bookings > 0) {
+    return NextResponse.json(
+      {
+        error: `Cannot delete: used in ${existing._count.bookings} past booking${existing._count.bookings === 1 ? "" : "s"}. Hide it from clients with the eye toggle instead.`,
+      },
+      { status: 409 },
+    )
+  }
+
+  await prisma.additionalService.delete({ where: { id: existing.id } })
   return NextResponse.json({ success: true })
 }
