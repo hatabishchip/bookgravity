@@ -1,41 +1,50 @@
-import { View, ScrollView, StyleSheet } from "react-native"
+import { useState } from "react"
+import { ScrollView, RefreshControl, StyleSheet } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { spacing, radius } from "@/lib/theme"
+import { spacing } from "@/lib/theme"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
+import { Calendar } from "@/components/Calendar"
+import { useMonthSlots } from "@/hooks/useSlots"
+import { useRouter } from "expo-router"
+import { ymd } from "@/lib/dates"
 
-// Placeholder for the booking calendar. The next phase wires this to
-// /api/slots and renders the same month grid as the web booking widget.
-// Keeping the surface area minimal here so we can ship navigation /
-// auth / theming as one foundation commit and iterate on screens.
 export default function CalendarTab() {
   const { theme } = useTheme()
+  const { data: slots = [], isLoading, refetch, isRefetching } = useMonthSlots()
+  const [selected, setSelected] = useState<Date | null>(null)
+  const router = useRouter()
+
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
-      <ScrollView contentContainerStyle={{ padding: spacing.xl, gap: spacing.lg }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={theme.brand.primary}
+          />
+        }
+      >
         <Text variant="title2" tone="primary">Book a class</Text>
         <Text variant="subhead" tone="muted">
-          Pick a date to see available time slots.
+          Pick a date with a green dot to see available time slots.
         </Text>
 
-        <View style={[styles.placeholder, { backgroundColor: theme.bg.card, borderColor: theme.border.subtle }]}>
-          <Text variant="callout" tone="brand">📅</Text>
-          <Text variant="headline" tone="primary" style={{ marginTop: spacing.sm }}>Calendar coming next</Text>
-          <Text variant="subhead" tone="muted" style={{ marginTop: spacing.xs, textAlign: "center" }}>
-            We&apos;ll mirror the web booking calendar here in the next iteration — same green dots for
-            available days, rose for fully booked, gray for past classes.
-          </Text>
-        </View>
+        <Calendar
+          slots={slots}
+          loading={isLoading}
+          selected={selected}
+          onSelect={(d) => {
+            setSelected(d)
+            // Push to time-picker screen with the selected date
+            router.push({ pathname: "/(client)/slots", params: { date: ymd(d) } })
+          }}
+        />
       </ScrollView>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
-  placeholder: {
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    alignItems: "center",
-  },
-})
+const styles = StyleSheet.create({})
