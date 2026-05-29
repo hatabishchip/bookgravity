@@ -21,7 +21,11 @@
         "NSCameraUsageDescription": "Gravity Stretching uses the camera to scan client check-in QR codes at the studio.",
         "NSUserNotificationsUsageDescription": "Gravity Stretching sends reminders before your class and notifies trainers of new bookings."
       },
-      "associatedDomains": ["applinks:bookgravity.com", "applinks:canggu.bookgravity.com", "applinks:ubud.bookgravity.com"]
+      "associatedDomains": [
+        "applinks:bookgravity.com",
+        "applinks:canggu.bookgravity.com",
+        "applinks:ubud.bookgravity.com"
+      ]
     },
     "android": {
       "package": "com.bookgravity.gravitystretching",
@@ -29,33 +33,49 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2C6E49"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      ["expo-camera", {
-        "cameraPermission": "Allow Gravity Stretching to access the camera for QR check-in."
-      }],
-      ["expo-notifications", {
-        "icon": "./assets/notification-icon.png",
-        "color": "#2C6E49"
-      }],
-      ["expo-splash-screen", {
-        "image": "./assets/splash.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#2C6E49"
-      }]
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Gravity Stretching to access the camera for QR check-in."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2C6E49"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#2C6E49"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "apiBaseUrl": "https://bookgravity.com",
+      "router": {
+        "origin": false
+      },
       "eas": {
-        "projectId": "PLACEHOLDER_UNTIL_EAS_INIT"
+        "projectId": "538cbb55-1fe3-4195-bed2-b8ece8b0f43d"
       }
     },
-    "owner": "PLACEHOLDER_EXPO_USERNAME"
+    "owner": "hatabishchip"
   }
 }
