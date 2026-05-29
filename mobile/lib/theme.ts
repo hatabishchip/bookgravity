@@ -3,7 +3,22 @@
 // products feel like one product. Dark mode flips greys; brand stays the
 // same in both schemes so studio identity is consistent.
 
-export const lightTheme = {
+export type Theme = {
+  brand: {
+    primary: string
+    primaryDark: string
+    primarySoft: string
+    accentAmber: string
+    accentRose: string
+    accentPurple: string
+  }
+  bg: { page: string; card: string; elevated: string; inputIdle: string; tabBar: string }
+  text: { primary: string; secondary: string; muted: string; invert: string }
+  border: { subtle: string; strong: string; focus: string }
+  status: { success: string; warning: string; danger: string; info: string }
+}
+
+export const lightTheme: Theme = {
   brand: {
     primary: "#2C6E49",
     primaryDark: "#1E4D34",
@@ -36,9 +51,9 @@ export const lightTheme = {
     danger: "#DC2626",
     info: "#0EA5E9",
   },
-} as const
+}
 
-export const darkTheme: typeof lightTheme = {
+export const darkTheme: Theme = {
   brand: {
     primary: "#3B8B5C",
     primaryDark: "#2C6E49",
@@ -112,4 +127,3 @@ export const typography = {
   },
 } as const
 
-export type Theme = typeof lightTheme
