@@ -502,23 +502,25 @@ export async function sendTrainerBookingNotificationWA(opts: {
 
 /**
  * Forward an inbound message to the owner's personal WhatsApp number as a
- * copy. Best-effort: returns success/failure but never throws so it can be
+ * copy. Uses an approved utility template so delivery doesn't depend on the
+ * 24h customer-service window — the owner doesn't have to write to the
+ * business number to keep messages flowing.
+ *
+ * Behaviour:
+ *   • Read template name from WHATSAPP_TEMPLATE_INBOUND_COPY env.
+ *   • Send via sendWhatsAppTemplate with two body vars:
+ *       {{1}} = sender display ("Anna (+62...)" or just "+62...")
+ *       {{2}} = the message body OR a short label like "[photo]" / "[voice]"
+ *   • Captions on images/videos are appended to {{2}} so context isn't lost.
+ *   • Media bytes themselves aren't attached — templates with media headers
+ *     need pre-approved sample media per format, more brittle than worth it
+ *     for v1. Owner can open the inbox to see the actual media.
+ *
+ * Anti-loop: when `from` equals OWNER_NOTIFY_PHONE we skip (without that
+ * every owner-→-business text would echo back).
+ *
+ * Best-effort: returns ok/error but never throws so it can be
  * fire-and-forgotten from the webhook hot path.
- *
- * Behaviour by inbound type:
- *   • text → free-form text to owner prefixed with the sender's name+phone
- *   • image / video / audio / sticker / document — download bytes from Meta,
- *     re-upload, and send through the Cloud API with a caption that names
- *     the sender. Captions only stick to image/video (Meta's rule).
- *
- * Free-form sends to the owner only work inside the 24h customer-service
- * window — the owner must have written to the business number within the
- * past 24h. If that window is closed Meta will return error 131047 / 132015
- * and this helper will silently return ok:false. The webhook ignores the
- * result so a closed-window failure doesn't impact the inbox persistence.
- *
- * The owner's phone comes from env (OWNER_NOTIFY_PHONE) so we don't bake a
- * personal number into the codebase.
  */
 export async function forwardInboundToOwner(opts: {
   /** Bare digits of the sender (Meta's `from`). */
@@ -529,8 +531,6 @@ export async function forwardInboundToOwner(opts: {
   type: string
   /** Text body OR media caption (whichever applies). */
   body: string | null
-  /** Meta media_id for media types. We re-fetch and re-upload it. */
-  mediaId?: string | null
   /** Filename for documents (optional). */
   filename?: string | null
 }): Promise<SendResult> {
@@ -538,97 +538,65 @@ export async function forwardInboundToOwner(opts: {
   if (!ownerPhone) {
     return { ok: false, error: "OWNER_NOTIFY_PHONE not set" }
   }
+  const templateName = process.env.WHATSAPP_TEMPLATE_INBOUND_COPY
+  if (!templateName) {
+    return { ok: false, error: "WHATSAPP_TEMPLATE_INBOUND_COPY not set" }
+  }
   const cfg = getConfig()
   if (!cfg) return { ok: false, error: "not_configured" }
 
-  // Anti-loop: never forward a message that the owner themselves sent to the
-  // business number — they'd just receive an echo of their own text.
+  // Anti-loop: drop sends where the inbound `from` is the owner themselves.
   const ownerDigits = normalizePhone(ownerPhone)
   if (normalizePhone(opts.fromPhone) === ownerDigits) {
     return { ok: false, error: "skip_owner_self" }
   }
 
-  // Pretty sender label: "Anna (+62 821-…-405)" or just the phone if no name.
-  const senderLabel =
-    opts.fromName?.trim()
-      ? `${opts.fromName.trim()} (+${opts.fromPhone})`
-      : `+${opts.fromPhone}`
+  // {{1}} — sender label.
+  const senderLabel = opts.fromName?.trim()
+    ? `${opts.fromName.trim()} (+${opts.fromPhone})`
+    : `+${opts.fromPhone}`
 
-  // Type-specific header so the owner can tell at a glance what they're getting.
-  const header = (() => {
+  // {{2}} — body. For media types we substitute a short label (Meta rejects
+  // empty variables). Captions append after the label so the owner sees both.
+  const typeLabel = (() => {
     switch (opts.type) {
       case "text":
-        return `📨 ${senderLabel}`
+        return null
       case "image":
-        return `📷 ${senderLabel} — photo`
+        return "📷 [photo]"
       case "video":
-        return `🎬 ${senderLabel} — video`
+        return "🎬 [video]"
       case "audio":
-        return `🎤 ${senderLabel} — voice`
+        return "🎤 [voice]"
       case "sticker":
-        return `💬 ${senderLabel} — sticker`
+        return "💬 [sticker]"
       case "document":
-        return `📄 ${senderLabel} — document${opts.filename ? `: ${opts.filename}` : ""}`
+        return `📄 [document${opts.filename ? `: ${opts.filename}` : ""}]`
       default:
-        return `📨 ${senderLabel} — ${opts.type}`
+        return `📨 [${opts.type}]`
     }
   })()
 
-  // Text path is simpler: one Cloud API call.
-  if (opts.type === "text") {
-    const text = opts.body ? `${header}\n${opts.body}` : header
-    return sendWhatsAppText(ownerPhone, text)
-  }
+  const bodyVar = (() => {
+    if (typeLabel === null) {
+      // Text inbound — the body itself.
+      return opts.body && opts.body.trim().length > 0 ? opts.body : "(empty)"
+    }
+    return opts.body && opts.body.trim().length > 0
+      ? `${typeLabel}\n${opts.body}`
+      : typeLabel
+  })()
 
-  // Media path: re-fetch from Meta, re-upload, send. If anything fails we
-  // fall back to a plain-text notice so the owner at least sees that
-  // something came in.
-  if (!opts.mediaId) {
-    return sendWhatsAppText(ownerPhone, header)
-  }
-  const fetched = await fetchMetaMedia(opts.mediaId)
-  if (!fetched.ok) {
-    return sendWhatsAppText(ownerPhone, `${header}\n(failed to fetch media: ${fetched.error})`)
-  }
-  const fileName = opts.filename || `forward-${Date.now()}`
-  const uploaded = await uploadMediaToMeta(
-    Buffer.from(fetched.bytes),
-    fetched.mimeType,
-    fileName,
-  )
-  if (!uploaded.ok) {
-    return sendWhatsAppText(ownerPhone, `${header}\n(failed to upload media: ${uploaded.error})`)
-  }
+  // WhatsApp body params have a 1024-char limit per Meta docs. Truncate
+  // defensively with an ellipsis so a long message can't get the template
+  // rejected mid-send.
+  const MAX_VAR = 1000
+  const safe = (s: string) => (s.length > MAX_VAR ? s.slice(0, MAX_VAR - 1) + "…" : s)
 
-  // Map inbound type → outbound type. Sticker and document keep their shape;
-  // audio/image/video too. Unknown types fall back to "document" so Meta still
-  // accepts the send.
-  const outType: "image" | "video" | "audio" | "document" | "sticker" =
-    opts.type === "image" ||
-    opts.type === "video" ||
-    opts.type === "audio" ||
-    opts.type === "sticker"
-      ? opts.type
-      : "document"
-
-  // Caption travels only on image/video per Meta's rules; for everything else
-  // we send the header as a separate text message right before the media so
-  // the owner still sees who it's from.
-  if (outType === "image" || outType === "video") {
-    const cap = opts.body ? `${header}\n${opts.body}` : header
-    return sendWhatsAppMedia({
-      toPhone: ownerPhone,
-      type: outType,
-      mediaId: uploaded.id,
-      caption: cap,
-    })
-  }
-  // Non-captionable media: send the header as a text first, ignore its result.
-  await sendWhatsAppText(ownerPhone, header)
-  return sendWhatsAppMedia({
+  return sendWhatsAppTemplate({
     toPhone: ownerPhone,
-    type: outType,
-    mediaId: uploaded.id,
-    filename: outType === "document" ? fileName : undefined,
+    templateName,
+    languageCode: process.env.WHATSAPP_TEMPLATE_LANG || "en",
+    variables: [safe(senderLabel), safe(bodyVar)],
   })
 }

@@ -6,7 +6,7 @@ import {
   appendInboundMessage,
   updateMessageStatus,
 } from "@/lib/whatsapp-conversation"
-import { fetchMetaMedia } from "@/lib/whatsapp-cloud"
+import { fetchMetaMedia, forwardInboundToOwner } from "@/lib/whatsapp-cloud"
 import { sendInboundWhatsAppCopy } from "@/lib/mailer"
 
 // WhatsApp Cloud API webhook.
@@ -212,10 +212,36 @@ export async function POST(request: NextRequest) {
               hasTrainer: !!assignedTrainerId,
             })
 
-            // Fire-and-forget copy to owner's email. We don't await —
-            // webhook must return 200 to Meta within ~5s or they retry. For
-            // media inbound we fetch the bytes from Meta here so the mailer
-            // can attach them; for text we just pass the body.
+            // Fire-and-forget WhatsApp copy to owner's personal number via
+            // approved template (no 24h window dependency). Skipped silently
+            // until WHATSAPP_TEMPLATE_INBOUND_COPY env is set (template still
+            // PENDING Meta approval at the time of this commit).
+            void forwardInboundToOwner({
+              fromPhone: phone,
+              fromName: contactName,
+              type,
+              body: msgBody,
+              filename: msg.document?.filename ?? null,
+            })
+              .then((r) => {
+                if (
+                  !r.ok &&
+                  r.error !== "skip_owner_self" &&
+                  r.error !== "WHATSAPP_TEMPLATE_INBOUND_COPY not set" &&
+                  r.error !== "OWNER_NOTIFY_PHONE not set"
+                ) {
+                  console.warn(
+                    "[whatsapp-webhook] WA forward to owner failed:",
+                    r.error,
+                  )
+                }
+              })
+              .catch((err) => {
+                console.error("[whatsapp-webhook] WA forward threw:", err)
+              })
+
+            // Email copy to owner — always works regardless of WhatsApp
+            // window or template status. Runs in parallel with the WA path.
             void (async () => {
               try {
                 let mediaAttachment:
