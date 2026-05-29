@@ -48,6 +48,13 @@ type MessageRow = {
   direction: "INBOUND" | "OUTBOUND"
   type: string
   body: string | null
+  /** Auto-translation produced by the server. For inbound: client's text
+   *  translated into the studio's inboxLanguage. For outbound: admin's
+   *  text translated into the client's language (what was actually sent).
+   *  Null when no translation happened (already same language, off, etc). */
+  translatedBody: string | null
+  /** ISO 639-1 of body. Used to label the "Original (EN): …" subtitle. */
+  detectedLang: string | null
   mediaUrl: string | null
   mediaMime: string | null
   templateName: string | null
@@ -160,11 +167,18 @@ function MessageBubble({
   fontScale: number
 }) {
   const isOut = m.direction === "OUTBOUND"
-  const jumbo = isEmojiOnly(m.body)
+  // Display text: prefer the translation if the server produced one. For
+  // inbound that's the admin-language rendering; for outbound it's
+  // (somewhat redundantly) what we actually sent to the client. The
+  // original body is always shown as a smaller line below.
+  const hasTranslation =
+    !!m.translatedBody && m.translatedBody.trim() !== (m.body ?? "").trim()
+  const primaryText = hasTranslation ? m.translatedBody : m.body
+  const jumbo = isEmojiOnly(primaryText)
   const jumboScale = jumbo
-    ? emojiCount(m.body || "") <= 3
+    ? emojiCount(primaryText || "") <= 3
       ? 2.8 // 1-3 emoji → big like WhatsApp
-      : emojiCount(m.body || "") <= 6
+      : emojiCount(primaryText || "") <= 6
         ? 1.8 // 4-6 emoji → medium
         : 1.2 // 7+ → barely larger than normal
     : 1
@@ -268,7 +282,7 @@ function MessageBubble({
           </a>
         )}
 
-        {m.body && m.type !== "document" && (
+        {primaryText && m.type !== "document" && (
           <div
             className="whitespace-pre-wrap break-words"
             style={
@@ -278,6 +292,28 @@ function MessageBubble({
                 : undefined
             }
           >
+            {primaryText}
+          </div>
+        )}
+
+        {/* Translation footer: if the server translated this message we
+            show the original underneath in muted text, labelled with the
+            detected language. For outbound this surfaces what the client
+            actually received in their language; for inbound it surfaces
+            what the client wrote before translation. */}
+        {hasTranslation && m.body && (
+          <div
+            className={cn(
+              "mt-1 text-[11px] whitespace-pre-wrap break-words border-t pt-1",
+              isOut
+                ? "border-emerald-700/30 text-gray-600 dark:text-emerald-200/70"
+                : "border-gray-200 text-gray-500 dark:border-white/10 dark:text-[#8696A0]",
+            )}
+          >
+            <span className="opacity-60 mr-1">
+              {isOut ? "→" : "🌐"}
+              {m.detectedLang ? ` ${m.detectedLang.toUpperCase()}:` : ""}
+            </span>
             {m.body}
           </div>
         )}
@@ -446,6 +482,11 @@ export default function Inbox({
       direction: "OUTBOUND",
       type: "text",
       body: draft,
+      // Optimistic bubble has no translation yet — the server fills these
+      // in on response (if the studio has inboxLanguage set and the client's
+      // language differs). The bubble then re-renders with the translation.
+      translatedBody: null,
+      detectedLang: null,
       mediaUrl: null,
       mediaMime: null,
       templateName: null,
@@ -550,6 +591,8 @@ export default function Inbox({
         direction: "OUTBOUND",
         type: guessType,
         body: null,
+        translatedBody: null,
+        detectedLang: null,
         mediaUrl: localUrl, // local objectURL for instant preview
         mediaMime: file.type,
         templateName: null,
@@ -918,18 +961,20 @@ export default function Inbox({
         {/* WhatsApp-style composer row: + on the left, pill input with the
             textarea, white circular Send button on the right. Sits over the
             chat doodle background, no separate border. */}
-        {windowOpen ? (
-          // Composer owns its own text state (uncontrolled textarea), so
-          // typing does not re-render Inbox. See app/_components/Composer.tsx.
+        {windowOpen || role === "ADMIN" ? (
+          // Composer always available for admins — server auto-wraps text in
+          // the admin_message template when the 24h window is closed, so we
+          // never need to block typing in the UI. Trainers still get the
+          // amber notice when the window is closed (they shouldn't be
+          // re-starting cold conversations).
           <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} />
         ) : (
-          // Window closed: no composer + no keyboard, just a notice.
           <div className="px-2 pt-2 pb-2 bg-[#ECE5DD] dark:bg-[#0B141A]">
             <div className="mx-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2 dark:text-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
               <Sparkles size={14} className="mt-0.5 flex-shrink-0" />
               <span>
                 24-часовое окно закрыто. Клиент должен написать первым, либо
-                отправь утверждённый шаблон (в этой версии — через бронирование).
+                попроси администратора написать ему.
               </span>
             </div>
           </div>

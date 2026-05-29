@@ -61,7 +61,9 @@ export async function GET(_req: NextRequest) {
             id: c.messages[0].id,
             direction: c.messages[0].direction,
             type: c.messages[0].type,
-            body: c.messages[0].body,
+            // Prefer the translation for the sidebar preview so admins
+            // see the snippet in their language.
+            body: c.messages[0].translatedBody ?? c.messages[0].body,
             createdAt: c.messages[0].createdAt,
           }
         : null,

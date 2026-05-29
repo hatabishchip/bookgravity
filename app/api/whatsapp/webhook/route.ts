@@ -8,6 +8,7 @@ import {
 } from "@/lib/whatsapp-conversation"
 import { fetchMetaMedia, forwardInboundToOwner } from "@/lib/whatsapp-cloud"
 import { sendInboundWhatsAppCopy } from "@/lib/mailer"
+import { translateAndDetect } from "@/lib/translate"
 
 // WhatsApp Cloud API webhook.
 //
@@ -166,6 +167,15 @@ export async function POST(request: NextRequest) {
     if (!studioId) {
       console.warn("[whatsapp-webhook] no Studio in DB — skipping persistence")
     }
+    // Studio's admin-facing language (e.g. "ru" for Canggu/Ubud). When set,
+    // every inbound message gets translated in the background and the
+    // bubble in /admin/inbox renders the translation as the main text.
+    const inboxLanguage = studioId
+      ? (await prisma.studio.findUnique({
+          where: { id: studioId },
+          select: { inboxLanguage: true },
+        }))?.inboxLanguage ?? null
+      : null
 
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
@@ -196,7 +206,7 @@ export async function POST(request: NextRequest) {
               clientName: contactName ?? recentBooking?.clientName ?? null,
               assignedTrainerId,
             })
-            await appendInboundMessage({
+            const saved = await appendInboundMessage({
               conversationId: convo.id,
               type,
               body: msgBody,
@@ -211,6 +221,58 @@ export async function POST(request: NextRequest) {
               conversationId: convo.id,
               hasTrainer: !!assignedTrainerId,
             })
+
+            // Fire-and-forget translation: if the studio is set up with an
+            // admin-facing language and the inbound has text we can translate,
+            // detect+translate via Claude and stash the result on the message
+            // row. The bubble UI prefers translatedBody when present so the
+            // admin sees the chat in their language without any further work.
+            // Also updates conversation.clientLanguage so outbound replies can
+            // be translated back without re-detecting.
+            if (
+              inboxLanguage &&
+              msgBody &&
+              msgBody.trim().length > 0 &&
+              (type === "text" || type === "image" || type === "video")
+            ) {
+              void (async () => {
+                try {
+                  const t = await translateAndDetect({
+                    text: msgBody,
+                    targetLang: inboxLanguage,
+                  })
+                  if (!t.ok) {
+                    if (t.error !== "ANTHROPIC_API_KEY not set") {
+                      console.warn("[whatsapp-webhook] translate inbound failed:", t.error)
+                    }
+                    return
+                  }
+                  await prisma.whatsAppMessage.update({
+                    where: { id: saved.id },
+                    data: {
+                      detectedLang: t.sourceLang,
+                      translatedBody:
+                        t.sourceLang === inboxLanguage ? null : t.translated,
+                    },
+                  })
+                  // Remember the client's language for outbound translation.
+                  // Only update when we actually got a confident detection (a
+                  // real 2-letter code) — "und" stays put.
+                  if (
+                    t.sourceLang &&
+                    t.sourceLang !== "und" &&
+                    t.sourceLang !== convo.clientLanguage
+                  ) {
+                    await prisma.whatsAppConversation.update({
+                      where: { id: convo.id },
+                      data: { clientLanguage: t.sourceLang },
+                    })
+                  }
+                } catch (err) {
+                  console.error("[whatsapp-webhook] translate threw:", err)
+                }
+              })()
+            }
 
             // Fire-and-forget WhatsApp copy to owner's personal number via
             // approved template (no 24h window dependency). Skipped silently

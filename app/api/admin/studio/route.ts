@@ -7,6 +7,12 @@ import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
 const MAX_DATA_URL_LEN = 1_500_000 // ~1MB of base64 = ~750KB of real image
 
+// Languages we offer in the inbox dropdown. Two-letter ISO 639-1 lowercase.
+// Add codes here as we grow; the translation lib accepts any 2-letter code
+// already, this list is purely about constraining what admins can pick in
+// the UI.
+const SUPPORTED_INBOX_LANGS = ["en", "ru", "id", "es", "it", "fr", "de"] as const
+
 const StudioUpdateSchema = z.object({
   name: z.string().min(2).optional(),
   logoUrl: z.string().max(MAX_DATA_URL_LEN).nullable().optional(),
@@ -14,7 +20,22 @@ const StudioUpdateSchema = z.object({
   groupPrice: z.number().min(0).optional(),
   kidsPrice: z.number().min(0).optional(),
   privatePrice: z.number().min(0).optional(),
+  // Optional ISO 639-1 lowercase code, or null to turn translation off.
+  inboxLanguage: z.enum(SUPPORTED_INBOX_LANGS).nullable().optional(),
 })
+
+const STUDIO_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  logoUrl: true,
+  faviconUrl: true,
+  isDefault: true,
+  groupPrice: true,
+  kidsPrice: true,
+  privatePrice: true,
+  inboxLanguage: true,
+} as const
 
 export async function GET() {
   const ctx = await requireAdmin()
@@ -22,7 +43,7 @@ export async function GET() {
 
   const studio = await prisma.studio.findUnique({
     where: { id: ctx.studioId },
-    select: { id: true, name: true, slug: true, logoUrl: true, faviconUrl: true, isDefault: true, groupPrice: true, kidsPrice: true, privatePrice: true },
+    select: STUDIO_SELECT,
   })
   if (!studio) return NextResponse.json({ error: "Not found" }, { status: 404 })
   return NextResponse.json(studio)
@@ -46,7 +67,7 @@ export async function PATCH(request: NextRequest) {
   const studio = await prisma.studio.update({
     where: { id: ctx.studioId },
     data: parsed.data,
-    select: { id: true, name: true, slug: true, logoUrl: true, faviconUrl: true, isDefault: true, groupPrice: true, kidsPrice: true, privatePrice: true },
+    select: STUDIO_SELECT,
   })
 
   // Auto-sync the studio logo to the WhatsApp Business profile picture

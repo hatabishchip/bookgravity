@@ -8,6 +8,7 @@ import {
   isInsideCustomerWindow,
   trainerHasAccess,
 } from "@/lib/whatsapp-conversation"
+import { translateAndDetect } from "@/lib/translate"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
 // POST /api/whatsapp/conversations/[id]/messages
@@ -86,27 +87,95 @@ export async function POST(
     )
   }
 
-  // ---------- Text path: only inside the 24h customer-service window ----------
+  // ---------- Text path ----------
+  // Admins can message a client at ANY time. When the 24h customer-service
+  // window is closed we auto-fall back to the approved "admin_message"
+  // template (see scripts/create-admin-message-template.ts), wrapping the
+  // admin's typed text as variable {{2}}. Trainers still hit the 409 when
+  // the window is closed — by design, they're not supposed to start new
+  // conversations.
   const parsed = TextSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
   }
-  if (!isInsideCustomerWindow(convo.lastInboundAt)) {
+  const windowOpen = isInsideCustomerWindow(convo.lastInboundAt)
+  if (!windowOpen && ctx.role !== "ADMIN") {
     return NextResponse.json(
       {
         error:
-          "24h customer-service window is closed. Send an approved template instead, or wait for the client to message you first.",
+          "24h customer-service window is closed. Wait for the client to message first, or ask the admin to reach out.",
         code: "window_closed",
       },
       { status: 409 },
     )
   }
 
-  const res = await sendWhatsAppText(convo.clientPhone, parsed.data.text)
+  // Studio config: inbox language for auto-translation.
+  const studio = await prisma.studio.findUnique({
+    where: { id: ctx.studioId },
+    select: { inboxLanguage: true },
+  })
+  const adminLang = studio?.inboxLanguage ?? null
+  const clientLang = convo.clientLanguage ?? null
+
+  const originalText = parsed.data.text
+  let textToSend = originalText
+  let translatedBody: string | null = null
+  let detectedLang: string | null = adminLang
+
+  // Auto-translate admin text into the client's detected language so the
+  // client receives the message in whatever language they wrote in. The
+  // bubble UI shows the admin's typed original under the translated text.
+  if (adminLang && clientLang && adminLang !== clientLang) {
+    const t = await translateAndDetect({ text: originalText, targetLang: clientLang })
+    if (t.ok && t.sourceLang !== clientLang && t.translated.trim().length > 0) {
+      textToSend = t.translated
+      translatedBody = t.translated
+      detectedLang = t.sourceLang || adminLang
+    } else if (!t.ok && t.error !== "ANTHROPIC_API_KEY not set") {
+      console.warn("[messages/POST] outbound translate failed:", t.error)
+    }
+  }
+
+  // Closed-window template fallback for admins. Wraps the admin's (already
+  // translated, if applicable) text as the {{2}} variable of `admin_message`,
+  // and uses the client's name as {{1}} (fallback: "there").
+  if (!windowOpen && ctx.role === "ADMIN") {
+    const adminTemplate =
+      process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message"
+    const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+    const clientFirstName = (convo.clientName ?? "").trim().split(/\s+/)[0] || "there"
+    const res = await sendWhatsAppTemplate({
+      toPhone: convo.clientPhone,
+      templateName: adminTemplate,
+      languageCode: lang,
+      variables: [clientFirstName, textToSend],
+    })
+    const saved = await appendOutboundMessage({
+      conversationId: convo.id,
+      type: "template",
+      body: originalText,
+      translatedBody,
+      detectedLang,
+      templateName: adminTemplate,
+      waMessageId: res.ok ? res.messageId : null,
+      status: res.ok ? "sent" : "failed",
+      errorDetail: res.ok ? null : res.error,
+      fromTrainerId,
+    })
+    return NextResponse.json(
+      { message: saved, sendResult: res },
+      { status: res.ok ? 201 : 502 },
+    )
+  }
+
+  const res = await sendWhatsAppText(convo.clientPhone, textToSend)
   const saved = await appendOutboundMessage({
     conversationId: convo.id,
     type: "text",
-    body: parsed.data.text,
+    body: originalText,
+    translatedBody,
+    detectedLang,
     waMessageId: res.ok ? res.messageId : null,
     status: res.ok ? "sent" : "failed",
     errorDetail: res.ok ? null : res.error,

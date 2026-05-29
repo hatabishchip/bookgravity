@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Upload, Trash2, ImageIcon, KeyRound } from "lucide-react"
+import { Upload, Trash2, ImageIcon, KeyRound, Languages } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type Studio = {
@@ -11,7 +11,23 @@ type Studio = {
   logoUrl: string | null
   faviconUrl: string | null
   isDefault: boolean
+  /** ISO 639-1 code that admin-facing inbox text is shown in, or null = off. */
+  inboxLanguage: string | null
 }
+
+// Must mirror SUPPORTED_INBOX_LANGS in /api/admin/studio/route.ts. We keep
+// the labels client-side so we don't need a separate endpoint just for
+// a 7-row constant table.
+const LANG_OPTIONS: { value: string | null; label: string; emoji: string }[] = [
+  { value: null, label: "Off (show originals)", emoji: "🚫" },
+  { value: "ru", label: "Russian (Русский)", emoji: "🇷🇺" },
+  { value: "en", label: "English", emoji: "🇬🇧" },
+  { value: "id", label: "Indonesian (Bahasa)", emoji: "🇮🇩" },
+  { value: "es", label: "Spanish (Español)", emoji: "🇪🇸" },
+  { value: "it", label: "Italian (Italiano)", emoji: "🇮🇹" },
+  { value: "fr", label: "French (Français)", emoji: "🇫🇷" },
+  { value: "de", label: "German (Deutsch)", emoji: "🇩🇪" },
+]
 
 // Read a File as a data URL (base64-encoded), optionally downscaling images
 // so we keep payloads small.
@@ -52,7 +68,7 @@ function readImageAsDataUrl(file: File, maxDim = 512, quality = 0.85): Promise<s
 
 export default function SettingsPage() {
   const [studio, setStudio] = useState<Studio | null>(null)
-  const [saving, setSaving] = useState<"logo" | "favicon" | "name" | null>(null)
+  const [saving, setSaving] = useState<"logo" | "favicon" | "name" | "language" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const faviconInputRef = useRef<HTMLInputElement>(null)
@@ -61,9 +77,17 @@ export default function SettingsPage() {
     fetch("/api/admin/studio").then((r) => r.json()).then(setStudio)
   }, [])
 
-  const update = async (data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "name">>) => {
-    const which: "logo" | "favicon" | "name" =
-      "logoUrl" in data ? "logo" : "faviconUrl" in data ? "favicon" : "name"
+  const update = async (
+    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "name" | "inboxLanguage">>,
+  ) => {
+    const which: "logo" | "favicon" | "name" | "language" =
+      "logoUrl" in data
+        ? "logo"
+        : "faviconUrl" in data
+          ? "favicon"
+          : "inboxLanguage" in data
+            ? "language"
+            : "name"
     setSaving(which)
     setError(null)
     const res = await fetch("/api/admin/studio", {
@@ -141,6 +165,12 @@ export default function SettingsPage() {
             onClear={() => update({ faviconUrl: null })}
             previewBg="bg-gray-100"
             previewSize="h-10 w-10"
+          />
+
+          <InboxLanguageCard
+            value={studio.inboxLanguage}
+            saving={saving === "language"}
+            onSave={(lang) => update({ inboxLanguage: lang })}
           />
 
           <ChangePasswordCard />
@@ -279,6 +309,59 @@ function NameCard({
           {saving ? "Saving…" : done ? "Saved ✓" : "Save"}
         </button>
       </form>
+    </div>
+  )
+}
+
+function InboxLanguageCard({
+  value,
+  saving,
+  onSave,
+}: {
+  value: string | null
+  saving: boolean
+  onSave: (lang: string | null) => Promise<void> | void
+}) {
+  // Localish change UX: pick from a small native <select>, save immediately
+  // on change. No need for a separate "Save" button — it's a single
+  // dropdown and the round-trip is fast.
+  const [done, setDone] = useState(false)
+  const handle = async (next: string | null) => {
+    await onSave(next)
+    setDone(true)
+    setTimeout(() => setDone(false), 1500)
+  }
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Languages size={16} className="text-[#2C6E49]" />
+        <h2 className="text-base font-semibold text-gray-900">Inbox language</h2>
+      </div>
+      <p className="text-xs text-gray-500 mb-4 max-w-md">
+        Auto-translate incoming WhatsApp messages so the inbox always reads
+        in your language. Your replies are also translated back into the
+        client&apos;s detected language before delivery — clients see them
+        in whatever language they wrote in. The original text is always
+        preserved underneath the translation.
+      </p>
+      <div className="flex items-center gap-3">
+        <select
+          value={value ?? ""}
+          onChange={(e) => handle(e.target.value === "" ? null : e.target.value)}
+          disabled={saving}
+          className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60 min-w-[260px]"
+        >
+          {LANG_OPTIONS.map((o) => (
+            <option key={o.value ?? "off"} value={o.value ?? ""}>
+              {o.emoji} {o.label}
+            </option>
+          ))}
+        </select>
+        {saving && <span className="text-xs text-gray-400">Saving…</span>}
+        {done && !saving && (
+          <span className="text-xs text-[#2C6E49] font-medium">Saved ✓</span>
+        )}
+      </div>
     </div>
   )
 }

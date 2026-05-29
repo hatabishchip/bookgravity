@@ -162,6 +162,11 @@ export async function appendOutboundMessage(opts: {
   conversationId: string
   type: string // "text" | "template" | "image" | ...
   body?: string | null
+  /** Translated text that was actually sent (when admin typed in a different
+   *  language than the client). Null when no translation happened. */
+  translatedBody?: string | null
+  /** ISO 639-1 of `body`. */
+  detectedLang?: string | null
   templateName?: string | null
   waMessageId?: string | null
   status?: string // queued|sent|delivered|read|failed
@@ -174,6 +179,8 @@ export async function appendOutboundMessage(opts: {
       direction: "OUTBOUND",
       type: opts.type,
       body: opts.body ?? null,
+      translatedBody: opts.translatedBody ?? null,
+      detectedLang: opts.detectedLang ?? null,
       templateName: opts.templateName ?? null,
       waMessageId: opts.waMessageId ?? null,
       status: opts.status ?? "sent",
