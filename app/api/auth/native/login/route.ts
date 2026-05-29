@@ -1,0 +1,59 @@
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { signAccessToken, signRefreshToken } from "@/lib/native-jwt"
+import bcrypt from "bcryptjs"
+import { z } from "zod"
+
+const Body = z.object({
+  email: z.string().email().or(z.string().min(2)),
+  password: z.string().min(1),
+})
+
+// POST /api/auth/native/login
+// Issues an access + refresh token for a phone client. Unlike the web
+// Credentials flow, we DO NOT scope by subdomain — the mobile app doesn't
+// have a host-based tenant, the user's own studioId is the boundary. The
+// app reads role from the response and routes accordingly (client vs
+// trainer surface).
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const data = Body.parse(body)
+
+    const user = await prisma.user.findUnique({
+      where: { email: data.email },
+      include: { studio: { select: { slug: true } } },
+    })
+    if (!user) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+
+    const ok = await bcrypt.compare(data.password, user.password)
+    if (!ok) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+
+    const tokenInput = {
+      sub: user.id,
+      role: user.role,
+      studioId: user.studioId,
+      studioSlug: user.studio.slug,
+    }
+    const access = signAccessToken(tokenInput)
+    const refresh = signRefreshToken(tokenInput)
+
+    return NextResponse.json({
+      token: access.token,
+      refreshToken: refresh.token,
+      expiresAt: access.expiresAt,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        studioId: user.studioId,
+        studioSlug: user.studio.slug,
+      },
+    })
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.issues.map((i) => i.message).join("; ") }, { status: 400 })
+    }
+    return NextResponse.json({ error: "Internal error" }, { status: 500 })
+  }
+}

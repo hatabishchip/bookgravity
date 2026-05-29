@@ -32,6 +32,11 @@ model Studio {
   whatsappBusinessAccountId  String?
   whatsappDisplayPhone       String?
   whatsappConnectedAt        DateTime?
+  // ISO 639-1 code (e.g. "ru", "en", "id"). When set, inbound WhatsApp
+  // messages get auto-translated to this language for display in the
+  // inbox; outbound replies typed in this language get auto-translated
+  // to the client's detected language before delivery. Null = off.
+  inboxLanguage              String?
   createdAt     DateTime @default(now())
 
   users        User[]
@@ -215,6 +220,10 @@ model WhatsAppConversation {
   studio            Studio   @relation(fields: [studioId], references: [id])
   clientPhone       String   // normalized to digits only, no leading +
   clientName        String?  // best-known name (latest booking or WhatsApp profile)
+  // ISO 639-1 code detected from this client's inbound messages (e.g. "en",
+  // "es", "ru"). Used as the target language when admin replies and the
+  // studio has inboxLanguage set. Updated as fresher inbounds come in.
+  clientLanguage    String?
   // assignedTrainerId — kept as the "primary / most-recent trainer" for sort
   // & display (chip in admin list). Actual access control is via the
   // WhatsAppConversationAccess join table below, which lets multiple
