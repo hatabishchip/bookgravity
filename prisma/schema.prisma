@@ -58,8 +58,26 @@ model User {
   studio              Studio               @relation(fields: [studioId], references: [id])
   trainer             Trainer?
   passwordResetTokens PasswordResetToken[]
+  pushTokens          NativePushToken[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+}
+
+// Expo push tokens registered by the mobile app for a logged-in user.
+// One row per device — a user with iPhone + iPad would have two. The
+// platform / deviceName fields help debugging delivery later; expoPushToken
+// is what we send through the Expo Push API.
+model NativePushToken {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expoPushToken String   @unique
+  platform      String
+  deviceName    String?
+  lastSeenAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
 }
 
 model PasswordResetToken {
@@ -268,7 +286,17 @@ model WhatsAppMessage {
   conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   direction       String   // "INBOUND" | "OUTBOUND"
   type            String   // "text" | "image" | "audio" | "video" | "document" | "sticker" | "template" | "system"
-  body            String?  // text body (or template-rendered text for outbound templates)
+  body            String?  // text body — sender's ORIGINAL words (inbound)
+                           // OR admin's typed text (outbound, before translation)
+  // Auto-translation: when studio.inboxLanguage is set we render bubbles using
+  // translatedBody (falling back to body when no translation was needed/done).
+  // For inbound: client wrote in `body` (their language), translatedBody is
+  // the admin-facing translation.
+  // For outbound: admin typed in `body` (studio's inboxLanguage),
+  // translatedBody is what we actually sent to the client.
+  translatedBody  String?
+  // ISO 639-1 of `body` (detected once at persist time).
+  detectedLang    String?
   mediaUrl        String?  // we don't download media yet; store Meta media_id here for later fetching
   mediaMime       String?
   templateName    String?  // for outbound type=template

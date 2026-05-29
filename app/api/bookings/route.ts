@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getStudioIdBySubdomain } from "@/lib/studio"
 import { isSlotBookable } from "@/lib/booking-cutoff"
 import { sendTrainerBookingNotification, sendClientBookingConfirmation } from "@/lib/mailer"
+import { sendPush } from "@/lib/expo-push"
 import {
   sendClientBookingConfirmationWA,
   sendTrainerBookingNotificationWA,
@@ -132,6 +133,7 @@ export async function POST(request: NextRequest) {
 
         const trainerEmail = slotWithTrainer.trainer?.user?.email
         const trainerName = slotWithTrainer.trainer?.name
+        const trainerUserId = slotWithTrainer.trainer?.userId
         console.log("[bookings] dispatch mails:", {
           clientEmail: data.clientEmail,
           trainerEmail,
@@ -151,6 +153,19 @@ export async function POST(request: NextRequest) {
           mailPromises.push(sendTrainerBookingNotification(trainerEmail, trainerName, sharedData))
         } else {
           console.warn("[bookings] trainer notify SKIPPED — slot has no trainer with an email")
+        }
+        // Mobile push to the trainer's registered devices. data.category +
+        // data.slotId lets the app deep-link to the class screen on tap.
+        if (trainerUserId) {
+          mailPromises.push(
+            sendPush({
+              userId: trainerUserId,
+              title: "New booking",
+              body: `${data.clientName} booked ${sharedData.startTime}–${sharedData.endTime} on ${sharedData.date}`,
+              category: "booking",
+              data: { slotId: data.slotId, bookingId: bookings[0].id },
+            }),
+          )
         }
         await Promise.all(mailPromises)
       } else {

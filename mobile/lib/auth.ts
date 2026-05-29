@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import * as SecureStore from "expo-secure-store"
 import { api, clearTokens, setTokens } from "@/lib/api"
+import { registerPushToken, deregisterPushToken } from "@/lib/push"
 import type { NativeLoginResponse, UserRole } from "@shared/types"
 
 // Cached user payload mirrors what the server returns on /native/login so
@@ -33,10 +34,16 @@ export const useAuth = create<AuthState>((set) => ({
     await setTokens(res.token, res.refreshToken)
     await SecureStore.setItemAsync(USER_KEY, JSON.stringify(res.user))
     set({ user: res.user, bootstrapped: true })
+    // Fire-and-forget: register this device for push so the trainer/admin
+    // sees booking notifications. Awaiting here would block the redirect.
+    registerPushToken().catch(() => {})
     return res.user
   },
 
   async signOut() {
+    // Drop the device's push token first so the server stops sending to it.
+    // Best-effort: a network failure here shouldn't block sign-out.
+    await deregisterPushToken().catch(() => {})
     await clearTokens()
     await SecureStore.deleteItemAsync(USER_KEY).catch(() => {})
     set({ user: null, bootstrapped: true })
@@ -48,6 +55,9 @@ export const useAuth = create<AuthState>((set) => ({
       if (cached) {
         const user = JSON.parse(cached) as AuthUser
         set({ user, bootstrapped: true })
+        // Re-register the push token on every cold start so token rotations
+        // (Expo can rotate, user toggled permissions, OS reinstall) propagate.
+        registerPushToken().catch(() => {})
         return
       }
     } catch {

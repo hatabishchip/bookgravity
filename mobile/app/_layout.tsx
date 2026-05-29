@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import * as SplashScreen from "expo-splash-screen"
+import * as Notifications from "expo-notifications"
 import { useAuth, homeRouteFor } from "@/lib/auth"
 import { useTheme } from "@/hooks/useTheme"
 
@@ -50,6 +51,22 @@ export default function RootLayout() {
       router.replace(homeRouteFor(user.role))
     }
   }, [bootstrapped, user, segments, router])
+
+  // 3. Notification tap handler. The backend sends data.category="booking"
+  //    with data.slotId so we can deep-link into the trainer's class screen
+  //    when they tap a "new booking" push.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
+      const data = resp.notification.request.content.data as
+        | { category?: string; slotId?: string }
+        | undefined
+      if (!data) return
+      if (data.category === "booking" && data.slotId) {
+        router.push({ pathname: "/(trainer)/class", params: { slotId: data.slotId } })
+      }
+    })
+    return () => sub.remove()
+  }, [router])
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.bg.page }}>
