@@ -768,38 +768,39 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               in one compact card. The standalone "How many people" row was
               folded in here so the date step starts with a single tidy block. */}
           <div className="bg-[#2C6E49]/8 border border-[#2C6E49]/15 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
+            {/* Left: class label + bigger, easier-to-tap party-size stepper */}
             <div className="min-w-0">
               <div className="text-xs uppercase tracking-wide text-[#2C6E49]/70 font-medium">Group class</div>
-              <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">Up to 6 people · 1.5 hours</div>
-              {/* Party size stepper */}
               <div className="flex items-center gap-2 mt-2">
-                <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg p-0.5">
+                <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl p-1">
                   <button
                     type="button"
                     onClick={() => setPartySize(Math.max(1, partySize - 1))}
                     disabled={partySize <= 1}
-                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-xl text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     aria-label="Decrease"
                   >
                     −
                   </button>
-                  <span className="w-5 text-center font-bold text-sm text-gray-900 tabular-nums">{partySize}</span>
+                  <span className="w-7 text-center font-bold text-lg text-gray-900 tabular-nums">{partySize}</span>
                   <button
                     type="button"
                     onClick={() => setPartySize(Math.min(6, partySize + 1))}
                     disabled={partySize >= 6}
-                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-xl text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     aria-label="Increase"
                   >
                     +
                   </button>
                 </div>
-                <span className="text-[11px] text-gray-500 leading-none">{partySize === 1 ? "person" : "people"}</span>
+                <span className="text-xs text-gray-500 leading-none">{partySize === 1 ? "person" : "people"}</span>
               </div>
             </div>
+            {/* Right: price + class details underneath */}
             <div className="text-right flex-shrink-0">
               <div className="text-2xl font-bold text-[#2C6E49] leading-none">300k</div>
               <div className="text-[10px] text-gray-500 mt-1 uppercase tracking-wide">IDR / person</div>
+              <div className="text-[10px] text-gray-500 mt-1 leading-tight">Up to 6 people · 1.5 hours</div>
             </div>
           </div>
 
