@@ -127,6 +127,7 @@ function StudioCard({ studio, onConnect, onChanged }: {
 
   const [resetting, setResetting] = useState(false)
   const [resetMsg, setResetMsg] = useState<string | null>(null)
+  const [confirmingReset, setConfirmingReset] = useState(false)
   const studioAdmin = studio.admins.find((a) => a.role === "ADMIN") ?? null
 
   const [checking, setChecking] = useState(false)
@@ -164,7 +165,6 @@ function StudioCard({ studio, onConnect, onChanged }: {
 
   const resetAdminPassword = async () => {
     if (!studioAdmin) return
-    if (!confirm(`Reset ${studioAdmin.email}'s password to 0400? They can sign in with it immediately and change it in Settings.`)) return
     setResetting(true)
     setResetMsg(null)
     try {
@@ -177,6 +177,8 @@ function StudioCard({ studio, onConnect, onChanged }: {
       setResetMsg(res.ok ? `Password reset to 0400 for ${studioAdmin.email}` : (j.error ?? "Reset failed"))
     } finally {
       setResetting(false)
+      setConfirmingReset(false)
+      onChanged()
     }
   }
 
@@ -250,12 +252,12 @@ function StudioCard({ studio, onConnect, onChanged }: {
         {studioAdmin ? (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
-              onClick={resetAdminPassword}
-              disabled={resetting}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              onClick={() => setConfirmingReset(true)}
+              title="Reset this admin's password"
+              aria-label="Reset admin password"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:text-emerald-700"
             >
-              <KeyRound size={12} />
-              {resetting ? "Resetting…" : "Reset admin password to 0400"}
+              <KeyRound size={15} />
             </button>
             {resetMsg && <span className="text-[11px] text-emerald-700">{resetMsg}</span>}
           </div>
@@ -265,6 +267,42 @@ function StudioCard({ studio, onConnect, onChanged }: {
           </div>
         )}
       </div>
+
+      {confirmingReset && studioAdmin && (
+        <Modal title="Reset admin password" onClose={() => setConfirmingReset(false)}>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                <KeyRound size={18} className="text-amber-600" />
+              </div>
+              <div className="text-sm text-gray-700 leading-relaxed">
+                Reset the password for <span className="font-mono font-semibold text-gray-900">{studioAdmin.email}</span> to{" "}
+                <span className="font-mono font-bold">0400</span>?
+                <div className="text-xs text-gray-500 mt-1">
+                  Their current password stops working. They can sign in with 0400 and set a new one in Settings.
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmingReset(false)}
+                className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={resetAdminPassword}
+                disabled={resetting}
+                className="flex-1 px-3 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-60"
+              >
+                {resetting ? "Resetting…" : "Reset to 0400"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* WhatsApp connection panel */}
       <div className={cn(
