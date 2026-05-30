@@ -1,5 +1,4 @@
 import { auth } from "@/auth"
-import { getStudioIdBySubdomain } from "@/lib/studio"
 import { headers } from "next/headers"
 import { verifyToken } from "@/lib/native-jwt"
 import type { Session } from "next-auth"
@@ -12,19 +11,14 @@ export type SessionContext = {
   role: UserRole
 }
 
-// Resolve the studioId an admin endpoint should scope to:
-// - ADMIN / TRAINER: always their session's studioId (per-tenant isolation).
-// - SUPER_ADMIN: studio of the current subdomain — lets the platform owner
-//   manage Ubud by visiting ubud.bookgravity.com/admin, etc. Falls back to
-//   their own studioId if the subdomain lookup throws.
+// Resolve the studioId an admin endpoint should scope to. EVERY role —
+// including SUPER_ADMIN — is pinned to their own account's studioId. This is
+// deliberate: previously SUPER_ADMIN followed the current studio cookie/host,
+// which meant simply viewing a public booking page (e.g. /ubud) silently
+// switched which studio their /admin managed. Each studio now has its own
+// admin account, and platform-wide management lives in /sadmin, so there's no
+// reason for the super-admin's dashboard to drift between studios.
 async function studioForSession(session: Session): Promise<string> {
-  if (session.user.role === "SUPER_ADMIN") {
-    try {
-      return await getStudioIdBySubdomain()
-    } catch {
-      return session.user.studioId
-    }
-  }
   return session.user.studioId
 }
 
