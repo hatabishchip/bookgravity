@@ -353,7 +353,6 @@ export default function SalaryPage() {
             </div>
 
             <div className="bg-gray-50 rounded-xl px-4 py-3 mb-4 text-sm space-y-1.5">
-              <div className="flex justify-between gap-3"><span className="text-gray-500">Base salary</span><span className="font-medium">{formatIDR(payModal.baseSalary)}</span></div>
               <div className="flex justify-between gap-3"><span className="text-gray-500">Commission ({payModal.commissionRate}%)</span><span className="font-medium">+{formatIDR(payModal.commission)}</span></div>
               <div className="flex justify-between gap-3"><span className="text-gray-500">Already paid</span><span className="font-medium text-green-600">−{formatIDR(payModal.paid)}</span></div>
               <div className="flex justify-between gap-3 border-t border-gray-200 pt-1.5 mt-1"><span className="font-medium text-gray-700">Balance due</span><span className="font-bold text-[#2C6E49]">{formatIDR(payModal.balance)}</span></div>

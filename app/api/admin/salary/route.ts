@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 
-const BASE_SALARY = 1_000_000
+// Trainers earn a flat 20% commission — no fixed base salary anymore. When a
+// slot has an assistant, the main trainer's share drops by ASSISTANT_RATE and
+// the assistant earns that 5%.
+const FLAT_RATE = 20
 const ASSISTANT_RATE = 5
 
 export async function GET(request: NextRequest) {
@@ -49,7 +52,7 @@ export async function GET(request: NextRequest) {
     let mainCommission = 0
     let paidBookingsCount = 0
     for (const slot of trainer.timeSlots) {
-      const effectiveRate = slot.assistant ? trainer.commissionRate - ASSISTANT_RATE : trainer.commissionRate
+      const effectiveRate = slot.assistant ? FLAT_RATE - ASSISTANT_RATE : FLAT_RATE
       const slotRevenue = slot.price * slot.bookings.length
       mainCommission += Math.round(slotRevenue * effectiveRate / 100)
       paidBookingsCount += slot.bookings.length
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     const commission = mainCommission + assistantCommission
     const revenue = trainer.timeSlots.reduce((sum, slot) => sum + slot.price * slot.bookings.length, 0)
-    const accrued = BASE_SALARY + commission
+    const accrued = commission
     const paid = trainer.payments.reduce((sum, p) => sum + p.amount, 0)
     const balance = accrued - paid
 
@@ -72,12 +75,12 @@ export async function GET(request: NextRequest) {
       id: trainer.id,
       name: trainer.name,
       email: trainer.user.email,
-      commissionRate: trainer.commissionRate,
+      commissionRate: FLAT_RATE,
       sessions,
       paidBookings: paidBookingsCount,
       revenue,
       commission,
-      baseSalary: BASE_SALARY,
+      baseSalary: 0,
       accrued,
       paid,
       balance,

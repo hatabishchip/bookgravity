@@ -3,7 +3,9 @@ import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { format, startOfMonth, endOfMonth, parse } from "date-fns"
 
-const BASE_SALARY = 1_000_000
+// Flat 20% commission, no fixed base salary. Assistant on a slot takes 5%,
+// reducing the main trainer's share to 15% for that slot.
+const FLAT_RATE = 20
 const ASSISTANT_RATE = 5
 
 export async function GET(request: NextRequest) {
@@ -58,7 +60,7 @@ export async function GET(request: NextRequest) {
   let totalPaid = 0
   let sessionsWorked = 0
   for (const slot of mainSlots) {
-    const effectiveRate = slot.assistant ? trainer.commissionRate - ASSISTANT_RATE : trainer.commissionRate
+    const effectiveRate = slot.assistant ? FLAT_RATE - ASSISTANT_RATE : FLAT_RATE
     const slotRevenue = slot.price * slot.bookings.length
     mainCommission += Math.round(slotRevenue * effectiveRate / 100)
     paidBookingsCount += slot.bookings.length
@@ -77,14 +79,14 @@ export async function GET(request: NextRequest) {
   const commission = mainCommission + assistantCommission
 
   return NextResponse.json({
-    baseSalary: BASE_SALARY,
-    commissionRate: trainer.commissionRate,
+    baseSalary: 0,
+    commissionRate: FLAT_RATE,
     assistantRate: ASSISTANT_RATE,
     totalPaid,
     mainCommission,
     assistantCommission,
     commission,
-    total: BASE_SALARY + commission,
+    total: commission,
     paidBookingsCount,
     sessionsWorked,
     assistedCount,

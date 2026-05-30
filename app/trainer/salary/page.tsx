@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { format, addMonths, subMonths, startOfMonth } from "date-fns"
-import { ChevronLeft, ChevronRight, Banknote, Users, Briefcase, HandHelping, TrendingUp } from "lucide-react"
+import { ChevronLeft, ChevronRight, Banknote, Users, HandHelping, TrendingUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type Salary = {
@@ -115,14 +115,9 @@ export default function TrainerSalaryPage() {
           {/* Breakdown */}
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <Row
-              icon={<Briefcase size={16} className="text-gray-400" />}
-              label="Base salary"
-              value={`Rp ${formatIDR(salary.baseSalary)}`}
-            />
-            <Row
               icon={<TrendingUp size={16} className="text-gray-400" />}
               label={`Commission${salary.assistantCommission > 0 ? " (lead)" : ""}`}
-              sub={`${salary.commissionRate - (salary.assistantCommission > 0 ? 0 : 0)}% — but ${salary.assistantRate}% goes to assistant when present`}
+              sub={`${salary.commissionRate}% of paid bookings — ${salary.assistantRate}% goes to the assistant when present`}
               value={`+ Rp ${formatIDR(salary.mainCommission)}`}
               hideSub={salary.mainCommission === 0}
             />
@@ -144,8 +139,8 @@ export default function TrainerSalaryPage() {
 
           {/* Note */}
           <div className="text-xs text-gray-400 px-2">
-            Base salary is fixed at Rp {formatIDR(salary.baseSalary)}/month. Commission is {salary.commissionRate}% of paid bookings —
-            when a session has an assistant trainer, {salary.assistantRate}% of that goes to the assistant and the rest to you.
+            You earn {salary.commissionRate}% of paid bookings on your sessions. When a session has an
+            assistant trainer, {salary.assistantRate}% of that goes to the assistant and the rest to you.
           </div>
         </div>
       )}
