@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ArrowRight } from "lucide-react"
 
 type StudioOption = { slug: string; name: string; isDefault: boolean; coverUrl?: string | null }
@@ -17,6 +17,12 @@ function shortLabel(name: string): string {
 export default function StudioChooser({ studios }: { studios: StudioOption[] }) {
   const router = useRouter()
   const [going, setGoing] = useState<string | null>(null)
+
+  // Warm every studio route up front so the tap lands instantly instead of
+  // waiting on a cold server render.
+  useEffect(() => {
+    studios.forEach((s) => router.prefetch(`/${s.slug}`))
+  }, [studios, router])
 
   const pick = (slug: string) => {
     setGoing(slug)

@@ -610,8 +610,16 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allSlots.length, currentKey, todayKey])
 
-  const prevBookableKey = sortedBookableMonths.filter((k) => k < currentKey).pop()
-  const nextBookableKey = sortedBookableMonths.find((k) => k > currentKey)
+  // Navigation is capped at TWO months: the nearest bookable month and the
+  // single month after it. No paging three+ months ahead — only those two are
+  // ever reachable.
+  const reachableMonths = sortedBookableMonths.slice(0, 2)
+  const reachableIdx = reachableMonths.indexOf(currentKey)
+  const prevBookableKey = reachableIdx > 0 ? reachableMonths[reachableIdx - 1] : undefined
+  const nextBookableKey =
+    reachableIdx >= 0 && reachableIdx < reachableMonths.length - 1
+      ? reachableMonths[reachableIdx + 1]
+      : undefined
   const goToMonth = (key: string) => {
     const [y, m] = key.split("-").map(Number)
     setCurrentMonth(new Date(y, m - 1, 1))
@@ -877,24 +885,21 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             </div>
           </div>
 
-          {!slotsLoaded ? (
-            // First load — neutral skeleton so the empty-state card doesn't
-            // flash before slot data arrives.
-            <div className="space-y-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
-                <div className="h-5 w-32 bg-gray-100 rounded animate-pulse" />
-                <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: 35 }).map((_, i) => (
-                  <div key={i} className="aspect-square rounded-full bg-gray-100 animate-pulse" />
-                ))}
-              </div>
+          {slotsLoaded && !hasAnyBookable ? (
+            // Loaded, confirmed no bookable dates anywhere.
+            <div className="text-center py-12 px-4">
+              <div className="text-4xl mb-3">📅</div>
+              <div className="text-base font-semibold text-gray-800">Нет доступных дат для букирования</div>
+              <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">
+                Похоже, расписание ещё не опубликовано. Загляните чуть позже или напишите нам.
+              </p>
             </div>
-          ) : hasAnyBookable ? (
+          ) : (
+            // Calendar renders INSTANTLY (today's month) and the availability
+            // dots fill in lazily once /api/slots resolves — so it feels snappy
+            // instead of showing a blank skeleton. Chevrons stay disabled until
+            // data lands, then hop between the (max two) bookable months.
             <>
-              {/* Month header with chevrons that hop between bookable months. */}
               <div className="flex items-center justify-between mb-5">
                 <button
                   type="button"
@@ -921,30 +926,27 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
               {renderMonthGrid(currentKey)}
 
-              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 text-xs">
-                <div className="flex items-center gap-1.5 text-gray-600">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
-                  <span>Available</span>
+              {slotsLoaded ? (
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 text-xs">
+                  <div className="flex items-center gap-1.5 text-gray-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
+                    <span>Available</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-gray-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    <span>Booked</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-gray-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                    <span>Past class</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-gray-600">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                  <span>Booked</span>
+              ) : (
+                <div className="text-center mt-4 text-xs text-gray-400 animate-pulse">
+                  Загрузка доступных дат…
                 </div>
-                <div className="flex items-center gap-1.5 text-gray-600">
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-                  <span>Past class</span>
-                </div>
-              </div>
+              )}
             </>
-          ) : (
-            // Loaded, confirmed no bookable dates anywhere.
-            <div className="text-center py-12 px-4">
-              <div className="text-4xl mb-3">📅</div>
-              <div className="text-base font-semibold text-gray-800">Нет доступных дат для букирования</div>
-              <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">
-                Похоже, расписание ещё не опубликовано. Загляните чуть позже или напишите нам.
-              </p>
-            </div>
           )}
         </div>
       )}
