@@ -63,8 +63,27 @@ model User {
   trainer             Trainer?
   passwordResetTokens PasswordResetToken[]
   pushTokens          NativePushToken[]
+  loginSessions       LoginSession[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+}
+
+// Web sign-ins. Recorded when a user logs in via the browser (NextAuth uses
+// stateless JWTs, so this table is purely for the admin "who's signed in"
+// view — it isn't consulted on every request). Deduped per (user, device) so
+// re-logging-in from the same browser refreshes lastSeenAt instead of piling
+// up rows. Mobile devices are tracked separately via NativePushToken.
+model LoginSession {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device     String   // friendly label, e.g. "Chrome · macOS"
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@unique([userId, device])
+  @@index([userId])
 }
 
 // Expo push tokens registered by the mobile app for a logged-in user.

@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Upload, Trash2, ImageIcon, KeyRound, Languages } from "lucide-react"
+import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 
 type Studio = {
@@ -198,6 +199,8 @@ export default function SettingsPage() {
             saving={saving === "language"}
             onSave={(lang) => update({ inboxLanguage: lang })}
           />
+
+          <SessionsCard />
 
           <ChangePasswordCard />
 
@@ -399,6 +402,125 @@ function InboxLanguageCard({
           <span className="text-xs text-[#2C6E49] font-medium">Saved ✓</span>
         )}
       </div>
+    </div>
+  )
+}
+
+type SignIn = { id: string; device: string; lastSeenAt: string; platform?: string }
+type UserSessions = {
+  userId: string
+  email: string
+  role: string
+  name: string | null
+  web: SignIn[]
+  mobile: SignIn[]
+}
+
+function roleLabel(role: string): string {
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return "Admin"
+  if (role === "TRAINER") return "Trainer"
+  return role
+}
+
+function SessionsCard() {
+  const [data, setData] = useState<UserSessions[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const load = async () => {
+    try {
+      const res = await fetch("/api/admin/sessions", { cache: "no-store" })
+      if (!res.ok) throw new Error("Failed to load")
+      setData(await res.json())
+    } catch {
+      setError("Could not load sign-ins.")
+    }
+  }
+  useEffect(() => { load() }, [])
+
+  const remove = async (kind: "web" | "mobile", id: string) => {
+    setBusy(id)
+    try {
+      await fetch(`/api/admin/sessions?kind=${kind}&id=${encodeURIComponent(id)}`, { method: "DELETE" })
+      await load()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const seen = (iso: string) => {
+    try { return formatDistanceToNow(new Date(iso), { addSuffix: true }) } catch { return "" }
+  }
+
+  const Row = ({ kind, s }: { kind: "web" | "mobile"; s: SignIn }) => (
+    <div className="flex items-center justify-between gap-3 py-2">
+      <div className="flex items-center gap-2.5 min-w-0">
+        {kind === "web"
+          ? <Monitor size={16} className="text-gray-400 flex-shrink-0" />
+          : <Smartphone size={16} className="text-gray-400 flex-shrink-0" />}
+        <div className="min-w-0">
+          <div className="text-sm text-gray-800 truncate">{s.device}</div>
+          <div className="text-[11px] text-gray-400">
+            {kind === "web" ? "Browser" : "Mobile app"} · active {seen(s.lastSeenAt)}
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => remove(kind, s.id)}
+        disabled={busy === s.id}
+        className="text-xs font-medium text-rose-600 hover:text-rose-700 disabled:opacity-50 flex-shrink-0"
+      >
+        {busy === s.id ? "…" : "Remove"}
+      </button>
+    </div>
+  )
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <ShieldCheck size={16} className="text-[#2C6E49]" />
+        <h2 className="text-base font-semibold text-gray-900">Active sign-ins</h2>
+      </div>
+      <p className="text-xs text-gray-500 mb-4 max-w-md">
+        Everyone currently signed in to your studio — admins and trainers — and
+        the devices they&apos;re on. Remove anything that shouldn&apos;t be
+        there. Mobile removals also stop that device&apos;s notifications.
+      </p>
+
+      {error ? (
+        <p className="text-sm text-rose-600">{error}</p>
+      ) : !data ? (
+        <p className="text-sm text-gray-400">Loading…</p>
+      ) : data.length === 0 ? (
+        <p className="text-sm text-gray-400">No accounts yet.</p>
+      ) : (
+        <div className="space-y-4">
+          {data.map((u) => {
+            const total = u.web.length + u.mobile.length
+            return (
+              <div key={u.userId} className="border border-gray-100 rounded-xl p-3">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="min-w-0">
+                    <span className="text-sm font-semibold text-gray-900">{u.name ?? u.email}</span>
+                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-[#2C6E49] bg-[#2C6E49]/10 px-1.5 py-0.5 rounded">
+                      {roleLabel(u.role)}
+                    </span>
+                  </div>
+                </div>
+                {total === 0 ? (
+                  <p className="text-[11px] text-gray-400">Not signed in on any device.</p>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {u.web.map((s) => <Row key={s.id} kind="web" s={s} />)}
+                    {u.mobile.map((s) => <Row key={s.id} kind="mobile" s={s} />)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
