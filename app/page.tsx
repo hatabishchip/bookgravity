@@ -1,65 +1,27 @@
-import Link from "next/link"
-import { prisma } from "@/lib/prisma"
-import { getStudioIdBySubdomain } from "@/lib/studio"
-import BookingWidget from "./_components/BookingWidget"
-import { auth } from "@/auth"
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
+import { getAllStudios, STUDIO_COOKIE } from "@/lib/studio"
+import StudioChooser from "./_components/StudioChooser"
 
+// Apex landing (bookgravity.com). A single clean URL for both Instagram bios.
+//   • Returning visitor (gs_studio cookie set) → straight to their studio.
+//   • First-timer → the studio chooser (cover photos + location names).
+// The chooser's cards link to /<slug>, where the cookie gets set, so the
+// next visit lands directly on the right studio.
 export default async function HomePage() {
-  const studioId = await getStudioIdBySubdomain()
-  const session = await auth()
+  const studios = await getAllStudios()
 
-  const studio = await prisma.studio.findUnique({
-    where: { id: studioId },
-    select: { name: true, slug: true, logoUrl: true },
-  })
+  const cookieStore = await cookies()
+  const remembered = cookieStore.get(STUDIO_COOKIE)?.value
+  if (remembered && studios.some((s) => s.slug === remembered)) {
+    redirect(`/${remembered}`)
+  }
 
-  const services = await prisma.additionalService.findMany({
-    where: { active: true, studioId },
-    orderBy: { name: "asc" },
-  })
+  // No remembered studio (or it no longer exists) → show the chooser. If only
+  // one studio exists, skip the chooser entirely.
+  if (studios.length === 1) {
+    redirect(`/${studios[0].slug}`)
+  }
 
-  const role = session?.user?.role
-  const dashboardHref = role === "ADMIN" ? "/admin" : role === "TRAINER" ? "/trainer" : null
-  const signedInLabel = role === "ADMIN" ? "admin" : role === "TRAINER" ? "trainer" : null
-
-  return (
-    <div className="min-h-screen bg-[#F5F4F0]">
-      <header className="bg-white border-b border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 py-4 sm:py-5 flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-base sm:text-xl font-bold text-[#2C6E49] tracking-tight truncate">
-              {studio?.name || "Gravity Stretching"}
-            </h1>
-          </div>
-          <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
-            <div className="text-right text-sm text-gray-400 hidden sm:block">
-              <div>Group classes</div>
-              <div className="text-xs">Up to 6 people</div>
-            </div>
-            {dashboardHref && signedInLabel ? (
-              <Link
-                href={dashboardHref}
-                aria-label={`Open ${signedInLabel} dashboard`}
-                className="text-gray-300 hover:text-[#2C6E49] text-xs"
-              >
-                {signedInLabel}
-              </Link>
-            ) : (
-              <Link
-                href="/login"
-                aria-label="Staff sign in"
-                className="text-gray-300 hover:text-[#2C6E49] text-xs"
-              >
-                Sign in
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <BookingWidget services={services} studio={studio ?? undefined} />
-      </div>
-    </div>
-  )
+  return <StudioChooser studios={studios} />
 }

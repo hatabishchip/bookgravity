@@ -194,10 +194,17 @@ function clientEndTime(startTime: string) {
   return `${eh % 12 || 12}:${String(em).padStart(2, "0")} ${ampm}`
 }
 
-export default function BookingWidget({ services, studio }: {
+export default function BookingWidget({ services, studio, studioSlug }: {
   services: Service[]
   studio?: { name: string; slug: string; logoUrl: string | null }
+  // Slug of the studio this widget books into. Sent as ?studio= on the
+  // slots/bookings calls so the API scopes to the right studio regardless of
+  // host (we serve every studio from bookgravity.com now). Falls back to the
+  // studio prop's slug.
+  studioSlug?: string
 }) {
+  // Query-string suffix that pins API calls to this studio.
+  const studioParam = (studioSlug ?? studio?.slug) ? `studio=${encodeURIComponent(studioSlug ?? studio!.slug)}` : ""
   const [step, setStep] = useState<Step>("date")
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -324,11 +331,11 @@ export default function BookingWidget({ services, studio }: {
   const [slotsLoaded, setSlotsLoaded] = useState(false)
 
   const fetchAvailableDates = useCallback(async () => {
-    const res = await fetch("/api/slots")
+    const res = await fetch(`/api/slots${studioParam ? `?${studioParam}` : ""}`)
     const data: Slot[] = await res.json()
     setAllSlots(data)
     setSlotsLoaded(true)
-  }, [])
+  }, [studioParam])
 
   const todayStr = format(today, "yyyy-MM-dd")
 
@@ -386,11 +393,11 @@ export default function BookingWidget({ services, studio }: {
 
   const fetchSlots = useCallback(async (date: string) => {
     setLoading(true)
-    const res = await fetch(`/api/slots?date=${date}`)
+    const res = await fetch(`/api/slots?date=${date}${studioParam ? `&${studioParam}` : ""}`)
     const data: Slot[] = await res.json()
     setSlots(data)
     setLoading(false)
-  }, [])
+  }, [studioParam])
 
   const timeStepRef = useRef<HTMLDivElement>(null)
 
@@ -457,7 +464,7 @@ export default function BookingWidget({ services, studio }: {
     setError("")
 
     try {
-      const res = await fetch("/api/bookings", {
+      const res = await fetch(`/api/bookings${studioParam ? `?${studioParam}` : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

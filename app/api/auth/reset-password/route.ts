@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getStudioIdBySubdomain } from "@/lib/studio"
 import bcrypt from "bcryptjs"
 
 export async function POST(request: NextRequest) {
@@ -9,18 +8,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   }
 
+  // Unified login: the reset token itself is the proof of identity. It's a
+  // 32-byte random string scoped to a single user, so no studio check needed
+  // — a token issued for a Ubud admin works from bookgravity.com.
   const resetToken = await prisma.passwordResetToken.findUnique({
     where: { token },
     include: { user: true },
   })
 
   if (!resetToken || resetToken.expiresAt < new Date()) {
-    return NextResponse.json({ error: "Link has expired or is invalid" }, { status: 400 })
-  }
-
-  // Enforce studio isolation: token can only be used on the user's own studio's subdomain
-  const studioId = await getStudioIdBySubdomain()
-  if (resetToken.user.studioId !== studioId) {
     return NextResponse.json({ error: "Link has expired or is invalid" }, { status: 400 })
   }
 

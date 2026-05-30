@@ -1,14 +1,27 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getStudioIdBySubdomain } from "@/lib/studio"
+import { auth } from "@/auth"
+import { getPublicStudioId } from "@/lib/studio"
 
 export const dynamic = "force-dynamic"
 
-// Lightweight public info — used by the admin / trainer sidebars to label
-// which studio is currently being managed. No auth required.
-export async function GET() {
+// Lightweight studio info. Two consumers:
+//   1. Admin / trainer sidebars (authenticated) — must show the studio tied
+//      to the logged-in user, NOT the path/subdomain. So if a session exists
+//      we resolve from session.user.studioId. (SUPER_ADMIN has no single home
+//      studio, so they fall through to the public resolver — cookie/default —
+//      which lets them manage whichever studio they last browsed.)
+//   2. Public booking page — resolves via ?studio=<slug> / cookie / default.
+export async function GET(request: NextRequest) {
   try {
-    const studioId = await getStudioIdBySubdomain()
+    const session = await auth()
+    let studioId: string
+    if (session?.user && session.user.role !== "SUPER_ADMIN" && session.user.studioId) {
+      studioId = session.user.studioId
+    } else {
+      studioId = await getPublicStudioId(new URL(request.url).searchParams.get("studio"))
+    }
+
     const studio = await prisma.studio.findUnique({
       where: { id: studioId },
       select: {

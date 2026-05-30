@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getStudioIdBySubdomain } from "@/lib/studio"
+import { getPublicStudioId } from "@/lib/studio"
 import { isSlotBookable } from "@/lib/booking-cutoff"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const date = searchParams.get("date")
-  const studioId = await getStudioIdBySubdomain()
+  // The booking widget passes ?studio=<slug> from the /[studio] page; falls
+  // back to cookie/subdomain/default when absent.
+  const studioId = await getPublicStudioId(searchParams.get("studio"))
 
   if (!date) {
     // Return all dates that have slots from the start of the current month to one month ahead.

@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { sendPasswordResetEmail } from "@/lib/mailer"
-import { getStudioIdBySubdomain } from "@/lib/studio"
 import crypto from "crypto"
 
 export async function POST(request: NextRequest) {
   const { email } = await request.json()
   if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 })
 
-  const studioId = await getStudioIdBySubdomain()
-  const user = await prisma.user.findFirst({ where: { email, studioId } })
+  // Unified login: email is globally unique, so resolve the user by email
+  // alone (no studio scoping). A Ubud admin can reset from bookgravity.com.
+  const user = await prisma.user.findUnique({ where: { email } })
   // Always return success to avoid email enumeration
   if (!user) return NextResponse.json({ success: true })
 

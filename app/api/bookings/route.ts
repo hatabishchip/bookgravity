@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getStudioIdBySubdomain } from "@/lib/studio"
+import { getPublicStudioId } from "@/lib/studio"
 import { isSlotBookable } from "@/lib/booking-cutoff"
 import { sendTrainerBookingNotification, sendClientBookingConfirmation } from "@/lib/mailer"
 import { sendPush } from "@/lib/expo-push"
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = BookingSchema.parse(body)
 
-    const studioId = await getStudioIdBySubdomain()
+    const studioId = await getPublicStudioId(new URL(request.url).searchParams.get("studio"))
     const slot = await prisma.timeSlot.findFirst({
       where: { id: data.slotId, studioId, trainerId: { not: null }, publicVisible: true },
       include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },

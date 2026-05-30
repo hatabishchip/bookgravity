@@ -2,10 +2,13 @@ import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import Inbox from "@/app/_components/Inbox"
 import { prisma } from "@/lib/prisma"
-import { getStudioIdBySubdomain } from "@/lib/studio"
+import { requireTrainer } from "@/lib/auth-helpers"
 
 export default async function TrainerInboxPage() {
-  const studioId = await getStudioIdBySubdomain()
+  // Studio from the logged-in trainer's session (unified login).
+  const ctx = await requireTrainer()
+  if (!ctx) redirect("/login")
+  const studioId = ctx.studioId
   const studio = await prisma.studio.findUnique({
     where: { id: studioId },
     select: { whatsappEnabled: true },

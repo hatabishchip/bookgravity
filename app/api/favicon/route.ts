@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getStudioIdBySubdomain } from "@/lib/studio"
+import { getPublicStudioId } from "@/lib/studio"
 import { readFile } from "fs/promises"
 import path from "path"
 import sharp from "sharp"
@@ -49,9 +49,11 @@ async function isGoodSource(bytes: Buffer): Promise<boolean> {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const studioId = await getStudioIdBySubdomain()
+    // ?s=<slug> identifies the studio (passed by layout/page metadata). Falls
+    // back to cookie/subdomain/default when absent.
+    const studioId = await getPublicStudioId(new URL(request.url).searchParams.get("s"))
     const studio = await prisma.studio.findUnique({
       where: { id: studioId },
       select: { faviconUrl: true, logoUrl: true },
