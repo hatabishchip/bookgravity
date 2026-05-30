@@ -8,17 +8,27 @@ import { formatPhoneInput, validatePhone } from "@/lib/phone"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { whatsappLink } from "@/lib/whatsapp"
 
+// 18 bright, well-separated hues so trainers are easy to tell apart on the
+// schedule. Spread around the colour wheel; all vivid (no muted greys).
 const COLOR_OPTIONS = [
+  { value: "#EF4444", label: "Red" },
+  { value: "#F97316", label: "Orange" },
+  { value: "#F59E0B", label: "Amber" },
+  { value: "#FACC15", label: "Yellow" },
+  { value: "#84CC16", label: "Lime" },
+  { value: "#22C55E", label: "Green" },
+  { value: "#10B981", label: "Emerald" },
+  { value: "#14B8A6", label: "Teal" },
+  { value: "#06B6D4", label: "Cyan" },
+  { value: "#0EA5E9", label: "Sky" },
+  { value: "#3B82F6", label: "Blue" },
   { value: "#6366F1", label: "Indigo" },
-  { value: "#E76F51", label: "Orange" },
-  { value: "#457B9D", label: "Steel Blue" },
-  { value: "#E63946", label: "Red" },
-  { value: "#F4A261", label: "Amber" },
-  { value: "#7C3AED", label: "Purple" },
-  { value: "#0891B2", label: "Teal" },
-  { value: "#D97706", label: "Gold" },
-  { value: "#BE185D", label: "Pink" },
-  { value: "#64748B", label: "Slate" },
+  { value: "#8B5CF6", label: "Violet" },
+  { value: "#A855F7", label: "Purple" },
+  { value: "#D946EF", label: "Fuchsia" },
+  { value: "#EC4899", label: "Pink" },
+  { value: "#F43F5E", label: "Rose" },
+  { value: "#BE185D", label: "Crimson" },
 ]
 
 function hexToRgba(hex: string, alpha: number) {
