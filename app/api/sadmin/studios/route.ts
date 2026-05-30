@@ -33,6 +33,14 @@ export async function GET() {
   // masked preview instead so the admin can see "is set / which key" without
   // ever loading the secret into the browser tab. Also attach the latest
   // outbound WhatsApp message time so the panel reflects real activity.
+  // The original Canggu deployment uses GLOBAL env credentials rather than
+  // per-studio DB columns, so a studio can be fully working without
+  // whatsappAccessToken set. Reflect that: the default studio inherits the env
+  // config. This is what was missing — the panel said "not connected" for
+  // Canggu even though it sends fine.
+  const envConfigured =
+    !!process.env.WHATSAPP_PHONE_NUMBER_ID && !!process.env.WHATSAPP_ACCESS_TOKEN
+
   const rows = await Promise.all(
     studios.map(async (s) => {
       const lastOutbound = await prisma.whatsAppMessage.findFirst({
@@ -40,6 +48,9 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
         select: { createdAt: true, status: true },
       })
+      const ownConfig = !!s.whatsappAccessToken && !!s.whatsappPhoneNumberId
+      const usesEnvFallback = !ownConfig && s.isDefault && envConfigured
+      const hasConfig = ownConfig || usesEnvFallback
       return {
         id: s.id,
         name: s.name,
@@ -58,6 +69,8 @@ export async function GET() {
           connectedAt: s.whatsappConnectedAt,
           accessTokenPreview: maskToken(s.whatsappAccessToken),
           hasAccessToken: !!s.whatsappAccessToken,
+          hasConfig,
+          usesEnvFallback,
           lastOutboundAt: lastOutbound?.createdAt ?? null,
           lastOutboundStatus: lastOutbound?.status ?? null,
         },

@@ -26,6 +26,8 @@ type StudioRow = {
     connectedAt: string | null
     accessTokenPreview: string | null
     hasAccessToken: boolean
+    hasConfig: boolean
+    usesEnvFallback: boolean
     lastOutboundAt: string | null
     lastOutboundStatus: string | null
   }
@@ -118,7 +120,9 @@ function StudioCard({ studio, onConnect, onChanged }: {
   onChanged: () => void
 }) {
   const wa = studio.whatsapp
-  const connected = wa.hasAccessToken && wa.phoneNumberId
+  // "Connected" now reflects real capability: own DB creds OR the global env
+  // fallback (default studio). Fixes Canggu showing "not connected".
+  const connected = wa.hasConfig
   const fullyLive = connected && wa.enabled
 
   const [resetting, setResetting] = useState(false)
@@ -288,9 +292,11 @@ function StudioCard({ studio, onConnect, onChanged }: {
             {fullyLive ? "WhatsApp live" : connected ? "Connected but disabled" : "WhatsApp not connected"}
           </div>
           <div className="text-xs text-gray-600 mt-0.5 truncate">
-            {connected
-              ? <>From <span className="font-mono">{wa.displayPhone ?? "—"}</span> · Phone ID <span className="font-mono">{wa.phoneNumberId}</span></>
-              : "Click Connect to wire this studio's WhatsApp Business account."}
+            {wa.usesEnvFallback
+              ? "Using the global WhatsApp credentials (env)."
+              : connected
+                ? <>From <span className="font-mono">{wa.displayPhone ?? "—"}</span> · Phone ID <span className="font-mono">{wa.phoneNumberId}</span></>
+                : "Click Connect to wire this studio's WhatsApp Business account."}
           </div>
           {connected && (
             <div className="text-[11px] text-gray-500 mt-1">
