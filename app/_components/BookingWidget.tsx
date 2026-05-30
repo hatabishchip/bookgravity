@@ -331,10 +331,19 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const [slotsLoaded, setSlotsLoaded] = useState(false)
 
   const fetchAvailableDates = useCallback(async () => {
-    const res = await fetch(`/api/slots${studioParam ? `?${studioParam}` : ""}`)
-    const data: Slot[] = await res.json()
-    setAllSlots(data)
-    setSlotsLoaded(true)
+    // Be defensive: a transient API failure (e.g. during a deploy) can return
+    // a non-array error body. Storing that and then calling .filter() on it in
+    // render would throw and trip the whole-page error boundary. Guard so a
+    // hiccup degrades to the empty state instead of a white screen.
+    try {
+      const res = await fetch(`/api/slots${studioParam ? `?${studioParam}` : ""}`)
+      const data = await res.json()
+      setAllSlots(Array.isArray(data) ? data : [])
+    } catch {
+      setAllSlots([])
+    } finally {
+      setSlotsLoaded(true)
+    }
   }, [studioParam])
 
   const todayStr = format(today, "yyyy-MM-dd")
@@ -393,10 +402,15 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
   const fetchSlots = useCallback(async (date: string) => {
     setLoading(true)
-    const res = await fetch(`/api/slots?date=${date}${studioParam ? `&${studioParam}` : ""}`)
-    const data: Slot[] = await res.json()
-    setSlots(data)
-    setLoading(false)
+    try {
+      const res = await fetch(`/api/slots?date=${date}${studioParam ? `&${studioParam}` : ""}`)
+      const data = await res.json()
+      setSlots(Array.isArray(data) ? data : [])
+    } catch {
+      setSlots([])
+    } finally {
+      setLoading(false)
+    }
   }, [studioParam])
 
   const timeStepRef = useRef<HTMLDivElement>(null)
