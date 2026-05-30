@@ -34,7 +34,7 @@ type Trainer = {
   whatsapp: string
   commissionRate: number
   color: string
-  user: { email: string }
+  user: { email: string; initialPassword?: string | null }
 }
 
 function ColorPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
@@ -91,7 +91,9 @@ function ColorPicker({ color, onChange }: { color: string; onChange: (c: string)
 export default function TrainersPage() {
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: "", email: "", password: "" })
+  const [form, setForm] = useState({ name: "", email: "" })
+  // After creating, show the auto-generated 4-digit starter password once.
+  const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -120,9 +122,12 @@ export default function TrainersPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     })
-    if (!res.ok) { const err = await res.json(); setError(err.error || "Failed to create trainer"); setSaving(false); return }
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(data.error || "Failed to create trainer"); setSaving(false); return }
     await fetchTrainers()
-    setShowForm(false); setForm({ name: "", email: "", password: "" }); setSaving(false)
+    // Show the generated starter password so the admin can pass it on.
+    setCreated({ name: form.name, email: form.email.trim().toLowerCase(), password: data.initialPassword })
+    setForm({ name: "", email: "" }); setSaving(false)
   }
 
   const handleDelete = async (id: string) => {
@@ -293,6 +298,11 @@ export default function TrainersPage() {
                       <span className="truncate">{trainer.name}</span>
                     </div>
                     <div className="text-sm text-gray-500 mt-0.5 truncate">{trainer.user.email}</div>
+                    <div className="text-xs mt-0.5">
+                      {trainer.user.initialPassword
+                        ? <span className="text-gray-500">password: <span className="font-mono font-semibold text-gray-700">{trainer.user.initialPassword}</span></span>
+                        : <span className="text-gray-400">password: •••• (changed)</span>}
+                    </div>
                     <div className="mt-1.5">
                       {(() => {
                         // Tappable WhatsApp chip — wa.me opens the installed
@@ -388,52 +398,73 @@ export default function TrainersPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-800">Add Trainer</h2>
-              <button onClick={() => setShowForm(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <h2 className="text-lg font-semibold text-gray-800">{created ? "Trainer created" : "Add Trainer"}</h2>
+              <button onClick={() => { setShowForm(false); setCreated(null) }} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                <input required type="text" value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                  placeholder="Trainer name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email (for login)</label>
-                <input required type="email" value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                  placeholder="trainer@gravity.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input required type="password" value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                  placeholder="Min. 6 characters"
-                  minLength={6}
-                />
-              </div>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{error}</div>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl text-sm font-medium hover:bg-gray-50">
-                  Cancel
-                </button>
-                <button type="submit" disabled={saving} className="flex-1 bg-[#2C6E49] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
-                  {saving ? "Creating..." : "Create Trainer"}
+            {created ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-[#2C6E49]">
+                  <Check size={18} />
+                  <span className="text-sm font-medium">{created.name} added. Share these to sign in:</span>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Login</div>
+                    <div className="text-sm font-mono text-gray-900 break-all">{created.email}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Starter password</div>
+                    <div className="text-2xl font-bold font-mono tracking-[0.3em] text-[#2C6E49]">{created.password}</div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  They sign in at <span className="font-mono">bookgravity.com/login</span> (or the app) and can change
+                  it later. Once they do, it shows here as &laquo;changed&raquo;.
+                </p>
+                <button
+                  onClick={() => { setShowForm(false); setCreated(null) }}
+                  className="w-full bg-[#2C6E49] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#1E4D34]"
+                >
+                  Done
                 </button>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                  <input required type="text" value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    placeholder="Trainer name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email (for login)</label>
+                  <input required type="email" value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    placeholder="trainer@gravity.com"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">A 4-digit password is generated automatically — you&apos;ll see it after creating.</p>
+                </div>
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{error}</div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl text-sm font-medium hover:bg-gray-50">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={saving} className="flex-1 bg-[#2C6E49] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
+                    {saving ? "Creating..." : "Create Trainer"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

@@ -7,8 +7,13 @@ import bcrypt from "bcryptjs"
 const TrainerSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(6),
 })
+
+// 4-digit starter password — shown once to the admin; the trainer changes it
+// on first sign-in (which clears initialPassword → shows "changed").
+function generatePin(): string {
+  return String(Math.floor(1000 + Math.random() * 9000))
+}
 
 export async function GET() {
   const ctx = await requireAdmin()
@@ -16,7 +21,7 @@ export async function GET() {
 
   const trainers = await prisma.trainer.findMany({
     where: { studioId: ctx.studioId },
-    include: { user: { select: { email: true } } },
+    include: { user: { select: { email: true, initialPassword: true } } },
     orderBy: { name: "asc" },
   })
 
@@ -31,25 +36,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = TrainerSchema.parse(body)
 
-    const existing = await prisma.user.findUnique({ where: { email: data.email } })
+    const email = data.email.trim().toLowerCase()
+    const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
       return NextResponse.json({ error: "Email already in use" }, { status: 409 })
     }
 
-    const hashed = await bcrypt.hash(data.password, 10)
+    const pin = generatePin()
+    const hashed = await bcrypt.hash(pin, 10)
 
     const user = await prisma.user.create({
       data: {
-        email: data.email,
+        email,
         password: hashed,
         role: "TRAINER",
+        initialPassword: pin,
         studioId: ctx.studioId,
         trainer: { create: { name: data.name, studioId: ctx.studioId } },
       },
       include: { trainer: true },
     })
 
-    return NextResponse.json(user.trainer, { status: 201 })
+    // Return the starter password once so the admin can share it.
+    return NextResponse.json({ ...user.trainer, initialPassword: pin }, { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues.map((e: { message: string }) => e.message).join("; ") }, { status: 400 })
