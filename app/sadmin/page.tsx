@@ -5,6 +5,7 @@ import {
   Plus, X, MessageCircle, CheckCircle2, AlertCircle,
   ExternalLink, Eye, EyeOff, Pencil, Building2, Users, Calendar, KeyRound, Mail,
 } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 
 type StudioRow = {
@@ -25,8 +26,14 @@ type StudioRow = {
     connectedAt: string | null
     accessTokenPreview: string | null
     hasAccessToken: boolean
+    lastOutboundAt: string | null
+    lastOutboundStatus: string | null
   }
 }
+
+type HealthResult =
+  | { ok: true; displayPhone?: string; verifiedName?: string; qualityRating?: string }
+  | { ok: false; error: string }
 
 export default function SuperAdminPage() {
   const [studios, setStudios] = useState<StudioRow[]>([])
@@ -117,6 +124,30 @@ function StudioCard({ studio, onConnect, onChanged }: {
   const [resetting, setResetting] = useState(false)
   const [resetMsg, setResetMsg] = useState<string | null>(null)
   const studioAdmin = studio.admins.find((a) => a.role === "ADMIN") ?? null
+
+  const [checking, setChecking] = useState(false)
+  const [health, setHealth] = useState<HealthResult | null>(null)
+  const lastOut = wa.lastOutboundAt
+    ? (() => { try { return formatDistanceToNow(new Date(wa.lastOutboundAt), { addSuffix: true }) } catch { return null } })()
+    : null
+
+  const checkHealth = async () => {
+    setChecking(true)
+    setHealth(null)
+    try {
+      const res = await fetch("/api/sadmin/whatsapp-health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studioId: studio.id }),
+      })
+      const j = await res.json().catch(() => ({}))
+      setHealth(j.health ?? { ok: false, error: "No response" })
+    } catch {
+      setHealth({ ok: false, error: "Network error" })
+    } finally {
+      setChecking(false)
+    }
+  }
 
   const toggle = async () => {
     await fetch("/api/sadmin/studios", {
@@ -261,6 +292,35 @@ function StudioCard({ studio, onConnect, onChanged }: {
               ? <>From <span className="font-mono">{wa.displayPhone ?? "—"}</span> · Phone ID <span className="font-mono">{wa.phoneNumberId}</span></>
               : "Click Connect to wire this studio's WhatsApp Business account."}
           </div>
+          {connected && (
+            <div className="text-[11px] text-gray-500 mt-1">
+              Last message sent: {lastOut ? <span className="font-medium text-gray-700">{lastOut}</span> : <span className="text-gray-400">never</span>}
+            </div>
+          )}
+          {connected && (
+            <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+              <button
+                onClick={checkHealth}
+                disabled={checking}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+              >
+                {checking ? "Checking…" : "Check connection"}
+              </button>
+              {health && (
+                health.ok ? (
+                  <span className="text-[11px] text-emerald-700 inline-flex items-center gap-1">
+                    <CheckCircle2 size={12} /> Working
+                    {health.verifiedName ? ` · ${health.verifiedName}` : ""}
+                    {health.qualityRating ? ` · ${health.qualityRating}` : ""}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-red-600 inline-flex items-center gap-1">
+                    <AlertCircle size={12} /> {health.error}
+                  </span>
+                )
+              )}
+            </div>
+          )}
         </div>
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           {connected && (

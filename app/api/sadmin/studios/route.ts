@@ -31,29 +31,40 @@ export async function GET() {
   })
   // Strip the raw access token before sending to the client; expose a short
   // masked preview instead so the admin can see "is set / which key" without
-  // ever loading the secret into the browser tab.
-  return NextResponse.json(
-    studios.map((s) => ({
-      id: s.id,
-      name: s.name,
-      slug: s.slug,
-      isDefault: s.isDefault,
-      logoUrl: s.logoUrl ? "✓" : null, // just a presence flag
-      createdAt: s.createdAt,
-      counts: s._count,
-      emailsSentCount: s.emailsSentCount,
-      admins: s.users.map((u) => ({ email: u.email, role: u.role, initialPassword: u.initialPassword })),
-      whatsapp: {
-        enabled: s.whatsappEnabled,
-        phoneNumberId: s.whatsappPhoneNumberId,
-        businessAccountId: s.whatsappBusinessAccountId,
-        displayPhone: s.whatsappDisplayPhone,
-        connectedAt: s.whatsappConnectedAt,
-        accessTokenPreview: maskToken(s.whatsappAccessToken),
-        hasAccessToken: !!s.whatsappAccessToken,
-      },
-    })),
+  // ever loading the secret into the browser tab. Also attach the latest
+  // outbound WhatsApp message time so the panel reflects real activity.
+  const rows = await Promise.all(
+    studios.map(async (s) => {
+      const lastOutbound = await prisma.whatsAppMessage.findFirst({
+        where: { direction: "OUTBOUND", conversation: { studioId: s.id } },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true, status: true },
+      })
+      return {
+        id: s.id,
+        name: s.name,
+        slug: s.slug,
+        isDefault: s.isDefault,
+        logoUrl: s.logoUrl ? "✓" : null, // just a presence flag
+        createdAt: s.createdAt,
+        counts: s._count,
+        emailsSentCount: s.emailsSentCount,
+        admins: s.users.map((u) => ({ email: u.email, role: u.role, initialPassword: u.initialPassword })),
+        whatsapp: {
+          enabled: s.whatsappEnabled,
+          phoneNumberId: s.whatsappPhoneNumberId,
+          businessAccountId: s.whatsappBusinessAccountId,
+          displayPhone: s.whatsappDisplayPhone,
+          connectedAt: s.whatsappConnectedAt,
+          accessTokenPreview: maskToken(s.whatsappAccessToken),
+          hasAccessToken: !!s.whatsappAccessToken,
+          lastOutboundAt: lastOutbound?.createdAt ?? null,
+          lastOutboundStatus: lastOutbound?.status ?? null,
+        },
+      }
+    }),
   )
+  return NextResponse.json(rows)
 }
 
 const NewStudioSchema = z.object({

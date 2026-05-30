@@ -54,6 +54,45 @@ export function getConfigFor(studio: {
   return getConfig()
 }
 
+export type WhatsAppHealth =
+  | { ok: true; displayPhone?: string; verifiedName?: string; qualityRating?: string }
+  | { ok: false; error: string }
+
+/**
+ * Live health check: ask Meta to confirm the studio's phone-number ID +
+ * access token are valid right now. Returns the verified business name /
+ * display phone / quality rating on success, or Meta's error message. This is
+ * a real round-trip, not just a "creds present" flag.
+ */
+export async function checkWhatsAppHealth(studio: {
+  whatsappPhoneNumberId: string | null
+  whatsappAccessToken: string | null
+}): Promise<WhatsAppHealth> {
+  const cfg = getConfigFor(studio)
+  if (!cfg) return { ok: false, error: "Not configured" }
+  try {
+    const url = `${GRAPH_BASE}/${cfg.apiVersion}/${cfg.phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.accessToken}` } })
+    const json = (await res.json().catch(() => ({}))) as {
+      display_phone_number?: string
+      verified_name?: string
+      quality_rating?: string
+      error?: { message?: string }
+    }
+    if (!res.ok) {
+      return { ok: false, error: json?.error?.message ?? `HTTP ${res.status}` }
+    }
+    return {
+      ok: true,
+      displayPhone: json.display_phone_number,
+      verifiedName: json.verified_name,
+      qualityRating: json.quality_rating,
+    }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Network error" }
+  }
+}
+
 /** Strip everything but digits — Meta requires bare international number. */
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "")
