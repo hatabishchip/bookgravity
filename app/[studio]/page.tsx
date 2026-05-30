@@ -68,8 +68,10 @@ export default async function StudioBookingPage({
       <header className="bg-white border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
+            {/* Brand only — the studio (Canggu/Ubud) is conveyed by the
+                switcher pills below, so we don't repeat it in the title. */}
             <h1 className="text-base sm:text-xl font-bold text-[#2C6E49] tracking-tight truncate">
-              {studio.name}
+              Gravity Stretching
             </h1>
             {/* Location switcher — shows the active studio, tap to change */}
             <div className="mt-1.5">
