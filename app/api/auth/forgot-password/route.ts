@@ -24,6 +24,10 @@ export async function POST(request: NextRequest) {
   })
 
   await sendPasswordResetEmail(email, token)
+  void prisma.studio.update({
+    where: { id: user.studioId },
+    data: { emailsSentCount: { increment: 1 } },
+  }).catch(() => {})
 
   return NextResponse.json({ success: true })
 }

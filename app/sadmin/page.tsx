@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import {
   Plus, X, MessageCircle, CheckCircle2, AlertCircle,
-  ExternalLink, Eye, EyeOff, Pencil, Building2, Users, Calendar, KeyRound,
+  ExternalLink, Eye, EyeOff, Pencil, Building2, Users, Calendar, KeyRound, Mail,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -15,7 +15,8 @@ type StudioRow = {
   logoUrl: string | null
   createdAt: string
   counts: { users: number; trainers: number; timeSlots: number; whatsappConversations: number }
-  admins: { email: string; role: string }[]
+  emailsSentCount: number
+  admins: { email: string; role: string; initialPassword: string | null }[]
   whatsapp: {
     enabled: boolean
     phoneNumberId: string | null
@@ -154,43 +155,27 @@ function StudioCard({ studio, onConnect, onChanged }: {
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="font-bold text-gray-900 truncate">{studio.name}</h2>
             <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{studio.slug}</span>
-            {studio.isDefault && (
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                Default
-              </span>
-            )}
           </div>
-          {(() => {
-            // Path-based now — every studio lives at bookgravity.com/<slug>.
-            const bookingUrl = `https://bookgravity.com/${studio.slug}`
-            return (
-              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-0.5">
-                <a
-                  href={bookingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-gray-500 hover:text-emerald-600 inline-flex items-center gap-1"
-                  title="Public booking page"
-                >
-                  bookgravity.com/{studio.slug} <ExternalLink size={10} />
-                </a>
-                <a
-                  href="https://bookgravity.com/admin"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-1 font-medium"
-                  title="Admin dashboard (studio determined by login)"
-                >
-                  /admin <ExternalLink size={10} />
-                </a>
-              </div>
-            )
-          })()}
+          {/* Path-based now — every studio lives at bookgravity.com/<slug>.
+              The /admin link is omitted: it's one shared dashboard for all
+              studios (which studio you see is decided by your login). */}
+          <div className="mt-0.5">
+            <a
+              href={`https://bookgravity.com/${studio.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-500 hover:text-emerald-600 inline-flex items-center gap-1"
+              title="Public booking page"
+            >
+              bookgravity.com/{studio.slug} <ExternalLink size={10} />
+            </a>
+          </div>
 
           <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500">
             <span className="inline-flex items-center gap-1"><Users size={12} />{studio.counts.users + studio.counts.trainers} people</span>
             <span className="inline-flex items-center gap-1"><Calendar size={12} />{studio.counts.timeSlots} slots</span>
             <span className="inline-flex items-center gap-1"><MessageCircle size={12} />{studio.counts.whatsappConversations} chats</span>
+            <span className="inline-flex items-center gap-1"><Mail size={12} />{studio.emailsSentCount} emails sent</span>
           </div>
         </div>
       </div>
@@ -207,7 +192,16 @@ function StudioCard({ studio, onConnect, onChanged }: {
             <div className="text-xs text-gray-400">No admin accounts.</div>
           ) : studio.admins.map((a) => (
             <div key={a.email} className="flex items-center justify-between gap-2">
-              <span className="text-sm font-mono text-gray-800 truncate">{a.email}</span>
+              <div className="min-w-0">
+                <span className="text-sm font-mono text-gray-800 truncate">{a.email}</span>
+                {a.role !== "SUPER_ADMIN" && (
+                  <span className="ml-2 text-xs text-gray-500">
+                    {a.initialPassword
+                      ? <>password: <span className="font-mono font-semibold text-gray-800">{a.initialPassword}</span></>
+                      : <span className="text-gray-400">•••• changed by admin</span>}
+                  </span>
+                )}
+              </div>
               <span className={cn(
                 "text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0",
                 a.role === "SUPER_ADMIN" ? "bg-purple-100 text-purple-700" : "bg-emerald-100 text-emerald-700",
@@ -302,9 +296,11 @@ function StudioCard({ studio, onConnect, onChanged }: {
 }
 
 function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ name: "", slug: "", adminEmail: "", adminPassword: "" })
+  const [form, setForm] = useState({ name: "", slug: "", adminEmail: "" })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // After creation we show the auto-generated starter password once.
+  const [created, setCreated] = useState<{ email: string; password: string } | null>(null)
 
   const handleSlugSuggest = (name: string) => {
     setForm((f) => ({
@@ -322,13 +318,47 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     })
+    const j = await res.json().catch(() => ({}))
     if (!res.ok) {
-      const j = await res.json().catch(() => ({}))
       setError(j.error ?? `HTTP ${res.status}`)
       setSaving(false)
       return
     }
-    onCreated()
+    setCreated({ email: form.adminEmail, password: j.initialPassword })
+    setSaving(false)
+  }
+
+  if (created) {
+    return (
+      <Modal title="Studio created" onClose={() => { onCreated() }}>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-emerald-700">
+            <CheckCircle2 size={18} />
+            <span className="text-sm font-medium">Studio is live. Share these with the owner:</span>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Login</div>
+              <div className="text-sm font-mono text-gray-900 break-all">{created.email}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Starter password</div>
+              <div className="text-2xl font-bold font-mono tracking-[0.3em] text-emerald-700">{created.password}</div>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">
+            They sign in at <span className="font-mono">bookgravity.com/login</span> and change this in
+            Settings. Once they do, it shows as &laquo;changed&raquo; here.
+          </p>
+          <button
+            onClick={() => onCreated()}
+            className="w-full px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
+          >
+            Done
+          </button>
+        </div>
+      </Modal>
+    )
   }
 
   return (
@@ -356,26 +386,13 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
             />
           </div>
         </Field>
-        <div className="pt-2 border-t border-gray-100">
-          <div className="text-xs uppercase tracking-wider text-gray-400 font-semibold mb-2">Initial admin account</div>
-        </div>
-        <Field label="Admin email">
+        <Field label="Admin email" hint="The studio owner's login. A 4-digit starter password is generated automatically — you'll see it after creating.">
           <input
             required
             type="email"
             value={form.adminEmail}
             onChange={(e) => setForm({ ...form, adminEmail: e.target.value })}
             placeholder="owner@example.com"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          />
-        </Field>
-        <Field label="Admin password" hint="Min 8 characters. Share with studio owner securely.">
-          <input
-            required
-            type="password"
-            value={form.adminPassword}
-            onChange={(e) => setForm({ ...form, adminPassword: e.target.value })}
-            minLength={8}
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
           />
         </Field>

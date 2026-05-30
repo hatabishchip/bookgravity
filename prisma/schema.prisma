@@ -41,6 +41,10 @@ model Studio {
   // inbox; outbound replies typed in this language get auto-translated
   // to the client's detected language before delivery. Null = off.
   inboxLanguage              String?
+  // Running total of transactional emails sent for this studio (booking
+  // confirmations, trainer notifications, password resets). Shown in /sadmin
+  // as a rough usage indicator.
+  emailsSentCount            Int      @default(0)
   createdAt     DateTime @default(now())
 
   users        User[]
@@ -60,6 +64,11 @@ model User {
   role                String               @default("TRAINER")
   studioId            String
   studio              Studio               @relation(fields: [studioId], references: [id])
+  // The temporary password the super-admin can read in /sadmin: the auto-
+  // generated 4-digit code at studio creation, or "0400" after a reset. Set to
+  // null the moment the user changes their own password — that's the signal
+  // that the super-admin no longer knows it (shown as "•••• changed").
+  initialPassword     String?
   trainer             Trainer?
   passwordResetTokens PasswordResetToken[]
   pushTokens          NativePushToken[]

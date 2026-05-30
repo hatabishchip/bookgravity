@@ -40,7 +40,8 @@ export async function POST(request: NextRequest) {
   const hash = await bcrypt.hash(RESET_TO, 10)
   await prisma.user.updateMany({
     where: { id: { in: admins.map((a) => a.id) } },
-    data: { password: hash },
+    // Record it as the known/initial password so /sadmin shows "0400" again.
+    data: { password: hash, initialPassword: RESET_TO },
   })
 
   return NextResponse.json({

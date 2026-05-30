@@ -149,11 +149,19 @@ export async function POST(request: NextRequest) {
             trainerName: trainerName ?? null,
           }),
         )
+        let emailCount = 1 // client confirmation always sent
         if (trainerEmail && trainerName) {
           mailPromises.push(sendTrainerBookingNotification(trainerEmail, trainerName, sharedData))
+          emailCount += 1
         } else {
           console.warn("[bookings] trainer notify SKIPPED — slot has no trainer with an email")
         }
+        // Tally emails sent for this studio (super-admin usage view). Push
+        // notifications below are NOT email, so they're excluded.
+        void prisma.studio.update({
+          where: { id: studioId },
+          data: { emailsSentCount: { increment: emailCount } },
+        }).catch(() => {})
         // Mobile push to the trainer's registered devices. data.category +
         // data.slotId lets the app deep-link to the class screen on tap.
         if (trainerUserId) {

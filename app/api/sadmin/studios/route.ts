@@ -24,7 +24,7 @@ export async function GET() {
       // use / reset.
       users: {
         where: { role: { in: ["ADMIN", "SUPER_ADMIN"] } },
-        select: { id: true, email: true, role: true },
+        select: { id: true, email: true, role: true, initialPassword: true },
         orderBy: { role: "asc" },
       },
     },
@@ -41,7 +41,8 @@ export async function GET() {
       logoUrl: s.logoUrl ? "✓" : null, // just a presence flag
       createdAt: s.createdAt,
       counts: s._count,
-      admins: s.users.map((u) => ({ email: u.email, role: u.role })),
+      emailsSentCount: s.emailsSentCount,
+      admins: s.users.map((u) => ({ email: u.email, role: u.role, initialPassword: u.initialPassword })),
       whatsapp: {
         enabled: s.whatsappEnabled,
         phoneNumberId: s.whatsappPhoneNumberId,
@@ -59,8 +60,13 @@ const NewStudioSchema = z.object({
   name: z.string().min(2),
   slug: z.string().regex(/^[a-z0-9-]+$/, "lowercase letters / digits / dashes only").min(2),
   adminEmail: z.string().email(),
-  adminPassword: z.string().min(8),
 })
+
+// 4-digit starter password. The owner shares it once; the studio admin changes
+// it on first sign-in (which clears initialPassword → shows "changed").
+function generatePin(): string {
+  return String(Math.floor(1000 + Math.random() * 9000))
+}
 
 export async function POST(request: NextRequest) {
   const ctx = await requireSuperAdmin()
@@ -76,17 +82,19 @@ export async function POST(request: NextRequest) {
     const existingEmail = await prisma.user.findUnique({ where: { email: data.adminEmail } })
     if (existingEmail) return NextResponse.json({ error: `Email already in use by another account` }, { status: 409 })
 
-    const hash = await bcrypt.hash(data.adminPassword, 10)
+    const pin = generatePin()
+    const hash = await bcrypt.hash(pin, 10)
     const studio = await prisma.studio.create({
       data: {
         name: data.name,
         slug: data.slug,
         users: {
-          create: { email: data.adminEmail, password: hash, role: "ADMIN" },
+          create: { email: data.adminEmail, password: hash, role: "ADMIN", initialPassword: pin },
         },
       },
     })
-    return NextResponse.json(studio, { status: 201 })
+    // Return the starter password once so the super-admin can share it.
+    return NextResponse.json({ ...studio, adminEmail: data.adminEmail, initialPassword: pin }, { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues.map((e) => e.message).join("; ") }, { status: 400 })

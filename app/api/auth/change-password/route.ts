@@ -19,7 +19,9 @@ export async function POST(request: NextRequest) {
   if (!valid) return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 })
 
   const hashed = await bcrypt.hash(newPassword, 10)
-  await prisma.user.update({ where: { id: user.id }, data: { password: hashed } })
+  // Clearing initialPassword signals the super-admin that this user now has a
+  // private password (shown as "•••• changed" in /sadmin).
+  await prisma.user.update({ where: { id: user.id }, data: { password: hashed, initialPassword: null } })
 
   return NextResponse.json({ success: true })
 }

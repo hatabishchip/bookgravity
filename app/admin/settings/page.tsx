@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck } from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow, format } from "date-fns"
 import { cn } from "@/lib/utils"
 
 type Studio = {
@@ -451,6 +451,9 @@ function SessionsCard() {
   const seen = (iso: string) => {
     try { return formatDistanceToNow(new Date(iso), { addSuffix: true }) } catch { return "" }
   }
+  const seenAbs = (iso: string) => {
+    try { return format(new Date(iso), "d MMM yyyy, HH:mm") } catch { return "" }
+  }
 
   const Row = ({ kind, s }: { kind: "web" | "mobile"; s: SignIn }) => (
     <div className="flex items-center justify-between gap-3 py-2">
@@ -461,8 +464,9 @@ function SessionsCard() {
         <div className="min-w-0">
           <div className="text-sm text-gray-800 truncate">{s.device}</div>
           <div className="text-[11px] text-gray-400">
-            {kind === "web" ? "Browser" : "Mobile app"} · active {seen(s.lastSeenAt)}
+            {kind === "web" ? "Browser" : "Mobile app"} · last login {seen(s.lastSeenAt)}
           </div>
+          <div className="text-[10px] text-gray-300">{seenAbs(s.lastSeenAt)}</div>
         </div>
       </div>
       <button
