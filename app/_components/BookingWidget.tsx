@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { format, startOfMonth, getDaysInMonth, getDay, isBefore, startOfDay, parseISO } from "date-fns"
-import { ChevronLeft, Clock, Users, CheckCircle, MessageCircle } from "lucide-react"
+import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 
@@ -194,7 +194,7 @@ function clientEndTime(startTime: string) {
   return `${eh % 12 || 12}:${String(em).padStart(2, "0")} ${ampm}`
 }
 
-export default function BookingWidget({ services, studio, studioSlug, coverUrl }: {
+export default function BookingWidget({ services, studio, studioSlug }: {
   services: Service[]
   studio?: { name: string; slug: string; logoUrl: string | null }
   // Slug of the studio this widget books into. Sent as ?studio= on the
@@ -202,13 +202,11 @@ export default function BookingWidget({ services, studio, studioSlug, coverUrl }
   // host (we serve every studio from bookgravity.com now). Falls back to the
   // studio prop's slug.
   studioSlug?: string
-  // Studio cover photo URL — rendered as a faint full-bleed backdrop behind
-  // the calendar (date step only) so the chosen studio is recognisable.
-  coverUrl?: string
 }) {
   // Query-string suffix that pins API calls to this studio.
   const studioParam = (studioSlug ?? studio?.slug) ? `studio=${encodeURIComponent(studioSlug ?? studio!.slug)}` : ""
   const [step, setStep] = useState<Step>("date")
+  const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [slots, setSlots] = useState<Slot[]>([])
   const [allSlots, setAllSlots] = useState<Slot[]>([])
@@ -518,18 +516,17 @@ export default function BookingWidget({ services, studio, studioSlug, coverUrl }
   }
 
   // Months ("yyyy-MM") that have at least one bookable date with seats for the
-  // party. We render the nearest TWO such months stacked — no month
-  // navigation — so empty months (incl. the current one) are skipped entirely
-  // and the visitor always lands on real, bookable dates.
+  // party. Empty months are skipped entirely: the month chevrons hop only
+  // between months that actually have bookable dates, and the first view is
+  // the nearest such month.
   const monthsWithBookable = new Set<string>()
   for (const d of availableDates) monthsWithBookable.add(d.slice(0, 7))
   const sortedBookableMonths = Array.from(monthsWithBookable).sort()
   const hasAnyBookable = sortedBookableMonths.length > 0
-  const monthsToShow = sortedBookableMonths.slice(0, 2)
 
-  // Render one month grid for a "yyyy-MM" key. Kept as a closure (not a child
-  // component) so it can read the date sets / handlers from this scope without
-  // prop plumbing, and so it never remounts.
+  // Render the day grid for a "yyyy-MM" key (no month title — that lives in
+  // the chevron header). Kept as a closure so it reads the date sets / handlers
+  // from this scope without prop plumbing.
   const renderMonthGrid = (monthKey: string) => {
     const [y, m] = monthKey.split("-").map(Number)
     const monthDate = new Date(y, m - 1, 1)
@@ -540,9 +537,6 @@ export default function BookingWidget({ services, studio, studioSlug, coverUrl }
     const blanks = Array.from({ length: firstDayOfWeek })
     return (
       <div key={monthKey}>
-        <h2 className="text-base font-semibold text-gray-800 mb-3 text-center">
-          {format(monthDate, "MMMM yyyy")}
-        </h2>
         <div className="grid grid-cols-7 gap-1 mb-2">
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
             <div key={d} className="text-center text-xs font-semibold text-gray-700 py-2 uppercase tracking-wider">{d}</div>
@@ -598,6 +592,29 @@ export default function BookingWidget({ services, studio, studioSlug, coverUrl }
         </div>
       </div>
     )
+  }
+
+  // Month navigation hops only between months that have bookable dates. If the
+  // current view has none (e.g. visitor lands in an empty May), jump to the
+  // nearest future bookable month once slot data has loaded.
+  const currentKey = format(currentMonth, "yyyy-MM")
+  const todayKey = format(today, "yyyy-MM")
+  useEffect(() => {
+    if (allSlots.length === 0) return
+    if (monthsWithBookable.has(currentKey)) return
+    const future = sortedBookableMonths.find((k) => k >= todayKey) ?? sortedBookableMonths[0]
+    if (future) {
+      const [y, m] = future.split("-").map(Number)
+      setCurrentMonth(new Date(y, m - 1, 1))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allSlots.length, currentKey, todayKey])
+
+  const prevBookableKey = sortedBookableMonths.filter((k) => k < currentKey).pop()
+  const nextBookableKey = sortedBookableMonths.find((k) => k > currentKey)
+  const goToMonth = (key: string) => {
+    const [y, m] = key.split("-").map(Number)
+    setCurrentMonth(new Date(y, m - 1, 1))
   }
 
   // Beautiful ticket on done step
@@ -815,21 +832,7 @@ export default function BookingWidget({ services, studio, studioSlug, coverUrl }
 
       {/* Step: Date */}
       {step === "date" && (
-        <div className="relative rounded-2xl shadow-sm overflow-hidden">
-          {/* Faint studio photo behind the calendar — only on this first step —
-              so the chosen studio (Canggu / Ubud) is recognisable. The frosted
-              card above keeps the calendar perfectly legible; tweak the image
-              opacity / card opacity below to taste. */}
-          {coverUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={coverUrl}
-              alt=""
-              aria-hidden
-              className="pointer-events-none select-none absolute inset-0 w-full h-full object-cover opacity-40"
-            />
-          )}
-          <div className="relative bg-white/75 backdrop-blur-md p-6">
+        <div className="bg-white rounded-2xl shadow-sm p-6">
           {/* Group class summary — two fixed zones so nothing reflows when the
               count changes: (1) class + price header, (2) party-size stepper.
               The two rows never compete for horizontal space, and the count has
@@ -878,22 +881,47 @@ export default function BookingWidget({ services, studio, studioSlug, coverUrl }
             // First load — neutral skeleton so the empty-state card doesn't
             // flash before slot data arrives.
             <div className="space-y-3">
-              <div className="h-5 w-32 bg-gray-200/70 rounded animate-pulse mx-auto" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
+                <div className="h-5 w-32 bg-gray-100 rounded animate-pulse" />
+                <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
+              </div>
               <div className="grid grid-cols-7 gap-1">
                 {Array.from({ length: 35 }).map((_, i) => (
-                  <div key={i} className="aspect-square rounded-full bg-gray-200/50 animate-pulse" />
+                  <div key={i} className="aspect-square rounded-full bg-gray-100 animate-pulse" />
                 ))}
               </div>
             </div>
           ) : hasAnyBookable ? (
             <>
-              {/* The nearest two bookable months, stacked. Empty months
-                  (incl. the current one) are skipped entirely. */}
-              <div className="space-y-6">
-                {monthsToShow.map((mk) => renderMonthGrid(mk))}
+              {/* Month header with chevrons that hop between bookable months. */}
+              <div className="flex items-center justify-between mb-5">
+                <button
+                  type="button"
+                  onClick={() => prevBookableKey && goToMonth(prevBookableKey)}
+                  disabled={!prevBookableKey}
+                  aria-label="Previous month"
+                  className={cn("p-2 rounded-full hover:bg-gray-100 transition-colors", !prevBookableKey && "opacity-30 cursor-not-allowed")}
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <h2 className="text-lg font-semibold text-gray-800">
+                  {format(currentMonth, "MMMM yyyy")}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => nextBookableKey && goToMonth(nextBookableKey)}
+                  disabled={!nextBookableKey}
+                  aria-label="Next month"
+                  className={cn("p-2 rounded-full hover:bg-gray-100 transition-colors", !nextBookableKey && "opacity-30 cursor-not-allowed")}
+                >
+                  <ChevronRight size={20} />
+                </button>
               </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-5 text-xs">
+              {renderMonthGrid(currentKey)}
+
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 text-xs">
                 <div className="flex items-center gap-1.5 text-gray-600">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
                   <span>Available</span>
@@ -918,7 +946,6 @@ export default function BookingWidget({ services, studio, studioSlug, coverUrl }
               </p>
             </div>
           )}
-          </div>
         </div>
       )}
 
