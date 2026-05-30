@@ -79,6 +79,24 @@ export default function PhoneInput({
         disabled={disabled}
         value={value}
         onBlur={() => onBlur?.(value)}
+        onPaste={(e) => {
+          // Paste-friendly: the per-keystroke onChange below rejects anything
+          // that isn't already a known country code, which silently drops
+          // pasted local numbers (e.g. "0821-4554-6405"). Handle paste
+          // explicitly: normalise to international and set it directly.
+          const text = e.clipboardData.getData("text")
+          if (!text) return
+          e.preventDefault()
+          const hasPlus = text.trim().startsWith("+")
+          let digits = text.replace(/\D/g, "")
+          if (!hasPlus && digits.startsWith("0")) {
+            // National format → assume Indonesia (+62), the studios' country.
+            digits = "62" + digits.replace(/^0+/, "")
+          }
+          const candidate = "+" + digits
+          const c = detectCountry(candidate)
+          onChange(c ? formatPhoneInput(candidate) : candidate)
+        }}
         onChange={(e) => {
           const stripped = "+" + e.target.value.replace(/\D/g, "")
           const c = detectCountry(stripped)
