@@ -58,16 +58,18 @@ export default function StudioChooser({ studios }: { studios: StudioOption[] }) 
               >
                 {/* Cover photo. Brand-green button bg shows through if a newer
                     studio doesn't have a cover image yet. */}
-                {/* Admin-uploaded cover wins; otherwise the bundled photo. */}
+                {/* Admin-uploaded cover wins; otherwise the bundled photo.
+                    Slight brightness lift so the photo looks vivid, not gloomy. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={s.coverUrl || `/studios/${s.slug}.jpg`}
                   alt={label}
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  className="absolute inset-0 w-full h-full object-cover brightness-105 transition-transform duration-500 group-hover:scale-105"
                 />
-                {/* Gradient scrim for legible text */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+                {/* Soft scrim ONLY along the bottom, behind the label — keeps
+                    the top ~⅔ of the photo bright and clean. */}
+                <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/65 via-black/25 to-transparent" />
 
                 {/* Label */}
                 <div className="absolute inset-x-0 bottom-0 p-5 flex items-end justify-between gap-2">
