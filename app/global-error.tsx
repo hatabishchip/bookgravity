@@ -26,8 +26,8 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
               Check your internet and try again.
             </p>
             <button
-              onClick={() => reset()}
-              style={{ width: "100%", background: "#2C6E49", color: "white", fontWeight: 600, padding: "12px", borderRadius: 12, border: "none", cursor: "pointer", fontSize: 14 }}
+              onClick={() => { try { reset() } catch {} window.location.reload() }}
+              style={{ width: "100%", background: "#2C6E49", color: "white", fontWeight: 600, padding: "12px", borderRadius: 12, border: "none", cursor: "pointer", fontSize: 14, minHeight: 48 }}
             >
               Try again
             </button>

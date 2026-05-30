@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { WifiOff, RefreshCw } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { WifiOff, RefreshCw, Loader2 } from "lucide-react"
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const [offline, setOffline] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const update = () => setOffline(!navigator.onLine)
@@ -14,8 +16,25 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     return () => {
       window.removeEventListener("online", update)
       window.removeEventListener("offline", update)
+      if (reloadTimer.current) clearTimeout(reloadTimer.current)
     }
   }, [])
+
+  // The tap MUST visibly do something. Show a spinner immediately, then try
+  // Next's in-place reset() for a fast recovery; if the segment still can't
+  // render (so this component stays mounted), a hard reload kicks in after a
+  // beat. When reset() succeeds the component unmounts and the cleanup above
+  // clears the pending reload, so there's no redundant double-load.
+  const handleRetry = () => {
+    if (busy) return
+    setBusy(true)
+    if (offline || !navigator.onLine) {
+      window.location.reload()
+      return
+    }
+    try { reset() } catch { /* fall through to hard reload */ }
+    reloadTimer.current = setTimeout(() => window.location.reload(), 600)
+  }
 
   // Treat fetch/network failures as offline-ish errors
   const looksOffline = offline ||
@@ -43,16 +62,18 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         </p>
 
         <button
-          onClick={() => {
-            if (offline || !navigator.onLine) {
-              window.location.reload()
-              return
-            }
-            reset()
-          }}
-          className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] text-white font-semibold py-3 rounded-xl transition-colors"
+          onClick={handleRetry}
+          disabled={busy}
+          className="w-full flex items-center justify-center gap-2 bg-[#2C6E49] hover:bg-[#1E4D34] active:bg-[#16391f] disabled:opacity-90 text-white font-semibold py-3 rounded-xl transition-colors min-h-[48px]"
         >
-          Try again
+          {busy ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              Reloading…
+            </>
+          ) : (
+            "Try again"
+          )}
         </button>
       </div>
     </div>
