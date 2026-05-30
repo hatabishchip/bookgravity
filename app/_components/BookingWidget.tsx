@@ -213,6 +213,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const [partySize, setPartySize] = useState(1)
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
+  // Set when the API reports this phone already booked the slot — drives the
+  // "are you sure?" confirmation before allowing a duplicate booking.
+  const [dupWarn, setDupWarn] = useState<{ existingName: string | null } | null>(null)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
@@ -457,23 +460,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     return errors
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submitBooking = async (confirmDuplicate: boolean) => {
     if (!selectedSlot) return
-
-    const errors = validateForm()
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors)
-      const firstKey = Object.keys(errors)[0] as keyof typeof fieldRefs
-      fieldRefs[firstKey]?.current?.scrollIntoView({ behavior: "smooth", block: "center" })
-      fieldRefs[firstKey]?.current?.focus()
-      return
-    }
-
-    setFieldErrors({})
     setSubmitting(true)
     setError("")
-
     try {
       const res = await fetch(`/api/bookings${studioParam ? `?${studioParam}` : ""}`, {
         method: "POST",
@@ -483,16 +473,23 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           ...form,
           serviceIds: selectedServices,
           partySize,
+          confirmDuplicate,
         }),
       })
 
       if (!res.ok) {
-        const err = await res.json()
+        const err = await res.json().catch(() => ({}))
+        // Soft duplicate warning → show the confirm dialog instead of an error.
+        if (err.duplicate) {
+          setDupWarn({ existingName: err.existingName ?? null })
+          return
+        }
         setError(err.error || "Booking failed")
         return
       }
 
       const data = await res.json()
+      setDupWarn(null)
       const bookingData = { id: data.id, clientName: form.clientName, slot: selectedSlot, ticketCode: data.ticketCode }
       setBooking(bookingData)
       setStep("done")
@@ -509,6 +506,23 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedSlot) return
+
+    const errors = validateForm()
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      const firstKey = Object.keys(errors)[0] as keyof typeof fieldRefs
+      fieldRefs[firstKey]?.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+      fieldRefs[firstKey]?.current?.focus()
+      return
+    }
+
+    setFieldErrors({})
+    submitBooking(false)
   }
 
   const clearFieldError = (field: string) => {
@@ -1291,6 +1305,45 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               {submitting ? "Booking..." : "Confirm Booking"}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Duplicate-booking confirmation. Lets a client knowingly book an extra
+          spot (e.g. for a friend) under their own name/phone after confirming. */}
+      {dupWarn && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Users size={18} className="text-amber-600" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900">Already booked</h3>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {dupWarn.existingName
+                ? <>This phone number already has a booking for this session{dupWarn.existingName ? <> under <span className="font-semibold text-gray-800">{dupWarn.existingName}</span></> : ""}. </>
+                : <>This phone number already has a booking for this session. </>}
+              Book another spot anyway (e.g. for a friend)?
+            </p>
+            <div className="flex gap-2 mt-5">
+              <button
+                type="button"
+                onClick={() => setDupWarn(null)}
+                disabled={submitting}
+                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDupWarn(null); submitBooking(true) }}
+                disabled={submitting}
+                className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-[#1E4D34] disabled:opacity-60"
+              >
+                {submitting ? "Booking…" : "Yes, continue"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

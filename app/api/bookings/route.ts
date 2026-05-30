@@ -22,6 +22,10 @@ const BookingSchema = z.object({
   clientEmail: z.string().email(),
   serviceIds: z.array(z.string()).optional(),
   partySize: z.number().int().min(1).max(6).default(1),
+  // Set true to proceed past the "you already booked this slot" warning —
+  // e.g. when a client knowingly books an extra spot for a friend under their
+  // own name/phone.
+  confirmDuplicate: z.boolean().optional(),
 })
 
 async function generateUniqueCode(slotId: string): Promise<string> {
@@ -72,11 +76,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Only ${seatsLeft} spot(s) left, you requested ${data.partySize}` }, { status: 409 })
     }
 
-    const existing = await prisma.booking.findFirst({
-      where: { slotId: data.slotId, clientPhone: data.clientPhone, status: "CONFIRMED" },
-    })
-    if (existing) {
-      return NextResponse.json({ error: "You have already booked this slot" }, { status: 409 })
+    // Duplicate guard is now a soft warning, not a hard block: a client may
+    // legitimately book extra spots for friends under their own name/phone.
+    // First attempt returns duplicate:true so the widget can confirm; the
+    // re-submit carries confirmDuplicate:true to proceed.
+    if (!data.confirmDuplicate) {
+      const existing = await prisma.booking.findFirst({
+        where: { slotId: data.slotId, clientPhone: data.clientPhone, status: "CONFIRMED" },
+        select: { clientName: true },
+        orderBy: { createdAt: "asc" },
+      })
+      if (existing) {
+        const existingName = (existing.clientName ?? "").replace(/\s*\(\d+\/\d+\)\s*$/, "").trim()
+        return NextResponse.json(
+          {
+            error: "You already have a booking on this session with this phone number.",
+            duplicate: true,
+            existingName: existingName || null,
+          },
+          { status: 409 },
+        )
+      }
     }
 
     // Create N bookings (one per person), all sharing the same lead's name+phone
