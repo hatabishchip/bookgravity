@@ -91,7 +91,7 @@ function ColorPicker({ color, onChange }: { color: string; onChange: (c: string)
 export default function TrainersPage() {
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: "", email: "" })
+  const [form, setForm] = useState({ name: "", email: "", whatsapp: "" })
   // After creating, show the auto-generated 4-digit starter password once.
   const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -116,6 +116,10 @@ export default function TrainersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (form.whatsapp.trim() !== "") {
+      const v = validatePhone(form.whatsapp)
+      if (v.kind !== "ok") { setError("WhatsApp number is incomplete or invalid"); return }
+    }
     setSaving(true); setError("")
     const res = await fetch("/api/admin/trainers", {
       method: "POST",
@@ -127,7 +131,7 @@ export default function TrainersPage() {
     await fetchTrainers()
     // Show the generated starter password so the admin can pass it on.
     setCreated({ name: form.name, email: form.email.trim().toLowerCase(), password: data.initialPassword })
-    setForm({ name: "", email: "" }); setSaving(false)
+    setForm({ name: "", email: "", whatsapp: "" }); setSaving(false)
   }
 
   const handleDelete = async (id: string) => {
@@ -449,6 +453,14 @@ export default function TrainersPage() {
                     placeholder="trainer@gravity.com"
                   />
                   <p className="text-xs text-gray-400 mt-1">A 4-digit password is generated automatically — you&apos;ll see it after creating.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <PhoneInput
+                    value={form.whatsapp}
+                    onChange={(next) => setForm((f) => ({ ...f, whatsapp: next }))}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Used to ping the trainer about new bookings and for the WhatsApp chat link.</p>
                 </div>
 
                 {error && (

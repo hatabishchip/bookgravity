@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs"
 const TrainerSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
+  whatsapp: z.string().optional(),
 })
 
 // 4-digit starter password — shown once to the admin; the trainer changes it
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
         role: "TRAINER",
         initialPassword: pin,
         studioId: ctx.studioId,
-        trainer: { create: { name: data.name, studioId: ctx.studioId } },
+        trainer: { create: { name: data.name, whatsapp: data.whatsapp?.trim() || "", studioId: ctx.studioId } },
       },
       include: { trainer: true },
     })
