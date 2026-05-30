@@ -764,46 +764,42 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       {/* Step: Date */}
       {step === "date" && (
         <div className="bg-white rounded-2xl shadow-sm p-6">
-          {/* Price banner */}
+          {/* Group class banner — class info, party-size stepper and price all
+              in one compact card. The standalone "How many people" row was
+              folded in here so the date step starts with a single tidy block. */}
           <div className="bg-[#2C6E49]/8 border border-[#2C6E49]/15 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <div className="text-xs uppercase tracking-wide text-[#2C6E49]/70 font-medium">Group class</div>
-              <div className="text-sm text-gray-700 mt-0.5">Up to 6 people · 1.5 hours</div>
+              <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">Up to 6 people · 1.5 hours</div>
+              {/* Party size stepper */}
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setPartySize(Math.max(1, partySize - 1))}
+                    disabled={partySize <= 1}
+                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Decrease"
+                  >
+                    −
+                  </button>
+                  <span className="w-5 text-center font-bold text-sm text-gray-900 tabular-nums">{partySize}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPartySize(Math.min(6, partySize + 1))}
+                    disabled={partySize >= 6}
+                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Increase"
+                  >
+                    +
+                  </button>
+                </div>
+                <span className="text-[11px] text-gray-500 leading-none">{partySize === 1 ? "person" : "people"}</span>
+              </div>
             </div>
             <div className="text-right flex-shrink-0">
               <div className="text-2xl font-bold text-[#2C6E49] leading-none">300k</div>
               <div className="text-[10px] text-gray-500 mt-1 uppercase tracking-wide">IDR / person</div>
-            </div>
-          </div>
-
-          {/* Party size — single compact row. "How many people" sits next
-              to the stepper; the "max 6" hint moved under the count so the
-              whole control fits on one line on a phone. */}
-          <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 mb-4 flex items-center justify-between gap-3">
-            <div className="text-sm font-medium text-gray-800">How many people</div>
-            <div className="flex flex-col items-end flex-shrink-0">
-              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setPartySize(Math.max(1, partySize - 1))}
-                  disabled={partySize <= 1}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Decrease"
-                >
-                  −
-                </button>
-                <span className="w-5 text-center font-bold text-base text-gray-900 tabular-nums">{partySize}</span>
-                <button
-                  type="button"
-                  onClick={() => setPartySize(Math.min(6, partySize + 1))}
-                  disabled={partySize >= 6}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Increase"
-                >
-                  +
-                </button>
-              </div>
-              <div className="text-[10px] text-gray-400 mt-1 leading-none">max 6 per class</div>
             </div>
           </div>
 
