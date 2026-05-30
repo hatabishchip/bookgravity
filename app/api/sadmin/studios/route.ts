@@ -19,6 +19,14 @@ export async function GET() {
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
     include: {
       _count: { select: { users: true, trainers: true, timeSlots: true, whatsappConversations: true } },
+      // The login accounts that can reach this studio's /admin — its ADMIN(s)
+      // plus the platform SUPER_ADMIN. Shown so the owner knows which login to
+      // use / reset.
+      users: {
+        where: { role: { in: ["ADMIN", "SUPER_ADMIN"] } },
+        select: { id: true, email: true, role: true },
+        orderBy: { role: "asc" },
+      },
     },
   })
   // Strip the raw access token before sending to the client; expose a short
@@ -33,6 +41,7 @@ export async function GET() {
       logoUrl: s.logoUrl ? "✓" : null, // just a presence flag
       createdAt: s.createdAt,
       counts: s._count,
+      admins: s.users.map((u) => ({ email: u.email, role: u.role })),
       whatsapp: {
         enabled: s.whatsappEnabled,
         phoneNumberId: s.whatsappPhoneNumberId,

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import {
   Plus, X, MessageCircle, CheckCircle2, AlertCircle,
-  ExternalLink, Eye, EyeOff, Pencil, Building2, Users, Calendar,
+  ExternalLink, Eye, EyeOff, Pencil, Building2, Users, Calendar, KeyRound,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -15,6 +15,7 @@ type StudioRow = {
   logoUrl: string | null
   createdAt: string
   counts: { users: number; trainers: number; timeSlots: number; whatsappConversations: number }
+  admins: { email: string; role: string }[]
   whatsapp: {
     enabled: boolean
     phoneNumberId: string | null
@@ -112,6 +113,10 @@ function StudioCard({ studio, onConnect, onChanged }: {
   const connected = wa.hasAccessToken && wa.phoneNumberId
   const fullyLive = connected && wa.enabled
 
+  const [resetting, setResetting] = useState(false)
+  const [resetMsg, setResetMsg] = useState<string | null>(null)
+  const studioAdmin = studio.admins.find((a) => a.role === "ADMIN") ?? null
+
   const toggle = async () => {
     await fetch("/api/sadmin/studios", {
       method: "PATCH",
@@ -119,6 +124,24 @@ function StudioCard({ studio, onConnect, onChanged }: {
       body: JSON.stringify({ id: studio.id, whatsappEnabled: !wa.enabled }),
     })
     onChanged()
+  }
+
+  const resetAdminPassword = async () => {
+    if (!studioAdmin) return
+    if (!confirm(`Reset ${studioAdmin.email}'s password to 0400? They can sign in with it immediately and change it in Settings.`)) return
+    setResetting(true)
+    setResetMsg(null)
+    try {
+      const res = await fetch("/api/sadmin/reset-admin-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studioId: studio.id }),
+      })
+      const j = await res.json().catch(() => ({}))
+      setResetMsg(res.ok ? `Password reset to 0400 for ${studioAdmin.email}` : (j.error ?? "Reset failed"))
+    } finally {
+      setResetting(false)
+    }
   }
 
   return (
@@ -138,24 +161,25 @@ function StudioCard({ studio, onConnect, onChanged }: {
             )}
           </div>
           {(() => {
-            const host = studio.isDefault ? "bookgravity.com" : `${studio.slug}.bookgravity.com`
+            // Path-based now — every studio lives at bookgravity.com/<slug>.
+            const bookingUrl = `https://bookgravity.com/${studio.slug}`
             return (
               <div className="flex flex-wrap gap-x-3 gap-y-1 mt-0.5">
                 <a
-                  href={`https://${host}`}
+                  href={bookingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-gray-500 hover:text-emerald-600 inline-flex items-center gap-1"
                   title="Public booking page"
                 >
-                  {host} <ExternalLink size={10} />
+                  bookgravity.com/{studio.slug} <ExternalLink size={10} />
                 </a>
                 <a
-                  href={`https://${host}/admin`}
+                  href="https://bookgravity.com/admin"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-1 font-medium"
-                  title="Open this studio's admin"
+                  title="Admin dashboard (studio determined by login)"
                 >
                   /admin <ExternalLink size={10} />
                 </a>
@@ -169,6 +193,48 @@ function StudioCard({ studio, onConnect, onChanged }: {
             <span className="inline-flex items-center gap-1"><MessageCircle size={12} />{studio.counts.whatsappConversations} chats</span>
           </div>
         </div>
+      </div>
+
+      {/* Admin logins — which account opens this studio's /admin, and a panic
+          "reset to 0400" for the studio's own admin account. */}
+      <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+        <div className="flex items-center gap-2 mb-2">
+          <KeyRound size={14} className="text-gray-500" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Admin logins</span>
+        </div>
+        <div className="space-y-1.5">
+          {studio.admins.length === 0 ? (
+            <div className="text-xs text-gray-400">No admin accounts.</div>
+          ) : studio.admins.map((a) => (
+            <div key={a.email} className="flex items-center justify-between gap-2">
+              <span className="text-sm font-mono text-gray-800 truncate">{a.email}</span>
+              <span className={cn(
+                "text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0",
+                a.role === "SUPER_ADMIN" ? "bg-purple-100 text-purple-700" : "bg-emerald-100 text-emerald-700",
+              )}>
+                {a.role === "SUPER_ADMIN" ? "Super-admin" : "Admin"}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {studioAdmin ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              onClick={resetAdminPassword}
+              disabled={resetting}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+            >
+              <KeyRound size={12} />
+              {resetting ? "Resetting…" : "Reset admin password to 0400"}
+            </button>
+            {resetMsg && <span className="text-[11px] text-emerald-700">{resetMsg}</span>}
+          </div>
+        ) : (
+          <div className="mt-2 text-[11px] text-gray-400">
+            Managed by the super-admin — reset that login in Settings → Change password.
+          </div>
+        )}
       </div>
 
       {/* WhatsApp connection panel */}
@@ -277,8 +343,9 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
           />
         </Field>
-        <Field label="Slug" hint="Used as the subdomain — e.g. ubud.bookgravity.com. lowercase, dashes only.">
+        <Field label="Slug" hint="Used in the URL — e.g. bookgravity.com/bali. lowercase, dashes only.">
           <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 flex-shrink-0">bookgravity.com/</span>
             <input
               required
               value={form.slug}
@@ -287,7 +354,6 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
               pattern="[a-z0-9\-]+"
               className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
             />
-            <span className="text-xs text-gray-400 flex-shrink-0">.bookgravity.com</span>
           </div>
         </Field>
         <div className="pt-2 border-t border-gray-100">
