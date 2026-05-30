@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { ArrowRight } from "lucide-react"
 
-type StudioOption = { slug: string; name: string; isDefault: boolean }
+type StudioOption = { slug: string; name: string; isDefault: boolean; coverUrl?: string | null }
 
 function shortLabel(name: string): string {
   return name.replace(/^gravity\s+stretching\s*/i, "").trim() || name
@@ -52,9 +52,10 @@ export default function StudioChooser({ studios }: { studios: StudioOption[] }) 
               >
                 {/* Cover photo. Brand-green button bg shows through if a newer
                     studio doesn't have a cover image yet. */}
+                {/* Admin-uploaded cover wins; otherwise the bundled photo. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={`/studios/${s.slug}.jpg`}
+                  src={s.coverUrl || `/studios/${s.slug}.jpg`}
                   alt={label}
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
                   className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"

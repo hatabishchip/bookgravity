@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getPublicStudioId } from "@/lib/studio"
-import { isSlotBookable } from "@/lib/booking-cutoff"
+import { isSlotBookable, slotStartMs } from "@/lib/booking-cutoff"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -11,13 +11,17 @@ export async function GET(request: NextRequest) {
   const studioId = await getPublicStudioId(searchParams.get("studio"))
 
   if (!date) {
-    // Return all dates that have slots from the start of the current month to one month ahead.
-    // Past dates of this month are included so the calendar can mark days that had classes.
+    // Return all dates that have slots from the start of the current month
+    // through several months ahead. The widget shows the nearest TWO months
+    // that actually have bookable classes — which may be next month + the one
+    // after if the current month is empty — so we need a wide enough window to
+    // find them. Past dates of this month are included so the calendar can
+    // still mark days that had classes.
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
     const maxDate = new Date(today)
-    maxDate.setMonth(maxDate.getMonth() + 1)
+    maxDate.setMonth(maxDate.getMonth() + 4)
 
     const monthStartStr = monthStart.toISOString().split("T")[0]
     const maxStr = maxDate.toISOString().split("T")[0]
@@ -61,9 +65,14 @@ export async function GET(request: NextRequest) {
     orderBy: { startTime: "asc" },
   })
 
+  // Show every slot for the day, including ones now inside the 2-hour cutoff.
+  // Those come back with bookable:false so the widget can render them greyed
+  // out ("contact us") instead of hiding them — a client can still see the
+  // class exists and reach out if a trainer can make it. Slots whose start is
+  // already in the past are dropped entirely (nothing to contact about).
   const nowMs = Date.now()
   const result = slots
-    .filter((slot) => isSlotBookable(slot.date, slot.startTime, nowMs))
+    .filter((slot) => slotStartMs(slot.date, slot.startTime) > nowMs)
     .map((slot) => ({
       id: slot.id,
       date: slot.date,
@@ -73,6 +82,8 @@ export async function GET(request: NextRequest) {
       maxCapacity: slot.maxCapacity,
       bookedCount: slot._count.bookings,
       available: slot._count.bookings < slot.maxCapacity,
+      // Online booking allowed only outside the 2-hour cutoff.
+      bookable: isSlotBookable(slot.date, slot.startTime, nowMs),
       price: slot.price,
     }))
 

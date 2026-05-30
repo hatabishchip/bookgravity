@@ -6,6 +6,7 @@ import { setWhatsAppProfilePictureFromDataUrl } from "@/lib/whatsapp-cloud"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
 const MAX_DATA_URL_LEN = 1_500_000 // ~1MB of base64 = ~750KB of real image
+const MAX_COVER_URL_LEN = 3_500_000 // cover photos are larger (full-bleed)
 
 // Languages we offer in the inbox dropdown. Two-letter ISO 639-1 lowercase.
 // Add codes here as we grow; the translation lib accepts any 2-letter code
@@ -17,6 +18,7 @@ const StudioUpdateSchema = z.object({
   name: z.string().min(2).optional(),
   logoUrl: z.string().max(MAX_DATA_URL_LEN).nullable().optional(),
   faviconUrl: z.string().max(MAX_DATA_URL_LEN).nullable().optional(),
+  coverUrl: z.string().max(MAX_COVER_URL_LEN).nullable().optional(),
   groupPrice: z.number().min(0).optional(),
   kidsPrice: z.number().min(0).optional(),
   privatePrice: z.number().min(0).optional(),
@@ -30,6 +32,7 @@ const STUDIO_SELECT = {
   slug: true,
   logoUrl: true,
   faviconUrl: true,
+  coverUrl: true,
   isDefault: true,
   groupPrice: true,
   kidsPrice: true,

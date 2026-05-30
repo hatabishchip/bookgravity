@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         name: true,
         slug: true,
         isDefault: true,
+        coverUrl: true,
         // Per-studio feature flag for the WhatsApp inbox. False studios
         // hide the FAB and the /admin|/trainer/inbox pages entirely.
         whatsappEnabled: true,

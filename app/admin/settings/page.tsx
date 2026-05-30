@@ -10,6 +10,8 @@ type Studio = {
   slug: string
   logoUrl: string | null
   faviconUrl: string | null
+  /** Cover photo shown on the studio chooser + booking calendar backdrop. */
+  coverUrl: string | null
   isDefault: boolean
   /** ISO 639-1 code that admin-facing inbox text is shown in, or null = off. */
   inboxLanguage: string | null
@@ -68,26 +70,29 @@ function readImageAsDataUrl(file: File, maxDim = 512, quality = 0.85): Promise<s
 
 export default function SettingsPage() {
   const [studio, setStudio] = useState<Studio | null>(null)
-  const [saving, setSaving] = useState<"logo" | "favicon" | "name" | "language" | null>(null)
+  const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const faviconInputRef = useRef<HTMLInputElement>(null)
+  const coverInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch("/api/admin/studio").then((r) => r.json()).then(setStudio)
   }, [])
 
   const update = async (
-    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "name" | "inboxLanguage">>,
+    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "name" | "inboxLanguage">>,
   ) => {
-    const which: "logo" | "favicon" | "name" | "language" =
+    const which: "logo" | "favicon" | "cover" | "name" | "language" =
       "logoUrl" in data
         ? "logo"
         : "faviconUrl" in data
           ? "favicon"
-          : "inboxLanguage" in data
-            ? "language"
-            : "name"
+          : "coverUrl" in data
+            ? "cover"
+            : "inboxLanguage" in data
+              ? "language"
+              : "name"
     setSaving(which)
     setError(null)
     const res = await fetch("/api/admin/studio", {
@@ -105,16 +110,25 @@ export default function SettingsPage() {
     setSaving(null)
   }
 
-  const handleFile = async (kind: "logo" | "favicon", file: File) => {
+  const handleFile = async (kind: "logo" | "favicon" | "cover", file: File) => {
     if (!file) return
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Image is too large (max 2 MB).")
+    // Covers are full-bleed photos, so allow a larger source file.
+    const maxBytes = kind === "cover" ? 6 * 1024 * 1024 : 2 * 1024 * 1024
+    if (file.size > maxBytes) {
+      setError(`Image is too large (max ${maxBytes / (1024 * 1024)} MB).`)
       return
     }
     try {
-      const maxDim = kind === "favicon" ? 64 : 512
-      const dataUrl = await readImageAsDataUrl(file, maxDim)
-      await update(kind === "logo" ? { logoUrl: dataUrl } : { faviconUrl: dataUrl })
+      const maxDim = kind === "favicon" ? 64 : kind === "cover" ? 1000 : 512
+      const quality = kind === "cover" ? 0.8 : 0.85
+      const dataUrl = await readImageAsDataUrl(file, maxDim, quality)
+      await update(
+        kind === "logo"
+          ? { logoUrl: dataUrl }
+          : kind === "favicon"
+            ? { faviconUrl: dataUrl }
+            : { coverUrl: dataUrl },
+      )
     } catch {
       setError("Could not read the file.")
     }
@@ -167,6 +181,18 @@ export default function SettingsPage() {
             previewSize="h-10 w-10"
           />
 
+          <AssetCard
+            title="Studio photo"
+            description="Shown on the studio chooser at bookgravity.com and as a soft backdrop behind the booking calendar. A bright portrait photo of your studio works best (e.g. a class in session)."
+            kind="cover"
+            value={studio.coverUrl}
+            saving={saving === "cover"}
+            onPick={() => coverInputRef.current?.click()}
+            onClear={() => update({ coverUrl: null })}
+            previewBg="bg-gray-100"
+            previewSize="h-20 w-16"
+          />
+
           <InboxLanguageCard
             value={studio.inboxLanguage}
             saving={saving === "language"}
@@ -197,6 +223,17 @@ export default function SettingsPage() {
               e.target.value = ""
             }}
           />
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) handleFile("cover", f)
+              e.target.value = ""
+            }}
+          />
         </div>
       )}
     </div>
@@ -208,7 +245,7 @@ function AssetCard({
 }: {
   title: string
   description: string
-  kind: "logo" | "favicon"
+  kind: "logo" | "favicon" | "cover"
   value: string | null
   saving: boolean
   onPick: () => void

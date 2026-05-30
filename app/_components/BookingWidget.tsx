@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { format, addMonths, subMonths, startOfMonth, getDaysInMonth, getDay, isBefore, isAfter, startOfDay, parseISO } from "date-fns"
-import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle } from "lucide-react"
+import { format, startOfMonth, getDaysInMonth, getDay, isBefore, startOfDay, parseISO } from "date-fns"
+import { ChevronLeft, Clock, Users, CheckCircle, MessageCircle } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 
@@ -194,7 +194,7 @@ function clientEndTime(startTime: string) {
   return `${eh % 12 || 12}:${String(em).padStart(2, "0")} ${ampm}`
 }
 
-export default function BookingWidget({ services, studio, studioSlug }: {
+export default function BookingWidget({ services, studio, studioSlug, coverUrl }: {
   services: Service[]
   studio?: { name: string; slug: string; logoUrl: string | null }
   // Slug of the studio this widget books into. Sent as ?studio= on the
@@ -202,11 +202,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // host (we serve every studio from bookgravity.com now). Falls back to the
   // studio prop's slug.
   studioSlug?: string
+  // Studio cover photo URL — rendered as a faint full-bleed backdrop behind
+  // the calendar (date step only) so the chosen studio is recognisable.
+  coverUrl?: string
 }) {
   // Query-string suffix that pins API calls to this studio.
   const studioParam = (studioSlug ?? studio?.slug) ? `studio=${encodeURIComponent(studioSlug ?? studio!.slug)}` : ""
   const [step, setStep] = useState<Step>("date")
-  const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [slots, setSlots] = useState<Slot[]>([])
   const [allSlots, setAllSlots] = useState<Slot[]>([])
@@ -320,9 +322,6 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   }, [form.clientPhone])
 
   const today = startOfDay(new Date())
-  // Allow booking through the end of next month
-  const nextMonthEnd = addMonths(startOfMonth(today), 2)
-  const maxDate = new Date(nextMonthEnd.getTime() - 1)
 
   // True once /api/slots has answered at least once. Lets us distinguish
   // "still loading" (skeleton) from "loaded and there's nothing bookable"
@@ -518,49 +517,88 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     if (fieldErrors[field]) setFieldErrors((prev) => { const n = { ...prev }; delete n[field]; return n })
   }
 
-  // Calendar rendering
-  const year = currentMonth.getFullYear()
-  const month = currentMonth.getMonth()
-  const daysInMonth = getDaysInMonth(currentMonth)
-  // Week starts Monday: Mon=0, Tue=1, ..., Sun=6
-  const sundayBased = getDay(startOfMonth(currentMonth))
-  const firstDayOfWeek = (sundayBased + 6) % 7
-
-  // Set of "yyyy-MM" keys that have at least one bookable date with seats
-  // for this party. Empty months get skipped entirely on navigation and
-  // are never the initial view.
+  // Months ("yyyy-MM") that have at least one bookable date with seats for the
+  // party. We render the nearest TWO such months stacked — no month
+  // navigation — so empty months (incl. the current one) are skipped entirely
+  // and the visitor always lands on real, bookable dates.
   const monthsWithBookable = new Set<string>()
   for (const d of availableDates) monthsWithBookable.add(d.slice(0, 7))
   const sortedBookableMonths = Array.from(monthsWithBookable).sort()
   const hasAnyBookable = sortedBookableMonths.length > 0
+  const monthsToShow = sortedBookableMonths.slice(0, 2)
 
-  // If the current month has no bookable dates but there's a future month
-  // that does, hop to it once the slot data has loaded. Anonymous visitor
-  // landing on May should not have to manually click Next to find June.
-  const currentKey = format(currentMonth, "yyyy-MM")
-  const todayKey = format(today, "yyyy-MM")
-  useEffect(() => {
-    if (allSlots.length === 0) return
-    if (monthsWithBookable.has(currentKey)) return
-    const future = sortedBookableMonths.find((k) => k >= todayKey)
-    if (future) {
-      const [y, m] = future.split("-").map(Number)
-      setCurrentMonth(new Date(y, m - 1, 1))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allSlots.length, currentKey, todayKey])
+  // Render one month grid for a "yyyy-MM" key. Kept as a closure (not a child
+  // component) so it can read the date sets / handlers from this scope without
+  // prop plumbing, and so it never remounts.
+  const renderMonthGrid = (monthKey: string) => {
+    const [y, m] = monthKey.split("-").map(Number)
+    const monthDate = new Date(y, m - 1, 1)
+    const daysInMonth = getDaysInMonth(monthDate)
+    // Week starts Monday: Mon=0 … Sun=6
+    const firstDayOfWeek = (getDay(startOfMonth(monthDate)) + 6) % 7
+    const days = Array.from({ length: daysInMonth }, (_, i) => new Date(y, m - 1, i + 1))
+    const blanks = Array.from({ length: firstDayOfWeek })
+    return (
+      <div key={monthKey}>
+        <h2 className="text-base font-semibold text-gray-800 mb-3 text-center">
+          {format(monthDate, "MMMM yyyy")}
+        </h2>
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+            <div key={d} className="text-center text-xs font-semibold text-gray-700 py-2 uppercase tracking-wider">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {blanks.map((_, i) => <div key={`b${i}`} />)}
+          {days.map((day) => {
+            const str = format(day, "yyyy-MM-dd")
+            const isPast = isBefore(day, today)
+            const hasSlot = availableDates.has(str)
+            const isFull = fullyBookedDates.has(str)
+            const hadPastClass = pastDatesWithSlots.has(str)
+            const isSelected = selectedDate === str
+            const clickable = hasSlot && !isPast
 
-  const prevBookableKey = sortedBookableMonths.filter((k) => k < currentKey).pop()
-  const nextBookableKey = sortedBookableMonths.find((k) => k > currentKey)
-  const canGoPrev = !!prevBookableKey
-  const canGoNext = !!nextBookableKey
-  const goToMonth = (key: string) => {
-    const [y, m] = key.split("-").map(Number)
-    setCurrentMonth(new Date(y, m - 1, 1))
+            const dotColor = isSelected
+              ? null
+              : clickable
+                ? "bg-[#2C6E49]"
+                : isFull && !isPast
+                  ? "bg-rose-500"
+                  : isPast && hadPastClass
+                    ? "bg-gray-300"
+                    : null
+            return (
+              <button
+                key={str}
+                type="button"
+                onClick={() => clickable && handleDateSelect(day)}
+                aria-disabled={!clickable}
+                className={cn(
+                  "aspect-square rounded-full text-sm font-medium flex flex-col items-center justify-center gap-1 leading-none",
+                  isSelected
+                    ? "bg-[#2C6E49] text-white"
+                    : clickable
+                      ? "text-gray-900 hover:bg-[#2C6E49]/10 cursor-pointer"
+                      : isFull && !isPast
+                        ? "text-gray-500 cursor-not-allowed"
+                        : isPast
+                          ? "text-gray-300 cursor-not-allowed"
+                          : "text-gray-700 cursor-not-allowed",
+                )}
+              >
+                <span>{day.getDate()}</span>
+                {/* Fixed-height dot row keeps every cell the same size. */}
+                <span className="h-1.5 flex items-center" aria-hidden>
+                  {dotColor && <span className={cn("w-1.5 h-1.5 rounded-full", dotColor)} />}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
   }
-
-  const days = Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1))
-  const blanks = Array.from({ length: firstDayOfWeek })
 
   // Beautiful ticket on done step
   if (step === "done" && booking) {
@@ -777,7 +815,21 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
       {/* Step: Date */}
       {step === "date" && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="relative rounded-2xl shadow-sm overflow-hidden">
+          {/* Faint studio photo behind the calendar — only on this first step —
+              so the chosen studio (Canggu / Ubud) is recognisable. The frosted
+              card above keeps the calendar perfectly legible; tweak the image
+              opacity / card opacity below to taste. */}
+          {coverUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={coverUrl}
+              alt=""
+              aria-hidden
+              className="pointer-events-none select-none absolute inset-0 w-full h-full object-cover opacity-40"
+            />
+          )}
+          <div className="relative bg-white/75 backdrop-blur-md p-6">
           {/* Group class summary — two fixed zones so nothing reflows when the
               count changes: (1) class + price header, (2) party-size stepper.
               The two rows never compete for horizontal space, and the count has
@@ -823,36 +875,41 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           </div>
 
           {!slotsLoaded ? (
-            // First load — show a neutral skeleton so the empty-state card
-            // doesn't flash before the slot data arrives. We don't yet know
-            // which month is the first with bookable dates.
-            <div className="flex items-center justify-between mb-6">
-              <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse" />
-              <div className="h-5 w-32 bg-gray-100 rounded animate-pulse" />
-              <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse" />
+            // First load — neutral skeleton so the empty-state card doesn't
+            // flash before slot data arrives.
+            <div className="space-y-3">
+              <div className="h-5 w-32 bg-gray-200/70 rounded animate-pulse mx-auto" />
+              <div className="grid grid-cols-7 gap-1">
+                {Array.from({ length: 35 }).map((_, i) => (
+                  <div key={i} className="aspect-square rounded-full bg-gray-200/50 animate-pulse" />
+                ))}
+              </div>
             </div>
           ) : hasAnyBookable ? (
-            <div className="flex items-center justify-between mb-6">
-              <button
-                onClick={() => prevBookableKey && goToMonth(prevBookableKey)}
-                className={cn("p-2 rounded-full hover:bg-gray-100 transition-colors", !canGoPrev && "opacity-30 cursor-not-allowed")}
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <h2 className="text-lg font-semibold text-gray-800">
-                {format(currentMonth, "MMMM yyyy")}
-              </h2>
-              <button
-                onClick={() => nextBookableKey && goToMonth(nextBookableKey)}
-                className={cn("p-2 rounded-full hover:bg-gray-100 transition-colors", !canGoNext && "opacity-30 cursor-not-allowed")}
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
+            <>
+              {/* The nearest two bookable months, stacked. Empty months
+                  (incl. the current one) are skipped entirely. */}
+              <div className="space-y-6">
+                {monthsToShow.map((mk) => renderMonthGrid(mk))}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-5 text-xs">
+                <div className="flex items-center gap-1.5 text-gray-600">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
+                  <span>Available</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-gray-600">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  <span>Booked</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-gray-600">
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                  <span>Past class</span>
+                </div>
+              </div>
+            </>
           ) : (
-            // Loaded, confirmed no bookable dates anywhere — replace the whole
-            // calendar with a single empty-state card. The studio hasn't
-            // created any schedule yet, or every slot is past the cutoff.
+            // Loaded, confirmed no bookable dates anywhere.
             <div className="text-center py-12 px-4">
               <div className="text-4xl mb-3">📅</div>
               <div className="text-base font-semibold text-gray-800">Нет доступных дат для букирования</div>
@@ -861,85 +918,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               </p>
             </div>
           )}
-
-          {slotsLoaded && hasAnyBookable && (
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-              <div key={d} className="text-center text-xs font-semibold text-gray-700 py-2 uppercase tracking-wider">{d}</div>
-            ))}
           </div>
-          )}
-
-          {slotsLoaded && hasAnyBookable && (
-          <div className="grid grid-cols-7 gap-1">
-            {blanks.map((_, i) => <div key={`b${i}`} />)}
-            {days.map((day) => {
-              const str = format(day, "yyyy-MM-dd")
-              const isPast = isBefore(day, today)
-              const isTooFar = isAfter(day, maxDate)
-              const hasSlot = availableDates.has(str)
-              const isFull = fullyBookedDates.has(str)
-              const hadPastClass = pastDatesWithSlots.has(str)
-              const isSelected = selectedDate === str
-              const clickable = hasSlot && !isPast && !isTooFar
-
-              const dotColor = isSelected
-                ? null
-                : clickable
-                  ? "bg-[#2C6E49]"
-                  : isFull && !isPast && !isTooFar
-                    ? "bg-rose-500"
-                    : isPast && hadPastClass
-                      ? "bg-gray-300"
-                      : null
-              return (
-                <button
-                  key={str}
-                  type="button"
-                  onClick={() => clickable && handleDateSelect(day)}
-                  aria-disabled={!clickable}
-                  className={cn(
-                    "aspect-square rounded-full text-sm font-medium flex flex-col items-center justify-center gap-1 leading-none",
-                    isSelected
-                      ? "bg-[#2C6E49] text-white"
-                      : clickable
-                        ? "text-gray-900 hover:bg-[#2C6E49]/10 cursor-pointer"
-                        : isFull && !isPast && !isTooFar
-                          ? "text-gray-500 cursor-not-allowed"
-                          : isPast
-                            ? "text-gray-300 cursor-not-allowed"
-                            : "text-gray-700 cursor-not-allowed",
-                  )}
-                >
-                  <span>{day.getDate()}</span>
-                  {/* Reserve a fixed-height row for the dot so cell layout
-                      is identical across iOS / Android, regardless of which
-                      kind of dot (or none) is shown. */}
-                  <span className="h-1.5 flex items-center" aria-hidden>
-                    {dotColor && <span className={cn("w-1.5 h-1.5 rounded-full", dotColor)} />}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-          )}
-
-          {slotsLoaded && hasAnyBookable && (
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 text-xs">
-            <div className="flex items-center gap-1.5 text-gray-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
-              <span>Available</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-gray-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-              <span>Booked</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-gray-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-              <span>Past class</span>
-            </div>
-          </div>
-          )}
         </div>
       )}
 
@@ -961,7 +940,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           ) : slots.length === 0 ? (
             <div className="text-center py-8 text-gray-400">No sessions available on this day</div>
           ) : (() => {
-            const anyBookable = slots.some((s) => s.available && (s.maxCapacity - s.bookedCount) >= partySize)
+            const anyBookable = slots.some((s) => s.available && s.bookable !== false && (s.maxCapacity - s.bookedCount) >= partySize)
             return (
               <>
                 {!anyBookable && (
@@ -985,8 +964,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                   {slots.map((slot) => {
                     const spotsLeft = slot.maxCapacity - slot.bookedCount
                     const enoughForParty = spotsLeft >= partySize
-                    const canBook = slot.available && enoughForParty
+                    // Slot is inside the 2-hour cutoff: still shown, but greyed
+                    // out and not bookable online — the client can contact us.
+                    const withinCutoff = slot.bookable === false
                     const isFull = !slot.available
+                    const canBook = slot.available && enoughForParty && !withinCutoff
                     return (
                       <button
                         key={slot.id}
@@ -996,20 +978,22 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                           "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left relative",
                           canBook
                             ? "border-gray-100 hover:border-[#2C6E49] hover:bg-[#2C6E49]/5 cursor-pointer"
-                            : isFull
-                              ? "border-rose-100 bg-rose-50/40 cursor-not-allowed"
-                              : "border-amber-100 bg-amber-50/40 cursor-not-allowed"
+                            : withinCutoff
+                              ? "border-gray-200 bg-gray-50 cursor-not-allowed"
+                              : isFull
+                                ? "border-rose-100 bg-rose-50/40 cursor-not-allowed"
+                                : "border-amber-100 bg-amber-50/40 cursor-not-allowed"
                         )}
                       >
                         <div className="flex items-center gap-3">
                           <div className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
-                            canBook ? "bg-[#2C6E49]/10" : isFull ? "bg-rose-100" : "bg-amber-100"
+                            canBook ? "bg-[#2C6E49]/10" : withinCutoff ? "bg-gray-200" : isFull ? "bg-rose-100" : "bg-amber-100"
                           )}>
-                            <Clock size={18} className={canBook ? "text-[#2C6E49]" : isFull ? "text-rose-500" : "text-amber-600"} />
+                            <Clock size={18} className={canBook ? "text-[#2C6E49]" : withinCutoff ? "text-gray-400" : isFull ? "text-rose-500" : "text-amber-600"} />
                           </div>
                           <div className="min-w-0">
-                            <div className={cn("font-semibold flex items-center gap-2 flex-wrap", isFull ? "text-rose-900 line-through decoration-rose-300" : "text-gray-800")}>
+                            <div className={cn("font-semibold flex items-center gap-2 flex-wrap", isFull ? "text-rose-900 line-through decoration-rose-300" : withinCutoff ? "text-gray-500" : "text-gray-800")}>
                               <span>{formatTime(slot.startTime)} – {clientEndTime(slot.startTime)}</span>
                               {slot.classType === "KIDS" ? (
                                 <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full no-underline">
@@ -1025,17 +1009,21 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                                 </span>
                               )}
                             </div>
-                            <div className="text-sm text-gray-400">
-                              {slot.classType === "PRIVATE"
-                                ? "Private session · 1 person"
-                                : slot.classType === "KIDS"
-                                  ? `Kids class · up to ${slot.maxCapacity}`
-                                  : `Group class · up to ${slot.maxCapacity}`}
+                            <div className={cn("text-sm", withinCutoff ? "text-gray-400" : "text-gray-400")}>
+                              {withinCutoff
+                                ? "Online booking closed — message us to join"
+                                : slot.classType === "PRIVATE"
+                                  ? "Private session · 1 person"
+                                  : slot.classType === "KIDS"
+                                    ? `Kids class · up to ${slot.maxCapacity}`
+                                    : `Group class · up to ${slot.maxCapacity}`}
                             </div>
                           </div>
                         </div>
                         <div className="text-right flex flex-col items-end gap-0.5">
-                          {isFull ? (
+                          {withinCutoff ? (
+                            <span className="inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase bg-gray-300 text-gray-600 leading-none">Closed</span>
+                          ) : isFull ? (
                             <span className="inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase bg-rose-500 text-white leading-none">{"Sold out"}</span>
                           ) : !enoughForParty ? (
                             <span className="inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase bg-amber-500 text-white leading-none">{`Only ${spotsLeft} left`}</span>
@@ -1047,9 +1035,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                           )}
                           <div className={cn(
                             "text-[11px] mt-0.5",
-                            canBook ? "text-[#2C6E49]/70" : isFull ? "text-rose-500/70" : "text-amber-600/70"
+                            canBook ? "text-[#2C6E49]/70" : withinCutoff ? "text-gray-400" : isFull ? "text-rose-500/70" : "text-amber-600/70"
                           )}>
-                            {isFull ? `${slot.bookedCount}/${slot.maxCapacity} booked` : canBook ? "Available" : `${spotsLeft} free`}
+                            {withinCutoff ? "Within 2h of start" : isFull ? `${slot.bookedCount}/${slot.maxCapacity} booked` : canBook ? "Available" : `${spotsLeft} free`}
                           </div>
                         </div>
                       </button>

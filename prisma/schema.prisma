@@ -13,6 +13,10 @@ model Studio {
   isDefault     Boolean  @default(false)
   logoUrl       String?
   faviconUrl    String?
+  // Cover photo shown on the studio chooser (apex) and as a faint backdrop on
+  // the booking calendar. Stored as a data URL (like logoUrl). Null falls back
+  // to the bundled /public/studios/<slug>.jpg.
+  coverUrl      String?
   // Main-service prices (per person) — used as defaults when creating slots
   groupPrice    Float    @default(300000)
   kidsPrice     Float    @default(200000)

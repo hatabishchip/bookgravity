@@ -43,9 +43,13 @@ export default async function StudioBookingPage({
 
   const studio = await prisma.studio.findFirst({
     where: { slug },
-    select: { id: true, name: true, slug: true, logoUrl: true },
+    select: { id: true, name: true, slug: true, logoUrl: true, coverUrl: true },
   })
   if (!studio) notFound()
+
+  // Admin-uploaded cover wins; otherwise the bundled studio photo. Used as a
+  // faint backdrop behind the calendar so the chosen studio is recognisable.
+  const coverSrc = studio.coverUrl || `/studios/${studio.slug}.jpg`
 
   const [services, allStudios, session] = await Promise.all([
     prisma.additionalService.findMany({
@@ -102,7 +106,7 @@ export default async function StudioBookingPage({
       </header>
 
       <div className="max-w-4xl mx-auto px-4 py-6">
-        <BookingWidget services={services} studio={studio} studioSlug={studio.slug} />
+        <BookingWidget services={services} studio={studio} studioSlug={studio.slug} coverUrl={coverSrc} />
       </div>
     </div>
   )
