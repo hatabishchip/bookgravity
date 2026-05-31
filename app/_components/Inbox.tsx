@@ -182,6 +182,7 @@ function MessageBubble({
   // WhatsApp-style action menu: long-press (touch) or right-click (desktop).
   const [menuOpen, setMenuOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [flash, setFlash] = useState(false)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const openMenu = () => setMenuOpen(true)
@@ -205,7 +206,14 @@ function MessageBubble({
     } catch {
       /* clipboard blocked — no-op */
     }
+    // Close the sheet and flash the bubble so it's obvious the copy happened.
     setMenuOpen(false)
+    setFlash(false)
+    // Next frame so the animation restarts even on a repeat copy.
+    requestAnimationFrame(() => {
+      setFlash(true)
+      setTimeout(() => setFlash(false), 950)
+    })
   }
 
   const react = (emoji: string) => {
@@ -264,10 +272,13 @@ function MessageBubble({
           just Copy + Delete (Delete only for our unread sent messages). */}
       {menuOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 animate-bg-fade-in"
           onClick={() => setMenuOpen(false)}
         >
-          <div className="flex flex-col items-stretch gap-2 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="flex flex-col items-stretch gap-2 w-full max-w-xs animate-sheet-pop-in"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Reaction bar */}
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar rounded-full bg-white dark:bg-[#233138] shadow-xl px-2 py-2">
               {REACTIONS.map((e) => (
@@ -313,6 +324,7 @@ function MessageBubble({
             ? "bg-[#DCF8C6] text-gray-900 dark:bg-[#005C4B] dark:text-white"
             : "bg-white text-gray-900 border border-gray-100 dark:bg-[#1F2C34] dark:text-white dark:border-transparent",
           m.importedAt && "opacity-80",
+          flash && "animate-copy-flash",
         )}
         style={{ fontSize: `${fontScale * 0.875}rem`, WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
       >

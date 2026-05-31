@@ -29,3 +29,34 @@ html, body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Inbox long-press action sheet: backdrop fades in, the card pops in. */
+@keyframes bg-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-bg-fade-in {
+  animation: bg-fade-in 0.15s ease-out;
+}
+@keyframes sheet-pop-in {
+  0% { opacity: 0; transform: scale(0.9) translateY(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-sheet-pop-in {
+  animation: sheet-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Copy confirmation: the bubble flashes a green highlight, then fades back. */
+@keyframes copy-flash {
+  0% {
+    box-shadow: 0 0 0 3px rgba(44, 110, 73, 0.6);
+    filter: brightness(1.08);
+  }
+  100% {
+    box-shadow: 0 0 0 3px rgba(44, 110, 73, 0);
+    filter: brightness(1);
+  }
+}
+.animate-copy-flash {
+  animation: copy-flash 0.9s ease-out;
+}
