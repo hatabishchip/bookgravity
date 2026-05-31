@@ -253,6 +253,10 @@ model BookingService {
   booking   Booking           @relation(fields: [bookingId], references: [id])
   serviceId String
   service   AdditionalService @relation(fields: [serviceId], references: [id])
+  // How this extra service was paid, recorded by the trainer independently of
+  // the class payment (a class can go on a membership while a mat is paid cash).
+  // CASH | EDC | QR | TRANSFER. Null = not yet specified / paid with the class.
+  paymentType String?
 
   @@unique([bookingId, serviceId])
 }

@@ -21,8 +21,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const booking = await getBookingForTrainer(id, trainer.id, ctx.studioId)
   if (!booking) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const { serviceId } = await request.json()
+  const { serviceId, paymentType } = await request.json()
   if (!serviceId) return NextResponse.json({ error: "serviceId required" }, { status: 400 })
+
+  const VALID_METHODS = ["CASH", "EDC", "QR", "TRANSFER"]
+  const method =
+    typeof paymentType === "string" && VALID_METHODS.includes(paymentType) ? paymentType : null
 
   // Verify the service belongs to this studio
   const service = await prisma.additionalService.findFirst({
@@ -30,10 +34,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   })
   if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 })
 
+  // Upsert: adding a service defaults its payment to CASH; calling again with a
+  // paymentType just updates how that extra service was paid.
   await prisma.bookingService.upsert({
     where: { bookingId_serviceId: { bookingId: id, serviceId } },
-    create: { bookingId: id, serviceId },
-    update: {},
+    create: { bookingId: id, serviceId, paymentType: method ?? "CASH" },
+    update: method ? { paymentType: method } : {},
   })
 
   return NextResponse.json({ success: true })
