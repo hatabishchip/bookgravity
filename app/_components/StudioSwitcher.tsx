@@ -1,7 +1,8 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { MapPin } from "lucide-react"
+import { useEffect, useState, useTransition } from "react"
+import { MapPin, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type StudioOption = { slug: string; name: string }
@@ -24,31 +25,51 @@ export default function StudioSwitcher({
   activeSlug: string
 }) {
   const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  // Slug the user just tapped — highlighted instantly while the new studio's
+  // page renders in the background (so the tap feels immediate).
+  const [target, setTarget] = useState<string | null>(null)
+
+  // Prefetch both routes so switching lands fast.
+  useEffect(() => {
+    studios.forEach((s) => router.prefetch(`/${s.slug}`))
+  }, [studios, router])
+
+  // Once navigation has resolved (activeSlug now matches), clear the optimistic target.
+  useEffect(() => { setTarget(null) }, [activeSlug])
+
   // Only worth showing when there's an actual choice.
   if (studios.length < 2) return null
+
+  const go = (slug: string) => {
+    if (slug === activeSlug || slug === target) return
+    setTarget(slug) // instant visual switch
+    startTransition(() => router.push(`/${slug}`))
+  }
 
   return (
     <div className="inline-flex items-center gap-1.5">
       <MapPin size={14} className="text-[#2C6E49]/60 flex-shrink-0" aria-hidden />
       <div className="inline-flex items-center rounded-full bg-[#2C6E49]/8 p-0.5">
         {studios.map((s) => {
-          const active = s.slug === activeSlug
+          // Optimistic: the tapped pill reads active immediately, before the
+          // server page for that studio has finished rendering.
+          const active = s.slug === (target ?? activeSlug)
+          const loading = isPending && s.slug === target
           return (
             <button
               key={s.slug}
               type="button"
-              onClick={() => {
-                if (active) return
-                router.push(`/${s.slug}`)
-              }}
+              onClick={() => go(s.slug)}
               aria-current={active ? "true" : undefined}
               className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-semibold transition-colors leading-none",
+                "inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors leading-none",
                 active
                   ? "bg-[#2C6E49] text-white shadow-sm"
                   : "text-[#2C6E49]/70 hover:text-[#2C6E49] hover:bg-white/60",
               )}
             >
+              {loading && <Loader2 size={11} className="animate-spin" />}
               {shortLabel(s.name)}
             </button>
           )
