@@ -39,11 +39,15 @@ export async function translateAndDetect(opts: {
   targetLang: string
 }): Promise<TranslateOk | TranslateErr> {
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return { ok: false, error: "ANTHROPIC_API_KEY not set" }
   const text = opts.text.trim()
   if (!text) return { ok: false, error: "empty_text" }
   const target = opts.targetLang.toLowerCase().slice(0, 2)
   if (!/^[a-z]{2}$/.test(target)) return { ok: false, error: "bad_target_lang" }
+
+  // No Anthropic key configured → use the free, keyless Google endpoint so
+  // translation works out of the box. (If a key is later added, we use Claude
+  // below for higher quality.)
+  if (!apiKey) return translateViaGoogleFree(text, target)
 
   // Strict prompt: model returns ONLY a JSON object. We parse the first
   // {...} blob to tolerate the rare wrapping prose.
@@ -91,6 +95,40 @@ export async function translateAndDetect(opts: {
     }
     const sourceLang = (parsed.sourceLang ?? "").toLowerCase().slice(0, 2) || "und"
     return { ok: true, translated: parsed.translation, sourceLang }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// Free, keyless translation via Google's public "gtx" endpoint. No account or
+// billing needed — good enough for a low-volume studio inbox. It auto-detects
+// the source language and returns it. Caveats: it's an unofficial endpoint, so
+// it can rate-limit under heavy use; for production-grade quality/volume, set
+// ANTHROPIC_API_KEY and the Claude path above takes over automatically.
+async function translateViaGoogleFree(
+  text: string,
+  target: string,
+): Promise<TranslateOk | TranslateErr> {
+  const url =
+    `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}` +
+    `&dt=t&q=${encodeURIComponent(text)}`
+  try {
+    const r = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    })
+    if (!r.ok) {
+      const body = (await r.text()).slice(0, 120)
+      return { ok: false, error: `google HTTP ${r.status}: ${body}` }
+    }
+    // Response shape: [ [ [translatedChunk, originalChunk, ...], ... ], null, "<srcLang>", ... ]
+    const j = (await r.json()) as unknown
+    const arr = j as [Array<[string, string]>, unknown, string]
+    const segments = Array.isArray(arr?.[0]) ? arr[0] : []
+    const translated = segments.map((seg) => (Array.isArray(seg) ? seg[0] ?? "" : "")).join("")
+    if (!translated.trim()) return { ok: false, error: "empty_translation" }
+    const detected = typeof arr?.[2] === "string" ? arr[2] : "und"
+    const sourceLang = detected.toLowerCase().slice(0, 2) || "und"
+    return { ok: true, translated, sourceLang }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
