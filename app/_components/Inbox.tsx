@@ -60,11 +60,16 @@ type MessageRow = {
   templateName: string | null
   status: string
   errorDetail: string | null
+  /** Emoji reaction the team put on this message (WhatsApp-style). */
+  reaction: string | null
   fromTrainerId: string | null
   fromTrainer: { id: string; name: string } | null
   importedAt: string | null
   createdAt: string
 }
+
+// Emoji the team can react with (long-press a message). More to come.
+const REACTIONS = ["❤️", "🔥", "😄", "😇", "🥳"] as const
 
 type ConversationDetail = {
   id: string
@@ -163,14 +168,50 @@ function MessageBubble({
   fontScale,
   onTranslate,
   translating = false,
+  onReact,
 }: {
   m: MessageRow
   role: "ADMIN" | "TRAINER"
   fontScale: number
   onTranslate?: (messageId: string) => void
   translating?: boolean
+  onReact?: (messageId: string, emoji: string) => void
 }) {
   const isOut = m.direction === "OUTBOUND"
+  // WhatsApp-style action menu: long-press (touch) or right-click (desktop).
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const openMenu = () => setMenuOpen(true)
+  const startPress = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current)
+    pressTimer.current = setTimeout(() => setMenuOpen(true), 450)
+  }
+  const cancelPress = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current)
+      pressTimer.current = null
+    }
+  }
+
+  const copyText = async () => {
+    const text = m.body ?? m.translatedBody ?? ""
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1200)
+    } catch {
+      /* clipboard blocked — no-op */
+    }
+    setMenuOpen(false)
+  }
+
+  const react = (emoji: string) => {
+    // Tapping the current reaction again clears it (toggle), like WhatsApp.
+    onReact?.(m.id, m.reaction === emoji ? "" : emoji)
+    setMenuOpen(false)
+  }
   // Display text: prefer the translation if the server produced one. For
   // inbound that's the admin-language rendering; for outbound it's
   // (somewhat redundantly) what we actually sent to the client. The
@@ -215,10 +256,48 @@ function MessageBubble({
   }
 
   return (
-    <div className={cn("flex", isOut ? "justify-end" : "justify-start")}>
+    <div className={cn("flex relative", isOut ? "justify-end" : "justify-start", m.reaction && "mb-3")}>
+      {/* Action menu (long-press / right-click): reactions + copy. */}
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
+          <div
+            className={cn(
+              "absolute z-30 bottom-full mb-1 flex items-center gap-1 rounded-full bg-white dark:bg-[#233138] shadow-lg border border-gray-100 dark:border-white/10 px-2 py-1",
+              isOut ? "right-0" : "left-0",
+            )}
+          >
+            {REACTIONS.map((e) => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => react(e)}
+                className={cn(
+                  "text-xl leading-none w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10",
+                  m.reaction === e && "bg-gray-100 dark:bg-white/10",
+                )}
+              >
+                {e}
+              </button>
+            ))}
+            <span className="w-px h-5 bg-gray-200 dark:bg-white/10 mx-0.5" />
+            <button
+              type="button"
+              onClick={copyText}
+              className="px-2 h-8 text-xs font-medium text-gray-600 dark:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-white/10"
+            >
+              {copied ? "Copied ✓" : "Copy"}
+            </button>
+          </div>
+        </>
+      )}
       <div
+        onContextMenu={(e) => { e.preventDefault(); openMenu() }}
+        onTouchStart={startPress}
+        onTouchEnd={cancelPress}
+        onTouchMove={cancelPress}
         className={cn(
-          "max-w-[78%] rounded-2xl leading-snug shadow-sm",
+          "relative max-w-[78%] rounded-2xl leading-snug shadow-sm select-none",
           jumbo ? "px-2.5 py-1.5" : "px-3 py-2",
           // WhatsApp bubble colors — light theme + dark theme via prefers-color-scheme
           isOut
@@ -228,6 +307,17 @@ function MessageBubble({
         )}
         style={{ fontSize: `${fontScale * 0.875}rem` }}
       >
+        {/* Reaction badge — small pill hanging off the bottom of the bubble. */}
+        {m.reaction && (
+          <div
+            className={cn(
+              "absolute -bottom-3 flex items-center justify-center w-6 h-6 rounded-full bg-white dark:bg-[#233138] shadow border border-gray-100 dark:border-white/10 text-sm",
+              isOut ? "left-1" : "right-1",
+            )}
+          >
+            {m.reaction}
+          </div>
+        )}
         {m.type === "template" && (
           <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium mb-1 flex items-center gap-1">
             <Sparkles size={11} /> {m.templateName ?? "Template"}
@@ -515,6 +605,7 @@ export default function Inbox({
       templateName: null,
       status: "queued",
       errorDetail: null,
+      reaction: null,
       fromTrainerId: null,
       fromTrainer: null,
       importedAt: null,
@@ -621,6 +712,7 @@ export default function Inbox({
         templateName: null,
         status: "queued",
         errorDetail: null,
+        reaction: null,
         fromTrainerId: null,
         fromTrainer: null,
         importedAt: null,
@@ -746,6 +838,30 @@ export default function Inbox({
         next.delete(messageId)
         return next
       })
+    }
+  }
+
+  // React to a message with an emoji (or clear with ""). Optimistic — the
+  // bubble updates instantly; the server persists + mirrors to the client.
+  const reactMessage = async (messageId: string, emoji: string) => {
+    setDetail((prev) =>
+      prev
+        ? {
+            ...prev,
+            messages: prev.messages.map((m) =>
+              m.id === messageId ? { ...m, reaction: emoji || null } : m
+            ),
+          }
+        : prev
+    )
+    try {
+      await fetch(`/api/whatsapp/messages/${messageId}/react`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji }),
+      })
+    } catch {
+      /* keep the optimistic value; a reload will reconcile */
     }
   }
 
@@ -1013,6 +1129,7 @@ export default function Inbox({
                 fontScale={fontScale}
                 onTranslate={translateMessage}
                 translating={translatingIds.has(m.id)}
+                onReact={reactMessage}
               />
             ))}
             <div ref={messagesEndRef} />

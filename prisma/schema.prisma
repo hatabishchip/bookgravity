@@ -388,6 +388,10 @@ model WhatsAppMessage {
   waMessageId     String?  @unique // Meta's wamid.* for status correlation
   status          String   @default("queued") // queued | sent | delivered | read | failed
   errorDetail     String?
+  // Emoji reaction the studio team put on this message (WhatsApp-style
+  // long-press reaction). Null = none. Also mirrored to the client via the
+  // Cloud API when the 24h window is open.
+  reaction        String?
   fromTrainerId   String?  // OUTBOUND only: which trainer sent it (null = admin or system/booking-confirmation)
   fromTrainer     Trainer? @relation("MessageFromTrainer", fields: [fromTrainerId], references: [id])
   // Marker for messages imported from a previous WhatsApp export (one-time migration).

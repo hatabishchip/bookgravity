@@ -376,6 +376,31 @@ export async function sendWhatsAppText(toPhone: string, text: string): Promise<S
 }
 
 /**
+ * React to a message with an emoji (WhatsApp message reaction). Pass an empty
+ * string as `emoji` to remove a previously sent reaction. `messageWamId` is the
+ * Meta wamid of the message being reacted to. Like free-form text, this only
+ * works inside the 24h customer-service window.
+ */
+export async function sendWhatsAppReaction(
+  toPhone: string,
+  messageWamId: string,
+  emoji: string,
+): Promise<SendResult> {
+  const cfg = getConfig()
+  if (!cfg) return { ok: false, error: "not_configured" }
+  const to = normalizePhone(toPhone)
+  if (!to) return { ok: false, error: "empty_phone" }
+  if (!messageWamId) return { ok: false, error: "no_message_id" }
+  return postMessage(cfg, {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "reaction",
+    reaction: { message_id: messageWamId, emoji },
+  })
+}
+
+/**
  * Template message — required for messages outside the 24h window.
  * `variables` are positional and fill {{1}}, {{2}}, ... in the template body.
  */
