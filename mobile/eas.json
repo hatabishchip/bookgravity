@@ -31,6 +31,14 @@
       "ios": {
         "ascAppId": "PLACEHOLDER_APP_STORE_CONNECT_ID",
         "appleTeamId": "PLACEHOLDER_APPLE_TEAM_ID"
+      },
+      "android": {
+        // Path to the Google Cloud service-account JSON with Play access.
+        // Keep it OUT of git (it's a secret). track "internal" lands the
+        // first upload in Internal testing; promote to production in the
+        // Play Console after review.
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "internal"
       }
     }
   }
