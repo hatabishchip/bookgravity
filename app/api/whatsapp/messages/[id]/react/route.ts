@@ -6,7 +6,7 @@ import { sendWhatsAppReaction } from "@/lib/whatsapp-cloud"
 import { z } from "zod"
 
 // Reactions the team can put on a message (WhatsApp-style). Empty string clears.
-const ALLOWED = ["❤️", "🔥", "😄", "😇", "🥳", ""]
+const ALLOWED = ["👍", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌", ""]
 const Schema = z.object({ emoji: z.string() })
 
 // POST /api/whatsapp/messages/[id]/react  body: { emoji }

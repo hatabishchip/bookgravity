@@ -68,8 +68,8 @@ type MessageRow = {
   createdAt: string
 }
 
-// Emoji the team can react with (long-press a message). More to come.
-const REACTIONS = ["❤️", "🔥", "😄", "😇", "🥳"] as const
+// Emoji the team can react with (long-press a message).
+const REACTIONS = ["👍", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌"] as const
 
 type ConversationDetail = {
   id: string
@@ -263,7 +263,7 @@ function MessageBubble({
           <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
           <div
             className={cn(
-              "absolute z-30 bottom-full mb-1 flex items-center gap-1 rounded-full bg-white dark:bg-[#233138] shadow-lg border border-gray-100 dark:border-white/10 px-2 py-1",
+              "absolute z-30 bottom-full mb-1 flex flex-wrap items-center gap-1 max-w-[280px] rounded-2xl bg-white dark:bg-[#233138] shadow-lg border border-gray-100 dark:border-white/10 px-2 py-1.5",
               isOut ? "right-0" : "left-0",
             )}
           >
