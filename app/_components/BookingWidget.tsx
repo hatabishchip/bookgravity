@@ -564,18 +564,18 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             const hasSlot = availableDates.has(str)
             const isFull = fullyBookedDates.has(str)
             const hadPastClass = pastDatesWithSlots.has(str)
-            const isSelected = selectedDate === str
             const clickable = hasSlot && !isPast
 
-            const dotColor = isSelected
-              ? null
-              : clickable
-                ? "bg-[#2C6E49]"
-                : isFull && !isPast
-                  ? "bg-rose-500"
-                  : isPast && hadPastClass
-                    ? "bg-gray-300"
-                    : null
+            // No persistent "selected day" highlight: tapping a date advances
+            // straight to the time step, and going back shouldn't leave it
+            // filled. Days just show their availability dot.
+            const dotColor = clickable
+              ? "bg-[#2C6E49]"
+              : isFull && !isPast
+                ? "bg-rose-500"
+                : isPast && hadPastClass
+                  ? "bg-gray-300"
+                  : null
             return (
               <button
                 key={str}
@@ -584,15 +584,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 aria-disabled={!clickable}
                 className={cn(
                   "aspect-square rounded-full text-sm font-medium flex flex-col items-center justify-center gap-1 leading-none",
-                  isSelected
-                    ? "bg-[#2C6E49] text-white"
-                    : clickable
-                      ? "text-gray-900 hover:bg-[#2C6E49]/10 cursor-pointer"
-                      : isFull && !isPast
-                        ? "text-gray-500 cursor-not-allowed"
-                        : isPast
-                          ? "text-gray-300 cursor-not-allowed"
-                          : "text-gray-700 cursor-not-allowed",
+                  clickable
+                    ? "text-gray-900 hover:bg-[#2C6E49]/10 cursor-pointer"
+                    : isFull && !isPast
+                      ? "text-gray-500 cursor-not-allowed"
+                      : isPast
+                        ? "text-gray-300 cursor-not-allowed"
+                        : "text-gray-700 cursor-not-allowed",
                 )}
               >
                 <span>{day.getDate()}</span>
