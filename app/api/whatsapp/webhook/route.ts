@@ -75,6 +75,7 @@ type WAMessage = {
   video?: { id: string; mime_type?: string; caption?: string }
   document?: { id: string; mime_type?: string; filename?: string; caption?: string }
   sticker?: { id: string; mime_type?: string }
+  reaction?: { message_id: string; emoji?: string }
   timestamp: string
 }
 type WAContact = { wa_id: string; profile?: { name?: string } }
@@ -186,6 +187,21 @@ export async function POST(request: NextRequest) {
         // -- Incoming messages --
         for (const msg of value.messages ?? []) {
           if (!studioId) continue
+
+          // Client reacted to one of our messages: apply the emoji to that
+          // message instead of saving a junk empty bubble. Empty emoji clears.
+          if (msg.type === "reaction" && msg.reaction?.message_id) {
+            try {
+              await prisma.whatsAppMessage.updateMany({
+                where: { waMessageId: msg.reaction.message_id },
+                data: { reaction: msg.reaction.emoji || null },
+              })
+            } catch (err) {
+              console.error("[whatsapp-webhook] apply inbound reaction failed:", err)
+            }
+            continue
+          }
+
           const { type, body: msgBody, mediaUrl, mediaMime } = describeIncomingMessage(msg)
           const tsSec = parseInt(msg.timestamp || "0", 10)
           const receivedAt = tsSec > 0 ? new Date(tsSec * 1000) : new Date()
