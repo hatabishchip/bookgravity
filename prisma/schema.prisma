@@ -332,6 +332,10 @@ model WhatsAppConversation {
   access            WhatsAppConversationAccess[]
   lastMessageAt     DateTime @default(now())
   lastInboundAt     DateTime?
+  // Cancel-bot state: when a client texts a ticket code we ask "1=yes/0=no" and
+  // park the booking id here until they answer (or it goes stale).
+  pendingCancelBookingId String?
+  pendingCancelAt        DateTime?
   // Unread counters tracked separately per role so admin & trainer don't
   // clobber each other when one of them reads.
   unreadAdmin       Int      @default(0)

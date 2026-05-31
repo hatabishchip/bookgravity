@@ -9,6 +9,7 @@ import {
 import { fetchMetaMedia, forwardInboundToOwner } from "@/lib/whatsapp-cloud"
 import { sendInboundWhatsAppCopy } from "@/lib/mailer"
 import { translateAndDetect } from "@/lib/translate"
+import { handleCancelBotMessage } from "@/lib/cancel-bot"
 
 // WhatsApp Cloud API webhook.
 //
@@ -221,6 +222,20 @@ export async function POST(request: NextRequest) {
               conversationId: convo.id,
               hasTrainer: !!assignedTrainerId,
             })
+
+            // Self-service cancellation bot. No-ops unless the text is a
+            // 3-digit ticket code or a pending "1"/"0" reply, so it's safe to
+            // run on every inbound. Awaited so the reply is sent before we 200.
+            try {
+              await handleCancelBotMessage({
+                studioId,
+                conversationId: convo.id,
+                clientPhone: phone,
+                text: msgBody,
+              })
+            } catch (err) {
+              console.error("[whatsapp-webhook] cancel bot failed:", err)
+            }
 
             // Fire-and-forget translation: if the studio is set up with an
             // admin-facing language and the inbound has text we can translate,
