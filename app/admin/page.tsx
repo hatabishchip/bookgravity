@@ -3,6 +3,7 @@ import { getCurrentUserStudioId } from "@/lib/studio"
 import { format } from "date-fns"
 import Link from "next/link"
 import { Calendar, Users, BookOpen, TrendingUp } from "lucide-react"
+import SellMembershipButton from "@/app/_components/SellMembershipButton"
 
 export default async function AdminDashboard() {
   const today = format(new Date(), "yyyy-MM-dd")
@@ -40,7 +41,10 @@ export default async function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="text-xl lg:text-2xl font-bold text-gray-900 mb-1 lg:mb-2">Dashboard</h1>
+      <div className="flex items-start justify-between gap-3 mb-1 lg:mb-2">
+        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Dashboard</h1>
+        <SellMembershipButton />
+      </div>
       <p className="text-gray-500 text-xs lg:text-sm mb-6 lg:mb-8">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
 
       {/* Stats */}

@@ -8,6 +8,7 @@ import { whatsappLink } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
+import SellMembershipButton from "@/app/_components/SellMembershipButton"
 
 type Slot = {
   id: string
@@ -332,16 +333,19 @@ export default function TrainerSchedulePage() {
       {/* Compact title — date subtitle moved into day cards, salary moved to top bar */}
       <div className="flex items-center justify-between gap-3 mb-3 lg:mb-4">
         <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Schedule</h1>
-        {salary && (
-          <Link
-            href="/trainer/salary"
-            className="hidden lg:block text-right leading-tight hover:opacity-80"
-            title="Earnings this month — tap for breakdown"
-          >
-            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">This month</div>
-            <div className="text-sm font-semibold text-gray-700">Rp {formatIDR(salary.total)}</div>
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          <SellMembershipButton />
+          {salary && (
+            <Link
+              href="/trainer/salary"
+              className="hidden lg:block text-right leading-tight hover:opacity-80"
+              title="Earnings this month — tap for breakdown"
+            >
+              <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">This month</div>
+              <div className="text-sm font-semibold text-gray-700">Rp {formatIDR(salary.total)}</div>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* View switcher */}
