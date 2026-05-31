@@ -23,7 +23,7 @@ export async function POST(
     include: { conversation: { select: { id: true, studioId: true } } },
   })
   if (!message || message.conversation.studioId !== ctx.studioId) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
+    return NextResponse.json({ error: "not_found", message: "Сообщение не найдено." }, { status: 404 })
   }
 
   // Trainers may only translate messages in chats they have access to.
@@ -33,12 +33,15 @@ export async function POST(
       select: { id: true },
     })
     if (!trainer || !(await trainerHasAccess(message.conversation.id, trainer.id))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      return NextResponse.json({ error: "forbidden", message: "Нет доступа к этому чату." }, { status: 403 })
     }
   }
 
   if (!message.body || !message.body.trim()) {
-    return NextResponse.json({ error: "nothing_to_translate" }, { status: 400 })
+    return NextResponse.json(
+      { error: "nothing_to_translate", message: "В сообщении нет текста для перевода." },
+      { status: 400 },
+    )
   }
 
   const studio = await prisma.studio.findUnique({
@@ -55,7 +58,12 @@ export async function POST(
 
   const t = await translateAndDetect({ text: message.body, targetLang: target })
   if (!t.ok) {
-    return NextResponse.json({ error: t.error }, { status: 502 })
+    const message =
+      t.error === "ANTHROPIC_API_KEY not set"
+        ? "Перевод не настроен на сервере (нет ключа ANTHROPIC_API_KEY)."
+        : `Сервис перевода недоступен: ${t.error}`
+    console.error("[translate] failed:", t.error)
+    return NextResponse.json({ error: t.error, message }, { status: 502 })
   }
 
   // If the message is already in the target language there's nothing to show —

@@ -818,6 +818,11 @@ export default function Inbox({
         setSendError(d?.message || "Не удалось перевести сообщение.")
         return
       }
+      // Already in the target language — nothing to show; tell the user briefly.
+      if (d.alreadyInTarget && !d.translatedBody) {
+        setSendError("Сообщение уже на нужном языке.")
+        setTimeout(() => setSendError(null), 2500)
+      }
       setDetail((prev) =>
         prev
           ? {
