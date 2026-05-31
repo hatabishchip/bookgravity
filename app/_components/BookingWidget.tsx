@@ -1024,33 +1024,37 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                             : withinCutoff
                               ? "border-gray-200 bg-gray-50 cursor-not-allowed"
                               : isFull
-                                ? "border-rose-100 bg-rose-50/40 cursor-not-allowed"
+                                ? "border-gray-200 bg-gray-50 cursor-not-allowed"
                                 : "border-amber-100 bg-amber-50/40 cursor-not-allowed"
                         )}
                       >
                         <div className="flex items-center gap-3">
                           <div className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
-                            canBook ? "bg-[#2C6E49]/10" : withinCutoff ? "bg-gray-200" : isFull ? "bg-rose-100" : "bg-amber-100"
+                            canBook ? "bg-[#2C6E49]/10" : withinCutoff ? "bg-gray-200" : isFull ? "bg-gray-200" : "bg-amber-100"
                           )}>
-                            <Clock size={18} className={canBook ? "text-[#2C6E49]" : withinCutoff ? "text-gray-400" : isFull ? "text-rose-500" : "text-amber-600"} />
+                            <Clock size={18} className={canBook ? "text-[#2C6E49]" : withinCutoff ? "text-gray-400" : isFull ? "text-gray-400" : "text-amber-600"} />
                           </div>
                           <div className="min-w-0">
-                            <div className={cn("font-semibold flex items-center gap-2 flex-wrap", isFull ? "text-rose-900 line-through decoration-rose-300" : withinCutoff ? "text-gray-500" : "text-gray-800")}>
+                            <div className={cn("font-semibold flex items-center gap-2 flex-wrap", isFull ? "text-gray-400" : withinCutoff ? "text-gray-500" : "text-gray-800")}>
                               <span>{formatTime(slot.startTime)} – {clientEndTime(slot.startTime)}</span>
-                              {slot.classType === "KIDS" ? (
-                                <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full no-underline">
-                                  Kids
-                                </span>
-                              ) : slot.classType === "PRIVATE" ? (
-                                <span className="text-[10px] font-bold uppercase bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full no-underline">
-                                  Private
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-bold uppercase bg-[#2C6E49]/10 text-[#2C6E49] px-2 py-0.5 rounded-full no-underline">
-                                  Group
-                                </span>
-                              )}
+                              {(() => {
+                                const label = slot.classType === "KIDS" ? "Kids" : slot.classType === "PRIVATE" ? "Private" : "Group"
+                                // Sold-out cards fade everything to pale grey;
+                                // otherwise each class type keeps its colour.
+                                const color = isFull
+                                  ? "bg-gray-200 text-gray-400"
+                                  : slot.classType === "KIDS"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : slot.classType === "PRIVATE"
+                                      ? "bg-purple-100 text-purple-700"
+                                      : "bg-[#2C6E49]/10 text-[#2C6E49]"
+                                return (
+                                  <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded-full no-underline", color)}>
+                                    {label}
+                                  </span>
+                                )
+                              })()}
                             </div>
                             <div className={cn("text-sm", withinCutoff ? "text-gray-400" : "text-gray-400")}>
                               {withinCutoff
@@ -1078,7 +1082,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                           )}
                           <div className={cn(
                             "text-[11px] mt-0.5",
-                            canBook ? "text-[#2C6E49]/70" : withinCutoff ? "text-gray-400" : isFull ? "text-rose-500/70" : "text-amber-600/70"
+                            canBook ? "text-[#2C6E49]/70" : withinCutoff ? "text-gray-400" : isFull ? "text-rose-500 font-semibold" : "text-amber-600/70"
                           )}>
                             {withinCutoff ? "Within 2h of start" : isFull ? `${slot.bookedCount}/${slot.maxCapacity} booked` : canBook ? "Available" : `${spotsLeft} free`}
                           </div>
