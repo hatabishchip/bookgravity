@@ -54,6 +54,7 @@ model Studio {
   payments     TrainerPayment[]
   expenses     Expense[]
   services     AdditionalService[]
+  memberships  Membership[]
   whatsappConversations WhatsAppConversation[]
 }
 
@@ -216,6 +217,12 @@ model Booking {
   checkedIn      Boolean          @default(false)
   notes          String?
   services       BookingService[]
+  // When a trainer marks this class as paid out of the client's membership
+  // (paymentType = "MEMBERSHIP"), this points at the Membership batch a class
+  // was deducted from. Lets us mark "из абонемента" on the ticket and restore
+  // the class if the booking is later cancelled.
+  membershipId   String?
+  membership     Membership?      @relation(fields: [membershipId], references: [id])
   // Diagnostic fields for the trainer's WhatsApp notification — populated by
   // the booking POST handler so we can audit why a trainer didn't get pinged
   // even though the message was "accepted" by Meta. Values:
@@ -248,6 +255,44 @@ model BookingService {
   service   AdditionalService @relation(fields: [serviceId], references: [id])
 
   @@unique([bookingId, serviceId])
+}
+
+// ---------------------------------------------------------------------------
+// Memberships (абонементы)
+//
+// A membership is a prepaid batch of classes a client buys at the studio. Each
+// purchase is its own row (so we keep who sold it + how it was paid), keyed by
+// the client's phone and scoped to one studio (a Canggu pass is not valid in
+// Ubud). The client's available balance for a phone is SUM(remainingClasses)
+// across their rows for that studio.
+//
+// Deduction is trainer-only: when a trainer marks a class as paid out of the
+// membership, we decrement the oldest row with remainingClasses > 0 and link
+// the booking via Booking.membershipId. Clients never spend a class themselves
+// — the booking flow only shows them an informational balance.
+//
+// Always sold as 5 classes; balance never expires.
+// ---------------------------------------------------------------------------
+model Membership {
+  id               String   @id @default(cuid())
+  studioId         String
+  studio           Studio   @relation(fields: [studioId], references: [id])
+  clientPhone      String   // same format as Booking.clientPhone
+  clientName       String?
+  totalClasses     Int      @default(5)
+  remainingClasses Int      @default(5)
+  // How the membership purchase itself was paid (reuses the booking payment
+  // vocabulary): CASH | EDC | QR | TRANSFER.
+  paymentType      String   @default("CASH")
+  // Who sold it — a trainer or an admin. userId + a display label for audit.
+  soldByUserId     String?
+  soldByName       String?
+  note             String?
+  bookings         Booking[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([studioId, clientPhone])
 }
 
 // ---------------------------------------------------------------------------
