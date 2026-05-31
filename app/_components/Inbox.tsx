@@ -161,10 +161,14 @@ function MessageBubble({
   m,
   role,
   fontScale,
+  onTranslate,
+  translating = false,
 }: {
   m: MessageRow
   role: "ADMIN" | "TRAINER"
   fontScale: number
+  onTranslate?: (messageId: string) => void
+  translating?: boolean
 }) {
   const isOut = m.direction === "OUTBOUND"
   // Display text: prefer the translation if the server produced one. For
@@ -318,12 +322,30 @@ function MessageBubble({
           </div>
         )}
 
+        {/* Who answered — persists across reassignment (stored per message).
+            Shown to admins and trainers alike: trainer name for a trainer's
+            reply, "Admin" for an admin's typed reply. */}
         {m.fromTrainer && isOut && (
           <div className="text-[10px] text-gray-500 mt-1 italic">— {m.fromTrainer.name}</div>
         )}
-        {!m.fromTrainer && isOut && role === "ADMIN" && m.type === "text" && (
+        {!m.fromTrainer && isOut && m.type === "text" && (
           <div className="text-[10px] text-gray-500 mt-1 italic">— Admin</div>
         )}
+
+        {/* On-demand translate for client (inbound) messages — admin only.
+            Hidden once a translation exists (it's already shown above). */}
+        {!isOut && role === "ADMIN" && onTranslate && !hasTranslation &&
+          (m.type === "text" || m.type === "image" || m.type === "video") &&
+          !!(m.body && m.body.trim()) && (
+            <button
+              type="button"
+              onClick={() => onTranslate(m.id)}
+              disabled={translating}
+              className="mt-1 inline-flex items-center gap-1 text-[11px] text-[#2C6E49] hover:underline disabled:opacity-50"
+            >
+              🌐 {translating ? "Перевод…" : "Перевести"}
+            </button>
+          )}
 
         {m.errorDetail && (
           <div className="text-[10px] text-red-600 mt-1">Error: {m.errorDetail}</div>
@@ -365,6 +387,7 @@ export default function Inbox({
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [sendError, setSendError] = useState<string | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
+  const [translatingIds, setTranslatingIds] = useState<Set<string>>(new Set())
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -682,10 +705,48 @@ export default function Inbox({
       })
       if (r.ok) {
         const d = await r.json()
-        setDetail((prev) => (prev ? { ...prev, assignedTrainer: d.assignedTrainer } : prev))
+        setDetail((prev) =>
+          prev
+            ? { ...prev, assignedTrainer: d.assignedTrainer, accessTrainers: d.accessTrainers ?? prev.accessTrainers }
+            : prev
+        )
         await refreshList()
       }
     } catch {}
+  }
+
+  // On-demand translation of a single client message into the studio's
+  // configured inbox language. Updates the bubble in place on success.
+  const translateMessage = async (messageId: string) => {
+    setTranslatingIds((prev) => new Set(prev).add(messageId))
+    try {
+      const r = await fetch(`/api/whatsapp/messages/${messageId}/translate`, { method: "POST" })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setSendError(d?.message || "Не удалось перевести сообщение.")
+        return
+      }
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === messageId
+                  ? { ...m, translatedBody: d.translatedBody ?? m.translatedBody, detectedLang: d.detectedLang ?? m.detectedLang }
+                  : m
+              ),
+            }
+          : prev
+      )
+    } catch {
+      setSendError("Сеть недоступна — перевод не удался.")
+    } finally {
+      setTranslatingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(messageId)
+        return next
+      })
+    }
   }
 
   const windowOpen = useMemo(() => {
@@ -945,7 +1006,14 @@ export default function Inbox({
         ) : (
           <>
             {detail?.messages.map((m) => (
-              <MessageBubble key={m.id} m={m} role={role} fontScale={fontScale} />
+              <MessageBubble
+                key={m.id}
+                m={m}
+                role={role}
+                fontScale={fontScale}
+                onTranslate={translateMessage}
+                translating={translatingIds.has(m.id)}
+              />
             ))}
             <div ref={messagesEndRef} />
           </>

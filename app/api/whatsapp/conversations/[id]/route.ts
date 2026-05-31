@@ -112,9 +112,26 @@ export async function PATCH(
     })
     if (!trainer) return NextResponse.json({ error: "Trainer not in this studio" }, { status: 400 })
   }
-  const updated = await prisma.whatsAppConversation.update({
+  // Exclusive transfer: the chat moves to the new trainer. The previous
+  // trainer(s) lose access (it disappears from their inbox); the new trainer
+  // gains it. Admin always sees every chat regardless of these rows. Passing
+  // null unassigns entirely (admin-only). Message history + the per-message
+  // "who answered" tags are untouched, so the audit trail survives a transfer.
+  await prisma.$transaction(async (tx) => {
+    await tx.whatsAppConversation.update({
+      where: { id: convo.id },
+      data: { assignedTrainerId: assignedTrainerId ?? null },
+    })
+    await tx.whatsAppConversationAccess.deleteMany({ where: { conversationId: convo.id } })
+    if (assignedTrainerId) {
+      await tx.whatsAppConversationAccess.create({
+        data: { conversationId: convo.id, trainerId: assignedTrainerId },
+      })
+    }
+  })
+
+  const updated = await prisma.whatsAppConversation.findUnique({
     where: { id: convo.id },
-    data: { assignedTrainerId: assignedTrainerId ?? null },
     include: {
       assignedTrainer: { select: { id: true, name: true, color: true } },
       access: {
@@ -122,20 +139,8 @@ export async function PATCH(
       },
     },
   })
-  // Also grant the new trainer access (additive — doesn't revoke anyone).
-  if (assignedTrainerId) {
-    await prisma.whatsAppConversationAccess
-      .upsert({
-        where: {
-          conversationId_trainerId: { conversationId: convo.id, trainerId: assignedTrainerId },
-        },
-        update: {},
-        create: { conversationId: convo.id, trainerId: assignedTrainerId },
-      })
-      .catch(() => {})
-  }
   return NextResponse.json({
-    assignedTrainer: updated.assignedTrainer,
-    accessTrainers: updated.access.map((a) => a.trainer),
+    assignedTrainer: updated?.assignedTrainer ?? null,
+    accessTrainers: (updated?.access ?? []).map((a) => a.trainer),
   })
 }
