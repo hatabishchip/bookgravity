@@ -72,11 +72,14 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
       </nav>
 
       <div className="p-4 border-t border-gray-100 space-y-1">
-        <a href="/" target="_blank" rel="noopener noreferrer"
+        {/* Open the studio's own booking page in the SAME window (the NextAuth
+            session cookie rides along, so the page knows you're the admin and
+            shows a "back to dashboard" badge — no re-login). */}
+        <Link href={studio?.slug ? `/${studio.slug}` : "/"}
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">
           <ExternalLink size={18} />
           <span className="flex-1">Booking page</span>
-        </a>
+        </Link>
         <Link href="/admin/settings"
           className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
             settingsActive ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50"

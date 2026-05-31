@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, BookOpen, Banknote, LogOut, KeyRound, X, Menu } from "lucide-react"
+import { Calendar, BookOpen, Banknote, LogOut, KeyRound, X, Menu, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 
@@ -72,7 +72,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 function SidebarContent({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
   const [showChangePassword, setShowChangePassword] = useState(false)
-  const [studio, setStudio] = useState<{ name: string } | null>(null)
+  const [studio, setStudio] = useState<{ name: string; slug?: string } | null>(null)
 
   useEffect(() => { onClose() }, [pathname])
 
@@ -114,6 +114,14 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
       </nav>
 
       <div className="p-4 border-t border-gray-100 space-y-1">
+        {/* Open the studio's booking page in the SAME window — the session
+            cookie rides along so the page shows you're signed in (trainer)
+            with a way back, and you're never logged out. */}
+        <Link href={studio?.slug ? `/${studio.slug}` : "/"}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+          <ExternalLink size={18} />
+          Booking page
+        </Link>
         <button onClick={() => setShowChangePassword(true)}
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full transition-colors">
           <KeyRound size={18} />

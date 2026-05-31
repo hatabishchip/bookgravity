@@ -83,12 +83,16 @@ export default async function StudioBookingPage({
           </div>
           <div className="flex items-center flex-shrink-0">
             {dashboardHref && signedInLabel ? (
+              // Signed-in staff: show clearly that they're still authenticated
+              // (no re-login needed) with a one-tap way back to their dashboard.
               <Link
                 href={dashboardHref}
                 aria-label={`Open ${signedInLabel} dashboard`}
-                className="text-gray-300 hover:text-[#2C6E49] text-xs"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-medium px-3 py-1.5 hover:bg-[#2C6E49]/20"
               >
-                {signedInLabel}
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
+                {signedInLabel === "admin" ? "Signed in as admin" : "Signed in as trainer"}
+                <span aria-hidden>›</span>
               </Link>
             ) : (
               <Link
