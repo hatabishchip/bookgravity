@@ -169,7 +169,6 @@ function MessageBubble({
   onTranslate,
   translating = false,
   onReact,
-  onDelete,
 }: {
   m: MessageRow
   role: "ADMIN" | "TRAINER"
@@ -180,9 +179,6 @@ function MessageBubble({
   onDelete?: (messageId: string) => void
 }) {
   const isOut = m.direction === "OUTBOUND"
-  // Delete is allowed only for OUR sent messages that the client hasn't read
-  // yet (sent / delivered, but not read). Inbound + read + still-queued = no.
-  const canDelete = isOut && (m.status === "sent" || m.status === "delivered")
   // WhatsApp-style action menu: long-press (touch) or right-click (desktop).
   const [menuOpen, setMenuOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -289,8 +285,9 @@ function MessageBubble({
               ))}
             </div>
 
-            {/* Menu */}
-            <div className="rounded-2xl bg-white dark:bg-[#233138] shadow-xl overflow-hidden divide-y divide-gray-100 dark:divide-white/10">
+            {/* Menu — Copy only (WhatsApp Cloud API has no recall, so there's
+                no real Delete to offer). */}
+            <div className="rounded-2xl bg-white dark:bg-[#233138] shadow-xl overflow-hidden">
               <button
                 type="button"
                 onClick={copyText}
@@ -299,16 +296,6 @@ function MessageBubble({
                 {copied ? "Copied ✓" : "Copy"}
                 <span aria-hidden>📋</span>
               </button>
-              {canDelete && onDelete && (
-                <button
-                  type="button"
-                  onClick={() => { onDelete(m.id); setMenuOpen(false) }}
-                  className="w-full flex items-center justify-between px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
-                >
-                  Delete
-                  <span aria-hidden>🗑️</span>
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -892,28 +879,6 @@ export default function Inbox({
     }
   }
 
-  // Delete one of our own messages (outbound + not yet read). Optimistically
-  // removes it from the thread; the server enforces the same rule.
-  const deleteMessage = async (messageId: string) => {
-    const prevMessages = detail?.messages
-    setDetail((prev) =>
-      prev ? { ...prev, messages: prev.messages.filter((m) => m.id !== messageId) } : prev
-    )
-    try {
-      const r = await fetch(`/api/whatsapp/messages/${messageId}`, { method: "DELETE" })
-      if (!r.ok) {
-        const d = await r.json().catch(() => ({}))
-        setSendError(d?.message || "Не удалось удалить сообщение.")
-        // Restore the thread on failure.
-        setDetail((prev) => (prev && prevMessages ? { ...prev, messages: prevMessages } : prev))
-        return
-      }
-      await refreshList()
-    } catch {
-      setDetail((prev) => (prev && prevMessages ? { ...prev, messages: prevMessages } : prev))
-    }
-  }
-
   const windowOpen = useMemo(() => {
     if (!detail?.lastInboundAt) return false
     return Date.now() - new Date(detail.lastInboundAt).getTime() < ONE_DAY_MS
@@ -1179,7 +1144,6 @@ export default function Inbox({
                 onTranslate={translateMessage}
                 translating={translatingIds.has(m.id)}
                 onReact={reactMessage}
-                onDelete={deleteMessage}
               />
             ))}
             <div ref={messagesEndRef} />
