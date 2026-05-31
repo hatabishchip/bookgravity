@@ -33,6 +33,10 @@ type Booking = {
   notes?: string
   services: { service: Service }[]
   slot: { id: string }
+  // Membership: how many classes the client has left at this studio, and the
+  // pass id this booking was charged to (set when paymentType === "MEMBERSHIP").
+  membershipRemaining?: number
+  membershipId?: string | null
 }
 
 type Salary = {
@@ -208,11 +212,41 @@ export default function TrainerSchedulePage() {
   const updateBooking = async (id: string, data: Record<string, string>) => {
     setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...data } : b)))
     try {
-      await fetch(`/api/trainer/bookings/${id}`, {
+      const res = await fetch(`/api/trainer/bookings/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       })
+      if (!res.ok) {
+        // e.g. tried to charge a membership with no balance left — revert.
+        let msg = "Не удалось обновить оплату."
+        try {
+          const err = await res.json()
+          if (err?.message) msg = err.message
+        } catch { /* ignore */ }
+        alert(msg)
+        if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+        return
+      }
+      // Apply authoritative server fields (membershipRemaining, membershipId,
+      // paymentStatus) so the card reflects the real balance after a deduction.
+      const saved = await res.json()
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === id
+            ? {
+                ...b,
+                paymentType: saved.paymentType ?? b.paymentType,
+                paymentStatus: saved.paymentStatus ?? b.paymentStatus,
+                membershipId: saved.membershipId ?? null,
+                membershipRemaining:
+                  typeof saved.membershipRemaining === "number"
+                    ? saved.membershipRemaining
+                    : b.membershipRemaining,
+              }
+            : b
+        )
+      )
     } catch {
       // Network error — resync from server
       if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
@@ -588,6 +622,27 @@ export default function TrainerSchedulePage() {
                       {/* Payment method buttons */}
                       <div className="mt-4">
                         <div className="text-xs text-gray-500 font-medium mb-2">Payment method</div>
+
+                        {/* Pay from membership — only when the client has a pass
+                            with classes left (or this booking already used one). */}
+                        {((b.membershipRemaining ?? 0) > 0 || b.paymentType === "MEMBERSHIP") && (
+                          <button
+                            type="button"
+                            onClick={() => handlePaymentMethod(b, "MEMBERSHIP")}
+                            className={cn(
+                              "w-full mb-1.5 py-2.5 rounded-lg text-sm font-semibold border touch-manipulation flex items-center justify-center gap-2",
+                              b.paymentType === "MEMBERSHIP"
+                                ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                                : "bg-[#2C6E49]/5 text-[#2C6E49] border-[#2C6E49]/30 hover:border-[#2C6E49]/60"
+                            )}
+                          >
+                            🎟️
+                            {b.paymentType === "MEMBERSHIP"
+                              ? `Списано с абонемента · осталось ${b.membershipRemaining ?? 0}`
+                              : `Списать с абонемента (${b.membershipRemaining ?? 0} осталось)`}
+                          </button>
+                        )}
+
                         <div className="grid grid-cols-4 gap-1.5">
                           {PAYMENT_METHODS.map((pm) => {
                             const isActive = b.paymentType === pm.value

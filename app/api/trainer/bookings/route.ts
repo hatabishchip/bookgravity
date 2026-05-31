@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { getStudioMembershipBalances, phoneTail } from "@/lib/membership"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireTrainer()
@@ -27,5 +28,13 @@ export async function GET(request: NextRequest) {
     orderBy: [{ slot: { date: "asc" } }, { slot: { startTime: "asc" } }],
   })
 
-  return NextResponse.json(bookings)
+  // Attach each client's current membership balance so the trainer can offer
+  // "pay from membership" only when there's a class to spend.
+  const balances = await getStudioMembershipBalances(ctx.studioId)
+  const withBalance = bookings.map((b) => ({
+    ...b,
+    membershipRemaining: balances.get(phoneTail(b.clientPhone)) ?? 0,
+  }))
+
+  return NextResponse.json(withBalance)
 }
