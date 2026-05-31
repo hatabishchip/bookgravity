@@ -169,6 +169,7 @@ function MessageBubble({
   onTranslate,
   translating = false,
   onReact,
+  onDelete,
 }: {
   m: MessageRow
   role: "ADMIN" | "TRAINER"
@@ -176,8 +177,12 @@ function MessageBubble({
   onTranslate?: (messageId: string) => void
   translating?: boolean
   onReact?: (messageId: string, emoji: string) => void
+  onDelete?: (messageId: string) => void
 }) {
   const isOut = m.direction === "OUTBOUND"
+  // Delete is allowed only for OUR sent messages that the client hasn't read
+  // yet (sent / delivered, but not read). Inbound + read + still-queued = no.
+  const canDelete = isOut && (m.status === "sent" || m.status === "delivered")
   // WhatsApp-style action menu: long-press (touch) or right-click (desktop).
   const [menuOpen, setMenuOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -257,39 +262,56 @@ function MessageBubble({
 
   return (
     <div className={cn("flex relative", isOut ? "justify-end" : "justify-start", m.reaction && "mb-3")}>
-      {/* Action menu (long-press / right-click): reactions + copy. */}
+      {/* Action sheet (long-press / right-click). Centered overlay with a dim
+          backdrop — like WhatsApp — so reactions never clip at screen edges.
+          Reaction row scrolls horizontally on one line; the menu below has
+          just Copy + Delete (Delete only for our unread sent messages). */}
       {menuOpen && (
-        <>
-          <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
-          <div
-            className={cn(
-              "absolute z-30 bottom-full mb-1 flex flex-wrap items-center gap-1 max-w-[280px] rounded-2xl bg-white dark:bg-[#233138] shadow-lg border border-gray-100 dark:border-white/10 px-2 py-1.5",
-              isOut ? "right-0" : "left-0",
-            )}
-          >
-            {REACTIONS.map((e) => (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
+          onClick={() => setMenuOpen(false)}
+        >
+          <div className="flex flex-col items-stretch gap-2 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
+            {/* Reaction bar */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar rounded-full bg-white dark:bg-[#233138] shadow-xl px-2 py-2">
+              {REACTIONS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => react(e)}
+                  className={cn(
+                    "flex-shrink-0 text-2xl leading-none w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/10",
+                    m.reaction === e && "bg-gray-100 dark:bg-white/10",
+                  )}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+
+            {/* Menu */}
+            <div className="rounded-2xl bg-white dark:bg-[#233138] shadow-xl overflow-hidden divide-y divide-gray-100 dark:divide-white/10">
               <button
-                key={e}
                 type="button"
-                onClick={() => react(e)}
-                className={cn(
-                  "text-xl leading-none w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10",
-                  m.reaction === e && "bg-gray-100 dark:bg-white/10",
-                )}
+                onClick={copyText}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-white/5"
               >
-                {e}
+                {copied ? "Copied ✓" : "Copy"}
+                <span aria-hidden>📋</span>
               </button>
-            ))}
-            <span className="w-px h-5 bg-gray-200 dark:bg-white/10 mx-0.5" />
-            <button
-              type="button"
-              onClick={copyText}
-              className="px-2 h-8 text-xs font-medium text-gray-600 dark:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-white/10"
-            >
-              {copied ? "Copied ✓" : "Copy"}
-            </button>
+              {canDelete && onDelete && (
+                <button
+                  type="button"
+                  onClick={() => { onDelete(m.id); setMenuOpen(false) }}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+                >
+                  Delete
+                  <span aria-hidden>🗑️</span>
+                </button>
+              )}
+            </div>
           </div>
-        </>
+        </div>
       )}
       <div
         onContextMenu={(e) => { e.preventDefault(); openMenu() }}
@@ -305,7 +327,7 @@ function MessageBubble({
             : "bg-white text-gray-900 border border-gray-100 dark:bg-[#1F2C34] dark:text-white dark:border-transparent",
           m.importedAt && "opacity-80",
         )}
-        style={{ fontSize: `${fontScale * 0.875}rem` }}
+        style={{ fontSize: `${fontScale * 0.875}rem`, WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
       >
         {/* Reaction badge — small pill hanging off the bottom of the bubble. */}
         {m.reaction && (
@@ -870,6 +892,28 @@ export default function Inbox({
     }
   }
 
+  // Delete one of our own messages (outbound + not yet read). Optimistically
+  // removes it from the thread; the server enforces the same rule.
+  const deleteMessage = async (messageId: string) => {
+    const prevMessages = detail?.messages
+    setDetail((prev) =>
+      prev ? { ...prev, messages: prev.messages.filter((m) => m.id !== messageId) } : prev
+    )
+    try {
+      const r = await fetch(`/api/whatsapp/messages/${messageId}`, { method: "DELETE" })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        setSendError(d?.message || "Не удалось удалить сообщение.")
+        // Restore the thread on failure.
+        setDetail((prev) => (prev && prevMessages ? { ...prev, messages: prevMessages } : prev))
+        return
+      }
+      await refreshList()
+    } catch {
+      setDetail((prev) => (prev && prevMessages ? { ...prev, messages: prevMessages } : prev))
+    }
+  }
+
   const windowOpen = useMemo(() => {
     if (!detail?.lastInboundAt) return false
     return Date.now() - new Date(detail.lastInboundAt).getTime() < ONE_DAY_MS
@@ -1135,6 +1179,7 @@ export default function Inbox({
                 onTranslate={translateMessage}
                 translating={translatingIds.has(m.id)}
                 onReact={reactMessage}
+                onDelete={deleteMessage}
               />
             ))}
             <div ref={messagesEndRef} />

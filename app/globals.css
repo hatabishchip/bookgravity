@@ -20,3 +20,12 @@ html, body {
 * {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Hide scrollbar but keep scrolling (used by the inbox reaction row). */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
