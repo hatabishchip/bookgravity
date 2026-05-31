@@ -286,6 +286,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     clientEmail: "",
   })
   const [lookupState, setLookupState] = useState<"idle" | "loading" | "found" | "new">("idle")
+  // Informational membership balance for this phone at this studio (0 = none).
+  // Clients can't spend a class — this is shown for awareness only; a trainer
+  // deducts it at the studio.
+  const [membershipLeft, setMembershipLeft] = useState(0)
   // Track which phone we last fetched a lookup for to avoid re-fetching on every keystroke
   const lastLookedUpPhoneRef = useRef("")
 
@@ -304,9 +308,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     lastLookedUpPhoneRef.current = form.clientPhone
     setLookupState("loading")
     const ctrl = new AbortController()
-    fetch(`/api/lookup-client?phone=${encodeURIComponent(form.clientPhone)}`, { signal: ctrl.signal })
-      .then((r) => r.ok ? r.json() : { name: null, email: null })
-      .then((d: { name: string | null; email: string | null }) => {
+    fetch(
+      `/api/lookup-client?phone=${encodeURIComponent(form.clientPhone)}${studioParam ? `&${studioParam}` : ""}`,
+      { signal: ctrl.signal }
+    )
+      .then((r) => r.ok ? r.json() : { name: null, email: null, membershipRemaining: 0 })
+      .then((d: { name: string | null; email: string | null; membershipRemaining?: number }) => {
+        setMembershipLeft(d.membershipRemaining ?? 0)
         if (d.name || d.email) {
           setLookupState("found")
           setForm((prev) => ({
@@ -320,7 +328,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       })
       .catch(() => { setLookupState("idle") })
     return () => ctrl.abort()
-  }, [form.clientPhone])
+  }, [form.clientPhone, studioParam])
 
   const today = startOfDay(new Date())
 
@@ -1167,6 +1175,17 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 </div>
               )
             })()}
+
+            {/* Informational membership balance — clients can't spend a class
+                here; a trainer deducts it at the studio. Shown once the lookup
+                finds an active pass for this phone at this studio. */}
+            {membershipLeft > 0 && (
+              <div className="rounded-xl border border-[#2C6E49]/30 bg-[#2C6E49]/5 px-4 py-3 text-sm text-[#2C6E49]">
+                🎟️ You have <span className="font-semibold">{membershipLeft}</span>{" "}
+                {membershipLeft === 1 ? "class" : "classes"} left on your membership.{" "}
+                <span className="text-[#2C6E49]/70">Your trainer will check you in at the studio.</span>
+              </div>
+            )}
 
             {(() => {
               const country = detectCountry(form.clientPhone)
