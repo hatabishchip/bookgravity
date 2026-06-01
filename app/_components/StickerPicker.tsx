@@ -26,12 +26,12 @@ type Category = {
 const CATEGORIES: Category[] = [
   {
     id: "recent",
-    label: "Часто",
+    label: "Frequent",
     emojis: [], // populated from localStorage at runtime
   },
   {
     id: "faces",
-    label: "Эмоции",
+    label: "Smileys",
     emojis: [
       "😀", "😂", "🤣", "😊", "🥰", "😍", "😘", "🥲",
       "😎", "🤩", "🥳", "🤔", "😴", "🙄", "😏", "😒",
@@ -40,7 +40,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "gestures",
-    label: "Жесты",
+    label: "Gestures",
     emojis: [
       "👍", "👎", "👌", "✌️", "🤞", "🤟", "🤙", "👏",
       "🙏", "💪", "🤝", "🙌", "👋", "🫶", "🫱", "🫲",
@@ -48,7 +48,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "love",
-    label: "Сердечки",
+    label: "Hearts",
     emojis: [
       "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍",
       "💔", "❣️", "💕", "💖", "💗", "💓", "💞", "💝",
@@ -56,7 +56,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "celebration",
-    label: "Праздник",
+    label: "Party",
     emojis: [
       "🎉", "🎊", "🥂", "🍾", "🎁", "🎂", "🍰", "🎈",
       "🎆", "🎇", "✨", "💫", "🌟", "⭐", "🔥", "💯",
@@ -64,7 +64,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "fitness",
-    label: "Спорт",
+    label: "Sport",
     emojis: [
       "🧘", "🧘‍♀️", "🧘‍♂️", "🤸", "🤸‍♀️", "🤸‍♂️", "🏃", "🏃‍♀️",
       "🏃‍♂️", "💃", "🕺", "🏋️", "🏋️‍♀️", "🤾", "🏆", "🥇",
@@ -72,7 +72,7 @@ const CATEGORIES: Category[] = [
   },
   {
     id: "nature",
-    label: "Природа",
+    label: "Nature",
     emojis: [
       "🌸", "🌺", "🌻", "🌹", "🌷", "🌿", "🍀", "🌴",
       "🌊", "☀️", "🌙", "⭐", "🌈", "❄️", "🦋", "🐢",
@@ -170,7 +170,7 @@ export default function StickerPicker({ onPick }: StickerPickerProps) {
         {activeEmojis.length === 0 && activeCat === "recent" && (
           <div className="col-span-full text-center text-xs text-gray-500 dark:text-gray-400 py-8">
             <Search size={20} className="inline mb-1 opacity-50" />
-            <div>Тут появятся стикеры, которые ты отправлял.</div>
+            <div>Stickers you&apos;ve sent will appear here.</div>
           </div>
         )}
         {activeEmojis.map((emoji) => (
@@ -190,7 +190,7 @@ export default function StickerPicker({ onPick }: StickerPickerProps) {
               "text-4xl sm:text-5xl select-none",
               "active:scale-90 active:opacity-70",
             )}
-            aria-label={`Вставить эмодзи ${emoji}`}
+            aria-label={`Insert emoji ${emoji}`}
           >
             {emoji}
           </button>

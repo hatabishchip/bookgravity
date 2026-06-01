@@ -189,11 +189,11 @@ export default function TrainersPage() {
     const email = draft.email.trim()
     const whatsapp = draft.whatsapp.trim()
 
-    if (name.length < 2) { setEditError("Имя — минимум 2 символа"); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setEditError("Неверный email"); return }
+    if (name.length < 2) { setEditError("Name — at least 2 characters"); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setEditError("Invalid email"); return }
     if (whatsapp !== "") {
       const v = validatePhone(whatsapp)
-      if (v.kind !== "ok") { setEditError("Номер WhatsApp некорректен"); return }
+      if (v.kind !== "ok") { setEditError("Invalid WhatsApp number"); return }
     }
 
     const body = { name, email, whatsapp }

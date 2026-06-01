@@ -220,7 +220,7 @@ export default function TrainerSchedulePage() {
       })
       if (!res.ok) {
         // e.g. tried to charge a membership with no balance left — revert.
-        let msg = "Не удалось обновить оплату."
+        let msg = "Couldn't update payment."
         try {
           const err = await res.json()
           if (err?.message) msg = err.message
@@ -666,8 +666,8 @@ export default function TrainerSchedulePage() {
                           >
                             🎟️
                             {b.paymentType === "MEMBERSHIP"
-                              ? `Списано с абонемента · осталось ${b.membershipRemaining ?? 0}`
-                              : `Списать с абонемента (${b.membershipRemaining ?? 0} осталось)`}
+                              ? `Paid from membership · ${b.membershipRemaining ?? 0} left`
+                              : `Pay from membership (${b.membershipRemaining ?? 0} left)`}
                           </button>
                         )}
 

@@ -209,7 +209,7 @@ export default function VirtualKeyboard({
       (window as unknown as { SpeechRecognition?: SRType; webkitSpeechRecognition?: SRType })
         .webkitSpeechRecognition
     if (!SR) {
-      alert("Голосовой ввод не поддерживается этим браузером.")
+      alert("Voice input isn't supported by this browser.")
       return
     }
     const rec = new SR()

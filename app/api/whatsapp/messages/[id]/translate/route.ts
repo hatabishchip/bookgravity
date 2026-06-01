@@ -23,7 +23,7 @@ export async function POST(
     include: { conversation: { select: { id: true, studioId: true } } },
   })
   if (!message || message.conversation.studioId !== ctx.studioId) {
-    return NextResponse.json({ error: "not_found", message: "Сообщение не найдено." }, { status: 404 })
+    return NextResponse.json({ error: "not_found", message: "Message not found." }, { status: 404 })
   }
 
   // Trainers may only translate messages in chats they have access to.
@@ -33,13 +33,13 @@ export async function POST(
       select: { id: true },
     })
     if (!trainer || !(await trainerHasAccess(message.conversation.id, trainer.id))) {
-      return NextResponse.json({ error: "forbidden", message: "Нет доступа к этому чату." }, { status: 403 })
+      return NextResponse.json({ error: "forbidden", message: "No access to this chat." }, { status: 403 })
     }
   }
 
   if (!message.body || !message.body.trim()) {
     return NextResponse.json(
-      { error: "nothing_to_translate", message: "В сообщении нет текста для перевода." },
+      { error: "nothing_to_translate", message: "No text to translate." },
       { status: 400 },
     )
   }
@@ -51,7 +51,7 @@ export async function POST(
   const target = studio?.inboxLanguage
   if (!target) {
     return NextResponse.json(
-      { error: "no_language", message: "Задайте язык перевода в настройках админки." },
+      { error: "no_language", message: "Set the translation language in admin settings." },
       { status: 400 },
     )
   }
@@ -60,8 +60,8 @@ export async function POST(
   if (!t.ok) {
     const message =
       t.error === "ANTHROPIC_API_KEY not set"
-        ? "Перевод не настроен на сервере (нет ключа ANTHROPIC_API_KEY)."
-        : `Сервис перевода недоступен: ${t.error}`
+        ? "Translation isn't configured on the server (no ANTHROPIC_API_KEY)."
+        : `Translation service unavailable: ${t.error}`
     console.error("[translate] failed:", t.error)
     return NextResponse.json({ error: t.error, message }, { status: 502 })
   }

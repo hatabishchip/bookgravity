@@ -37,7 +37,7 @@ export default function StudioChooser({ studios }: { studios: StudioOption[] }) 
           Gravity Stretching
         </h1>
         <p className="text-gray-500 text-sm mt-2">
-          Choose your studio · Выберите студию
+          Choose your studio
         </p>
       </header>
 

@@ -99,7 +99,7 @@ function previewText(m: ConversationListItem["lastMessage"]): string {
   if (m.type === "audio") return "🎤 Voice message"
   if (m.type === "video") return "🎬 Video"
   if (m.type === "document") return "📄 " + (m.body ?? "Document")
-  if (m.type === "sticker") return "Стикер"
+  if (m.type === "sticker") return "Sticker"
   return m.body ?? `[${m.type}]`
 }
 
@@ -118,7 +118,7 @@ function WindowBadge({ lastInboundAt }: { lastInboundAt: string | null }) {
   if (!lastInboundAt) {
     return (
       <span className="text-xs px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-        Окно закрыто — только шаблон
+        Window closed — template only
       </span>
     )
   }
@@ -126,7 +126,7 @@ function WindowBadge({ lastInboundAt }: { lastInboundAt: string | null }) {
   if (ms <= 0) {
     return (
       <span className="text-xs px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-        Окно закрыто — только шаблон
+        Window closed — template only
       </span>
     )
   }
@@ -134,7 +134,7 @@ function WindowBadge({ lastInboundAt }: { lastInboundAt: string | null }) {
   const mins = Math.floor((ms % 3_600_000) / 60_000)
   return (
     <span className="text-xs px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-      Окно открыто • {hrs}ч {mins}м
+      Window open • {hrs}h {mins}m
     </span>
   )
 }
@@ -446,7 +446,7 @@ function MessageBubble({
               disabled={translating}
               className="mt-1 inline-flex items-center gap-1 text-[11px] text-[#2C6E49] hover:underline disabled:opacity-50"
             >
-              🌐 {translating ? "Перевод…" : "Перевести"}
+              🌐 {translating ? "Translating…" : "Translate"}
             </button>
           )}
 
@@ -831,12 +831,12 @@ export default function Inbox({
       const r = await fetch(`/api/whatsapp/messages/${messageId}/translate`, { method: "POST" })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) {
-        setSendError(d?.message || "Не удалось перевести сообщение.")
+        setSendError(d?.message || "Couldn't translate the message.")
         return
       }
       // Already in the target language — nothing to show; tell the user briefly.
       if (d.alreadyInTarget && !d.translatedBody) {
-        setSendError("Сообщение уже на нужном языке.")
+        setSendError("Message is already in the target language.")
         setTimeout(() => setSendError(null), 2500)
       }
       setDetail((prev) =>
@@ -852,7 +852,7 @@ export default function Inbox({
           : prev
       )
     } catch {
-      setSendError("Сеть недоступна — перевод не удался.")
+      setSendError("Network error — translation failed.")
     } finally {
       setTranslatingIds((prev) => {
         const next = new Set(prev)
@@ -937,11 +937,11 @@ export default function Inbox({
       ) : convos.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm px-6 text-center">
           <MessageSquare size={32} className="mb-3 opacity-30" />
-          <div>Пока нет переписок.</div>
+          <div>No conversations yet.</div>
           <div className="text-xs mt-1">
             {role === "ADMIN"
-              ? "Чат появится когда клиент сделает бронь или напишет на номер."
-              : "Чат появится когда клиент забронит твой урок и ответит на подтверждение."}
+              ? "A chat appears when a client books or messages the number."
+              : "A chat appears when a client books your class and replies to the confirmation."}
           </div>
         </div>
       ) : (
@@ -974,7 +974,7 @@ export default function Inbox({
                           label. Admin can still see the phone. */}
                       {c.clientName ||
                         (role === "TRAINER"
-                          ? "Клиент"
+                          ? "Client"
                           : formatPhone(c.clientPhone))}
                     </div>
                     <div
@@ -1014,7 +1014,7 @@ export default function Inbox({
                         <span
                           key={t.id}
                           className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-[#8696A0]"
-                          title={`Закреплён за ${t.name}`}
+                          title={`Assigned to ${t.name}`}
                         >
                           <span
                             className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -1027,7 +1027,7 @@ export default function Inbox({
                   )}
                   {role === "ADMIN" && c.accessTrainers.length === 0 && (
                     <div className="mt-1 text-[11px] text-gray-300 dark:text-[#5C6970] italic">
-                      без тренера
+                      no trainer
                     </div>
                   )}
                 </div>
@@ -1044,7 +1044,7 @@ export default function Inbox({
     <div className="hidden lg:flex flex-1 items-center justify-center text-gray-400 text-sm bg-[#F5F4F0]">
       <div className="text-center">
         <MessageSquare size={48} className="mx-auto opacity-20 mb-3" />
-        <div>Выбери переписку слева</div>
+        <div>Select a conversation on the left</div>
       </div>
     </div>
   ) : (
@@ -1076,7 +1076,7 @@ export default function Inbox({
             style={{ fontSize: `${fontScale}rem` }}
           >
             {detail?.clientName ||
-              (role === "TRAINER" ? "Клиент" : formatPhone(detail?.clientPhone ?? ""))}
+              (role === "TRAINER" ? "Client" : formatPhone(detail?.clientPhone ?? ""))}
           </div>
           {/* Phone subtitle: admin only. Trainers never see client phones. */}
           {detail?.clientName && role === "ADMIN" && (
@@ -1100,7 +1100,7 @@ export default function Inbox({
               className="text-xs px-2.5 py-1.5 rounded-full border border-gray-200 dark:border-[#2A3942] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-[#2A3942] flex items-center gap-1.5"
             >
               <UserCircle2 size={14} />
-              <span className="max-w-[80px] truncate">{detail?.assignedTrainer?.name ?? "Назначить"}</span>
+              <span className="max-w-[80px] truncate">{detail?.assignedTrainer?.name ?? "Assign"}</span>
               <ChevronDown size={12} />
             </button>
             {assignOpen && (
@@ -1109,7 +1109,7 @@ export default function Inbox({
                   onClick={() => reassign(null)}
                   className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50"
                 >
-                  — Без тренера —
+                  — No trainer —
                 </button>
                 {trainers.map((t) => (
                   <button
@@ -1180,8 +1180,8 @@ export default function Inbox({
             <div className="mx-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2 dark:text-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
               <Sparkles size={14} className="mt-0.5 flex-shrink-0" />
               <span>
-                24-часовое окно закрыто. Клиент должен написать первым, либо
-                попроси администратора написать ему.
+                The 24-hour window is closed. The client must message first, or
+                ask an admin to reach out.
               </span>
             </div>
           </div>
@@ -1217,7 +1217,7 @@ export default function Inbox({
           key={copiedAt}
           className="animate-toast-pop pointer-events-none fixed left-1/2 bottom-28 z-[60] flex items-center gap-2 rounded-full bg-gray-900/90 dark:bg-black/80 px-4 py-2 text-sm font-medium text-white shadow-lg backdrop-blur-sm"
         >
-          <span aria-hidden>✓</span> Скопировано
+          <span aria-hidden>✓</span> Copied
         </div>
       )}
 

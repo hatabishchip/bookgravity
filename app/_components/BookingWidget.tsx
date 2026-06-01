@@ -896,9 +896,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             // Loaded, confirmed no bookable dates anywhere.
             <div className="text-center py-12 px-4">
               <div className="text-4xl mb-3">📅</div>
-              <div className="text-base font-semibold text-gray-800">Нет доступных дат для букирования</div>
+              <div className="text-base font-semibold text-gray-800">No dates available for booking</div>
               <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">
-                Похоже, расписание ещё не опубликовано. Загляните чуть позже или напишите нам.
+                Looks like the schedule isn&apos;t published yet. Check back soon or message us.
               </p>
             </div>
           ) : (
@@ -950,7 +950,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 </div>
               ) : (
                 <div className="text-center mt-4 text-xs text-gray-400 animate-pulse">
-                  Загрузка доступных дат…
+                  Loading available dates…
                 </div>
               )}
             </>

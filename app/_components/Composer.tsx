@@ -250,7 +250,7 @@ export default function Composer({ onSend, onAttach, fontScale, role }: Composer
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              placeholder="Сообщение"
+              placeholder="Message"
               disabled={sending}
               rows={1}
               className="flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0] disabled:text-gray-400 dark:disabled:text-[#5C6970]"

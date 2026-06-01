@@ -120,11 +120,11 @@ export default function PhoneInput({
       {/* Status row beneath the input — same layout as the booking widget. */}
       {validation.kind === "unknown_code" ? (
         <p className="text-xs text-red-500 mt-1">
-          Неизвестный код страны — начните с правильного кода, например +62
+          Unknown country code — start with a valid one, e.g. +62
         </p>
       ) : validation.kind === "too_short" ? (
         <p className="text-xs text-amber-500 mt-1">
-          {validation.country.flag} {validation.country.name} · {validation.have} / {validation.country.min} цифр
+          {validation.country.flag} {validation.country.name} · {validation.have} / {validation.country.min} digits
         </p>
       ) : validation.kind === "ok" ? (
         <p className="text-xs text-[#2C6E49] mt-1">
@@ -132,7 +132,7 @@ export default function PhoneInput({
         </p>
       ) : country ? null : (
         <p className="text-xs text-gray-400 mt-1">
-          Начни с кода страны, например +62 для Индонезии
+          Start with the country code, e.g. +62 for Indonesia
         </p>
       )}
     </div>

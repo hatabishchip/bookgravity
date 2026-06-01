@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const usedId = await deductMembershipClass(ctx.studioId, booking.clientPhone)
       if (!usedId) {
         return NextResponse.json(
-          { error: "no_membership_balance", message: "У клиента нет доступных занятий по абонементу." },
+          { error: "no_membership_balance", message: "This client has no membership classes left." },
           { status: 400 }
         )
       }
