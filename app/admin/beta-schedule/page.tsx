@@ -655,22 +655,33 @@ function SlotEditor({
             </div>
 
             {(classType === "KIDS" || classType === "PRIVATE") && (
-              <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 cursor-pointer touch-manipulation">
-                <input
-                  type="checkbox"
-                  checked={publicVisible}
-                  onChange={(e) => setPublicVisible(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 accent-[#2C6E49]"
-                />
+              <button
+                type="button"
+                onClick={() => setPublicVisible((v) => !v)}
+                title={publicVisible ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
+                className="w-full flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left touch-manipulation"
+              >
+                <span
+                  className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center border flex-shrink-0",
+                    publicVisible
+                      ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
+                      : "bg-gray-50 text-gray-400 border-gray-200"
+                  )}
+                >
+                  {publicVisible ? <Eye size={16} strokeWidth={2.25} /> : <EyeOff size={16} strokeWidth={2.25} />}
+                </span>
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-gray-800">Show in public schedule</div>
+                  <div className="text-sm font-medium text-gray-800">
+                    {publicVisible ? "Shown in public schedule" : "Hidden from public schedule"}
+                  </div>
                   <div className="text-[11px] text-gray-500 mt-0.5">
                     {publicVisible
                       ? "Clients will see this as a " + (classType === "KIDS" ? "Kids" : "Private") + " class and can book it."
                       : "Hidden from clients. Visible only to admin and trainer."}
                   </div>
                 </div>
-              </label>
+              </button>
             )}
 
             {(() => {
