@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { Calendar, BookOpen, Banknote, LogOut, KeyRound, X, Menu, ExternalLink, GraduationCap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
+import { useVisualViewport } from "@/lib/use-visual-viewport"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 
 const navItems = [
@@ -23,8 +24,18 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState("")
 
   // Lock the page behind the modal so it doesn't scroll/jump when the
-  // keyboard opens — the modal is full-screen on mobile.
+  // keyboard opens — the modal is full-screen on mobile and pinned to the
+  // visible viewport so iOS' keyboard can't make it drift.
   useBodyScrollLock(true)
+  const vv = useVisualViewport(true)
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)")
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,8 +57,11 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-stretch sm:items-center justify-center z-[60] sm:p-4">
-      <div className="bg-white w-full h-full overflow-y-auto p-6 sm:h-auto sm:max-w-sm sm:rounded-2xl shadow-xl">
+    <div className="fixed inset-0 bg-black/40 z-[60] sm:flex sm:items-center sm:justify-center sm:p-4">
+      <div
+        className="bg-white overflow-y-auto overscroll-contain p-6 absolute inset-0 sm:static sm:inset-auto sm:w-full sm:max-w-sm sm:max-h-[85vh] sm:rounded-2xl shadow-xl"
+        style={isMobile && vv ? { top: vv.y, left: vv.x, width: vv.w, height: vv.h, right: "auto", bottom: "auto" } : undefined}
+      >
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-gray-800">Change Password</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>

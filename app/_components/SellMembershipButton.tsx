@@ -5,6 +5,7 @@ import PhoneInput from "@/app/_components/PhoneInput"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { validatePhone } from "@/lib/phone"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
+import { useVisualViewport } from "@/lib/use-visual-viewport"
 import { cn } from "@/lib/utils"
 
 // Sell a 5-class membership to a client by phone. Used in both the trainer
@@ -46,6 +47,17 @@ export default function SellMembershipButton({
 
   // Freeze the page behind the modal so nothing scrolls/jumps with the keyboard.
   useBodyScrollLock(open)
+  // Pin the panel to the visible area (above the keyboard) on mobile so it
+  // doesn't drift when iOS opens the keyboard.
+  const vv = useVisualViewport(open)
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)")
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [])
 
   const phoneOk = validatePhone(phone).kind === "ok"
 
@@ -122,11 +134,12 @@ export default function SellMembershipButton({
         // flex-column so the header stays pinned and only the content scrolls
         // (overscroll-contained) — no rubber-banding to empty space.
         <div
-          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/40 sm:p-4"
+          className="fixed inset-0 z-50 bg-black/40 sm:flex sm:items-center sm:justify-center sm:p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-white w-full h-full sm:h-auto sm:max-w-sm sm:rounded-2xl sm:max-h-[85vh] shadow-xl flex flex-col overscroll-contain"
+            className="bg-white shadow-xl flex flex-col overscroll-contain absolute inset-0 sm:static sm:inset-auto sm:w-full sm:max-w-sm sm:max-h-[85vh] sm:rounded-2xl"
+            style={isMobile && vv ? { top: vv.y, left: vv.x, width: vv.w, height: vv.h, right: "auto", bottom: "auto" } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 flex-shrink-0 border-b border-gray-100">
