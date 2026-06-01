@@ -32,23 +32,6 @@ async function normalizeToFavicon(bytes: Buffer): Promise<Buffer> {
     .toBuffer()
 }
 
-// "Good" favicon source = the image is reasonably large and roughly square.
-// Tiny or non-square uploads usually contain a fraction of a real logo on a
-// big transparent canvas and produce a blurry, unrecognizable tab icon, so
-// we fall back to the studio's full-resolution logo when available.
-async function isGoodSource(bytes: Buffer): Promise<boolean> {
-  try {
-    const m = await sharp(bytes).metadata()
-    const w = m.width ?? 0
-    const h = m.height ?? 0
-    if (w < 96 || h < 96) return false
-    const ratio = Math.max(w, h) / Math.min(w, h)
-    return ratio <= 1.2
-  } catch {
-    return false
-  }
-}
-
 export async function GET(request: NextRequest) {
   try {
     // ?s=<slug> identifies the studio (passed by layout/page metadata). Falls
@@ -56,21 +39,13 @@ export async function GET(request: NextRequest) {
     const studioId = await getPublicStudioId(new URL(request.url).searchParams.get("s"))
     const studio = await prisma.studio.findUnique({
       where: { id: studioId },
-      select: { faviconUrl: true, logoUrl: true },
+      select: { logoUrl: true },
     })
 
-    // Pick the best available source: a "good" favicon upload wins; otherwise
-    // use the logo (typically a higher-resolution brand mark); otherwise fall
-    // back to whatever favicon bytes we do have.
+    // The favicon is always derived from the studio logo — one image to manage.
     const candidates: Buffer[] = []
-    const favParsed = studio?.faviconUrl ? parseDataUrl(studio.faviconUrl) : null
     const logoParsed = studio?.logoUrl ? parseDataUrl(studio.logoUrl) : null
-
-    if (favParsed && (await isGoodSource(favParsed.bytes))) candidates.push(favParsed.bytes)
-    else {
-      if (logoParsed) candidates.push(logoParsed.bytes)
-      if (favParsed) candidates.push(favParsed.bytes)
-    }
+    if (logoParsed) candidates.push(logoParsed.bytes)
 
     for (const bytes of candidates) {
       const out = await normalizeToFavicon(bytes).catch(() => null)

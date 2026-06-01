@@ -76,7 +76,6 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | "location" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
-  const faviconInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -164,7 +163,7 @@ export default function SettingsPage() {
 
           <AssetCard
             title="Logo"
-            description="Shown in the header of your public booking page. Best looks: PNG with transparent background, square or wide format."
+            description="Shown in the header of your public booking page, and used as the browser-tab icon (favicon). Best looks: PNG with transparent background, square or wide format."
             kind="logo"
             value={studio.logoUrl}
             saving={saving === "logo"}
@@ -172,18 +171,6 @@ export default function SettingsPage() {
             onClear={() => update({ logoUrl: null })}
             previewBg="bg-white"
             previewSize="h-20"
-          />
-
-          <AssetCard
-            title="Favicon"
-            description="Browser tab icon. Square image works best (32×32 or 64×64)."
-            kind="favicon"
-            value={studio.faviconUrl}
-            saving={saving === "favicon"}
-            onPick={() => faviconInputRef.current?.click()}
-            onClear={() => update({ faviconUrl: null })}
-            previewBg="bg-gray-100"
-            previewSize="h-10 w-10"
           />
 
           <AssetCard
@@ -222,17 +209,6 @@ export default function SettingsPage() {
             onChange={(e) => {
               const f = e.target.files?.[0]
               if (f) handleFile("logo", f)
-              e.target.value = ""
-            }}
-          />
-          <input
-            ref={faviconInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,image/vnd.microsoft.icon"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) handleFile("favicon", f)
               e.target.value = ""
             }}
           />
