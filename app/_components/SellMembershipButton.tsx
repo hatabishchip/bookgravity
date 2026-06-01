@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import PhoneInput from "@/app/_components/PhoneInput"
 import { validatePhone } from "@/lib/phone"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
@@ -35,17 +35,20 @@ export default function SellMembershipButton({
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const nameRef = useRef<HTMLInputElement>(null)
+  // True once the phone is a valid number AND the field has been committed
+  // (blurred). Numbers vary in length (Indonesia is 8–12 digits) so we can't
+  // detect "the last digit" — instead we only shrink the phone / enlarge the
+  // name once the seller leaves the phone field, never mid-typing. We never
+  // auto-move focus to the name field (that was disruptive while editing).
+  const [phoneDone, setPhoneDone] = useState(false)
 
-  // Freeze the page behind the modal — without this the background (and the
-  // modal) jump around when the numeric keyboard opens on mobile.
+  // Freeze the page behind the modal so nothing scrolls/jumps with the keyboard.
   useBodyScrollLock(open)
 
   const phoneOk = validatePhone(phone).kind === "ok"
 
-  // Once the phone is valid, look up the existing balance AND the client's
-  // known name. If a name is on file we auto-fill it; if not, we move focus to
-  // the (now enlarged) name field so the seller can type it.
+  // Once the phone is valid, look up the existing balance and the client's
+  // known name (auto-fill if found). Background fetch — does not steal focus.
   useEffect(() => {
     if (!open || !phoneOk) {
       setExisting(null)
@@ -56,12 +59,7 @@ export default function SellMembershipButton({
       .then((r) => (r.ok ? r.json() : { remaining: 0, name: null }))
       .then((d: { remaining: number; name: string | null }) => {
         setExisting(d.remaining ?? 0)
-        if (d.name) {
-          setName((prev) => (prev.trim() ? prev : d.name!))
-        } else {
-          // No name on file — focus the now-enlarged name field.
-          setTimeout(() => nameRef.current?.focus(), 60)
-        }
+        if (d.name) setName((prev) => (prev.trim() ? prev : d.name!))
       })
       .catch(() => setExisting(null))
     return () => ctrl.abort()
@@ -74,6 +72,7 @@ export default function SellMembershipButton({
     setExisting(null)
     setDone(null)
     setError(null)
+    setPhoneDone(false)
   }
 
   async function submit() {
@@ -114,91 +113,94 @@ export default function SellMembershipButton({
       </button>
 
       {open && (
-        // Fixed full-screen overlay; centered card. Body scroll is locked and
-        // the layout viewport resizes with the keyboard (viewport
-        // interactiveWidget=resizes-content), so nothing scrolls behind.
+        // Full-screen on mobile, centered card on desktop. Body scroll locked,
+        // flex-column so the header stays pinned and only the content scrolls
+        // (overscroll-contained) — no rubber-banding to empty space.
         <div
           className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/40 sm:p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full h-full overflow-y-auto bg-white p-5 sm:h-auto sm:max-w-sm sm:rounded-2xl sm:max-h-[85vh] shadow-xl"
+            className="bg-white w-full h-full sm:h-auto sm:max-w-sm sm:rounded-2xl sm:max-h-[85vh] shadow-xl flex flex-col overscroll-contain"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="flex items-center justify-between px-5 py-4 flex-shrink-0 border-b border-gray-100">
+              <h3 className="text-base font-semibold text-gray-900">Membership · {MEMBERSHIP_CLASSES} classes</h3>
+              <button type="button" onClick={() => setOpen(false)} className="text-gray-400 text-xl leading-none p-1">×</button>
+            </div>
+
             {done == null ? (
-              <>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-semibold text-gray-900">Membership · {MEMBERSHIP_CLASSES} classes</h3>
-                  <button type="button" onClick={() => setOpen(false)} className="text-gray-400 text-xl leading-none">×</button>
-                </div>
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                {/* Phone first: prominent while typing, compact once committed. */}
+                <PhoneInput
+                  value={phone}
+                  onChange={(v) => { setPhone(v); setPhoneDone(false) }}
+                  onBlur={(v) => setPhoneDone(validatePhone(v).kind === "ok")}
+                  autoFocus
+                  hideHint
+                  compact={phoneDone}
+                />
 
-                <div className="space-y-3">
-                  {/* Phone first: prominent until valid, then compact. */}
-                  <PhoneInput value={phone} onChange={setPhone} autoFocus hideHint compact={phoneOk} />
-
-                  {/* Name: disabled + muted until the phone is valid; then it
-                      grows and (if not auto-filled) takes focus. */}
-                  <input
-                    ref={nameRef}
-                    type="text"
-                    value={name}
-                    disabled={!phoneOk}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Client name"
-                    className={cn(
-                      "w-full border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] transition-all",
-                      phoneOk
-                        ? "px-4 py-3 text-base border-gray-300 text-gray-900"
-                        : "px-3 py-1.5 text-xs border-gray-200 bg-gray-50 text-gray-400 placeholder:text-gray-300"
-                    )}
-                  />
-
-                  {existing != null && existing > 0 && (
-                    <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-                      This client already has <b>{existing}</b> classes. The new membership is added to their balance.
-                    </div>
+                {/* Name: disabled + muted until the phone is valid, then grows. */}
+                <input
+                  type="text"
+                  value={name}
+                  disabled={!phoneOk}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Client name"
+                  className={cn(
+                    "w-full border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] transition-all",
+                    phoneOk
+                      ? "px-4 py-3 text-base border-gray-300 text-gray-900"
+                      : "px-3 py-1.5 text-xs border-gray-200 bg-gray-50 text-gray-400 placeholder:text-gray-300"
                   )}
+                />
 
-                  {/* Payment method — chips, no label. */}
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {PAYMENT_METHODS.map((pm) => (
-                      <button
-                        key={pm.value}
-                        type="button"
-                        onClick={() => setPayment(pm.value)}
-                        className={cn(
-                          "py-2 rounded-lg text-sm font-semibold border",
-                          payment === pm.value
-                            ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                            : "bg-white text-gray-600 border-gray-200"
-                        )}
-                      >
-                        {pm.label}
-                      </button>
-                    ))}
+                {existing != null && existing > 0 && (
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                    This client already has <b>{existing}</b> classes. The new membership is added to their balance.
                   </div>
+                )}
 
-                  {error && <div className="text-sm text-red-500">{error}</div>}
-
-                  <button
-                    type="button"
-                    disabled={!phoneOk || submitting}
-                    onClick={submit}
-                    className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
-                  >
-                    {submitting ? "Saving…" : `Sell (${MEMBERSHIP_CLASSES} classes)`}
-                  </button>
+                {/* Payment method — chips, no label. */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {PAYMENT_METHODS.map((pm) => (
+                    <button
+                      key={pm.value}
+                      type="button"
+                      onClick={() => setPayment(pm.value)}
+                      className={cn(
+                        "py-2 rounded-lg text-sm font-semibold border",
+                        payment === pm.value
+                          ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                          : "bg-white text-gray-600 border-gray-200"
+                      )}
+                    >
+                      {pm.label}
+                    </button>
+                  ))}
                 </div>
-              </>
+
+                {error && <div className="text-sm text-red-500">{error}</div>}
+
+                <button
+                  type="button"
+                  disabled={!phoneOk || submitting}
+                  onClick={submit}
+                  className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
+                >
+                  {submitting ? "Saving…" : `Sell (${MEMBERSHIP_CLASSES} classes)`}
+                </button>
+              </div>
             ) : (
-              <div className="text-center py-4">
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
                 <div className="text-3xl mb-2">🎟️</div>
                 <h3 className="text-base font-semibold text-gray-900 mb-1">Membership sold</h3>
                 <p className="text-sm text-gray-500 mb-4">The client now has <b>{done}</b> classes.</p>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] text-white font-semibold py-3 rounded-xl"
+                  className="w-full max-w-xs bg-[#2C6E49] hover:bg-[#1E4D34] text-white font-semibold py-3 rounded-xl"
                 >
                   Done
                 </button>
