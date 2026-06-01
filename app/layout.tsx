@@ -2,40 +2,22 @@ import type { Metadata, Viewport } from "next"
 import { Geist } from "next/font/google"
 import "./globals.css"
 import OfflineBanner from "./_components/OfflineBanner"
-import { prisma } from "@/lib/prisma"
-import { getStudioIdBySubdomain } from "@/lib/studio"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
 
 export async function generateMetadata(): Promise<Metadata> {
-  let studio: { name: string; slug: string } | null = null
-  try {
-    const studioId = await getStudioIdBySubdomain()
-    studio = await prisma.studio.findUnique({
-      where: { id: studioId },
-      select: { name: true, slug: true },
-    })
-  } catch {
-    // Subdomain lookup can fail at build time — fall back to defaults
-  }
-
   // Brand-level default for the apex (studio chooser) and any page that doesn't
   // set its own metadata. Per-studio pages (/canggu, /ubud) override the title
-  // with their own name, so we must NOT bake a single studio's name in here —
-  // otherwise the root (and its Google / WhatsApp link preview) reads
-  // "Gravity Stretching Canggu" even to Ubud visitors.
-  const title = "Gravity Stretching"
-  // Slug-suffixed URLs prevent cache collisions across subdomains
-  const slug = studio?.slug ?? "default"
-  const faviconUrl = `/api/favicon?s=${slug}`
-  const appIconUrl = `/api/app-icon?s=${slug}`
-
+  // AND the favicon with their own. Here we keep it studio-neutral — title and
+  // icon are the brand, so the root (and its Google / WhatsApp link preview)
+  // never reads "Canggu" to an Ubud visitor.
   return {
-    title,
+    title: "Gravity Stretching",
     description: "Book your stretching class in Bali — Gravity Stretching, Canggu & Ubud. Pick a time, save your QR ticket, walk in.",
     icons: {
-      icon: faviconUrl,
-      apple: appIconUrl,
+      // Brand mark (figure in a white circle, no location word).
+      icon: "/brand-favicon.png",
+      apple: "/brand-favicon.png",
     },
     appleWebApp: {
       capable: true,
