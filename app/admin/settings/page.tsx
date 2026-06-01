@@ -171,7 +171,11 @@ export default function SettingsPage() {
             title="Studio photo"
             description="Shown on the studio chooser at bookgravity.com and as a soft backdrop behind the booking calendar. A bright portrait photo of your studio works best (e.g. a class in session)."
             kind="cover"
-            value={studio.coverUrl}
+            // Show the photo actually used on the chooser: the custom cover if
+            // set, otherwise the bundled /studios/<slug>.jpg default — so it
+            // reads as "loaded" with edit, instead of an empty uploader.
+            value={studio.coverUrl ?? `/studios/${studio.slug}.jpg`}
+            canRemove={!!studio.coverUrl}
             saving={saving === "cover"}
             onPick={() => coverInputRef.current?.click()}
             onClear={() => update({ coverUrl: null })}
@@ -224,7 +228,7 @@ export default function SettingsPage() {
 }
 
 function AssetCard({
-  title, description, value, saving, onPick, onClear, previewBg, previewSize,
+  title, description, value, saving, onPick, onClear, previewBg, previewSize, canRemove = true,
 }: {
   title: string
   description: string
@@ -235,6 +239,9 @@ function AssetCard({
   onClear: () => void
   previewBg: string
   previewSize: string
+  /** Hide the Remove action — e.g. when the preview is a bundled default,
+   *  not a real upload (there's nothing to remove). Defaults to true. */
+  canRemove?: boolean
 }) {
   // Like NameCard: when an image is set we show just a pencil (edit) button;
   // the Replace/Remove actions appear only after tapping it. When nothing is
@@ -286,27 +293,27 @@ function AssetCard({
               <Upload size={14} />
               {saving ? "Saving…" : value ? `Replace ${title.toLowerCase()}` : `Upload ${title.toLowerCase()}`}
             </button>
+            {value && canRemove && (
+              <button
+                type="button"
+                onClick={onClear}
+                disabled={saving}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+              >
+                <Trash2 size={14} />
+                Remove
+              </button>
+            )}
             {value && (
-              <>
-                <button
-                  type="button"
-                  onClick={onClear}
-                  disabled={saving}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
-                >
-                  <Trash2 size={14} />
-                  Remove
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditing(false)}
-                  disabled={saving}
-                  aria-label="Cancel"
-                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
-                >
-                  <X size={14} />
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                disabled={saving}
+                aria-label="Cancel"
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+              >
+                <X size={14} />
+              </button>
             )}
           </div>
         )}
