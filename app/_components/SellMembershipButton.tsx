@@ -38,12 +38,6 @@ export default function SellMembershipButton({
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // True once the phone is a valid number AND the field has been committed
-  // (blurred). Numbers vary in length (Indonesia is 8–12 digits) so we can't
-  // detect "the last digit" — instead we only shrink the phone / enlarge the
-  // name once the seller leaves the phone field, never mid-typing. We never
-  // auto-move focus to the name field (that was disruptive while editing).
-  const [phoneDone, setPhoneDone] = useState(false)
 
   // Freeze the page behind the modal so nothing scrolls/jumps with the keyboard.
   useBodyScrollLock(open)
@@ -89,7 +83,6 @@ export default function SellMembershipButton({
     setHasWhatsApp(false)
     setDone(null)
     setError(null)
-    setPhoneDone(false)
   }
 
   async function submit() {
@@ -149,15 +142,14 @@ export default function SellMembershipButton({
 
             {done == null ? (
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                {/* Phone first: prominent while typing, compact once committed. */}
+                {/* Phone — large, monospaced-feel digits for readability. */}
                 <div className="relative">
                   <PhoneInput
                     value={phone}
-                    onChange={(v) => { setPhone(v); setPhoneDone(false) }}
-                    onBlur={(v) => setPhoneDone(validatePhone(v).kind === "ok")}
+                    onChange={setPhone}
                     autoFocus
                     hideHint
-                    compact={phoneDone}
+                    inputClassName="text-lg tracking-wide tabular-nums pr-9"
                   />
                   {/* This number is on WhatsApp (we've had contact with it). */}
                   {phoneOk && hasWhatsApp && (
@@ -166,12 +158,12 @@ export default function SellMembershipButton({
                       title="On WhatsApp"
                       aria-label="On WhatsApp"
                     >
-                      <WhatsAppIcon size={20} />
+                      <WhatsAppIcon size={15} />
                     </span>
                   )}
                 </div>
 
-                {/* Name: disabled + muted until the phone is valid, then grows. */}
+                {/* Name — same field size, larger text; muted until phone valid. */}
                 <input
                   type="text"
                   value={name}
@@ -179,10 +171,10 @@ export default function SellMembershipButton({
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Client name"
                   className={cn(
-                    "w-full border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] transition-all",
+                    "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]",
                     phoneOk
-                      ? "px-4 py-3 text-base border-gray-300 text-gray-900"
-                      : "px-3 py-1.5 text-xs border-gray-200 bg-gray-50 text-gray-400 placeholder:text-gray-300"
+                      ? "border-gray-300 text-gray-900"
+                      : "border-gray-200 bg-gray-50 text-gray-400 placeholder:text-gray-300"
                   )}
                 />
 

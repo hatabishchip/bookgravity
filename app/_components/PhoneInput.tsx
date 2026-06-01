@@ -38,6 +38,8 @@ export interface PhoneInputProps {
   onBlur?: (value: string) => void
   /** Hide the status / hint line under the input (country, digit count, tips). */
   hideHint?: boolean
+  /** Extra classes for the <input> itself (e.g. larger font / tabular nums). */
+  inputClassName?: string
 }
 
 export default function PhoneInput({
@@ -52,6 +54,7 @@ export default function PhoneInput({
   className,
   onBlur,
   hideHint,
+  inputClassName,
 }: PhoneInputProps) {
   const id = useId()
   const validation = validatePhone(value)
@@ -118,6 +121,7 @@ export default function PhoneInput({
             ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
             : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]",
           disabled && "bg-gray-50 text-gray-400",
+          inputClassName,
         )}
       />
       {/* Status row beneath the input — same layout as the booking widget. */}
