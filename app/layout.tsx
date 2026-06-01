@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // with their own name, so we must NOT bake a single studio's name in here —
   // otherwise the root (and its Google / WhatsApp link preview) reads
   // "Gravity Stretching Canggu" even to Ubud visitors.
-  const title = "Gravity Stretching Bali — Booking"
+  const title = "Gravity Stretching"
   // Slug-suffixed URLs prevent cache collisions across subdomains
   const slug = studio?.slug ?? "default"
   const faviconUrl = `/api/favicon?s=${slug}`
