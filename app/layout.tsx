@@ -11,13 +11,32 @@ export async function generateMetadata(): Promise<Metadata> {
   // AND the favicon with their own. Here we keep it studio-neutral — title and
   // icon are the brand, so the root (and its Google / WhatsApp link preview)
   // never reads "Canggu" to an Ubud visitor.
+  const description =
+    "Gravity Stretching — aerial stretching studios in Bali, Canggu & Ubud. " +
+    "See the live schedule, book a class in a few taps, and save your QR ticket."
   return {
     title: "Gravity Stretching",
-    description: "Book your stretching class in Bali — Gravity Stretching, Canggu & Ubud. Pick a time, save your QR ticket, walk in.",
+    description,
     icons: {
       // Brand mark (figure in a white circle, no location word).
       icon: "/brand-favicon.png",
       apple: "/brand-favicon.png",
+    },
+    // Controls the link preview (WhatsApp / social) so it doesn't fall back to
+    // page text or a single studio's name.
+    openGraph: {
+      type: "website",
+      siteName: "Gravity Stretching",
+      title: "Gravity Stretching",
+      description,
+      url: "https://www.bookgravity.com",
+      images: [{ url: "/studios/canggu.jpg", width: 1200, height: 630, alt: "Gravity Stretching Bali" }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Gravity Stretching",
+      description,
+      images: ["/studios/canggu.jpg"],
     },
     appleWebApp: {
       capable: true,
