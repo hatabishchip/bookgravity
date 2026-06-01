@@ -22,11 +22,35 @@ export async function GET() {
 
   const trainers = await prisma.trainer.findMany({
     where: { studioId: ctx.studioId },
-    include: { user: { select: { email: true, initialPassword: true } } },
+    include: {
+      user: {
+        select: {
+          email: true,
+          initialPassword: true,
+          // Most recent web sign-in + mobile device heartbeat → "last active".
+          loginSessions: { select: { lastSeenAt: true }, orderBy: { lastSeenAt: "desc" }, take: 1 },
+          pushTokens: { select: { lastSeenAt: true }, orderBy: { lastSeenAt: "desc" }, take: 1 },
+        },
+      },
+    },
     orderBy: { name: "asc" },
   })
 
-  return NextResponse.json(trainers)
+  // Flatten the last-activity timestamp and drop the raw session arrays.
+  const rows = trainers.map((t) => {
+    const web = t.user.loginSessions[0]?.lastSeenAt ?? null
+    const mob = t.user.pushTokens[0]?.lastSeenAt ?? null
+    const lastActiveAt = [web, mob]
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null
+    return {
+      ...t,
+      lastActiveAt,
+      user: { email: t.user.email, initialPassword: t.user.initialPassword },
+    }
+  })
+
+  return NextResponse.json(rows)
 }
 
 export async function POST(request: NextRequest) {

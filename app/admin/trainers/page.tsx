@@ -7,6 +7,7 @@ import PhoneInput from "@/app/_components/PhoneInput"
 import { formatPhoneInput, validatePhone } from "@/lib/phone"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { whatsappLink } from "@/lib/whatsapp"
+import { formatDistanceToNow } from "date-fns"
 
 // 18 bright, well-separated hues so trainers are easy to tell apart on the
 // schedule. Spread around the colour wheel; all vivid (no muted greys).
@@ -45,6 +46,8 @@ type Trainer = {
   commissionRate: number
   color: string
   user: { email: string; initialPassword?: string | null }
+  /** Latest web/mobile activity; null if the trainer never signed in. */
+  lastActiveAt?: string | null
 }
 
 function ColorPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
@@ -315,7 +318,14 @@ export default function TrainersPage() {
                     <div className="text-xs mt-0.5">
                       {trainer.user.initialPassword
                         ? <span className="text-gray-500">password: <span className="font-mono font-semibold text-gray-700">{trainer.user.initialPassword}</span></span>
-                        : <span className="text-gray-400">password: •••• (changed)</span>}
+                        : (
+                          // Password changed → don't show stars; show last login instead.
+                          <span className="text-gray-400">
+                            {trainer.lastActiveAt
+                              ? `last active ${formatDistanceToNow(new Date(trainer.lastActiveAt), { addSuffix: true })}`
+                              : "last active: —"}
+                          </span>
+                        )}
                     </div>
                     <div className="mt-1.5">
                       {(() => {
