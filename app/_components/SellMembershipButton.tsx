@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react"
 import PhoneInput from "@/app/_components/PhoneInput"
 import { validatePhone } from "@/lib/phone"
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { cn } from "@/lib/utils"
 
-// Sell a 5-class membership (абонемент) to a client by phone. Used in both the
-// trainer cabinet and the admin panel — the API scopes to the seller's studio
-// and records who sold it. Shows any existing balance so the seller doesn't
+// Sell a 5-class membership to a client by phone. Used in both the trainer
+// cabinet and the admin panel — the API scopes to the seller's studio and
+// records who sold it. Shows any existing balance so the seller doesn't
 // double-sell by accident.
 
 const PAYMENT_METHODS = [
@@ -34,6 +35,10 @@ export default function SellMembershipButton({
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Freeze the page behind the modal — without this the background (and the
+  // modal) jump around when the numeric keyboard opens on mobile.
+  useBodyScrollLock(open)
 
   const phoneOk = validatePhone(phone).kind === "ok"
 
@@ -71,14 +76,14 @@ export default function SellMembershipButton({
         body: JSON.stringify({ clientPhone: phone, clientName: name.trim(), paymentType: payment }),
       })
       if (!res.ok) {
-        setError("Не удалось продать абонемент. Попробуйте ещё раз.")
+        setError("Couldn't sell the membership. Please try again.")
         return
       }
       const d = await res.json()
       setDone(d.remaining ?? MEMBERSHIP_CLASSES)
       onSold?.()
     } catch {
-      setError("Сеть недоступна. Попробуйте ещё раз.")
+      setError("Network error. Please try again.")
     } finally {
       setSubmitting(false)
     }
@@ -94,47 +99,50 @@ export default function SellMembershipButton({
           className
         )}
       >
-        <span className="text-base leading-none">＋</span> Продать абонемент
+        <span className="text-base leading-none">＋</span> Sell membership
       </button>
 
       {open && (
+        // Fixed full-screen overlay; centered card. Body scroll is locked and
+        // the layout viewport resizes with the keyboard (viewport
+        // interactiveWidget=resizes-content), so nothing scrolls behind.
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-5 shadow-xl"
+            className="w-full max-w-sm bg-white rounded-2xl p-5 shadow-xl max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {done == null ? (
               <>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-semibold text-gray-900">Абонемент · {MEMBERSHIP_CLASSES} занятий</h3>
+                  <h3 className="text-base font-semibold text-gray-900">Membership · {MEMBERSHIP_CLASSES} classes</h3>
                   <button type="button" onClick={() => setOpen(false)} className="text-gray-400 text-xl leading-none">×</button>
                 </div>
 
                 <div className="space-y-3">
-                  <PhoneInput value={phone} onChange={setPhone} label="Телефон клиента" required autoFocus />
+                  <PhoneInput value={phone} onChange={setPhone} label="Client phone" required autoFocus />
 
                   {existing != null && existing > 0 && (
                     <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-                      У клиента уже есть <b>{existing}</b> занятий. Новый абонемент прибавится к остатку.
+                      This client already has <b>{existing}</b> classes. The new membership is added to their balance.
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Имя <span className="text-gray-400">(необязательно)</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-gray-400">(optional)</span></label>
                     <input
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Имя клиента"
+                      placeholder="Client name"
                       className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Оплата абонемента</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment for the membership</label>
                     <div className="grid grid-cols-4 gap-1.5">
                       {PAYMENT_METHODS.map((pm) => (
                         <button
@@ -162,21 +170,21 @@ export default function SellMembershipButton({
                     onClick={submit}
                     className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
                   >
-                    {submitting ? "Сохраняем…" : `Продать (${MEMBERSHIP_CLASSES} занятий)`}
+                    {submitting ? "Saving…" : `Sell (${MEMBERSHIP_CLASSES} classes)`}
                   </button>
                 </div>
               </>
             ) : (
               <div className="text-center py-4">
                 <div className="text-3xl mb-2">🎟️</div>
-                <h3 className="text-base font-semibold text-gray-900 mb-1">Абонемент продан</h3>
-                <p className="text-sm text-gray-500 mb-4">У клиента теперь <b>{done}</b> занятий.</p>
+                <h3 className="text-base font-semibold text-gray-900 mb-1">Membership sold</h3>
+                <p className="text-sm text-gray-500 mb-4">The client now has <b>{done}</b> classes.</p>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
                   className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] text-white font-semibold py-3 rounded-xl"
                 >
-                  Готово
+                  Done
                 </button>
               </div>
             )}
