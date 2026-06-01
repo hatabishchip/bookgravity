@@ -242,6 +242,15 @@ function AssetCard({
   previewBg: string
   previewSize: string
 }) {
+  // Like NameCard: when an image is set we show just a pencil (edit) button;
+  // the Replace/Remove actions appear only after tapping it. When nothing is
+  // set yet, the Upload button is shown directly. Editing collapses back to
+  // the pencil after a successful replace/remove (value changes).
+  const [editing, setEditing] = useState(false)
+  useEffect(() => { setEditing(false) }, [value])
+
+  const showActions = !value || editing
+
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -249,6 +258,17 @@ function AssetCard({
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>
           <p className="text-xs text-gray-500 mt-1 max-w-md">{description}</p>
         </div>
+        {/* Pencil — only when an image exists and we're not already editing. */}
+        {value && !editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label={`Edit ${title.toLowerCase()}`}
+            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50"
+          >
+            <Pencil size={16} />
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-4">
@@ -261,28 +281,41 @@ function AssetCard({
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 flex-1">
-          <button
-            type="button"
-            onClick={onPick}
-            disabled={saving}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
-          >
-            <Upload size={14} />
-            {saving ? "Saving…" : value ? `Replace ${title.toLowerCase()}` : `Upload ${title.toLowerCase()}`}
-          </button>
-          {value && (
+        {showActions && (
+          <div className="flex flex-col sm:flex-row gap-2 flex-1">
             <button
               type="button"
-              onClick={onClear}
+              onClick={onPick}
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
             >
-              <Trash2 size={14} />
-              Remove
+              <Upload size={14} />
+              {saving ? "Saving…" : value ? `Replace ${title.toLowerCase()}` : `Upload ${title.toLowerCase()}`}
             </button>
-          )}
-        </div>
+            {value && (
+              <>
+                <button
+                  type="button"
+                  onClick={onClear}
+                  disabled={saving}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+                >
+                  <Trash2 size={14} />
+                  Remove
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  disabled={saving}
+                  aria-label="Cancel"
+                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+                >
+                  <X size={14} />
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
