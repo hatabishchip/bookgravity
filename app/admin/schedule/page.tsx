@@ -934,7 +934,8 @@ export default function SchedulePage() {
                                                   const ok = confirm(`This session has ${bookingCount} bookings. Private allows only 1 person — extra clients will be over capacity. Continue?`)
                                                   if (!ok) return
                                                 }
-                                                updateAssignment({ classType: c.value, maxCapacity: 1 })
+                                                // Private defaults to hidden from the public schedule.
+                                                updateAssignment({ classType: c.value, maxCapacity: 1, publicVisible: false })
                                               } else if (c.value === "GROUP") {
                                                 updateAssignment({
                                                   classType: c.value,
@@ -942,8 +943,10 @@ export default function SchedulePage() {
                                                   maxCapacity: isPrivate ? 6 : assignment.maxCapacity,
                                                 })
                                               } else {
+                                                // Kids defaults to visible in the public schedule.
                                                 updateAssignment({
                                                   classType: c.value,
+                                                  publicVisible: true,
                                                   maxCapacity: isPrivate ? 6 : assignment.maxCapacity,
                                                 })
                                               }

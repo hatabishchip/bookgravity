@@ -478,8 +478,10 @@ function SlotEditor({
     setClassType(next)
     setMaxCapacity(defaultCapacityForType(next))
     if (studioPrices) setPrice(priceForType(next, studioPrices))
-    // GROUP is always public; KIDS/PRIVATE keep current toggle state
-    if (next === "GROUP") setPublicVisible(true)
+    // Defaults by type: Group + Kids are visible; Private is hidden from the
+    // public schedule (admin can flip it with the eye if needed).
+    if (next === "PRIVATE") setPublicVisible(false)
+    else setPublicVisible(true)
   }
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loadingBookings, setLoadingBookings] = useState(true)
@@ -1147,7 +1149,8 @@ function SlotCreator({
                                             const ok = confirm(`This session has ${bookingCount} bookings. Private allows only 1 person — extra clients will be over capacity. Continue?`)
                                             if (!ok) return
                                           }
-                                          updateAssignment(t, { classType: c.value, maxCapacity: 1 })
+                                          // Private defaults to hidden from the public schedule.
+                                          updateAssignment(t, { classType: c.value, maxCapacity: 1, publicVisible: false })
                                         } else if (c.value === "GROUP") {
                                           updateAssignment(t, {
                                             classType: c.value,
@@ -1155,8 +1158,10 @@ function SlotCreator({
                                             maxCapacity: wasPrivate ? 6 : a.maxCapacity,
                                           })
                                         } else {
+                                          // Kids defaults to visible in the public schedule.
                                           updateAssignment(t, {
                                             classType: c.value,
+                                            publicVisible: true,
                                             maxCapacity: wasPrivate ? 6 : a.maxCapacity,
                                           })
                                         }
