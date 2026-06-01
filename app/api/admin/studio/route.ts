@@ -15,7 +15,8 @@ const MAX_COVER_URL_LEN = 3_500_000 // cover photos are larger (full-bleed)
 const SUPPORTED_INBOX_LANGS = ["en", "ru", "id", "es", "it", "fr", "de"] as const
 
 const StudioUpdateSchema = z.object({
-  name: z.string().min(2).optional(),
+  // Studio name is intentionally NOT editable here — it's managed only by the
+  // super-admin in /sadmin. Regular admins can view it but not change it.
   logoUrl: z.string().max(MAX_DATA_URL_LEN).nullable().optional(),
   faviconUrl: z.string().max(MAX_DATA_URL_LEN).nullable().optional(),
   coverUrl: z.string().max(MAX_COVER_URL_LEN).nullable().optional(),

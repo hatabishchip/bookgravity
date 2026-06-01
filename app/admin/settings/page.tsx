@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck, Pencil, Check, X, MapPin } from "lucide-react"
+import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck, Pencil, X, MapPin } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
 import { cn } from "@/lib/utils"
 
@@ -83,20 +83,18 @@ export default function SettingsPage() {
   }, [])
 
   const update = async (
-    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "name" | "inboxLanguage" | "locationUrl">>,
+    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "inboxLanguage" | "locationUrl">>,
   ) => {
-    const which: "logo" | "favicon" | "cover" | "name" | "language" | "location" =
-      "logoUrl" in data
-        ? "logo"
-        : "faviconUrl" in data
-          ? "favicon"
-          : "coverUrl" in data
-            ? "cover"
-            : "inboxLanguage" in data
-              ? "language"
-              : "locationUrl" in data
-                ? "location"
-                : "name"
+    const which: "logo" | "favicon" | "cover" | "language" | "location" =
+      "faviconUrl" in data
+        ? "favicon"
+        : "coverUrl" in data
+          ? "cover"
+          : "inboxLanguage" in data
+            ? "language"
+            : "locationUrl" in data
+              ? "location"
+              : "logo"
     setSaving(which)
     setError(null)
     const res = await fetch("/api/admin/studio", {
@@ -155,12 +153,6 @@ export default function SettingsPage() {
         <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">Loading…</div>
       ) : (
         <div className="space-y-4">
-          <NameCard
-            initialName={studio.name}
-            saving={saving === "name"}
-            onSave={(name) => update({ name })}
-          />
-
           <AssetCard
             title="Logo"
             description="Shown in the header of your public booking page, and used as the browser-tab icon (favicon). Best looks: PNG with transparent background, square or wide format."
@@ -317,93 +309,6 @@ function AssetCard({
           </div>
         )}
       </div>
-    </div>
-  )
-}
-
-function NameCard({
-  initialName, saving, onSave,
-}: {
-  initialName: string
-  saving: boolean
-  onSave: (name: string) => Promise<void> | void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState(initialName)
-  const [done, setDone] = useState(false)
-
-  useEffect(() => { setValue(initialName) }, [initialName])
-
-  const dirty = value.trim() !== initialName.trim() && value.trim().length >= 2
-
-  const save = async () => {
-    if (!dirty || saving) { setEditing(false); return }
-    await onSave(value.trim())
-    setEditing(false)
-    setDone(true)
-    setTimeout(() => setDone(false), 2000)
-  }
-  const cancel = () => { setValue(initialName); setEditing(false) }
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-gray-900">Studio name</h2>
-          <p className="text-xs text-gray-500 mt-1 max-w-md">
-            Shown in the header of your public booking page and on the ticket. For example, &laquo;Gravity Stretching Canggu&raquo; or &laquo;Gravity Stretching Ubud&raquo;.
-          </p>
-        </div>
-        {!editing && (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            aria-label="Edit studio name"
-            title="Edit"
-            className="p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-[#2C6E49]/10 flex-shrink-0"
-          >
-            <Pencil size={16} />
-          </button>
-        )}
-      </div>
-
-      {editing ? (
-        <div className="flex flex-col sm:flex-row gap-2 mt-3">
-          <input
-            type="text"
-            autoFocus
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") save(); else if (e.key === "Escape") cancel() }}
-            minLength={2}
-            maxLength={100}
-            className="flex-1 border border-[#2C6E49]/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-            placeholder="e.g. Gravity Stretching Canggu"
-          />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={save}
-              disabled={!dirty || saving}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
-            >
-              <Check size={14} /> {saving ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              onClick={cancel}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50"
-            >
-              <X size={14} /> Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-3 flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-900">{initialName}</span>
-          {done && <span className="text-xs text-[#2C6E49] font-medium">Saved ✓</span>}
-        </div>
-      )}
     </div>
   )
 }

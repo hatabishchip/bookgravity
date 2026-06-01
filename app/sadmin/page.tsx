@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import {
   Plus, X, MessageCircle, CheckCircle2, AlertCircle,
-  ExternalLink, Eye, EyeOff, Pencil, Building2, Users, Calendar, KeyRound, Mail,
+  ExternalLink, Eye, EyeOff, Pencil, Building2, Users, Calendar, KeyRound, Mail, Check,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -132,6 +132,10 @@ function StudioCard({ studio, onConnect, onChanged }: {
 
   const [checking, setChecking] = useState(false)
   const [health, setHealth] = useState<HealthResult | null>(null)
+  // Studio name is edited ONLY here in super-admin (regular admins can't).
+  const [editingName, setEditingName] = useState(false)
+  const [nameVal, setNameVal] = useState(studio.name)
+  const [savingName, setSavingName] = useState(false)
   const lastOut = wa.lastOutboundAt
     ? (() => { try { return formatDistanceToNow(new Date(wa.lastOutboundAt), { addSuffix: true }) } catch { return null } })()
     : null
@@ -163,6 +167,23 @@ function StudioCard({ studio, onConnect, onChanged }: {
     onChanged()
   }
 
+  const saveName = async () => {
+    const next = nameVal.trim()
+    if (next.length < 2 || next === studio.name) { setEditingName(false); setNameVal(studio.name); return }
+    setSavingName(true)
+    try {
+      await fetch("/api/sadmin/studios", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: studio.id, name: next }),
+      })
+      onChanged()
+    } finally {
+      setSavingName(false)
+      setEditingName(false)
+    }
+  }
+
   const resetAdminPassword = async () => {
     if (!studioAdmin) return
     setResetting(true)
@@ -190,7 +211,25 @@ function StudioCard({ studio, onConnect, onChanged }: {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="font-bold text-gray-900 truncate">{studio.name}</h2>
+            {editingName ? (
+              <>
+                <input
+                  autoFocus
+                  value={nameVal}
+                  onChange={(e) => setNameVal(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") { setEditingName(false); setNameVal(studio.name) } }}
+                  disabled={savingName}
+                  className="font-bold text-gray-900 border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-w-0"
+                />
+                <button type="button" onClick={saveName} disabled={savingName} aria-label="Save name" className="p-1 rounded text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"><Check size={15} /></button>
+                <button type="button" onClick={() => { setEditingName(false); setNameVal(studio.name) }} disabled={savingName} aria-label="Cancel" className="p-1 rounded text-gray-400 hover:bg-gray-100 disabled:opacity-50"><X size={15} /></button>
+              </>
+            ) : (
+              <>
+                <h2 className="font-bold text-gray-900 truncate">{studio.name}</h2>
+                <button type="button" onClick={() => { setNameVal(studio.name); setEditingName(true) }} aria-label="Edit studio name" className="p-1 rounded text-gray-400 hover:text-emerald-600 hover:bg-gray-50"><Pencil size={13} /></button>
+              </>
+            )}
             <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{studio.slug}</span>
           </div>
           {/* Path-based now — every studio lives at bookgravity.com/<slug>.
