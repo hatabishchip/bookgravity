@@ -10,14 +10,19 @@ export function phoneTail(phone: string): string {
 }
 
 // Sum of unused classes for a phone at a studio (0 if none / phone too short).
+// Phones are stored with formatting (spaces), so we can't SQL-match a
+// contiguous digit substring — we fetch the studio's active passes and compare
+// by last-10-digits in memory instead. Studios have few rows, so this is cheap.
 export async function getMembershipBalance(studioId: string, phone: string): Promise<number> {
   const tail = phoneTail(phone)
   if (tail.length < 6) return 0
   const rows = await prisma.membership.findMany({
-    where: { studioId, clientPhone: { contains: tail }, remainingClasses: { gt: 0 } },
-    select: { remainingClasses: true },
+    where: { studioId, remainingClasses: { gt: 0 } },
+    select: { clientPhone: true, remainingClasses: true },
   })
-  return rows.reduce((s, r) => s + r.remainingClasses, 0)
+  return rows
+    .filter((r) => phoneTail(r.clientPhone) === tail)
+    .reduce((s, r) => s + r.remainingClasses, 0)
 }
 
 // Build a tail -> remaining-balance map for a studio in one query. Used by the
@@ -43,10 +48,11 @@ export async function deductMembershipClass(studioId: string, phone: string): Pr
   const tail = phoneTail(phone)
   if (tail.length < 6) return null
   return prisma.$transaction(async (tx) => {
-    const row = await tx.membership.findFirst({
-      where: { studioId, clientPhone: { contains: tail }, remainingClasses: { gt: 0 } },
+    const rows = await tx.membership.findMany({
+      where: { studioId, remainingClasses: { gt: 0 } },
       orderBy: { createdAt: "asc" },
     })
+    const row = rows.find((r) => phoneTail(r.clientPhone) === tail)
     if (!row) return null
     await tx.membership.update({
       where: { id: row.id },

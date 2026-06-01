@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getPublicStudioId } from "@/lib/studio"
+import { getMembershipBalance } from "@/lib/membership"
 
 export const dynamic = "force-dynamic"
 
@@ -36,18 +37,13 @@ export async function GET(request: NextRequest) {
     })
     const cleanName = nameBooking?.clientName?.replace(/\s*\(\d+\/\d+\)$/, "").trim() || null
 
-    // Membership balance for this studio. Match on the last 10 digits so a
-    // slightly different formatting (spaces, leading 0 vs +62) still resolves —
-    // same approach the WhatsApp webhook uses for phone matching.
+    // Membership balance for this studio. Matched by last-10-digits in the
+    // helper (phones are stored formatted, so a SQL substring won't match).
     let membershipRemaining = 0
     const tail = phone.replace(/\D/g, "").slice(-10)
     if (tail.length >= 6) {
       const studioId = await getPublicStudioId(studioSlug)
-      const rows = await prisma.membership.findMany({
-        where: { studioId, clientPhone: { contains: tail }, remainingClasses: { gt: 0 } },
-        select: { remainingClasses: true },
-      })
-      membershipRemaining = rows.reduce((sum, r) => sum + r.remainingClasses, 0)
+      membershipRemaining = await getMembershipBalance(studioId, phone)
     }
 
     return NextResponse.json({

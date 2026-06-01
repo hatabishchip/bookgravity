@@ -41,27 +41,32 @@ export async function GET(request: NextRequest) {
   const tail = phoneTail(phone)
   if (tail.length < 6) return NextResponse.json({ remaining: 0, memberships: [], name: null })
 
-  const memberships = await prisma.membership.findMany({
-    where: { studioId: ctx.studioId, clientPhone: { contains: tail } },
+  // Phones are stored formatted (with spaces), so match on last-10-digits in
+  // memory rather than a SQL substring (which would miss "+62 812 …").
+  const allMemberships = await prisma.membership.findMany({
+    where: { studioId: ctx.studioId },
     orderBy: { createdAt: "desc" },
   })
+  const memberships = allMemberships.filter((m) => phoneTail(m.clientPhone) === tail)
   const remaining = memberships.reduce((s, m) => s + m.remainingClasses, 0)
 
-  // Best-known client name for this phone: latest membership name, else the
-  // latest booking name (party suffix stripped). Lets the sell form auto-fill.
+  // Best-known client name: latest membership name, else a recent booking name
+  // (party suffix stripped). Bounded scan, matched by last-10-digits.
   let name = memberships.find((m) => m.clientName)?.clientName ?? null
   if (!name) {
-    const booking = await prisma.booking.findFirst({
-      where: { clientPhone: { contains: tail } },
+    const recent = await prisma.booking.findMany({
+      where: { slot: { studioId: ctx.studioId } },
       orderBy: { createdAt: "desc" },
-      select: { clientName: true },
+      take: 400,
+      select: { clientName: true, clientPhone: true },
     })
-    name = booking?.clientName?.replace(/\s*\(\d+\/\d+\)$/, "").trim() || null
+    const hit = recent.find((b) => phoneTail(b.clientPhone) === tail)
+    name = hit?.clientName?.replace(/\s*\(\d+\/\d+\)$/, "").trim() || null
   }
 
   // Do we know this number is on WhatsApp? The Cloud API can't check arbitrary
-  // numbers, but if we have a conversation with them (they messaged us, or we
-  // messaged them) they're reachable on WhatsApp. Best-effort signal.
+  // numbers, but if we have a conversation with them they're reachable on
+  // WhatsApp. Conversation phones are normalized to digits, so contains works.
   const convo = await prisma.whatsAppConversation.findFirst({
     where: { studioId: ctx.studioId, clientPhone: { contains: tail } },
     select: { id: true },
