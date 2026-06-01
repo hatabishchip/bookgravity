@@ -196,7 +196,7 @@ function clientEndTime(startTime: string) {
 
 export default function BookingWidget({ services, studio, studioSlug }: {
   services: Service[]
-  studio?: { name: string; slug: string; logoUrl: string | null }
+  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null }
   // Slug of the studio this widget books into. Sent as ?studio= on the
   // slots/bookings calls so the API scopes to the right studio regardless of
   // host (we serve every studio from bookgravity.com now). Falls back to the
@@ -642,6 +642,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       ticketCode: booking.ticketCode,
       partySize,
       studioName: studio?.name,
+      locationUrl: studio?.locationUrl ?? null,
     })
     const waLink = form.clientPhone ? whatsappLink(form.clientPhone, messageText) : null
 

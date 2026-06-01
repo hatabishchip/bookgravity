@@ -18,10 +18,12 @@ export function bookingConfirmationMessage(opts: {
   partySize?: number
   /** Full studio name, e.g. "Gravity Stretching Ubud". Falls back to brand. */
   studioName?: string
+  /** Maps link to the studio — appended as a "Location" line when present. */
+  locationUrl?: string | null
 }): string {
   const partyText = opts.partySize && opts.partySize > 1 ? ` (${opts.partySize} people)` : ""
   const studio = (opts.studioName && opts.studioName.trim()) || "Gravity Stretching"
-  return [
+  const lines = [
     `🌿 *${studio}* 🌿`,
     ``,
     `Hi ${opts.clientName}! Your booking is confirmed${partyText}.`,
@@ -29,10 +31,12 @@ export function bookingConfirmationMessage(opts: {
     `📅 ${opts.date}`,
     `⏰ ${opts.time}`,
     `🎟 Code: *${opts.ticketCode}*`,
-    ``,
-    `Show this code to your trainer when you arrive.`,
-    `See you on the mat!`,
-  ].join("\n")
+  ]
+  if (opts.locationUrl && opts.locationUrl.trim()) {
+    lines.push(``, `📍 Location: ${opts.locationUrl.trim()}`)
+  }
+  lines.push(``, `Show this code to your trainer when you arrive.`, `See you on the mat!`)
+  return lines.join("\n")
 }
 
 export function trainerNotificationMessage(opts: {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck, Pencil, Check, X } from "lucide-react"
+import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck, Pencil, Check, X, MapPin } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
 import { cn } from "@/lib/utils"
 
@@ -16,6 +16,8 @@ type Studio = {
   isDefault: boolean
   /** ISO 639-1 code that admin-facing inbox text is shown in, or null = off. */
   inboxLanguage: string | null
+  /** Maps link to the studio, included in the client's WhatsApp confirmation. */
+  locationUrl: string | null
 }
 
 // Must mirror SUPPORTED_INBOX_LANGS in /api/admin/studio/route.ts. We keep
@@ -71,7 +73,7 @@ function readImageAsDataUrl(file: File, maxDim = 512, quality = 0.85): Promise<s
 
 export default function SettingsPage() {
   const [studio, setStudio] = useState<Studio | null>(null)
-  const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | null>(null)
+  const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | "location" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const faviconInputRef = useRef<HTMLInputElement>(null)
@@ -82,9 +84,9 @@ export default function SettingsPage() {
   }, [])
 
   const update = async (
-    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "name" | "inboxLanguage">>,
+    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "name" | "inboxLanguage" | "locationUrl">>,
   ) => {
-    const which: "logo" | "favicon" | "cover" | "name" | "language" =
+    const which: "logo" | "favicon" | "cover" | "name" | "language" | "location" =
       "logoUrl" in data
         ? "logo"
         : "faviconUrl" in data
@@ -93,7 +95,9 @@ export default function SettingsPage() {
             ? "cover"
             : "inboxLanguage" in data
               ? "language"
-              : "name"
+              : "locationUrl" in data
+                ? "location"
+                : "name"
     setSaving(which)
     setError(null)
     const res = await fetch("/api/admin/studio", {
@@ -198,6 +202,12 @@ export default function SettingsPage() {
             value={studio.inboxLanguage}
             saving={saving === "language"}
             onSave={(lang) => update({ inboxLanguage: lang })}
+          />
+
+          <LocationCard
+            value={studio.locationUrl}
+            saving={saving === "location"}
+            onSave={(url) => update({ locationUrl: url })}
           />
 
           <SessionsCard />
@@ -436,6 +446,67 @@ function InboxLanguageCard({
         {saving && <span className="text-xs text-gray-400">Saving…</span>}
         {done && !saving && (
           <span className="text-xs text-[#2C6E49] font-medium">Saved ✓</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function LocationCard({
+  value,
+  saving,
+  onSave,
+}: {
+  value: string | null
+  saving: boolean
+  onSave: (url: string | null) => Promise<void> | void
+}) {
+  const [text, setText] = useState(value ?? "")
+  const [done, setDone] = useState(false)
+  useEffect(() => { setText(value ?? "") }, [value])
+
+  const dirty = text.trim() !== (value ?? "").trim()
+  const save = async () => {
+    await onSave(text.trim() === "" ? null : text.trim())
+    setDone(true)
+    setTimeout(() => setDone(false), 1500)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <MapPin size={16} className="text-[#2C6E49]" />
+        <h2 className="text-base font-semibold text-gray-900">Studio location</h2>
+      </div>
+      <p className="text-xs text-gray-500 mb-4 max-w-md">
+        Paste a Google Maps link to your studio. It&apos;s added to the
+        client&apos;s WhatsApp booking confirmation so they can navigate
+        straight to you. Leave empty to omit it.
+      </p>
+      <div className="flex items-center gap-3">
+        <input
+          type="url"
+          inputMode="url"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="https://maps.app.goo.gl/…"
+          className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+        />
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || !dirty}
+          className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+      <div className="mt-2 min-h-[16px]">
+        {done && !saving && <span className="text-xs text-[#2C6E49] font-medium">Saved ✓</span>}
+        {value && !dirty && !done && (
+          <a href={value} target="_blank" rel="noreferrer" className="text-xs text-[#2C6E49] underline underline-offset-2">
+            Open saved location ↗
+          </a>
         )}
       </div>
     </div>

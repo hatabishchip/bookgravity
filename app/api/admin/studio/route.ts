@@ -19,6 +19,8 @@ const StudioUpdateSchema = z.object({
   logoUrl: z.string().max(MAX_DATA_URL_LEN).nullable().optional(),
   faviconUrl: z.string().max(MAX_DATA_URL_LEN).nullable().optional(),
   coverUrl: z.string().max(MAX_COVER_URL_LEN).nullable().optional(),
+  // Maps/location link shown in the client's WhatsApp confirmation. Empty → null.
+  locationUrl: z.string().trim().max(2000).nullable().optional(),
   groupPrice: z.number().min(0).optional(),
   kidsPrice: z.number().min(0).optional(),
   privatePrice: z.number().min(0).optional(),
@@ -33,6 +35,7 @@ const STUDIO_SELECT = {
   logoUrl: true,
   faviconUrl: true,
   coverUrl: true,
+  locationUrl: true,
   isDefault: true,
   groupPrice: true,
   kidsPrice: true,

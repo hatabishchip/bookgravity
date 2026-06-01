@@ -17,6 +17,9 @@ model Studio {
   // the booking calendar. Stored as a data URL (like logoUrl). Null falls back
   // to the bundled /public/studios/<slug>.jpg.
   coverUrl      String?
+  // Google Maps (or any) link to the studio's physical location. Shown in the
+  // client's WhatsApp booking confirmation so they can navigate to the studio.
+  locationUrl   String?
   // Main-service prices (per person) — used as defaults when creating slots
   groupPrice    Float    @default(300000)
   kidsPrice     Float    @default(200000)
