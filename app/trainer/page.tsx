@@ -150,36 +150,9 @@ export default function TrainerSchedulePage() {
     Promise.all([fetchSalary(), fetchServices()])
   }, [fetchSalary, fetchServices])
 
-  // When entering Month view on the current month, scroll to today's cell.
-  // Fire once per (view, month) — independent of slots, so it works even when
-  // the month is empty. Double rAF lets layout settle (sticky header + grid).
-  const scrolledKeyRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (view !== "month") return
-    if (monthAnchor.getMonth() !== today.getMonth() || monthAnchor.getFullYear() !== today.getFullYear()) return
-    const key = `${view}-${format(monthAnchor, "yyyy-MM")}`
-    if (scrolledKeyRef.current === key) return
-    scrolledKeyRef.current = key
-    let raf2 = 0
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        todayCellRef.current?.scrollIntoView({ behavior: "auto", block: "start" })
-      })
-    })
-    return () => {
-      cancelAnimationFrame(raf1)
-      cancelAnimationFrame(raf2)
-    }
-  }, [view, monthAnchor, today])
-
-  // Reset the scroll-once guard when leaving Month view OR when navigating
-  // away from the current month — so re-entering re-scrolls.
-  useEffect(() => {
-    if (view !== "month") scrolledKeyRef.current = null
-    else if (monthAnchor.getMonth() !== today.getMonth() || monthAnchor.getFullYear() !== today.getFullYear()) {
-      scrolledKeyRef.current = null
-    }
-  }, [view, monthAnchor, today])
+  // NOTE: Month view intentionally does NOT auto-scroll to today. The grid
+  // renders from the 1st and the page stays put (the "Month" toggle doesn't
+  // jump); today is still highlighted via todayCellRef styling.
 
   const fetchBookingsForSlot = useCallback(async (slotId: string) => {
     const res = await fetch(`/api/trainer/bookings?slotId=${slotId}`)
