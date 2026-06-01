@@ -229,9 +229,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const ticketRef = useRef<HTMLDivElement>(null)
   const [sharing, setSharing] = useState(false)
 
-  // Capture the ticket card as a PNG and share via WhatsApp.
-  // Mobile: Web Share API with file → opens system share sheet (user picks WhatsApp, image attaches).
-  // Desktop / unsupported: download the image and open wa.me so user can drag the file in.
+  // Send the ticket to the client's OWN WhatsApp number.
+  // We intentionally do NOT use the Web Share API (it opens the system share
+  // sheet / contact picker, letting you send to anyone). Instead we save the
+  // ticket image to the device and open a wa.me chat pre-targeted to the
+  // number used for the booking, with the confirmation text prefilled.
   async function shareTicketToWhatsApp(messageText: string, waLink: string | null) {
     if (!ticketRef.current || sharing) return
     setSharing(true)
@@ -242,40 +244,23 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         backgroundColor: "#ffffff",
         cacheBust: true,
       })
-      if (!blob) throw new Error("Failed to render ticket")
-
-      const file = new File([blob], `gravity-ticket-${booking?.ticketCode || "ticket"}.png`, { type: "image/png" })
-
-      // Prefer native share with file when supported (mobile WhatsApp)
-      const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean; share?: (data: ShareData & { files?: File[] }) => Promise<void> }
-      if (nav.canShare && nav.canShare({ files: [file] }) && nav.share) {
-        try {
-          await nav.share({ files: [file], text: messageText })
-          return
-        } catch (err) {
-          // User cancelled or share failed — fall through to download path
-          if ((err as { name?: string }).name === "AbortError") return
-        }
-      }
-
-      // Fallback: download the image, then open WhatsApp link so user can attach manually
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = file.name
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
-
-      if (waLink) {
-        setTimeout(() => window.open(waLink, "_blank"), 300)
+      // Save the ticket PNG to the device so the client keeps it (wa.me links
+      // can't carry an image attachment). Best-effort — never blocks the link.
+      if (blob) {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `gravity-ticket-${booking?.ticketCode || "ticket"}.png`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
       }
     } catch (e) {
-      console.error("Share ticket failed:", e)
-      // Last-resort fallback: just open WhatsApp text link
-      if (waLink) window.open(waLink, "_blank")
+      console.error("Render ticket image failed:", e)
     } finally {
+      // Always open the client's own WhatsApp chat with the text prefilled.
+      if (waLink) window.open(waLink, "_blank")
       setSharing(false)
     }
   }
