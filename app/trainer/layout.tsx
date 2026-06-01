@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Calendar, BookOpen, Banknote, LogOut, KeyRound, X, Menu, ExternalLink, GraduationCap } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 
 const navItems = [
@@ -16,10 +17,14 @@ const navItems = [
 ]
 
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter()
   const [form, setForm] = useState({ current: "", next: "", confirm: "" })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [done, setDone] = useState(false)
+
+  // Lock the page behind the modal so it doesn't scroll/jump when the
+  // keyboard opens — the modal is full-screen on mobile.
+  useBodyScrollLock(true)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,41 +35,39 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentPassword: form.current, newPassword: form.next }),
     })
-    if (res.ok) { setDone(true) }
-    else { const d = await res.json(); setError(d.error ?? "Error") }
-    setLoading(false)
+    if (res.ok) {
+      // Password changed — send the trainer to their schedule.
+      onClose()
+      router.push("/trainer")
+    } else {
+      const d = await res.json(); setError(d.error ?? "Error")
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+    <div className="fixed inset-0 bg-black/40 flex items-stretch sm:items-center justify-center z-[60] sm:p-4">
+      <div className="bg-white w-full h-full overflow-y-auto p-6 sm:h-auto sm:max-w-sm sm:rounded-2xl shadow-xl">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-gray-800">Change Password</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
         </div>
-        {done ? (
-          <div className="text-center py-4">
-            <p className="text-[#2C6E49] font-medium mb-1">Password updated!</p>
-            <button onClick={onClose} className="mt-3 text-sm text-gray-400 hover:text-gray-600">Close</button>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <input type="password" required placeholder="Current password" value={form.current}
-              onChange={(e) => setForm({ ...form, current: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
-            <input type="password" required placeholder="New password" minLength={4} value={form.next}
-              onChange={(e) => setForm({ ...form, next: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
-            <input type="password" required placeholder="Confirm new password" value={form.confirm}
-              onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
-            {error && <p className="text-xs text-red-500">{error}</p>}
-            <button type="submit" disabled={loading}
-              className="w-full bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
-              {loading ? "Saving..." : "Update Password"}
-            </button>
-          </form>
-        )}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input type="password" required placeholder="Current password" value={form.current}
+            onChange={(e) => setForm({ ...form, current: e.target.value })}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
+          <input type="password" required placeholder="New password" minLength={4} value={form.next}
+            onChange={(e) => setForm({ ...form, next: e.target.value })}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
+          <input type="password" required placeholder="Confirm new password" value={form.confirm}
+            onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          <button type="submit" disabled={loading}
+            className="w-full bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
+            {loading ? "Saving..." : "Update Password"}
+          </button>
+        </form>
       </div>
     </div>
   )

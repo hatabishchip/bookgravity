@@ -107,11 +107,11 @@ export default function SellMembershipButton({
         // the layout viewport resizes with the keyboard (viewport
         // interactiveWidget=resizes-content), so nothing scrolls behind.
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/40 sm:p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-2xl p-5 shadow-xl max-h-[85vh] overflow-y-auto"
+            className="w-full h-full overflow-y-auto bg-white p-5 sm:h-auto sm:max-w-sm sm:rounded-2xl sm:max-h-[85vh] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             {done == null ? (
