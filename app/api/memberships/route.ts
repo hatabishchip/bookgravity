@@ -59,7 +59,16 @@ export async function GET(request: NextRequest) {
     name = booking?.clientName?.replace(/\s*\(\d+\/\d+\)$/, "").trim() || null
   }
 
-  return NextResponse.json({ remaining, memberships, name })
+  // Do we know this number is on WhatsApp? The Cloud API can't check arbitrary
+  // numbers, but if we have a conversation with them (they messaged us, or we
+  // messaged them) they're reachable on WhatsApp. Best-effort signal.
+  const convo = await prisma.whatsAppConversation.findFirst({
+    where: { studioId: ctx.studioId, clientPhone: { contains: tail } },
+    select: { id: true },
+  })
+  const hasWhatsApp = !!convo
+
+  return NextResponse.json({ remaining, memberships, name, hasWhatsApp })
 }
 
 // POST /api/memberships → sell a new 5-class membership.

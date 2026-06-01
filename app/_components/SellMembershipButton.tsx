@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import PhoneInput from "@/app/_components/PhoneInput"
+import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { validatePhone } from "@/lib/phone"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { cn } from "@/lib/utils"
@@ -32,6 +33,7 @@ export default function SellMembershipButton({
   const [name, setName] = useState("")
   const [payment, setPayment] = useState("CASH")
   const [existing, setExisting] = useState<number | null>(null)
+  const [hasWhatsApp, setHasWhatsApp] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -52,16 +54,18 @@ export default function SellMembershipButton({
   useEffect(() => {
     if (!open || !phoneOk) {
       setExisting(null)
+      setHasWhatsApp(false)
       return
     }
     const ctrl = new AbortController()
     fetch(`/api/memberships?phone=${encodeURIComponent(phone)}`, { signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : { remaining: 0, name: null }))
-      .then((d: { remaining: number; name: string | null }) => {
+      .then((r) => (r.ok ? r.json() : { remaining: 0, name: null, hasWhatsApp: false }))
+      .then((d: { remaining: number; name: string | null; hasWhatsApp?: boolean }) => {
         setExisting(d.remaining ?? 0)
+        setHasWhatsApp(!!d.hasWhatsApp)
         if (d.name) setName((prev) => (prev.trim() ? prev : d.name!))
       })
-      .catch(() => setExisting(null))
+      .catch(() => { setExisting(null); setHasWhatsApp(false) })
     return () => ctrl.abort()
   }, [open, phone, phoneOk])
 
@@ -70,6 +74,7 @@ export default function SellMembershipButton({
     setName("")
     setPayment("CASH")
     setExisting(null)
+    setHasWhatsApp(false)
     setDone(null)
     setError(null)
     setPhoneDone(false)
@@ -132,14 +137,26 @@ export default function SellMembershipButton({
             {done == null ? (
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
                 {/* Phone first: prominent while typing, compact once committed. */}
-                <PhoneInput
-                  value={phone}
-                  onChange={(v) => { setPhone(v); setPhoneDone(false) }}
-                  onBlur={(v) => setPhoneDone(validatePhone(v).kind === "ok")}
-                  autoFocus
-                  hideHint
-                  compact={phoneDone}
-                />
+                <div className="relative">
+                  <PhoneInput
+                    value={phone}
+                    onChange={(v) => { setPhone(v); setPhoneDone(false) }}
+                    onBlur={(v) => setPhoneDone(validatePhone(v).kind === "ok")}
+                    autoFocus
+                    hideHint
+                    compact={phoneDone}
+                  />
+                  {/* This number is on WhatsApp (we've had contact with it). */}
+                  {phoneOk && hasWhatsApp && (
+                    <span
+                      className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                      title="On WhatsApp"
+                      aria-label="On WhatsApp"
+                    >
+                      <WhatsAppIcon size={20} />
+                    </span>
+                  )}
+                </div>
 
                 {/* Name: disabled + muted until the phone is valid, then grows. */}
                 <input
@@ -185,7 +202,7 @@ export default function SellMembershipButton({
 
                 <button
                   type="button"
-                  disabled={!phoneOk || submitting}
+                  disabled={!phoneOk || !name.trim() || submitting}
                   onClick={submit}
                   className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
                 >
