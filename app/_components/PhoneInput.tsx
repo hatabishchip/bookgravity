@@ -36,6 +36,8 @@ export interface PhoneInputProps {
   className?: string
   /** Called when the field loses focus (after the value has been committed). */
   onBlur?: (value: string) => void
+  /** Hide the status / hint line under the input (country, digit count, tips). */
+  hideHint?: boolean
 }
 
 export default function PhoneInput({
@@ -49,6 +51,7 @@ export default function PhoneInput({
   autoFocus,
   className,
   onBlur,
+  hideHint,
 }: PhoneInputProps) {
   const id = useId()
   const validation = validatePhone(value)
@@ -118,7 +121,7 @@ export default function PhoneInput({
         )}
       />
       {/* Status row beneath the input — same layout as the booking widget. */}
-      {validation.kind === "unknown_code" ? (
+      {hideHint ? null : validation.kind === "unknown_code" ? (
         <p className="text-xs text-red-500 mt-1">
           Unknown country code — start with a valid one, e.g. +62
         </p>

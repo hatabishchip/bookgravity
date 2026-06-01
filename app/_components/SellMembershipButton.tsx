@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import PhoneInput from "@/app/_components/PhoneInput"
 import { validatePhone } from "@/lib/phone"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
@@ -35,6 +35,7 @@ export default function SellMembershipButton({
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const nameRef = useRef<HTMLInputElement>(null)
 
   // Freeze the page behind the modal — without this the background (and the
   // modal) jump around when the numeric keyboard opens on mobile.
@@ -42,7 +43,9 @@ export default function SellMembershipButton({
 
   const phoneOk = validatePhone(phone).kind === "ok"
 
-  // Look up any existing balance once the phone is valid.
+  // Once the phone is valid, look up the existing balance AND the client's
+  // known name. If a name is on file we auto-fill it; if not, we move focus to
+  // the (now enlarged) name field so the seller can type it.
   useEffect(() => {
     if (!open || !phoneOk) {
       setExisting(null)
@@ -50,8 +53,16 @@ export default function SellMembershipButton({
     }
     const ctrl = new AbortController()
     fetch(`/api/memberships?phone=${encodeURIComponent(phone)}`, { signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : { remaining: 0 }))
-      .then((d: { remaining: number }) => setExisting(d.remaining ?? 0))
+      .then((r) => (r.ok ? r.json() : { remaining: 0, name: null }))
+      .then((d: { remaining: number; name: string | null }) => {
+        setExisting(d.remaining ?? 0)
+        if (d.name) {
+          setName((prev) => (prev.trim() ? prev : d.name!))
+        } else {
+          // No name on file — focus the now-enlarged name field.
+          setTimeout(() => nameRef.current?.focus(), 60)
+        }
+      })
       .catch(() => setExisting(null))
     return () => ctrl.abort()
   }, [open, phone, phoneOk])
@@ -122,7 +133,25 @@ export default function SellMembershipButton({
                 </div>
 
                 <div className="space-y-3">
-                  <PhoneInput value={phone} onChange={setPhone} label="Client phone" required autoFocus />
+                  {/* Phone first: prominent until valid, then compact. */}
+                  <PhoneInput value={phone} onChange={setPhone} autoFocus hideHint compact={phoneOk} />
+
+                  {/* Name: disabled + muted until the phone is valid; then it
+                      grows and (if not auto-filled) takes focus. */}
+                  <input
+                    ref={nameRef}
+                    type="text"
+                    value={name}
+                    disabled={!phoneOk}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Client name"
+                    className={cn(
+                      "w-full border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] transition-all",
+                      phoneOk
+                        ? "px-4 py-3 text-base border-gray-300 text-gray-900"
+                        : "px-3 py-1.5 text-xs border-gray-200 bg-gray-50 text-gray-400 placeholder:text-gray-300"
+                    )}
+                  />
 
                   {existing != null && existing > 0 && (
                     <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
@@ -130,36 +159,23 @@ export default function SellMembershipButton({
                     </div>
                   )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-gray-400">(optional)</span></label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Client name"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment for the membership</label>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {PAYMENT_METHODS.map((pm) => (
-                        <button
-                          key={pm.value}
-                          type="button"
-                          onClick={() => setPayment(pm.value)}
-                          className={cn(
-                            "py-2 rounded-lg text-sm font-semibold border",
-                            payment === pm.value
-                              ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                              : "bg-white text-gray-600 border-gray-200"
-                          )}
-                        >
-                          {pm.label}
-                        </button>
-                      ))}
-                    </div>
+                  {/* Payment method — chips, no label. */}
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {PAYMENT_METHODS.map((pm) => (
+                      <button
+                        key={pm.value}
+                        type="button"
+                        onClick={() => setPayment(pm.value)}
+                        className={cn(
+                          "py-2 rounded-lg text-sm font-semibold border",
+                          payment === pm.value
+                            ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                            : "bg-white text-gray-600 border-gray-200"
+                        )}
+                      >
+                        {pm.label}
+                      </button>
+                    ))}
                   </div>
 
                   {error && <div className="text-sm text-red-500">{error}</div>}

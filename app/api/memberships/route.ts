@@ -39,14 +39,27 @@ export async function GET(request: NextRequest) {
   if (!phone) return NextResponse.json({ remaining: 0, memberships: [] })
 
   const tail = phoneTail(phone)
-  if (tail.length < 6) return NextResponse.json({ remaining: 0, memberships: [] })
+  if (tail.length < 6) return NextResponse.json({ remaining: 0, memberships: [], name: null })
 
   const memberships = await prisma.membership.findMany({
     where: { studioId: ctx.studioId, clientPhone: { contains: tail } },
     orderBy: { createdAt: "desc" },
   })
   const remaining = memberships.reduce((s, m) => s + m.remainingClasses, 0)
-  return NextResponse.json({ remaining, memberships })
+
+  // Best-known client name for this phone: latest membership name, else the
+  // latest booking name (party suffix stripped). Lets the sell form auto-fill.
+  let name = memberships.find((m) => m.clientName)?.clientName ?? null
+  if (!name) {
+    const booking = await prisma.booking.findFirst({
+      where: { clientPhone: { contains: tail } },
+      orderBy: { createdAt: "desc" },
+      select: { clientName: true },
+    })
+    name = booking?.clientName?.replace(/\s*\(\d+\/\d+\)$/, "").trim() || null
+  }
+
+  return NextResponse.json({ remaining, memberships, name })
 }
 
 // POST /api/memberships → sell a new 5-class membership.
