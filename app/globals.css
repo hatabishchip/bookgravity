@@ -46,17 +46,14 @@ html, body {
   animation: sheet-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Copy confirmation: the bubble flashes a green highlight, then fades back. */
-@keyframes copy-flash {
-  0% {
-    box-shadow: 0 0 0 3px rgba(44, 110, 73, 0.6);
-    filter: brightness(1.08);
-  }
-  100% {
-    box-shadow: 0 0 0 3px rgba(44, 110, 73, 0);
-    filter: brightness(1);
-  }
+/* Copy confirmation toast — WhatsApp style: a dark pill near the bottom that
+   slides up + fades in, holds, then fades out (in → hold → out in one run). */
+@keyframes toast-pop {
+  0% { opacity: 0; transform: translate(-50%, 14px) scale(0.96); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  85% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, 6px) scale(0.98); }
 }
-.animate-copy-flash {
-  animation: copy-flash 0.9s ease-out;
+.animate-toast-pop {
+  animation: toast-pop 1.6s ease forwards;
 }

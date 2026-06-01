@@ -169,6 +169,7 @@ function MessageBubble({
   onTranslate,
   translating = false,
   onReact,
+  onCopied,
 }: {
   m: MessageRow
   role: "ADMIN" | "TRAINER"
@@ -176,13 +177,11 @@ function MessageBubble({
   onTranslate?: (messageId: string) => void
   translating?: boolean
   onReact?: (messageId: string, emoji: string) => void
-  onDelete?: (messageId: string) => void
+  onCopied?: () => void
 }) {
   const isOut = m.direction === "OUTBOUND"
   // WhatsApp-style action menu: long-press (touch) or right-click (desktop).
   const [menuOpen, setMenuOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [flash, setFlash] = useState(false)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const openMenu = () => setMenuOpen(true)
@@ -199,21 +198,15 @@ function MessageBubble({
 
   const copyText = async () => {
     const text = m.body ?? m.translatedBody ?? ""
+    let ok = true
     try {
       await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1200)
     } catch {
-      /* clipboard blocked — no-op */
+      ok = false
     }
-    // Close the sheet and flash the bubble so it's obvious the copy happened.
+    // Close the sheet; the parent shows a WhatsApp-style "Скопировано" toast.
     setMenuOpen(false)
-    setFlash(false)
-    // Next frame so the animation restarts even on a repeat copy.
-    requestAnimationFrame(() => {
-      setFlash(true)
-      setTimeout(() => setFlash(false), 950)
-    })
+    if (ok) onCopied?.()
   }
 
   const react = (emoji: string) => {
@@ -304,7 +297,7 @@ function MessageBubble({
                 onClick={copyText}
                 className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-white/5"
               >
-                {copied ? "Copied ✓" : "Copy"}
+                Copy
                 <span aria-hidden>📋</span>
               </button>
             </div>
@@ -324,7 +317,6 @@ function MessageBubble({
             ? "bg-[#DCF8C6] text-gray-900 dark:bg-[#005C4B] dark:text-white"
             : "bg-white text-gray-900 border border-gray-100 dark:bg-[#1F2C34] dark:text-white dark:border-transparent",
           m.importedAt && "opacity-80",
-          flash && "animate-copy-flash",
         )}
         style={{ fontSize: `${fontScale * 0.875}rem`, WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
       >
@@ -499,6 +491,9 @@ export default function Inbox({
   const [sendError, setSendError] = useState<string | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const [translatingIds, setTranslatingIds] = useState<Set<string>>(new Set())
+  // Timestamp of the last copy — drives the WhatsApp-style "Скопировано" toast.
+  // A changing value remounts the toast so its animation replays each copy.
+  const [copiedAt, setCopiedAt] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -1156,6 +1151,7 @@ export default function Inbox({
                 onTranslate={translateMessage}
                 translating={translatingIds.has(m.id)}
                 onReact={reactMessage}
+                onCopied={() => setCopiedAt(Date.now())}
               />
             ))}
             <div ref={messagesEndRef} />
@@ -1214,6 +1210,17 @@ export default function Inbox({
             "h-[calc(100dvh-72px)] lg:h-[calc(100dvh-64px)] -m-4 lg:-m-8",
       )}
     >
+      {/* WhatsApp-style "copied" toast — dark pill near the bottom that slides
+          up, holds, then fades out. Remounts on each copy (key) to replay. */}
+      {copiedAt > 0 && (
+        <div
+          key={copiedAt}
+          className="animate-toast-pop pointer-events-none fixed left-1/2 bottom-28 z-[60] flex items-center gap-2 rounded-full bg-gray-900/90 dark:bg-black/80 px-4 py-2 text-sm font-medium text-white shadow-lg backdrop-blur-sm"
+        >
+          <span aria-hidden>✓</span> Скопировано
+        </div>
+      )}
+
       {/* Desktop: side-by-side. Mobile: show list, or chat if selected */}
       <div
         className={cn(
