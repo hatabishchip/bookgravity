@@ -4,13 +4,14 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, BookOpen, Banknote, LogOut, KeyRound, X, Menu, ExternalLink } from "lucide-react"
+import { Calendar, BookOpen, Banknote, LogOut, KeyRound, X, Menu, ExternalLink, GraduationCap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 
 const navItems = [
   { href: "/trainer", label: "My Schedule", icon: Calendar },
   { href: "/trainer/bookings", label: "Bookings", icon: BookOpen },
+  { href: "/trainer/instruction", label: "How to start", icon: GraduationCap },
   { href: "/trainer/salary", label: "Salary", icon: Banknote },
 ]
 
