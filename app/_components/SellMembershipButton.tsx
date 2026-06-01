@@ -127,7 +127,7 @@ export default function SellMembershipButton({
         // flex-column so the header stays pinned and only the content scrolls
         // (overscroll-contained) — no rubber-banding to empty space.
         <div
-          className="fixed inset-0 z-50 bg-black/40 sm:flex sm:items-center sm:justify-center sm:p-4"
+          className="fixed inset-0 z-50 bg-white sm:bg-black/40 sm:flex sm:items-center sm:justify-center sm:p-4"
           onClick={() => setOpen(false)}
         >
           <div

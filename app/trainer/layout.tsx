@@ -57,7 +57,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-[60] sm:flex sm:items-center sm:justify-center sm:p-4">
+    <div className="fixed inset-0 bg-white z-[60] sm:bg-black/40 sm:flex sm:items-center sm:justify-center sm:p-4">
       <div
         className="bg-white overflow-y-auto overscroll-contain p-6 absolute inset-0 sm:static sm:inset-auto sm:w-full sm:max-w-sm sm:max-h-[85vh] sm:rounded-2xl shadow-xl"
         style={isMobile && vv ? { top: vv.y, left: vv.x, width: vv.w, height: vv.h, right: "auto", bottom: "auto" } : undefined}

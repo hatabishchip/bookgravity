@@ -59,8 +59,11 @@ export default function PhoneInput({
   const id = useId()
   const validation = validatePhone(value)
   const country = detectCountry(value)
-  const hasError =
-    validation.kind === "unknown_code" || validation.kind === "too_short"
+  // Only a genuinely wrong country code is an error (red). While the number is
+  // still too short we stay neutral (no scary red mid-typing); a valid number
+  // turns the field green.
+  const isUnknown = validation.kind === "unknown_code"
+  const isValid = validation.kind === "ok"
 
   return (
     <div className={cn("min-w-0", className)}>
@@ -117,9 +120,11 @@ export default function PhoneInput({
         className={cn(
           "w-full border rounded-xl focus:outline-none focus:ring-2 transition-colors",
           compact ? "px-3 py-1.5 text-xs" : "px-4 py-3 text-sm",
-          hasError
+          isUnknown
             ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
-            : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]",
+            : isValid
+              ? "border-[#2C6E49] bg-[#2C6E49]/5 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+              : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]",
           disabled && "bg-gray-50 text-gray-400",
           inputClassName,
         )}
