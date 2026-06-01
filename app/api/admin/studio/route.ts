@@ -53,7 +53,15 @@ export async function GET() {
     select: STUDIO_SELECT,
   })
   if (!studio) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  return NextResponse.json(studio)
+
+  // Whether THIS admin still has the auto-generated starter password (not yet
+  // changed to their own). Drives the Settings "Change password" card: show
+  // the form by default until they pick their own, then collapse to a pencil.
+  const me = await prisma.user.findUnique({
+    where: { id: ctx.userId },
+    select: { initialPassword: true },
+  })
+  return NextResponse.json({ ...studio, usingInitialPassword: !!me?.initialPassword })
 }
 
 export async function PATCH(request: NextRequest) {

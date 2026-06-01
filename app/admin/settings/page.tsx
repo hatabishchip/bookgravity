@@ -18,6 +18,8 @@ type Studio = {
   inboxLanguage: string | null
   /** Maps link to the studio, included in the client's WhatsApp confirmation. */
   locationUrl: string | null
+  /** True while this admin still uses the auto-generated starter password. */
+  usingInitialPassword?: boolean
 }
 
 // Must mirror SUPPORTED_INBOX_LANGS in /api/admin/studio/route.ts. We keep
@@ -191,7 +193,7 @@ export default function SettingsPage() {
 
           <SessionsCard />
 
-          <ChangePasswordCard />
+          <ChangePasswordCard mustChange={!!studio.usingInitialPassword} />
 
           <input
             ref={logoInputRef}
@@ -376,53 +378,82 @@ function LocationCard({
   onSave: (url: string | null) => Promise<void> | void
 }) {
   const [text, setText] = useState(value ?? "")
-  const [done, setDone] = useState(false)
-  useEffect(() => { setText(value ?? "") }, [value])
+  // Empty by default → editable; once saved → collapse to a pencil.
+  const [editing, setEditing] = useState(!value)
+  useEffect(() => {
+    setText(value ?? "")
+    setEditing(!value)
+  }, [value])
 
   const dirty = text.trim() !== (value ?? "").trim()
   const save = async () => {
+    if (!dirty) { setEditing(false); return }
     await onSave(text.trim() === "" ? null : text.trim())
-    setDone(true)
-    setTimeout(() => setDone(false), 1500)
+    // value change will collapse via the effect; collapse eagerly too.
+    setEditing(false)
   }
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <MapPin size={16} className="text-[#2C6E49]" />
-        <h2 className="text-base font-semibold text-gray-900">Studio location</h2>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <MapPin size={16} className="text-[#2C6E49]" />
+          <h2 className="text-base font-semibold text-gray-900">Studio location</h2>
+        </div>
+        {value && !editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label="Edit studio location"
+            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50"
+          >
+            <Pencil size={16} />
+          </button>
+        )}
       </div>
       <p className="text-xs text-gray-500 mb-4 max-w-md">
         Paste a Google Maps link to your studio. It&apos;s added to the
         client&apos;s WhatsApp booking confirmation so they can navigate
         straight to you. Leave empty to omit it.
       </p>
-      <div className="flex items-center gap-3">
-        <input
-          type="url"
-          inputMode="url"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="https://maps.app.goo.gl/…"
-          className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-        />
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving || !dirty}
-          className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
-      <div className="mt-2 min-h-[16px]">
-        {done && !saving && <span className="text-xs text-[#2C6E49] font-medium">Saved ✓</span>}
-        {value && !dirty && !done && (
-          <a href={value} target="_blank" rel="noreferrer" className="text-xs text-[#2C6E49] underline underline-offset-2">
-            Open saved location ↗
-          </a>
-        )}
-      </div>
+
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="url"
+            inputMode="url"
+            autoFocus={!!value}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save() }}
+            placeholder="https://maps.app.goo.gl/…"
+            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+          {value && (
+            <button
+              type="button"
+              onClick={() => { setText(value); setEditing(false) }}
+              disabled={saving}
+              aria-label="Cancel"
+              className="flex-shrink-0 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 disabled:opacity-50"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      ) : (
+        <a href={value ?? "#"} target="_blank" rel="noreferrer" className="text-sm text-[#2C6E49] underline underline-offset-2 break-all">
+          {value} ↗
+        </a>
+      )}
     </div>
   )
 }
@@ -550,11 +581,15 @@ function SessionsCard() {
   )
 }
 
-function ChangePasswordCard() {
+function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
   const [form, setForm] = useState({ current: "", next: "", confirm: "" })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [done, setDone] = useState(false)
+  // Expanded by default while still on the starter password; otherwise show a
+  // pencil and only reveal the form when the admin taps it.
+  const [editing, setEditing] = useState(mustChange)
+  useEffect(() => { if (mustChange) setEditing(true) }, [mustChange])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -570,6 +605,7 @@ function ChangePasswordCard() {
     if (res.ok) {
       setDone(true)
       setForm({ current: "", next: "", confirm: "" })
+      setEditing(false) // collapse to the pencil now that they have their own
       setTimeout(() => setDone(false), 3000)
     } else {
       const d = await res.json().catch(() => ({}))
@@ -580,12 +616,31 @@ function ChangePasswordCard() {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <KeyRound size={16} className="text-[#2C6E49]" />
-        <h2 className="text-base font-semibold text-gray-900">Change password</h2>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <KeyRound size={16} className="text-[#2C6E49]" />
+          <h2 className="text-base font-semibold text-gray-900">Change password</h2>
+        </div>
+        {!editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label="Change password"
+            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50"
+          >
+            <Pencil size={16} />
+          </button>
+        )}
       </div>
-      <p className="text-xs text-gray-500 mb-4">Update the password used to sign into this admin account.</p>
+      <p className="text-xs text-gray-500 mb-4">
+        {mustChange
+          ? "You're still using the starter password — set your own to secure the account."
+          : "Update the password used to sign into this admin account."}
+      </p>
 
+      {done && !editing && <p className="text-xs text-[#2C6E49] font-medium">Password updated ✓</p>}
+
+      {!editing ? null : (
       <form onSubmit={handleSubmit} className="space-y-3 max-w-md">
         <input
           type="password"
@@ -615,15 +670,27 @@ function ChangePasswordCard() {
           />
         </div>
         {error && <p className="text-xs text-red-500">{error}</p>}
-        {done && <p className="text-xs text-[#2C6E49] font-medium">Password updated.</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
-        >
-          {loading ? "Saving…" : "Update password"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+          >
+            {loading ? "Saving…" : "Update password"}
+          </button>
+          {!mustChange && (
+            <button
+              type="button"
+              onClick={() => { setEditing(false); setError(""); setForm({ current: "", next: "", confirm: "" }) }}
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
+      )}
     </div>
   )
 }
