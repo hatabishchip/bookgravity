@@ -641,6 +641,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       time: timeStr,
       ticketCode: booking.ticketCode,
       partySize,
+      studioName: studio?.name,
     })
     const waLink = form.clientPhone ? whatsappLink(form.clientPhone, messageText) : null
 

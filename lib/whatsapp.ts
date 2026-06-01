@@ -16,10 +16,13 @@ export function bookingConfirmationMessage(opts: {
   time: string
   ticketCode: string
   partySize?: number
+  /** Full studio name, e.g. "Gravity Stretching Ubud". Falls back to brand. */
+  studioName?: string
 }): string {
   const partyText = opts.partySize && opts.partySize > 1 ? ` (${opts.partySize} people)` : ""
+  const studio = (opts.studioName && opts.studioName.trim()) || "Gravity Stretching"
   return [
-    `🌿 *Gravity Stretching Canggu* 🌿`,
+    `🌿 *${studio}* 🌿`,
     ``,
     `Hi ${opts.clientName}! Your booking is confirmed${partyText}.`,
     ``,
