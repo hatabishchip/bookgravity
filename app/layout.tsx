@@ -19,7 +19,12 @@ export async function generateMetadata(): Promise<Metadata> {
     // Subdomain lookup can fail at build time — fall back to defaults
   }
 
-  const title = studio?.name ? `${studio.name} — Booking` : "Gravity Stretching Changgu"
+  // Brand-level default for the apex (studio chooser) and any page that doesn't
+  // set its own metadata. Per-studio pages (/canggu, /ubud) override the title
+  // with their own name, so we must NOT bake a single studio's name in here —
+  // otherwise the root (and its Google / WhatsApp link preview) reads
+  // "Gravity Stretching Canggu" even to Ubud visitors.
+  const title = "Gravity Stretching Bali — Booking"
   // Slug-suffixed URLs prevent cache collisions across subdomains
   const slug = studio?.slug ?? "default"
   const faviconUrl = `/api/favicon?s=${slug}`
@@ -27,14 +32,14 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title,
-    description: "Book your group stretching session",
+    description: "Book your stretching class in Bali — Gravity Stretching, Canggu & Ubud. Pick a time, save your QR ticket, walk in.",
     icons: {
       icon: faviconUrl,
       apple: appIconUrl,
     },
     appleWebApp: {
       capable: true,
-      title: studio?.name ?? "Gravity Stretching",
+      title: "Gravity Stretching",
       statusBarStyle: "default",
     },
     other: {
