@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import PhoneInput from "@/app/_components/PhoneInput"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
-import { validatePhone } from "@/lib/phone"
+import { validatePhone, detectCountry, subscriberDigits } from "@/lib/phone"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { useVisualViewport } from "@/lib/use-visual-viewport"
 import { cn } from "@/lib/utils"
@@ -38,6 +38,10 @@ export default function SellMembershipButton({
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // The name field unlocks only once the phone is "finished": either the
+  // number hit its max length, or the seller left the phone field (blur) with
+  // a valid number. Reset while editing so it can't open mid-typing.
+  const [phoneCommitted, setPhoneCommitted] = useState(false)
 
   // Freeze the page behind the modal so nothing scrolls/jumps with the keyboard.
   useBodyScrollLock(open)
@@ -54,6 +58,12 @@ export default function SellMembershipButton({
   }, [])
 
   const phoneOk = validatePhone(phone).kind === "ok"
+  // "Finished the number": at max length, or committed via blur. Until then the
+  // name field stays locked even though the number may already be technically
+  // valid (min length).
+  const phoneCountry = detectCountry(phone)
+  const phoneAtMax = !!phoneCountry && subscriberDigits(phone, phoneCountry) >= phoneCountry.max
+  const nameEnabled = phoneOk && (phoneAtMax || phoneCommitted)
 
   // Once the phone is valid, look up the existing balance and the client's
   // known name (auto-fill if found). Background fetch — does not steal focus.
@@ -83,6 +93,7 @@ export default function SellMembershipButton({
     setHasWhatsApp(false)
     setDone(null)
     setError(null)
+    setPhoneCommitted(false)
   }
 
   async function submit() {
@@ -146,7 +157,8 @@ export default function SellMembershipButton({
                 <div className="relative">
                   <PhoneInput
                     value={phone}
-                    onChange={setPhone}
+                    onChange={(v) => { setPhone(v); setPhoneCommitted(false) }}
+                    onBlur={(v) => setPhoneCommitted(validatePhone(v).kind === "ok")}
                     autoFocus
                     hideHint
                     inputClassName="text-lg tracking-wide tabular-nums pr-9"
@@ -163,16 +175,16 @@ export default function SellMembershipButton({
                   )}
                 </div>
 
-                {/* Name — same field size, larger text; muted until phone valid. */}
+                {/* Name — locked until the full phone number is entered. */}
                 <input
                   type="text"
                   value={name}
-                  disabled={!phoneOk}
+                  disabled={!nameEnabled}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Client name"
                   className={cn(
                     "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]",
-                    phoneOk
+                    nameEnabled
                       ? "border-gray-300 text-gray-900"
                       : "border-gray-200 bg-gray-50 text-gray-400 placeholder:text-gray-300"
                   )}
