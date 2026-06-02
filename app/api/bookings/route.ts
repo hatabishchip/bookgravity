@@ -217,7 +217,10 @@ export async function POST(request: NextRequest) {
       }
       const slotForWA = await prisma.timeSlot.findUnique({
         where: { id: data.slotId },
-        include: { trainer: { select: { name: true, whatsapp: true, notifyWhatsapp: true } } },
+        include: {
+          trainer: { select: { name: true, whatsapp: true, notifyWhatsapp: true } },
+          studio: { select: { locationUrl: true } },
+        },
       })
       if (slotForWA) {
         const prettyDate = slotForWA.date // YYYY-MM-DD; template can format
@@ -250,6 +253,7 @@ export async function POST(request: NextRequest) {
           date: prettyDate,
           time: prettyTime,
           ticketCode: bookings[0].ticketCode,
+          locationUrl: slotForWA.studio?.locationUrl,
         }).then(async (r) => {
           if (!r.ok) console.warn("[bookings] WA client send failed:", r.error)
           else console.log("[bookings] WA client sent:", r.messageId)

@@ -451,9 +451,13 @@ export async function sendWhatsAppTemplate(opts: {
  *   WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION (default: booking_confirmation)
  *   WHATSAPP_TEMPLATE_LANG               (default: en)
  *
- * Expected template body (4 positional vars):
- *   Hi {{1}}! Your booking at Gravity Stretching Canggu is confirmed.
- *   Date: {{2}}   Time: {{3}}   Code: {{4}}
+ * Template body (v2 — 4 vars):
+ *   Hi {{1}}, your booking is confirmed.
+ *   Date: {{2}}  Time: {{3}}  Ticket: {{4}}
+ * Template body (v3 — 5 vars): adds a "📍 Location: {{5}}" line carrying the
+ * studio's Google Maps link from settings. We only pass the 5th variable when
+ * the active template name is the v3 one, so switching templates via env is
+ * the single source of truth (no var-count mismatch during rollout).
  */
 export async function sendClientBookingConfirmationWA(opts: {
   clientPhone: string
@@ -461,15 +465,23 @@ export async function sendClientBookingConfirmationWA(opts: {
   date: string
   time: string
   ticketCode: string
+  /** Studio's Google Maps link (Studio.locationUrl). Used by the v3 template. */
+  locationUrl?: string | null
 }): Promise<SendResult> {
   const templateName =
     process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+  const variables = [opts.clientName, opts.date, opts.time, opts.ticketCode]
+  // v3 carries an extra {{5}} location variable. Fall back to a dash if the
+  // studio has no location set (Meta rejects empty body parameters).
+  if (/v3$/.test(templateName)) {
+    variables.push(opts.locationUrl?.trim() || "—")
+  }
   return sendWhatsAppTemplate({
     toPhone: opts.clientPhone,
     templateName,
     languageCode: lang,
-    variables: [opts.clientName, opts.date, opts.time, opts.ticketCode],
+    variables,
   })
 }
 
