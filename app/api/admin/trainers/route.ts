@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import bcrypt from "bcryptjs"
+import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
 const TrainerSchema = z.object({
   name: z.string().min(2),
@@ -36,6 +37,10 @@ export async function GET() {
     orderBy: { name: "asc" },
   })
 
+  // Whether the studio has WhatsApp connected — the UI greys out the WhatsApp
+  // notification toggle (and the booking flow won't send) until it's on.
+  const studioWhatsAppEnabled = await isStudioWhatsAppEnabled(ctx.studioId)
+
   // Flatten the last-activity timestamp and drop the raw session arrays.
   const rows = trainers.map((t) => {
     const web = t.user.loginSessions[0]?.lastSeenAt ?? null
@@ -46,6 +51,7 @@ export async function GET() {
     return {
       ...t,
       lastActiveAt,
+      studioWhatsAppEnabled,
       user: { email: t.user.email, initialPassword: t.user.initialPassword },
     }
   })
@@ -120,6 +126,13 @@ export async function PATCH(request: NextRequest) {
 
   if (body.whatsapp !== undefined) {
     updateData.whatsapp = String(body.whatsapp)
+  }
+
+  if (body.notifyEmail !== undefined) {
+    updateData.notifyEmail = !!body.notifyEmail
+  }
+  if (body.notifyWhatsapp !== undefined) {
+    updateData.notifyWhatsapp = !!body.notifyWhatsapp
   }
 
   if (body.name !== undefined) {

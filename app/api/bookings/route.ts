@@ -170,9 +170,13 @@ export async function POST(request: NextRequest) {
           }),
         )
         let emailCount = 1 // client confirmation always sent
-        if (trainerEmail && trainerName) {
+        // Respect the trainer's email channel toggle (on by default).
+        const trainerWantsEmail = slotWithTrainer.trainer?.notifyEmail !== false
+        if (trainerEmail && trainerName && trainerWantsEmail) {
           mailPromises.push(sendTrainerBookingNotification(trainerEmail, trainerName, sharedData))
           emailCount += 1
+        } else if (!trainerWantsEmail) {
+          console.log("[bookings] trainer email notify OFF for this trainer")
         } else {
           console.warn("[bookings] trainer notify SKIPPED — slot has no trainer with an email")
         }
@@ -213,7 +217,7 @@ export async function POST(request: NextRequest) {
       }
       const slotForWA = await prisma.timeSlot.findUnique({
         where: { id: data.slotId },
-        include: { trainer: { select: { name: true, whatsapp: true } } },
+        include: { trainer: { select: { name: true, whatsapp: true, notifyWhatsapp: true } } },
       })
       if (slotForWA) {
         const prettyDate = slotForWA.date // YYYY-MM-DD; template can format
@@ -292,6 +296,11 @@ export async function POST(request: NextRequest) {
             }
           }
 
+          if (!slotForWA.trainer?.notifyWhatsapp) {
+            console.log("[bookings] WA trainer notify OFF for this trainer")
+            await recordStatus("skipped", "whatsapp channel off")
+            return
+          }
           if (!trainerWA || !trainerName) {
             console.warn("[bookings] WA trainer notify SKIPPED — no whatsapp on trainer")
             await recordStatus("skipped", "no whatsapp on trainer")

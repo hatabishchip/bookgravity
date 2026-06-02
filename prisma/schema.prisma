@@ -137,6 +137,10 @@ model Trainer {
   assistedSlots  TimeSlot[]       @relation("SlotAssistant")
   commissionRate Int              @default(20)
   color          String           @default("#6366F1")
+  // How this trainer is told about new bookings on their classes. Email is on
+  // by default; WhatsApp only fires when the studio has WhatsApp connected.
+  notifyEmail    Boolean          @default(true)
+  notifyWhatsapp Boolean          @default(false)
   payments       TrainerPayment[]
   assignedConversations WhatsAppConversation[] @relation("ConversationAssignedTrainer")
   conversationAccess    WhatsAppConversationAccess[] @relation("TrainerConversationAccess")

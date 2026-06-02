@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Plus, Trash2, X, User, CalendarDays, Pencil, Check } from "lucide-react"
+import { Plus, Trash2, X, User, CalendarDays, Pencil, Check, Mail } from "lucide-react"
+import { cn } from "@/lib/utils"
 import TrainerSchedule from "./TrainerSchedule"
 import PhoneInput from "@/app/_components/PhoneInput"
 import { formatPhoneInput, validatePhone } from "@/lib/phone"
@@ -48,6 +49,11 @@ type Trainer = {
   user: { email: string; initialPassword?: string | null }
   /** Latest web/mobile activity; null if the trainer never signed in. */
   lastActiveAt?: string | null
+  /** Booking-notification channels for this trainer. */
+  notifyEmail: boolean
+  notifyWhatsapp: boolean
+  /** Whether this studio has WhatsApp connected (gates the WhatsApp toggle). */
+  studioWhatsAppEnabled?: boolean
 }
 
 function ColorPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
@@ -167,14 +173,20 @@ export default function TrainersPage() {
   // Single "edit mode" per trainer card. Clicking the pencil flips the card
   // into a draft where all three fields (name / email / WhatsApp) become
   // editable at once; one Save patches them all in one PATCH call.
-  type EditDraft = { name: string; email: string; whatsapp: string }
+  type EditDraft = { name: string; email: string; whatsapp: string; notifyEmail: boolean; notifyWhatsapp: boolean }
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<EditDraft>({ name: "", email: "", whatsapp: "" })
+  const [draft, setDraft] = useState<EditDraft>({ name: "", email: "", whatsapp: "", notifyEmail: true, notifyWhatsapp: false })
   const [editError, setEditError] = useState<string | null>(null)
 
   const startEdit = (t: Trainer) => {
     setEditingId(t.id)
-    setDraft({ name: t.name, email: t.user.email, whatsapp: t.whatsapp ?? "" })
+    setDraft({
+      name: t.name,
+      email: t.user.email,
+      whatsapp: t.whatsapp ?? "",
+      notifyEmail: t.notifyEmail ?? true,
+      notifyWhatsapp: t.notifyWhatsapp ?? false,
+    })
     setEditError(null)
   }
 
@@ -196,7 +208,7 @@ export default function TrainersPage() {
       if (v.kind !== "ok") { setEditError("Invalid WhatsApp number"); return }
     }
 
-    const body = { name, email, whatsapp }
+    const body = { name, email, whatsapp, notifyEmail: draft.notifyEmail, notifyWhatsapp: draft.notifyWhatsapp }
     const res = await fetch(`/api/admin/trainers?id=${editingId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -288,6 +300,47 @@ export default function TrainersPage() {
                         onChange={(next) => setDraft((p) => ({ ...p, whatsapp: next }))}
                       />
                     </div>
+
+                    {/* Booking-notification channels for this trainer. */}
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">Notify about bookings</label>
+                      <div className="space-y-1.5">
+                        {/* Email — on by default, can be turned off */}
+                        <button
+                          type="button"
+                          onClick={() => setDraft((p) => ({ ...p, notifyEmail: !p.notifyEmail }))}
+                          className="w-full flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        >
+                          <span className="flex items-center gap-2 text-gray-700"><Mail size={15} /> Email</span>
+                          <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0", draft.notifyEmail ? "bg-[#2C6E49]" : "bg-gray-300")}>
+                            <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", draft.notifyEmail ? "left-[18px]" : "left-0.5")} />
+                          </span>
+                        </button>
+
+                        {/* WhatsApp — only when the studio has WhatsApp connected */}
+                        {trainer.studioWhatsAppEnabled ? (
+                          <button
+                            type="button"
+                            onClick={() => setDraft((p) => ({ ...p, notifyWhatsapp: !p.notifyWhatsapp }))}
+                            className="w-full flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                          >
+                            <span className="flex items-center gap-2 text-gray-700"><WhatsAppIcon size={15} /> WhatsApp</span>
+                            <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0", draft.notifyWhatsapp ? "bg-[#2C6E49]" : "bg-gray-300")}>
+                              <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", draft.notifyWhatsapp ? "left-[18px]" : "left-0.5")} />
+                            </span>
+                          </button>
+                        ) : (
+                          <div
+                            className="w-full flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm cursor-not-allowed"
+                            title="Connect WhatsApp for this studio to enable"
+                          >
+                            <span className="flex items-center gap-2 text-gray-400 grayscale"><WhatsAppIcon size={15} /> WhatsApp</span>
+                            <span className="text-[10px] text-gray-400">Connect WhatsApp to enable</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="flex items-center gap-1.5 pt-1">
                       <button
                         onClick={saveEdit}
