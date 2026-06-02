@@ -24,6 +24,9 @@ const TemplateSchema = z.object({
   templateName: z.string().min(1).max(64),
   languageCode: z.string().min(2).max(10).optional(),
   variables: z.array(z.string()).optional(),
+  // Optional human-readable text to store as the chat-bubble body (so the
+  // thread shows the real message instead of "[template_name] var").
+  display: z.string().max(2000).optional(),
 })
 
 export async function POST(
@@ -72,9 +75,11 @@ export async function POST(
     const saved = await appendOutboundMessage({
       conversationId: convo.id,
       type: "template",
-      body: parsed.data.variables?.length
-        ? `[${parsed.data.templateName}] ${parsed.data.variables.join(" | ")}`
-        : `[${parsed.data.templateName}]`,
+      body: parsed.data.display
+        ? parsed.data.display
+        : parsed.data.variables?.length
+          ? `[${parsed.data.templateName}] ${parsed.data.variables.join(" | ")}`
+          : `[${parsed.data.templateName}]`,
       templateName: parsed.data.templateName,
       waMessageId: res.ok ? res.messageId : null,
       status: res.ok ? "sent" : "failed",

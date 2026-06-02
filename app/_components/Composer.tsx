@@ -7,24 +7,40 @@ import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
 import StickerPicker from "@/app/_components/StickerPicker"
 
 // ---------------------------------------------------------------------------
-// Quick reply templates (English). Picking one fills the input so the admin
-// can review/tweak before sending. The 7 "move to today" variants cover the
-// studio's standard class start times (7, 9, 11, 13, 15, 17, 19).
+// Quick reply templates (English). These are Meta-APPROVED WhatsApp message
+// templates, so picking one sends it via the template path — which works even
+// when the 24h customer-service window is closed (the client hasn't written in
+// 24h). The 7 "reschedule to today" variants all map onto the single approved
+// `reschedule_today` template via its {{1}} time variable.
 // ---------------------------------------------------------------------------
 const TEMPLATE_TIMES = ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00"]
 
-const MESSAGE_TEMPLATES: { label: string; text: string }[] = [
+type TemplateDef = {
+  label: string
+  /** Human-readable text shown in the popover + stored as the chat bubble. */
+  text: string
+  /** Approved Meta template name. */
+  templateName: string
+  /** Positional values for the template's {{1}}, {{2}}, … variables. */
+  variables?: string[]
+}
+
+const MESSAGE_TEMPLATES: TemplateDef[] = [
   ...TEMPLATE_TIMES.map((t) => ({
-    label: `Move to today — ${t}`,
+    label: `Reschedule to today — ${t}`,
     text: `Hello! Would it be convenient to reschedule you to today at ${t}?`,
+    templateName: "reschedule_today",
+    variables: [t],
   })),
   {
-    label: "Move to another day",
+    label: "Reschedule to another day",
     text: "Hello! Would it be convenient to reschedule you to another day? Today's group didn't reach more than 2 people.",
+    templateName: "reschedule_other_day",
   },
   {
     label: "Confirm booking",
     text: "Hello! Please confirm your booking for the Gravity Stretching group class.",
+    templateName: "confirm_group_booking",
   },
 ]
 
@@ -52,9 +68,18 @@ export interface ComposerProps {
   /** Which user role is viewing — trainers don't get the photo/video "+"
    *  button (admin-only feature), but they still get the sticker picker. */
   role: "ADMIN" | "TRAINER"
+  /** Send a Meta-approved template (works outside the 24h window). When
+   *  provided, picking a quick-reply template sends it via this path instead
+   *  of filling the text input. */
+  onSendTemplate?: (t: {
+    templateName: string
+    languageCode?: string
+    variables?: string[]
+    display?: string
+  }) => Promise<void> | void
 }
 
-export default function Composer({ onSend, onAttach, fontScale, role }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasText, setHasText] = useState(false)
@@ -244,7 +269,24 @@ export default function Composer({ onSend, onAttach, fontScale, role }: Composer
                   <button
                     key={tpl.label}
                     type="button"
-                    onClick={() => applyTemplate(tpl.text)}
+                    onClick={() => {
+                      if (onSendTemplate) {
+                        // Approved template → send straight away (works even
+                        // outside the 24h window). Templates can't be edited
+                        // before sending, so there's nothing to review.
+                        void onSendTemplate({
+                          templateName: tpl.templateName,
+                          languageCode: "en",
+                          variables: tpl.variables,
+                          display: tpl.text,
+                        })
+                        setShowTemplates(false)
+                      } else {
+                        // No template sender wired → fall back to filling the
+                        // input so the user can still send it as free text.
+                        applyTemplate(tpl.text)
+                      }
+                    }}
                     className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-[#2A3942] active:bg-gray-100 dark:active:bg-[#33444E] transition-colors"
                   >
                     <div className="text-xs font-semibold text-[#2C6E49] dark:text-[#69B58F]">

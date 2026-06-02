@@ -698,6 +698,82 @@ export default function Inbox({
     }
   }, [detail, refreshList])
 
+  // Send a Meta-approved template (quick replies). Unlike free text, this
+  // works even when the 24h customer-service window is closed.
+  const sendTemplate = useCallback(async (t: {
+    templateName: string
+    languageCode?: string
+    variables?: string[]
+    display?: string
+  }) => {
+    if (!detail) return
+    const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    const display = t.display
+      ?? `[${t.templateName}]${t.variables?.length ? " " + t.variables.join(" | ") : ""}`
+    const optimisticMsg: MessageRow = {
+      id: tempId,
+      direction: "OUTBOUND",
+      type: "template",
+      body: display,
+      translatedBody: null,
+      detectedLang: null,
+      mediaUrl: null,
+      mediaMime: null,
+      templateName: t.templateName,
+      status: "queued",
+      errorDetail: null,
+      reaction: null,
+      fromTrainerId: null,
+      fromTrainer: null,
+      importedAt: null,
+      createdAt: new Date().toISOString(),
+    }
+    setDetail((prev) => prev ? { ...prev, messages: [...prev.messages, optimisticMsg] } : prev)
+    setSendError(null)
+    requestAnimationFrame(() => {
+      const el = messagesScrollRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    })
+
+    try {
+      const r = await fetch(`/api/whatsapp/conversations/${detail.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateName: t.templateName,
+          languageCode: t.languageCode ?? "en",
+          variables: t.variables ?? [],
+          display,
+        }),
+      })
+      const data = (await r.json().catch(() => ({}))) as { message?: MessageRow; error?: string }
+      if (!r.ok) {
+        setSendError(data.error || `HTTP ${r.status}`)
+        setDetail((prev) => prev ? {
+          ...prev,
+          messages: prev.messages.map((m) =>
+            m.id === tempId ? { ...m, status: "failed", errorDetail: data.error ?? `HTTP ${r.status}` } : m,
+          ),
+        } : prev)
+      } else {
+        setDetail((prev) => prev && data.message ? {
+          ...prev,
+          messages: prev.messages.map((m) => (m.id === tempId ? (data.message as MessageRow) : m)),
+        } : prev)
+        refreshList()
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setSendError(msg)
+      setDetail((prev) => prev ? {
+        ...prev,
+        messages: prev.messages.map((m) =>
+          m.id === tempId ? { ...m, status: "failed", errorDetail: msg } : m,
+        ),
+      } : prev)
+    }
+  }, [detail, refreshList])
+
   // Send a photo/video. Optimistic bubble uses a local objectURL so the
   // image shows up instantly while the server uploads to Meta and dispatches
   // the message.
@@ -1174,7 +1250,7 @@ export default function Inbox({
           // never need to block typing in the UI. Trainers still get the
           // amber notice when the window is closed (they shouldn't be
           // re-starting cold conversations).
-          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} />
+          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} />
         ) : (
           <div className="px-2 pt-2 pb-2 bg-[#ECE5DD] dark:bg-[#0B141A]">
             <div className="mx-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2 dark:text-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
