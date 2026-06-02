@@ -69,7 +69,7 @@ type MessageRow = {
 }
 
 // Emoji the team can react with (long-press a message).
-const REACTIONS = ["👍", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌"] as const
+const REACTIONS = ["❤️", "👍", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌"] as const
 
 type ConversationDetail = {
   id: string
