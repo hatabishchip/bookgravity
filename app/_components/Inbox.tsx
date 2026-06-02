@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Composer from "@/app/_components/Composer"
-import { format, formatDistanceToNowStrict } from "date-fns"
+import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns"
 import {
   ArrowLeft,
   AArrowDown,
@@ -468,6 +468,40 @@ function MessageBubble({
   )
 }
 
+// Telegram-style day label for date separators / the floating date pill.
+function dayLabel(d: Date): string {
+  if (isToday(d)) return "Today"
+  if (isYesterday(d)) return "Yesterday"
+  // Same-year dates omit the year (e.g. "1 June"); older ones include it.
+  return d.getFullYear() === new Date().getFullYear()
+    ? format(d, "d MMMM")
+    : format(d, "d MMMM yyyy")
+}
+
+// Group consecutive messages by calendar day for inline date separators.
+function groupMessagesByDay(messages: MessageRow[]): { key: string; label: string; messages: MessageRow[] }[] {
+  const groups: { key: string; label: string; messages: MessageRow[] }[] = []
+  for (const m of messages) {
+    const d = new Date(m.createdAt)
+    const key = format(d, "yyyy-MM-dd")
+    const last = groups[groups.length - 1]
+    if (last && last.key === key) last.messages.push(m)
+    else groups.push({ key, label: dayLabel(d), messages: [m] })
+  }
+  return groups
+}
+
+// Centered rounded date pill shown inline between day groups.
+function DateSeparator({ label }: { label: string }) {
+  return (
+    <div className="flex justify-center py-1.5">
+      <span className="px-3 py-1 rounded-full text-[11px] font-medium text-gray-600 dark:text-gray-200 bg-white/70 dark:bg-[#1F2C34]/80 backdrop-blur-sm shadow-sm">
+        {label}
+      </span>
+    </div>
+  )
+}
+
 export default function Inbox({
   role,
   embedded = false,
@@ -499,6 +533,11 @@ export default function Inbox({
   const [copiedAt, setCopiedAt] = useState(0)
   // Full-screen image viewer (lightbox). Null = closed.
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
+  // Telegram-style floating date pill: shows the topmost visible day while
+  // scrolling, fades out shortly after scrolling stops.
+  const [floatingDate, setFloatingDate] = useState<string | null>(null)
+  const [floatingVisible, setFloatingVisible] = useState(false)
+  const floatingHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -509,6 +548,35 @@ export default function Inbox({
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [lightboxSrc])
+
+  // Messages grouped by calendar day → inline date separators.
+  const messageGroups = useMemo(
+    () => groupMessagesByDay(detail?.messages ?? []),
+    [detail?.messages],
+  )
+
+  // Floating date pill: on scroll, find the day-section currently at the top of
+  // the viewport and show its label; hide ~1.2s after scrolling stops.
+  const handleMessagesScroll = useCallback(() => {
+    const c = messagesScrollRef.current
+    if (!c) return
+    const sections = c.querySelectorAll<HTMLElement>("[data-day-label]")
+    const cTop = c.getBoundingClientRect().top
+    let label: string | null = null
+    for (const s of sections) {
+      // The section header crossed (or sits just below) the top edge.
+      if (s.getBoundingClientRect().top - cTop <= 16) {
+        label = s.getAttribute("data-day-label")
+      } else {
+        break
+      }
+    }
+    if (!label && sections.length) label = sections[0].getAttribute("data-day-label")
+    if (label) setFloatingDate(label)
+    setFloatingVisible(true)
+    if (floatingHideTimer.current) clearTimeout(floatingHideTimer.current)
+    floatingHideTimer.current = setTimeout(() => setFloatingVisible(false), 1200)
+  }, [])
 
   // Font-scale toggle for the inbox. 5 steps so the difference between adjacent
   // sizes is meaningful but the extremes don't break the layout. Persisted to
@@ -1227,33 +1295,55 @@ export default function Inbox({
       </div>
 
       {/* Messages — own flex child that scrolls independently. min-h-0 is
-          essential so flex-1 can actually shrink below content size. */}
-      <div
-        ref={messagesScrollRef}
-        className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-2"
-      >
-        {loadingDetail && !detail ? (
-          <div className="text-center text-gray-400 text-sm py-8">
-            <Loader2 size={16} className="animate-spin inline mr-2" /> Loading...
+          essential so flex-1 can actually shrink below content size. The
+          relative wrapper hosts the Telegram-style floating date pill. */}
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {/* Floating date pill — fades in while scrolling, out when idle. */}
+        {floatingDate && (
+          <div className="pointer-events-none absolute top-2 inset-x-0 z-20 flex justify-center">
+            <span
+              className={cn(
+                "px-3 py-1 rounded-full text-[11px] font-medium text-gray-700 dark:text-gray-100 bg-white/85 dark:bg-[#1F2C34]/90 backdrop-blur shadow-md transition-all duration-300",
+                floatingVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1",
+              )}
+            >
+              {floatingDate}
+            </span>
           </div>
-        ) : (
-          <>
-            {detail?.messages.map((m) => (
-              <MessageBubble
-                key={m.id}
-                m={m}
-                role={role}
-                fontScale={fontScale}
-                onTranslate={translateMessage}
-                translating={translatingIds.has(m.id)}
-                onReact={reactMessage}
-                onCopied={() => setCopiedAt(Date.now())}
-                onImageClick={setLightboxSrc}
-              />
-            ))}
-            <div ref={messagesEndRef} />
-          </>
         )}
+        <div
+          ref={messagesScrollRef}
+          onScroll={handleMessagesScroll}
+          className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-2"
+        >
+          {loadingDetail && !detail ? (
+            <div className="text-center text-gray-400 text-sm py-8">
+              <Loader2 size={16} className="animate-spin inline mr-2" /> Loading...
+            </div>
+          ) : (
+            <>
+              {messageGroups.map((g) => (
+                <div key={g.key} data-day-label={g.label} className="space-y-2">
+                  <DateSeparator label={g.label} />
+                  {g.messages.map((m) => (
+                    <MessageBubble
+                      key={m.id}
+                      m={m}
+                      role={role}
+                      fontScale={fontScale}
+                      onTranslate={translateMessage}
+                      translating={translatingIds.has(m.id)}
+                      onReact={reactMessage}
+                      onCopied={() => setCopiedAt(Date.now())}
+                      onImageClick={setLightboxSrc}
+                    />
+                  ))}
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </>
+          )}
+        </div>
       </div>
 
       {/* Full-screen image viewer (lightbox). Tap anywhere or the ✕ to close. */}
