@@ -76,7 +76,6 @@ type Booking = {
 }
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-const MAX_DOTS = 4
 const TIME_PRESETS = ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00"]
 
 function formatTime(t: string) {
@@ -238,11 +237,17 @@ export default function BetaSchedulePage() {
             const isSelected = isSameDay(day, selectedDate)
             const isOtherMonth = !isSameMonth(day, monthAnchor)
             const daySlots = slotsByDate.get(dateStr) ?? []
-            const dotColors = daySlots
-              .map((s) => s.trainer?.color)
-              .filter(Boolean) as string[]
-            const visibleDots = dotColors.slice(0, MAX_DOTS)
-            const overflow = dotColors.length - visibleDots.length
+            // One dot per DISTINCT assigned trainer that day. A trainer's dot
+            // is bright (vivid color) if at least one client is booked on any
+            // of their classes that day, and pale otherwise.
+            const trainerDotMap = new Map<string, { color: string; booked: boolean }>()
+            for (const s of daySlots) {
+              if (!s.trainer) continue
+              const cur = trainerDotMap.get(s.trainer.id) ?? { color: s.trainer.color, booked: false }
+              if (s._count.bookings > 0) cur.booked = true
+              trainerDotMap.set(s.trainer.id, cur)
+            }
+            const trainerDots = Array.from(trainerDotMap.values())
 
             return (
               <button
@@ -265,16 +270,13 @@ export default function BetaSchedulePage() {
                   {day.getDate()}
                 </span>
                 <div className="mt-1 h-1.5 flex items-center justify-center gap-[3px]">
-                  {visibleDots.map((c, i) => (
+                  {trainerDots.map((d, i) => (
                     <span
                       key={i}
                       className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full"
-                      style={{ backgroundColor: c }}
+                      style={{ backgroundColor: d.booked ? d.color : hexToRgba(d.color, 0.3) }}
                     />
                   ))}
-                  {overflow > 0 && (
-                    <span className="text-[8px] sm:text-[9px] font-bold text-gray-500 leading-none ml-[1px]">+</span>
-                  )}
                 </div>
               </button>
             )
