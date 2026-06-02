@@ -32,7 +32,6 @@ export function AddClientForm({
   const [phone, setPhone] = useState("+62 ")
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
-  const [telegram, setTelegram] = useState("")
   const [lookup, setLookup] = useState<"idle" | "loading" | "found" | "new">("idle")
   const lastLookedUp = useRef("")
 
@@ -74,7 +73,7 @@ export function AddClientForm({
       clientName: name.trim(),
       clientPhone: phone,
       clientEmail: email.trim(),
-      clientTelegram: telegram.trim(),
+      clientTelegram: "",
     })
   }
 
@@ -105,13 +104,6 @@ export function AddClientForm({
         placeholder="Email (optional)"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className={inputCls}
-      />
-      <input
-        type="text"
-        placeholder="Telegram (optional)"
-        value={telegram}
-        onChange={(e) => setTelegram(e.target.value)}
         className={inputCls}
       />
 
