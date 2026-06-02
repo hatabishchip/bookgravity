@@ -95,6 +95,104 @@ function sortTimes(times: string[]) {
   return [...new Set(times)].sort()
 }
 
+// Per-class client list shown inside the day editor: who's registered, with
+// the option to move a client to another class/day or cancel their booking.
+function SlotClientList({
+  slot,
+  allSlots,
+  onChanged,
+}: {
+  slot: Slot
+  allSlots: Slot[]
+  onChanged: () => void
+}) {
+  type Booking = { id: string; clientName: string; clientPhone: string; status: string; slot: { id: string } }
+  const [list, setList] = useState<Booking[] | null>(null)
+  const [moving, setMoving] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/admin/bookings?date=${slot.date}`)
+    if (!res.ok) { setList([]); return }
+    const all: Booking[] = await res.json()
+    setList(all.filter((b) => b.slot?.id === slot.id && b.status === "CONFIRMED"))
+  }, [slot.date, slot.id])
+  useEffect(() => { load() }, [load])
+
+  const cancel = async (b: Booking) => {
+    if (!confirm(`Cancel ${b.clientName}'s booking?`)) return
+    setList((prev) => prev?.filter((x) => x.id !== b.id) ?? null)
+    await fetch(`/api/admin/bookings/${b.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "CANCELLED" }),
+    }).finally(onChanged)
+  }
+
+  const move = async (b: Booking, targetSlotId: string) => {
+    setMoving(null)
+    setList((prev) => prev?.filter((x) => x.id !== b.id) ?? null)
+    const res = await fetch(`/api/admin/bookings/${b.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slotId: targetSlotId }),
+    })
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}))
+      alert(e.error ?? "Couldn't move the booking.")
+      load()
+    }
+    onChanged()
+  }
+
+  // Other classes with a free seat, sorted by date/time.
+  const targets = allSlots
+    .filter((s) => s.id !== slot.id && s.maxCapacity - s._count.bookings > 0)
+    .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
+
+  if (list === null) return <div className="text-[11px] text-gray-400 mt-2">Loading clients…</div>
+  if (list.length === 0) return null
+
+  return (
+    <div className="mt-2 border-t border-gray-200 pt-2 space-y-1.5">
+      <div className="text-[10px] uppercase tracking-wider text-gray-400">Clients ({list.length})</div>
+      {list.map((b) => (
+        <div key={b.id} className="flex items-center gap-2">
+          <span className="flex-1 min-w-0 truncate text-gray-700">{b.clientName}</span>
+          {moving === b.id ? (
+            <select
+              autoFocus
+              defaultValue=""
+              onChange={(e) => { if (e.target.value) move(b, e.target.value) }}
+              onBlur={() => setMoving(null)}
+              className="text-[11px] border border-gray-200 rounded px-1 py-0.5 max-w-[150px] bg-white"
+            >
+              <option value="" disabled>Move to…</option>
+              {targets.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {format(new Date(t.date + "T00:00:00"), "MMM d")} {formatTime(t.startTime)}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMoving(b.id)}
+              disabled={targets.length === 0}
+              className="text-[11px] text-[#2C6E49] hover:underline disabled:text-gray-300 disabled:no-underline"
+              title={targets.length === 0 ? "No other class with a free seat" : "Move to another class"}
+            >
+              Move
+            </button>
+          )}
+          <button type="button" onClick={() => cancel(b)} className="text-[11px] text-rose-600 hover:underline">
+            Cancel
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function SchedulePage() {
   const [view, setView] = useState<View>("week")
   // For Week view, anchor = the actual first visible day (defaults to today).
@@ -1061,6 +1159,9 @@ export default function SchedulePage() {
                                         </label>
                                       )
                                     })()}
+                                    {isExisting && hasBookings && existingSlot && (
+                                      <SlotClientList slot={existingSlot} allSlots={slots} onChanged={fetchSlots} />
+                                    )}
                                   </div>
                                 )
                               })}
