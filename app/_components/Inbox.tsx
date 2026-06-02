@@ -538,6 +538,9 @@ export default function Inbox({
   const [floatingDate, setFloatingDate] = useState<string | null>(null)
   const [floatingVisible, setFloatingVisible] = useState(false)
   const floatingHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Trainer 👋 wave: rate-limited to once per 12h per conversation (stored in
+  // localStorage). waveLockUntil = timestamp the button reactivates, or null.
+  const [waveLockUntil, setWaveLockUntil] = useState<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -778,6 +781,27 @@ export default function Inbox({
       )
     }
   }, [detail, refreshList])
+
+  // --- Trainer 👋 wave (rate-limited once / 12h per conversation) ----------
+  const WAVE_COOLDOWN_MS = 12 * 60 * 60 * 1000
+  // Re-evaluate the cooldown whenever the open conversation changes.
+  useEffect(() => {
+    if (typeof window === "undefined" || !detail) { setWaveLockUntil(null); return }
+    const raw = window.localStorage.getItem(`wave:${detail.id}`)
+    const last = raw ? parseInt(raw, 10) : 0
+    const until = last + WAVE_COOLDOWN_MS
+    setWaveLockUntil(until > Date.now() ? until : null)
+  }, [detail?.id, WAVE_COOLDOWN_MS])
+
+  const waveDisabled = !!(waveLockUntil && waveLockUntil > Date.now())
+
+  const sendWave = useCallback(() => {
+    if (!detail || (waveLockUntil && waveLockUntil > Date.now())) return
+    void send("👋")
+    const now = Date.now()
+    try { window.localStorage.setItem(`wave:${detail.id}`, String(now)) } catch {}
+    setWaveLockUntil(now + WAVE_COOLDOWN_MS)
+  }, [detail, waveLockUntil, send, WAVE_COOLDOWN_MS])
 
   // Send a Meta-approved template (quick replies). Unlike free text, this
   // works even when the 24h customer-service window is closed.
@@ -1385,7 +1409,7 @@ export default function Inbox({
           // never need to block typing in the UI. Trainers still get the
           // amber notice when the window is closed (they shouldn't be
           // re-starting cold conversations).
-          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} />
+          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} />
         ) : (
           <div className="px-2 pt-2 pb-2 bg-[#ECE5DD] dark:bg-[#0B141A]">
             <div className="mx-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2 dark:text-amber-200 dark:bg-amber-900/30 dark:border-amber-800">

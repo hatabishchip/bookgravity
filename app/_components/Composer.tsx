@@ -79,9 +79,14 @@ export interface ComposerProps {
   }) => Promise<void> | void
   /** The client's saved name — used to personalise the greeting template. */
   clientName?: string | null
+  /** TRAINER-only: send a 👋 wave to the chat. When provided, the trainer
+   *  composer shows ONLY this button (no attach / stickers / templates). */
+  onWave?: () => void
+  /** TRAINER-only: greys out the wave button during its 12h cooldown. */
+  waveDisabled?: boolean
 }
 
-export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, clientName }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, clientName, onWave, waveDisabled }: ComposerProps) {
   // Greeting opener: personalise with the client's saved name when it looks
   // like a real name (contains a letter — filters out phone-number "names").
   // No name → the plain "Greetings!" template (a WA template variable can't be
@@ -351,38 +356,61 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               </button>
             </>
           )}
-          {/* Sticker / keyboard toggle. The icon flips depending on which
-              panel is currently shown below, mirroring WhatsApp. */}
-          <button
-            type="button"
-            tabIndex={-1}
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() =>
-              setBottomPanel((m) => (m === "keyboard" ? "stickers" : "keyboard"))
-            }
-            disabled={!onAttach}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0 disabled:opacity-40 active:opacity-60"
-            aria-label={bottomPanel === "keyboard" ? "Open stickers" : "Open keyboard"}
-          >
-            {bottomPanel === "keyboard" ? <Smile size={22} /> : <Keyboard size={22} />}
-          </button>
+          {/* Admin-only controls: stickers toggle + quick-reply templates.
+              Trainers get a single 👋 wave button instead (below). */}
+          {role === "ADMIN" && (
+            <>
+              {/* Sticker / keyboard toggle. The icon flips depending on which
+                  panel is currently shown below, mirroring WhatsApp. */}
+              <button
+                type="button"
+                tabIndex={-1}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() =>
+                  setBottomPanel((m) => (m === "keyboard" ? "stickers" : "keyboard"))
+                }
+                disabled={!onAttach}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0 disabled:opacity-40 active:opacity-60"
+                aria-label={bottomPanel === "keyboard" ? "Open stickers" : "Open keyboard"}
+              >
+                {bottomPanel === "keyboard" ? <Smile size={22} /> : <Keyboard size={22} />}
+              </button>
 
-          {/* Quick-reply templates toggle. */}
-          <button
-            type="button"
-            tabIndex={-1}
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => setShowTemplates((v) => !v)}
-            className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:opacity-60",
-              showTemplates
-                ? "text-[#2C6E49] dark:text-[#69B58F]"
-                : "text-gray-600 dark:text-[#8696A0]",
-            )}
-            aria-label="Message templates"
-          >
-            <MessageSquareText size={21} />
-          </button>
+              {/* Quick-reply templates toggle. */}
+              <button
+                type="button"
+                tabIndex={-1}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => setShowTemplates((v) => !v)}
+                className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:opacity-60",
+                  showTemplates
+                    ? "text-[#2C6E49] dark:text-[#69B58F]"
+                    : "text-gray-600 dark:text-[#8696A0]",
+                )}
+                aria-label="Message templates"
+              >
+                <MessageSquareText size={21} />
+              </button>
+            </>
+          )}
+
+          {/* Trainer-only: a single 👋 wave button. Sends a wave to the chat;
+              rate-limited to once per 12h (greyed out during the cooldown). */}
+          {role === "TRAINER" && onWave && (
+            <button
+              type="button"
+              tabIndex={-1}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => { if (!waveDisabled) onWave() }}
+              disabled={waveDisabled}
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-2xl leading-none active:opacity-60 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed transition-opacity"
+              aria-label="Send a wave"
+              title={waveDisabled ? "You can send a wave once every 12 hours" : "Send a wave 👋"}
+            >
+              👋
+            </button>
+          )}
 
           {/* Pill input with the textarea inside. */}
           <div className="flex-1 min-w-0 flex items-end bg-white dark:bg-[#1F2C34] rounded-3xl px-4 py-1 shadow-sm">
