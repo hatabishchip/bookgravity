@@ -376,7 +376,7 @@ export default function TrainersPage() {
                           <span className="text-gray-400">
                             {trainer.lastActiveAt
                               ? `last active ${formatDistanceToNow(new Date(trainer.lastActiveAt), { addSuffix: true })}`
-                              : "last active: —"}
+                              : "hasn't signed in yet"}
                           </span>
                         )}
                     </div>
