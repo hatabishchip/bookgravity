@@ -37,8 +37,8 @@ export default function SupportPage() {
           <ul className="space-y-2 text-gray-700">
             <li>
               Email:{" "}
-              <a className="text-[#2C6E49] font-medium" href="mailto:hello@bookgravity.com">
-                hello@bookgravity.com
+              <a className="text-[#2C6E49] font-medium" href="mailto:admin@bookgravity.com">
+                admin@bookgravity.com
               </a>
             </li>
             <li>

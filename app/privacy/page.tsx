@@ -41,7 +41,7 @@ export default function PrivacyPage() {
         <p>
           Gravity Stretching operates yoga and stretching studios in Bali,
           Indonesia (Canggu and Ubud). You can contact us at{" "}
-          <a href="mailto:hello@bookgravity.com">hello@bookgravity.com</a>.
+          <a href="mailto:admin@bookgravity.com">admin@bookgravity.com</a>.
         </p>
 
         <h2 className="text-xl font-semibold mt-8 mb-3">2. What we collect</h2>
@@ -127,7 +127,7 @@ export default function PrivacyPage() {
         </ul>
         <p>
           To exercise any of these rights, email{" "}
-          <a href="mailto:hello@bookgravity.com">hello@bookgravity.com</a>.
+          <a href="mailto:admin@bookgravity.com">admin@bookgravity.com</a>.
         </p>
 
         <h2 className="text-xl font-semibold mt-8 mb-3">7. Children</h2>
@@ -146,7 +146,7 @@ export default function PrivacyPage() {
         <h2 className="text-xl font-semibold mt-8 mb-3">9. Contact</h2>
         <p>
           Questions? Write to{" "}
-          <a href="mailto:hello@bookgravity.com">hello@bookgravity.com</a>.
+          <a href="mailto:admin@bookgravity.com">admin@bookgravity.com</a>.
         </p>
       </article>
     </main>

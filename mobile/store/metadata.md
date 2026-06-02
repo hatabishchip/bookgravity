@@ -66,7 +66,7 @@ bookgravity.com/privacy.
 
 QUESTIONS
 
-Email hello@bookgravity.com or visit bookgravity.com/support.
+Email admin@bookgravity.com or visit bookgravity.com/support.
 
 ## Keywords (100 chars, comma-separated)
 

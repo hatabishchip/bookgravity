@@ -41,7 +41,7 @@ We collect only what's needed to manage your booking (name, email, phone). We
 never sell your data. Full policy: bookgravity.com/privacy
 
 QUESTIONS
-Email hello@bookgravity.com or visit bookgravity.com/support
+Email admin@bookgravity.com or visit bookgravity.com/support
 
 ## Category
 
@@ -53,7 +53,7 @@ stretching, yoga, booking, bali, canggu, ubud, fitness, wellness, class, schedul
 
 ## Contact details
 
-- Email: hello@bookgravity.com
+- Email: admin@bookgravity.com
 - Website: https://bookgravity.com
 - Privacy policy: https://bookgravity.com/privacy
 
@@ -87,7 +87,7 @@ Mirrors the iOS privacy answers.
 | Financial info | No | — | — | — |
 
 - Data is encrypted in transit: **Yes** (HTTPS).
-- Users can request data deletion: **Yes** — via email hello@bookgravity.com.
+- Users can request data deletion: **Yes** — via email admin@bookgravity.com.
 
 **Content rating:** complete the IARC questionnaire → expected "Everyone / 3+"
 (no violence, no user-generated content shared publicly).
