@@ -30,13 +30,13 @@ export async function generateMetadata(): Promise<Metadata> {
       title: "Gravity Stretching",
       description,
       url: "https://www.bookgravity.com",
-      images: [{ url: "/studios/canggu.jpg", width: 1200, height: 630, alt: "Gravity Stretching Bali" }],
+      images: [{ url: "/og-cover.png", width: 1200, height: 630, alt: "Gravity Stretching" }],
     },
     twitter: {
       card: "summary_large_image",
       title: "Gravity Stretching",
       description,
-      images: ["/studios/canggu.jpg"],
+      images: ["/og-cover.png"],
     },
     appleWebApp: {
       capable: true,
