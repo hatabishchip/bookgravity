@@ -339,6 +339,9 @@ export default function BetaSchedulePage() {
                   const seatsLeft = slot.maxCapacity - slot._count.bookings
                   const isFull = seatsLeft <= 0
                   const isHidden = !slot.publicVisible
+                  // Bright = trainer assigned AND at least one client booked.
+                  // Pale = trainer assigned but nobody booked yet.
+                  const bright = !!slot.trainer && slot._count.bookings > 0
                   return (
                     <button
                       key={slot.id}
@@ -348,10 +351,10 @@ export default function BetaSchedulePage() {
                         "w-full text-left rounded-2xl px-4 py-3 touch-manipulation hover:opacity-90 relative",
                         isHidden && "border-2 border-dashed border-gray-300 opacity-70"
                       )}
-                      style={{ backgroundColor: hexToRgba(c, isHidden ? 0.08 : 0.18) }}
+                      style={{ backgroundColor: bright ? c : hexToRgba(c, isHidden ? 0.08 : 0.18) }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold text-gray-900 truncate flex items-center gap-1.5">
+                        <div className={cn("text-sm font-semibold truncate flex items-center gap-1.5", bright ? "text-white" : "text-gray-900")}>
                           <span className="truncate">
                             {slot.trainer?.name ?? "Unassigned"}
                             {slot.assistant && ` · + ${slot.assistant.name}`}
@@ -362,18 +365,18 @@ export default function BetaSchedulePage() {
                             </span>
                           )}
                         </div>
-                        <span className="text-xs font-semibold text-gray-700 flex-shrink-0">
+                        <span className={cn("text-xs font-semibold flex-shrink-0", bright ? "text-white/90" : "text-gray-700")}>
                           {slot._count.bookings}/{slot.maxCapacity}
-                          {isFull && <span className="ml-1 text-rose-500">·</span>}
+                          {isFull && <span className={cn("ml-1", bright ? "text-white" : "text-rose-500")}>·</span>}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-600 mt-0.5 flex items-center gap-2">
+                      <div className={cn("text-xs mt-0.5 flex items-center gap-2", bright ? "text-white/80" : "text-gray-600")}>
                         <span>{formatTime(slot.startTime)}–{formatTime(slot.endTime)}</span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                        <span className={cn("text-[10px] font-semibold uppercase tracking-wider", bright ? "text-white/70" : "text-gray-500")}>
                           · {CLASS_TYPES.find((c) => c.value === slot.classType)?.label ?? slot.classType}
                         </span>
                         {isHidden && (
-                          <span className="text-[10px] font-medium text-gray-500 italic">
+                          <span className={cn("text-[10px] font-medium italic", bright ? "text-white/70" : "text-gray-500")}>
                             · not visible to clients
                           </span>
                         )}

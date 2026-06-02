@@ -62,9 +62,18 @@ function hexToRgba(hex: string, alpha: number) {
 
 function slotCardStyle(slot: Slot) {
   if (!slot.trainer) return {}
+  // No one booked yet → show the assigned trainer's color faded. Once a client
+  // books, the card lights up in the trainer's full, vivid color.
+  const hasBookings = slot._count.bookings > 0
+  if (hasBookings) {
+    return {
+      backgroundColor: slot.trainer.color,
+      borderColor: slot.trainer.color,
+    }
+  }
   return {
-    backgroundColor: slot.trainer.color,
-    borderColor: slot.trainer.color,
+    backgroundColor: hexToRgba(slot.trainer.color, 0.12),
+    borderColor: hexToRgba(slot.trainer.color, 0.45),
   }
 }
 
@@ -763,12 +772,16 @@ export default function SchedulePage() {
                   {daySlots.map((slot) => {
                     const cardStyle = slotCardStyle(slot)
                     const hasTrainer = !!slot.trainer
+                    // Bright = trainer assigned AND at least one client booked.
+                    // Pale = trainer assigned but nobody booked yet.
+                    const bright = hasTrainer && slot._count.bookings > 0
+                    const trainerColor = slot.trainer?.color
                     const typeLabel = slot.classType === "KIDS" ? "Kids" : slot.classType === "PRIVATE" ? "Private" : "Group"
                     const typePill = slot.classType === "KIDS"
                       ? "bg-amber-100 text-amber-900 border-amber-300"
                       : slot.classType === "PRIVATE"
                         ? "bg-purple-100 text-purple-900 border-purple-300"
-                        : hasTrainer
+                        : bright
                           ? "bg-white/90 text-gray-800 border-white/60"
                           : "bg-gray-100 text-gray-700 border-gray-200"
 
@@ -788,7 +801,7 @@ export default function SchedulePage() {
                         <div className="flex items-start justify-between gap-1">
                           <div
                             className="text-xs font-semibold leading-tight"
-                            style={hasTrainer ? { color: "white" } : {}}
+                            style={bright ? { color: "white" } : trainerColor ? { color: trainerColor } : {}}
                           >
                             {formatTime(slot.startTime)}
                             <span className="block font-normal text-[10px] opacity-70">{formatTime(slot.endTime)}</span>
@@ -813,7 +826,7 @@ export default function SchedulePage() {
                           </div>
                         </div>
                         <div className="mt-0.5 truncate text-[10px]"
-                          style={hasTrainer ? { color: "rgba(255,255,255,0.75)" } : { color: "#9CA3AF" }}
+                          style={bright ? { color: "rgba(255,255,255,0.75)" } : trainerColor ? { color: hexToRgba(trainerColor, 0.9) } : { color: "#9CA3AF" }}
                         >
                           {slot.trainer?.name ?? "—"}
                           {slot.assistant && (
@@ -822,7 +835,7 @@ export default function SchedulePage() {
                         </div>
                         <div
                           className="text-[10px]"
-                          style={hasTrainer ? { color: "rgba(255,255,255,0.6)" } : { color: "#D1D5DB" }}
+                          style={bright ? { color: "rgba(255,255,255,0.6)" } : trainerColor ? { color: hexToRgba(trainerColor, 0.7) } : { color: "#D1D5DB" }}
                         >
                           {slot._count.bookings}/{slot.maxCapacity}
                         </div>
