@@ -1189,22 +1189,29 @@ export default function Inbox({
               className="text-xs px-2.5 py-1.5 rounded-full border border-gray-200 dark:border-[#2A3942] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-[#2A3942] flex items-center gap-1.5"
             >
               <UserCircle2 size={14} />
-              <span className="max-w-[80px] truncate">{detail?.assignedTrainer?.name ?? "Assign"}</span>
+              <span className="max-w-[80px] truncate">{detail?.assignedTrainer?.name ?? "Admin"}</span>
               <ChevronDown size={12} />
             </button>
             {assignOpen && (
               <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[180px] z-10">
                 <button
                   onClick={() => reassign(null)}
-                  className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50"
+                  className={cn(
+                    "w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2 text-gray-500",
+                    !detail?.assignedTrainer && "bg-gray-50 font-semibold",
+                  )}
                 >
-                  — No trainer —
+                  <span className="w-2 h-2 rounded-full bg-gray-300" />
+                  Admin
                 </button>
                 {trainers.map((t) => (
                   <button
                     key={t.id}
                     onClick={() => reassign(t.id)}
-                    className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2"
+                    className={cn(
+                      "w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2",
+                      detail?.assignedTrainer?.id === t.id && "bg-gray-50 font-semibold",
+                    )}
                   >
                     <span
                       className="w-2 h-2 rounded-full"
