@@ -7,8 +7,8 @@ import {
 } from "date-fns"
 import { X, Plus, Trash2, Eye, EyeOff } from "lucide-react"
 import { whatsappLink } from "@/lib/whatsapp"
-import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { PriceInput } from "@/app/_components/PriceInput"
+import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { cn } from "@/lib/utils"
 
@@ -426,6 +426,7 @@ export default function BetaSchedulePage() {
       {editingSlot && (
         <SlotEditor
           slot={editingSlot}
+          allSlots={slots}
           trainers={trainers}
           services={services}
           studioPrices={studioPrices}
@@ -449,9 +450,10 @@ export default function BetaSchedulePage() {
 }
 
 function SlotEditor({
-  slot, trainers, services, studioPrices, onClose, onChanged, onDeleted,
+  slot, allSlots, trainers, services, studioPrices, onClose, onChanged, onDeleted,
 }: {
   slot: Slot
+  allSlots: Slot[]
   trainers: Trainer[]
   services: Service[]
   studioPrices: StudioPrices | null
@@ -543,6 +545,33 @@ function SlotEditor({
       body: JSON.stringify({ status: "CANCELLED" }),
     }).finally(() => { fetchBookings(); onChanged() })
   }
+
+  // Move a client to another class/day — PATCH the booking's slotId. The
+  // server validates the target is in this studio and not full.
+  const handleMoveBooking = (b: Booking, targetSlotId: string) => {
+    setBookings((prev) => prev.filter((x) => x.id !== b.id))
+    fetch(`/api/admin/bookings/${b.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slotId: targetSlotId }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        setError(e.error ?? "Couldn't move the booking.")
+        fetchBookings()
+      }
+    }).finally(() => { onChanged() })
+  }
+
+  // Other classes with a free seat the client can be moved to, sorted by
+  // date/time. Built from the month's slots already loaded by the parent.
+  const moveTargets = allSlots
+    .filter((s) => s.id !== slot.id && s.maxCapacity - s._count.bookings > 0)
+    .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
+    .map((s) => ({
+      id: s.id,
+      label: `${format(new Date(s.date + "T00:00:00"), "MMM d")} · ${formatTime(s.startTime)}`,
+    }))
 
   const handleAddBooking = (e: React.FormEvent) => {
     e.preventDefault()
@@ -747,29 +776,17 @@ function SlotEditor({
               <div className="text-xs text-gray-400 py-3">No clients booked yet</div>
             ) : (
               <div className="space-y-1.5">
-                {bookings.map((b) => {
-                  const wa = whatsappLink(b.clientPhone, `Hi ${b.clientName.replace(/\s*\(\d+\/\d+\)$/, "")}!`)
-                  return (
-                    <div key={b.id} className="flex items-center gap-2 rounded-lg px-3 py-2 border border-gray-100">
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-gray-800 truncate">{b.clientName}</div>
-                        {wa ? (
-                          <a href={wa} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-[#25D366]">
-                            <WhatsAppIcon size={11} />
-                            {b.clientPhone}
-                          </a>
-                        ) : (
-                          <div className="text-xs text-gray-500">{b.clientPhone}</div>
-                        )}
-                      </div>
-                      <button type="button" onClick={() => handleCancelBooking(b)} title="Remove"
-                        className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-md">
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )
-                })}
+                {bookings.map((b) => (
+                  <ClientBookingRow
+                    key={b.id}
+                    name={b.clientName}
+                    phone={b.clientPhone}
+                    whatsappHref={whatsappLink(b.clientPhone, `Hi ${b.clientName.replace(/\s*\(\d+\/\d+\)$/, "")}!`)}
+                    targets={moveTargets}
+                    onMove={(targetId) => handleMoveBooking(b, targetId)}
+                    onCancel={() => handleCancelBooking(b)}
+                  />
+                ))}
               </div>
             )}
 

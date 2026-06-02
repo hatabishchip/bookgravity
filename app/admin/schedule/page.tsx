@@ -5,6 +5,7 @@ import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, startOfMon
 import { ChevronLeft, ChevronRight, Plus, X, Lock, Unlock, Copy, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
+import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
 
 type View = "week" | "2weeks" | "month"
 type Trainer = { id: string; name: string; color: string }
@@ -117,7 +118,6 @@ function SlotClientList({
 }) {
   type Booking = { id: string; clientName: string; clientPhone: string; status: string; slot: { id: string } }
   const [list, setList] = useState<Booking[] | null>(null)
-  const [moving, setMoving] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/bookings?date=${slot.date}`)
@@ -138,7 +138,6 @@ function SlotClientList({
   }
 
   const move = async (b: Booking, targetSlotId: string) => {
-    setMoving(null)
     setList((prev) => prev?.filter((x) => x.id !== b.id) ?? null)
     const res = await fetch(`/api/admin/bookings/${b.id}`, {
       method: "PATCH",
@@ -161,42 +160,23 @@ function SlotClientList({
   if (list === null) return <div className="text-[11px] text-gray-400 mt-2">Loading clients…</div>
   if (list.length === 0) return null
 
+  const targetOptions = targets.map((t) => ({
+    id: t.id,
+    label: `${format(new Date(t.date + "T00:00:00"), "MMM d")} · ${formatTime(t.startTime)}`,
+  }))
+
   return (
     <div className="mt-2 border-t border-gray-200 pt-2 space-y-1.5">
       <div className="text-[10px] uppercase tracking-wider text-gray-400">Clients ({list.length})</div>
       {list.map((b) => (
-        <div key={b.id} className="flex items-center gap-2">
-          <span className="flex-1 min-w-0 truncate text-gray-700">{b.clientName}</span>
-          {moving === b.id ? (
-            <select
-              autoFocus
-              defaultValue=""
-              onChange={(e) => { if (e.target.value) move(b, e.target.value) }}
-              onBlur={() => setMoving(null)}
-              className="text-[11px] border border-gray-200 rounded px-1 py-0.5 max-w-[150px] bg-white"
-            >
-              <option value="" disabled>Move to…</option>
-              {targets.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {format(new Date(t.date + "T00:00:00"), "MMM d")} {formatTime(t.startTime)}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setMoving(b.id)}
-              disabled={targets.length === 0}
-              className="text-[11px] text-[#2C6E49] hover:underline disabled:text-gray-300 disabled:no-underline"
-              title={targets.length === 0 ? "No other class with a free seat" : "Move to another class"}
-            >
-              Move
-            </button>
-          )}
-          <button type="button" onClick={() => cancel(b)} className="text-[11px] text-rose-600 hover:underline">
-            Cancel
-          </button>
-        </div>
+        <ClientBookingRow
+          key={b.id}
+          name={b.clientName}
+          phone={b.clientPhone}
+          targets={targetOptions}
+          onMove={(targetId) => move(b, targetId)}
+          onCancel={() => cancel(b)}
+        />
       ))}
     </div>
   )
