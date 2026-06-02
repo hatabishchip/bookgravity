@@ -170,6 +170,7 @@ function MessageBubble({
   translating = false,
   onReact,
   onCopied,
+  onImageClick,
 }: {
   m: MessageRow
   role: "ADMIN" | "TRAINER"
@@ -178,6 +179,7 @@ function MessageBubble({
   translating?: boolean
   onReact?: (messageId: string, emoji: string) => void
   onCopied?: () => void
+  onImageClick?: (src: string) => void
 }) {
   const isOut = m.direction === "OUTBOUND"
   // WhatsApp-style action menu: long-press (touch) or right-click (desktop).
@@ -351,7 +353,8 @@ function MessageBubble({
               <img
                 src={src}
                 alt={m.body ?? "photo"}
-                className="rounded-xl max-w-full max-h-72 object-cover mb-1 bg-black/10"
+                onClick={(e) => { e.stopPropagation(); onImageClick?.(src) }}
+                className="rounded-xl max-w-full max-h-72 object-cover mb-1 bg-black/10 cursor-zoom-in"
               />
             )
           })()
@@ -494,8 +497,18 @@ export default function Inbox({
   // Timestamp of the last copy — drives the WhatsApp-style "Скопировано" toast.
   // A changing value remounts the toast so its animation replays each copy.
   const [copiedAt, setCopiedAt] = useState(0)
+  // Full-screen image viewer (lightbox). Null = closed.
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
+
+  // Close the full-screen image viewer on Escape.
+  useEffect(() => {
+    if (!lightboxSrc) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxSrc(null) }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [lightboxSrc])
 
   // Font-scale toggle for the inbox. 5 steps so the difference between adjacent
   // sizes is meaningful but the extremes don't break the layout. Persisted to
@@ -1228,12 +1241,37 @@ export default function Inbox({
                 translating={translatingIds.has(m.id)}
                 onReact={reactMessage}
                 onCopied={() => setCopiedAt(Date.now())}
+                onImageClick={setLightboxSrc}
               />
             ))}
             <div ref={messagesEndRef} />
           </>
         )}
       </div>
+
+      {/* Full-screen image viewer (lightbox). Tap anywhere or the ✕ to close. */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center touch-none animate-in fade-in"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLightboxSrc(null) }}
+            aria-label="Close"
+            className="absolute top-4 right-4 z-10 w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center backdrop-blur"
+          >
+            <X size={22} />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt="full size"
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-[100vw] max-h-[100vh] object-contain select-none"
+          />
+        </div>
+      )}
 
       {/* Composer + VirtualKeyboard always at the bottom of the chat column
           (flex-shrink-0). The VirtualKeyboard replaces the OS soft keyboard
