@@ -1,10 +1,32 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Keyboard, Loader2, Send, Smile } from "lucide-react"
+import { Keyboard, Loader2, Send, Smile, MessageSquareText, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
 import StickerPicker from "@/app/_components/StickerPicker"
+
+// ---------------------------------------------------------------------------
+// Quick reply templates (English). Picking one fills the input so the admin
+// can review/tweak before sending. The 7 "move to today" variants cover the
+// studio's standard class start times (7, 9, 11, 13, 15, 17, 19).
+// ---------------------------------------------------------------------------
+const TEMPLATE_TIMES = ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00"]
+
+const MESSAGE_TEMPLATES: { label: string; text: string }[] = [
+  ...TEMPLATE_TIMES.map((t) => ({
+    label: `Move to today — ${t}`,
+    text: `Hello! Would it be convenient to reschedule you to today at ${t}?`,
+  })),
+  {
+    label: "Move to another day",
+    text: "Hello! Would it be convenient to reschedule you to another day? Today's group didn't reach more than 2 people.",
+  },
+  {
+    label: "Confirm booking",
+    text: "Hello! Please confirm your booking for the Gravity Stretching group class.",
+  },
+]
 
 // ---------------------------------------------------------------------------
 // Inbox composer (pill input + virtual keyboard).
@@ -39,6 +61,8 @@ export default function Composer({ onSend, onAttach, fontScale, role }: Composer
   const [sending, setSending] = useState(false)
   // Bottom panel mode — either the typing keyboard or the sticker picker.
   const [bottomPanel, setBottomPanel] = useState<"keyboard" | "stickers">("keyboard")
+  // Quick-reply templates popover.
+  const [showTemplates, setShowTemplates] = useState(false)
 
   // Recompute the textarea's height (up to 3 lines, then internal scroll).
   // Read-then-write in the same task to avoid layout thrashing. Coalesced
@@ -163,6 +187,24 @@ export default function Composer({ onSend, onAttach, fontScale, role }: Composer
     }
   }, [onSend, sending, updateHeight])
 
+  // Quick-reply template: drop the chosen text into the input so the admin can
+  // review/edit, then close the popover and re-focus the field.
+  const applyTemplate = useCallback(
+    (text: string) => {
+      const t = textareaRef.current
+      if (!t) return
+      t.value = text
+      updateHeight()
+      syncHasText()
+      setShowTemplates(false)
+      try {
+        t.setSelectionRange(text.length, text.length)
+      } catch {}
+      t.focus({ preventScroll: true })
+    },
+    [updateHeight, syncHasText],
+  )
+
   // Initial focus + keep caret blinking when focus is lost to body.
   useEffect(() => {
     const t = textareaRef.current
@@ -173,9 +215,50 @@ export default function Composer({ onSend, onAttach, fontScale, role }: Composer
   return (
     <>
       <div
-        className="px-2 pt-2 bg-[#ECE5DD] dark:bg-[#0B141A]"
+        className="px-2 pt-2 bg-[#ECE5DD] dark:bg-[#0B141A] relative"
         style={{ paddingBottom: 6 }}
       >
+        {/* Quick-reply templates popover — anchored above the composer row. */}
+        {showTemplates && (
+          <>
+            <div
+              className="fixed inset-0 z-30"
+              onClick={() => setShowTemplates(false)}
+            />
+            <div className="absolute bottom-full left-2 right-2 mb-2 z-40 max-h-72 overflow-y-auto rounded-2xl bg-white dark:bg-[#1F2C34] shadow-xl border border-gray-200 dark:border-[#2A3942] overscroll-contain">
+              <div className="sticky top-0 flex items-center justify-between px-4 py-2.5 bg-white dark:bg-[#1F2C34] border-b border-gray-100 dark:border-[#2A3942]">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-[#8696A0]">
+                  Templates
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowTemplates(false)}
+                  className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                  aria-label="Close templates"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="py-1">
+                {MESSAGE_TEMPLATES.map((tpl) => (
+                  <button
+                    key={tpl.label}
+                    type="button"
+                    onClick={() => applyTemplate(tpl.text)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-[#2A3942] active:bg-gray-100 dark:active:bg-[#33444E] transition-colors"
+                  >
+                    <div className="text-xs font-semibold text-[#2C6E49] dark:text-[#69B58F]">
+                      {tpl.label}
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-[#C8D0D4] mt-0.5 line-clamp-2">
+                      {tpl.text}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
         <div className="flex gap-2 items-end">
           {/* "+" attachment button — opens the native picker. We deliberately
               fire on `click` (not pointerdown) because the file input dialog
@@ -224,6 +307,23 @@ export default function Composer({ onSend, onAttach, fontScale, role }: Composer
             aria-label={bottomPanel === "keyboard" ? "Open stickers" : "Open keyboard"}
           >
             {bottomPanel === "keyboard" ? <Smile size={22} /> : <Keyboard size={22} />}
+          </button>
+
+          {/* Quick-reply templates toggle. */}
+          <button
+            type="button"
+            tabIndex={-1}
+            onPointerDown={(e) => e.preventDefault()}
+            onClick={() => setShowTemplates((v) => !v)}
+            className={cn(
+              "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:opacity-60",
+              showTemplates
+                ? "text-[#2C6E49] dark:text-[#69B58F]"
+                : "text-gray-600 dark:text-[#8696A0]",
+            )}
+            aria-label="Message templates"
+          >
+            <MessageSquareText size={21} />
           </button>
 
           {/* Pill input with the textarea inside. */}
