@@ -46,6 +46,34 @@ html, body {
   animation: sheet-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Telegram-style long-press reaction menu entrance.
+   Reaction pill springs up, each emoji pops in staggered, menu scales in. */
+@keyframes reaction-pill-in {
+  0%   { opacity: 0; transform: scale(0.8) translateY(14px); }
+  55%  { opacity: 1; transform: scale(1.03) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-reaction-pill-in {
+  animation: reaction-pill-in 0.34s cubic-bezier(0.18, 0.9, 0.32, 1.2) both;
+  transform-origin: center bottom;
+}
+@keyframes emoji-pop {
+  0%   { opacity: 0; transform: scale(0); }
+  70%  { opacity: 1; transform: scale(1.18); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-emoji-pop {
+  animation: emoji-pop 0.32s cubic-bezier(0.2, 0.8, 0.3, 1.4) backwards;
+}
+@keyframes menu-pop-in {
+  0%   { opacity: 0; transform: scale(0.92) translateY(-6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-menu-pop-in {
+  animation: menu-pop-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) 0.06s both;
+  transform-origin: center top;
+}
+
 /* Copy confirmation toast — WhatsApp style: a dark pill near the bottom that
    slides up + fades in, holds, then fades out (in → hold → out in one run). */
 @keyframes toast-pop {

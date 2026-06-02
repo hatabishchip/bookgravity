@@ -267,22 +267,23 @@ function MessageBubble({
           just Copy + Delete (Delete only for our unread sent messages). */}
       {menuOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 animate-bg-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-6 animate-bg-fade-in"
           onClick={() => setMenuOpen(false)}
         >
           <div
-            className="flex flex-col items-stretch gap-2 w-full max-w-xs animate-sheet-pop-in"
+            className="flex flex-col items-stretch gap-2 w-full max-w-xs"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Reaction bar */}
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar rounded-full bg-white dark:bg-[#233138] shadow-xl px-2 py-2">
-              {REACTIONS.map((e) => (
+            {/* Reaction bar — springs up; emojis pop in one after another. */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar rounded-full bg-white dark:bg-[#233138] shadow-xl px-2 py-2 animate-reaction-pill-in">
+              {REACTIONS.map((e, i) => (
                 <button
                   key={e}
                   type="button"
                   onClick={() => react(e)}
+                  style={{ animationDelay: `${80 + i * 22}ms` }}
                   className={cn(
-                    "flex-shrink-0 text-2xl leading-none w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/10",
+                    "flex-shrink-0 text-2xl leading-none w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/10 active:scale-90 transition-transform animate-emoji-pop",
                     m.reaction === e && "bg-gray-100 dark:bg-white/10",
                   )}
                 >
@@ -292,8 +293,8 @@ function MessageBubble({
             </div>
 
             {/* Menu — Copy only (WhatsApp Cloud API has no recall, so there's
-                no real Delete to offer). */}
-            <div className="rounded-2xl bg-white dark:bg-[#233138] shadow-xl overflow-hidden">
+                no real Delete to offer). Scales in just after the pill. */}
+            <div className="rounded-2xl bg-white dark:bg-[#233138] shadow-xl overflow-hidden animate-menu-pop-in">
               <button
                 type="button"
                 onClick={copyText}
