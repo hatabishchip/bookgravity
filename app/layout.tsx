@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // icon are the brand, so the root (and its Google / WhatsApp link preview)
   // never reads "Canggu" to an Ubud visitor.
   const description =
-    "Gravity Stretching — aerial stretching studios in Bali, Canggu & Ubud. " +
+    "Gravity Stretching - studios worldwide. " +
     "See the live schedule, book a class in a few taps, and save your QR ticket."
   return {
     title: "Gravity Stretching",
