@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { sendClassReminderWA } from "@/lib/whatsapp-cloud"
 import { appendOutboundMessage } from "@/lib/whatsapp-conversation"
+import { phoneTail } from "@/lib/membership"
 
 export const dynamic = "force-dynamic"
 // Sending several reminders sequentially can exceed the default 10s.
@@ -108,13 +109,17 @@ export async function GET(req: NextRequest) {
         data: { reminderSentAt: new Date() },
       })
       // Best-effort: log the reminder in the client's conversation thread so
-      // the trainer/admin can see it in the inbox. Find an existing convo for
-      // this client+studio; skip silently if none.
+      // the trainer/admin can see it in the inbox. Booking phones are stored
+      // FORMATTED ("+62 812 …") while conversation phones are Meta's bare
+      // digits, so we match on the last-10-digit tail in memory rather than by
+      // exact string (which never matched → the reminder was missing in chat).
       try {
-        const convo = await prisma.whatsAppConversation.findFirst({
-          where: { studioId: b.slot.studioId, clientPhone: b.clientPhone },
-          select: { id: true },
+        const tail = phoneTail(b.clientPhone)
+        const convos = await prisma.whatsAppConversation.findMany({
+          where: { studioId: b.slot.studioId },
+          select: { id: true, clientPhone: true },
         })
+        const convo = convos.find((c) => phoneTail(c.clientPhone) === tail)
         if (convo) {
           await appendOutboundMessage({
             conversationId: convo.id,
