@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { sendWhatsAppText, sendWhatsAppTemplate } from "@/lib/whatsapp-cloud"
+import { sendWhatsAppText, sendWhatsAppTemplate, getConfigFor } from "@/lib/whatsapp-cloud"
 import {
   appendOutboundMessage,
   isInsideCustomerWindow,
@@ -45,6 +45,15 @@ export async function POST(
   })
   if (!convo) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
+  // This studio's own WhatsApp number/token (falls back to global env). All
+  // outbound sends for this conversation go through the studio's own WABA so
+  // each studio uses its own Facebook number + branding.
+  const studioWA = await prisma.studio.findUnique({
+    where: { id: ctx.studioId },
+    select: { whatsappPhoneNumberId: true, whatsappAccessToken: true },
+  })
+  const waConfig = getConfigFor(studioWA)
+
   let fromTrainerId: string | null = null
   if (ctx.role === "TRAINER") {
     const trainer = await prisma.trainer.findFirst({
@@ -71,6 +80,7 @@ export async function POST(
       templateName: parsed.data.templateName,
       languageCode: lang,
       variables: parsed.data.variables ?? [],
+      config: waConfig,
     })
     const saved = await appendOutboundMessage({
       conversationId: convo.id,
@@ -155,6 +165,7 @@ export async function POST(
       templateName: adminTemplate,
       languageCode: lang,
       variables: [clientFirstName, textToSend],
+      config: waConfig,
     })
     const saved = await appendOutboundMessage({
       conversationId: convo.id,
@@ -174,7 +185,7 @@ export async function POST(
     )
   }
 
-  const res = await sendWhatsAppText(convo.clientPhone, textToSend)
+  const res = await sendWhatsAppText(convo.clientPhone, textToSend, waConfig)
   const saved = await appendOutboundMessage({
     conversationId: convo.id,
     type: "text",

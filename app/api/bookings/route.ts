@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
         where: { id: data.slotId },
         include: {
           trainer: { select: { name: true, whatsapp: true, notifyWhatsapp: true } },
-          studio: { select: { locationUrl: true } },
+          studio: { select: { locationUrl: true, whatsappPhoneNumberId: true, whatsappAccessToken: true } },
         },
       })
       if (slotForWA) {
@@ -254,6 +254,7 @@ export async function POST(request: NextRequest) {
           time: prettyTime,
           ticketCode: bookings[0].ticketCode,
           locationUrl: slotForWA.studio?.locationUrl,
+          studioWA: slotForWA.studio,
         }).then(async (r) => {
           if (!r.ok) console.warn("[bookings] WA client send failed:", r.error)
           else console.log("[bookings] WA client sent:", r.messageId)
@@ -336,6 +337,7 @@ export async function POST(request: NextRequest) {
             clientNames,
             bookedCount: slotBookings.length,
             maxCapacity: slotForWA.maxCapacity,
+            studioWA: slotForWA.studio,
           })
           if (!r.ok) {
             console.warn("[bookings] WA trainer send failed:", r.error)

@@ -6,7 +6,7 @@ import {
   appendInboundMessage,
   updateMessageStatus,
 } from "@/lib/whatsapp-conversation"
-import { fetchMetaMedia, forwardInboundToOwner } from "@/lib/whatsapp-cloud"
+import { fetchMetaMedia, forwardInboundToOwner, getConfigFor } from "@/lib/whatsapp-cloud"
 import { sendInboundWhatsAppCopy } from "@/lib/mailer"
 import { translateAndDetect } from "@/lib/translate"
 import { handleCancelBotMessage } from "@/lib/cancel-bot"
@@ -172,12 +172,15 @@ export async function POST(request: NextRequest) {
     // Studio's admin-facing language (e.g. "ru" for Canggu/Ubud). When set,
     // every inbound message gets translated in the background and the
     // bubble in /admin/inbox renders the translation as the main text.
-    const inboxLanguage = studioId
-      ? (await prisma.studio.findUnique({
+    const studioRow = studioId
+      ? await prisma.studio.findUnique({
           where: { id: studioId },
-          select: { inboxLanguage: true },
-        }))?.inboxLanguage ?? null
+          select: { inboxLanguage: true, whatsappPhoneNumberId: true, whatsappAccessToken: true },
+        })
       : null
+    const inboxLanguage = studioRow?.inboxLanguage ?? null
+    // This studio's own WhatsApp config (per-studio number; falls back to global).
+    const waConfig = getConfigFor(studioRow)
 
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
@@ -315,6 +318,7 @@ export async function POST(request: NextRequest) {
               type,
               body: msgBody,
               filename: msg.document?.filename ?? null,
+              config: waConfig,
             })
               .then((r) => {
                 if (

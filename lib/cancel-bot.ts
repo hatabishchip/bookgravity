@@ -11,7 +11,7 @@
 // the texting phone number — a client effectively never has two upcoming
 // bookings sharing a code.
 import { prisma } from "@/lib/prisma"
-import { sendWhatsAppText } from "@/lib/whatsapp-cloud"
+import { sendWhatsAppText, getConfigFor } from "@/lib/whatsapp-cloud"
 import { appendOutboundMessage } from "@/lib/whatsapp-conversation"
 import { restoreMembershipClass, phoneTail } from "@/lib/membership"
 import { slotStartMs } from "@/lib/booking-cutoff"
@@ -55,8 +55,15 @@ export async function handleCancelBotMessage(opts: {
   const text = (opts.text ?? "").trim()
   if (!text) return
 
+  // This studio's own WhatsApp config (per-studio number; falls back to global).
+  const studioWA = await prisma.studio.findUnique({
+    where: { id: opts.studioId },
+    select: { whatsappPhoneNumberId: true, whatsappAccessToken: true },
+  })
+  const waConfig = getConfigFor(studioWA)
+
   const reply = async (msg: string) => {
-    const r = await sendWhatsAppText(opts.clientPhone, msg)
+    const r = await sendWhatsAppText(opts.clientPhone, msg, waConfig)
     await appendOutboundMessage({
       conversationId: opts.conversationId,
       type: "text",

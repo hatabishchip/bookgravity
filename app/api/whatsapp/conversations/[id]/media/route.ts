@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import {
   uploadMediaToMeta,
   sendWhatsAppMedia,
+  getConfigFor,
 } from "@/lib/whatsapp-cloud"
 import {
   appendOutboundMessage,
@@ -102,9 +103,16 @@ export async function POST(
     )
   }
 
-  // 1. Upload bytes to Meta to get a media_id.
+  // This studio's own WhatsApp config (per-studio number; falls back to global).
+  const studioWA = await prisma.studio.findUnique({
+    where: { id: ctx.studioId },
+    select: { whatsappPhoneNumberId: true, whatsappAccessToken: true },
+  })
+  const waConfig = getConfigFor(studioWA)
+
+  // 1. Upload bytes to Meta to get a media_id (on this studio's WABA).
   const buffer = Buffer.from(await file.arrayBuffer())
-  const upload = await uploadMediaToMeta(buffer, mimeType, file.name || `upload.${type}`)
+  const upload = await uploadMediaToMeta(buffer, mimeType, file.name || `upload.${type}`, waConfig)
   if (!upload.ok) {
     return NextResponse.json({ error: upload.error }, { status: 502 })
   }
@@ -116,6 +124,7 @@ export async function POST(
     mediaId: upload.id,
     caption,
     filename: type === "document" ? file.name || undefined : undefined,
+    config: waConfig,
   })
 
   // 3. Persist the outbound message — store media_id in mediaUrl so the

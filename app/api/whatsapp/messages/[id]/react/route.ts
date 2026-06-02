@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { trainerHasAccess, isInsideCustomerWindow } from "@/lib/whatsapp-conversation"
-import { sendWhatsAppReaction } from "@/lib/whatsapp-cloud"
+import { sendWhatsAppReaction, getConfigFor } from "@/lib/whatsapp-cloud"
 import { z } from "zod"
 
 // Reactions the team can put on a message (WhatsApp-style). Empty string clears.
-const ALLOWED = ["👍", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌", ""]
+const ALLOWED = ["❤️", "👍", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌", ""]
 const Schema = z.object({ emoji: z.string() })
 
 // POST /api/whatsapp/messages/[id]/react  body: { emoji }
@@ -57,7 +57,16 @@ export async function POST(
   let delivered = false
   let deliverError: string | null = null
   if (message.waMessageId && isInsideCustomerWindow(message.conversation.lastInboundAt)) {
-    const r = await sendWhatsAppReaction(message.conversation.clientPhone, message.waMessageId, emoji)
+    const studioWA = await prisma.studio.findUnique({
+      where: { id: ctx.studioId },
+      select: { whatsappPhoneNumberId: true, whatsappAccessToken: true },
+    })
+    const r = await sendWhatsAppReaction(
+      message.conversation.clientPhone,
+      message.waMessageId,
+      emoji,
+      getConfigFor(studioWA),
+    )
     delivered = r.ok
     if (!r.ok) deliverError = r.error
   } else {

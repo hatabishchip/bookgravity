@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { markConversationRead, trainerHasAccess } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
-import { markMessageRead } from "@/lib/whatsapp-cloud"
+import { markMessageRead, getConfigFor } from "@/lib/whatsapp-cloud"
 
 async function loadConvoForUser(convoId: string) {
   const ctx = await requireAuth()
@@ -66,9 +66,14 @@ export async function GET(
     (m) => m.direction === "INBOUND" && m.waMessageId && m.status !== "read",
   )
   if (unread.length > 0) {
+    const studioWA = await prisma.studio.findUnique({
+      where: { id: ctx.studioId },
+      select: { whatsappPhoneNumberId: true, whatsappAccessToken: true },
+    })
+    const waConfig = getConfigFor(studioWA)
     void Promise.all(
       unread.map(async (m) => {
-        const r = await markMessageRead(m.waMessageId!)
+        const r = await markMessageRead(m.waMessageId!, waConfig)
         if (r.ok) {
           await prisma.whatsAppMessage
             .update({ where: { id: m.id }, data: { status: "read" } })

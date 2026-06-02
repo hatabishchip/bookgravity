@@ -22,11 +22,19 @@ function formatLongDate(ymd: string): string {
   }
 }
 
-type CloudConfig = {
+export type CloudConfig = {
   phoneNumberId: string
   accessToken: string
   apiVersion: string
 }
+
+// The two per-studio WhatsApp fields. Each studio configures its OWN number +
+// token in its own Facebook/Meta account; getConfigFor() resolves them and
+// falls back to the global env (the primary studio's number) when unset.
+export type StudioWA = {
+  whatsappPhoneNumberId: string | null
+  whatsappAccessToken: string | null
+} | null | undefined
 
 function getConfig(): CloudConfig | null {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
@@ -137,8 +145,9 @@ export async function uploadMediaToMeta(
   data: Buffer | Blob,
   mimeType: string,
   filename = "upload",
+  config?: CloudConfig | null,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  const cfg = getConfig()
+  const cfg = config ?? getConfig()
   if (!cfg) return { ok: false, error: "not_configured" }
   try {
     const blob = data instanceof Blob ? data : new Blob([new Uint8Array(data)], { type: mimeType })
@@ -176,8 +185,9 @@ export async function sendWhatsAppMedia(opts: {
   mediaId: string
   caption?: string
   filename?: string // documents only
+  config?: CloudConfig | null
 }): Promise<SendResult> {
-  const cfg = getConfig()
+  const cfg = opts.config ?? getConfig()
   if (!cfg) return { ok: false, error: "not_configured" }
   const to = normalizePhone(opts.toPhone)
   if (!to) return { ok: false, error: "empty_phone" }
@@ -322,8 +332,9 @@ export async function setWhatsAppProfilePictureFromDataUrl(
  */
 export async function markMessageRead(
   waMessageId: string,
+  config?: CloudConfig | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const cfg = getConfig()
+  const cfg = config ?? getConfig()
   if (!cfg) return { ok: false, error: "not_configured" }
   if (!waMessageId) return { ok: false, error: "empty_wamid" }
   try {
@@ -358,8 +369,8 @@ export async function markMessageRead(
  * (i.e. the recipient must have sent us a message in the last 24 hours).
  * Use for trainer notifications once they've replied to the bot at least once.
  */
-export async function sendWhatsAppText(toPhone: string, text: string): Promise<SendResult> {
-  const cfg = getConfig()
+export async function sendWhatsAppText(toPhone: string, text: string, config?: CloudConfig | null): Promise<SendResult> {
+  const cfg = config ?? getConfig()
   if (!cfg) {
     console.warn("[whatsapp-cloud] missing WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_ACCESS_TOKEN — skip")
     return { ok: false, error: "not_configured" }
@@ -385,8 +396,9 @@ export async function sendWhatsAppReaction(
   toPhone: string,
   messageWamId: string,
   emoji: string,
+  config?: CloudConfig | null,
 ): Promise<SendResult> {
-  const cfg = getConfig()
+  const cfg = config ?? getConfig()
   if (!cfg) return { ok: false, error: "not_configured" }
   const to = normalizePhone(toPhone)
   if (!to) return { ok: false, error: "empty_phone" }
@@ -409,8 +421,9 @@ export async function sendWhatsAppTemplate(opts: {
   templateName: string
   languageCode: string // e.g. "en", "en_US", "id"
   variables?: string[]
+  config?: CloudConfig | null
 }): Promise<SendResult> {
-  const cfg = getConfig()
+  const cfg = opts.config ?? getConfig()
   if (!cfg) {
     console.warn("[whatsapp-cloud] missing WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_ACCESS_TOKEN — skip")
     return { ok: false, error: "not_configured" }
@@ -467,6 +480,8 @@ export async function sendClientBookingConfirmationWA(opts: {
   ticketCode: string
   /** Studio's Google Maps link (Studio.locationUrl). Used by the v3 template. */
   locationUrl?: string | null
+  /** The booked studio's own WhatsApp config (per-studio number). */
+  studioWA?: StudioWA
 }): Promise<SendResult> {
   const templateName =
     process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed"
@@ -482,6 +497,7 @@ export async function sendClientBookingConfirmationWA(opts: {
     templateName,
     languageCode: lang,
     variables,
+    config: getConfigFor(opts.studioWA),
   })
 }
 
@@ -495,6 +511,8 @@ export async function sendClassReminderWA(opts: {
   clientPhone: string
   trainerName: string
   time: string
+  /** The class's studio's own WhatsApp config (per-studio number). */
+  studioWA?: StudioWA
 }): Promise<SendResult> {
   const templateName = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
@@ -503,6 +521,7 @@ export async function sendClassReminderWA(opts: {
     templateName,
     languageCode: lang,
     variables: [opts.trainerName, opts.time],
+    config: getConfigFor(opts.studioWA),
   })
 }
 
@@ -534,7 +553,10 @@ export async function sendTrainerBookingNotificationWA(opts: {
   bookedCount: number
   /** Slot capacity. */
   maxCapacity: number
+  /** The booked studio's own WhatsApp config (per-studio number). */
+  studioWA?: StudioWA
 }): Promise<SendResult> {
+  const cfg = getConfigFor(opts.studioWA)
   const namesLine = opts.clientNames.join(", ")
   // Owner-specified format. Date is rendered long-form (e.g. "Friday, 28 May")
   // without a "Date:" prefix. Time keeps the prefix. Free-form text isn't
@@ -553,7 +575,7 @@ export async function sendTrainerBookingNotificationWA(opts: {
     `Booked ${opts.bookedCount}/${opts.maxCapacity}: ${namesLine}`,
   ].join("\n")
 
-  const textResult = await sendWhatsAppText(opts.trainerPhone, text)
+  const textResult = await sendWhatsAppText(opts.trainerPhone, text, cfg)
   if (textResult.ok) return textResult
 
   // Re-engagement / 24h window errors → fall back to template.
@@ -592,6 +614,7 @@ export async function sendTrainerBookingNotificationWA(opts: {
       templateName,
       languageCode: lang,
       variables,
+      config: cfg,
     })
   }
   return textResult
@@ -630,6 +653,8 @@ export async function forwardInboundToOwner(opts: {
   body: string | null
   /** Filename for documents (optional). */
   filename?: string | null
+  /** The studio's own WhatsApp config (per-studio number). */
+  config?: CloudConfig | null
 }): Promise<SendResult> {
   const ownerPhone = process.env.OWNER_NOTIFY_PHONE
   if (!ownerPhone) {
@@ -639,7 +664,7 @@ export async function forwardInboundToOwner(opts: {
   if (!templateName) {
     return { ok: false, error: "WHATSAPP_TEMPLATE_INBOUND_COPY not set" }
   }
-  const cfg = getConfig()
+  const cfg = opts.config ?? getConfig()
   if (!cfg) return { ok: false, error: "not_configured" }
 
   // Anti-loop: drop sends where the inbound `from` is the owner themselves.
@@ -695,5 +720,6 @@ export async function forwardInboundToOwner(opts: {
     templateName,
     languageCode: process.env.WHATSAPP_TEMPLATE_LANG || "en",
     variables: [safe(senderLabel), safe(bodyVar)],
+    config: cfg,
   })
 }
