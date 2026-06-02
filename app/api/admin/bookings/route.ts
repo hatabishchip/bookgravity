@@ -33,6 +33,7 @@ const BookingSchema = z.object({
   slotId: z.string(),
   clientName: z.string().min(1),
   clientPhone: z.string().min(3),
+  clientEmail: z.string().optional(),
   clientTelegram: z.string().optional(),
   serviceIds: z.array(z.string()).optional(),
   partySize: z.number().int().min(1).max(6).default(1),
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
       data: {
         slotId: data.slotId,
         clientName: data.partySize > 1 ? `${data.clientName} (${i + 1}/${data.partySize})` : data.clientName,
-        clientEmail: "",
+        clientEmail: data.clientEmail || "",
         clientPhone: data.clientPhone,
         clientTelegram: data.clientTelegram || null,
         ticketCode,

@@ -9,6 +9,7 @@ import { X, Plus, Trash2, Eye, EyeOff } from "lucide-react"
 import { whatsappLink } from "@/lib/whatsapp"
 import { PriceInput } from "@/app/_components/PriceInput"
 import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
+import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { cn } from "@/lib/utils"
 
@@ -495,7 +496,6 @@ function SlotEditor({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [adding, setAdding] = useState(false)
-  const [addForm, setAddForm] = useState({ clientName: "", clientPhone: "", clientTelegram: "" })
 
   const fetchBookings = useCallback(async () => {
     setLoadingBookings(true)
@@ -575,17 +575,16 @@ function SlotEditor({
       label: `${format(new Date(s.date + "T00:00:00"), "MMM d")} · ${formatTime(s.startTime)}`,
     }))
 
-  const handleAddBooking = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!addForm.clientName.trim() || !addForm.clientPhone.trim()) return
+  const handleAddBooking = (c: NewClient) => {
     const payload = {
       slotId: slot.id,
-      clientName: addForm.clientName.trim(),
-      clientPhone: addForm.clientPhone.trim(),
-      clientTelegram: addForm.clientTelegram.trim() || undefined,
+      clientName: c.clientName,
+      clientPhone: c.clientPhone,
+      clientEmail: c.clientEmail || undefined,
+      clientTelegram: c.clientTelegram || undefined,
       partySize: 1,
     }
-    // Optimistic — clear the form, add a placeholder row, sync in background
+    // Optimistic — close the form, add a placeholder row, sync in background
     const tempId = `tmp-${Date.now()}`
     setBookings((prev) => [...prev, {
       id: tempId,
@@ -597,7 +596,6 @@ function SlotEditor({
       paymentStatus: "UNPAID",
       services: [],
     }])
-    setAddForm({ clientName: "", clientPhone: "", clientTelegram: "" })
     setAdding(false)
     fetch("/api/admin/bookings", {
       method: "POST",
@@ -793,33 +791,10 @@ function SlotEditor({
             )}
 
             {adding && (
-              <form onSubmit={handleAddBooking} className="mt-2 space-y-2 bg-gray-50 rounded-xl p-3">
-                <input type="text" required placeholder="Client name"
-                  value={addForm.clientName}
-                  onChange={(e) => setAddForm({ ...addForm, clientName: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
-                />
-                <input type="tel" required placeholder="Phone, e.g. +62..."
-                  value={addForm.clientPhone}
-                  onChange={(e) => setAddForm({ ...addForm, clientPhone: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
-                />
-                <input type="text" placeholder="Telegram (optional)"
-                  value={addForm.clientTelegram}
-                  onChange={(e) => setAddForm({ ...addForm, clientTelegram: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
-                />
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setAdding(false)}
-                    className="flex-1 px-3 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-white">
-                    Cancel
-                  </button>
-                  <button type="submit" disabled={saving}
-                    className="flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-[#2C6E49] text-white hover:bg-[#1E4D34] disabled:opacity-60">
-                    {saving ? "Adding…" : "Add client"}
-                  </button>
-                </div>
-              </form>
+              <AddClientForm
+                onSubmit={handleAddBooking}
+                onCancel={() => setAdding(false)}
+              />
             )}
           </div>
 

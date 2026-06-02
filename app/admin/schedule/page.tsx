@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Plus, X, Lock, Unlock, Copy, Eye, EyeOff } f
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
+import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 
 type View = "week" | "2weeks" | "month"
 type Trainer = { id: string; name: string; color: string }
@@ -118,6 +119,7 @@ function SlotClientList({
 }) {
   type Booking = { id: string; clientName: string; clientPhone: string; status: string; slot: { id: string } }
   const [list, setList] = useState<Booking[] | null>(null)
+  const [adding, setAdding] = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/bookings?date=${slot.date}`)
@@ -152,22 +154,58 @@ function SlotClientList({
     onChanged()
   }
 
+  const handleAdd = (c: NewClient) => {
+    setAdding(false)
+    const tempId = `tmp-${Date.now()}`
+    setList((prev) => [...(prev ?? []), {
+      id: tempId, clientName: c.clientName, clientPhone: c.clientPhone, status: "CONFIRMED", slot: { id: slot.id },
+    }])
+    fetch("/api/admin/bookings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        slotId: slot.id,
+        clientName: c.clientName,
+        clientPhone: c.clientPhone,
+        clientEmail: c.clientEmail || undefined,
+        clientTelegram: c.clientTelegram || undefined,
+        partySize: 1,
+      }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        alert(e.error ?? "Couldn't add the client.")
+      }
+    }).finally(() => { load(); onChanged() })
+  }
+
   // Other classes with a free seat, sorted by date/time.
   const targets = allSlots
     .filter((s) => s.id !== slot.id && s.maxCapacity - s._count.bookings > 0)
     .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
 
   if (list === null) return <div className="text-[11px] text-gray-400 mt-2">Loading clients…</div>
-  if (list.length === 0) return null
 
   const targetOptions = targets.map((t) => ({
     id: t.id,
     label: `${format(new Date(t.date + "T00:00:00"), "MMM d")} · ${formatTime(t.startTime)}`,
   }))
+  const seatsLeft = slot.maxCapacity - list.length
 
   return (
     <div className="mt-2 border-t border-gray-200 pt-2 space-y-1.5">
-      <div className="text-[10px] uppercase tracking-wider text-gray-400">Clients ({list.length})</div>
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] uppercase tracking-wider text-gray-400">Clients ({list.length}/{slot.maxCapacity})</div>
+        {!adding && seatsLeft > 0 && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#2C6E49] hover:underline"
+          >
+            <Plus size={12} /> Add client
+          </button>
+        )}
+      </div>
       {list.map((b) => (
         <ClientBookingRow
           key={b.id}
@@ -178,6 +216,7 @@ function SlotClientList({
           onCancel={() => cancel(b)}
         />
       ))}
+      {adding && <AddClientForm onSubmit={handleAdd} onCancel={() => setAdding(false)} />}
     </div>
   )
 }
@@ -1152,7 +1191,7 @@ export default function SchedulePage() {
                                         </label>
                                       )
                                     })()}
-                                    {isExisting && hasBookings && existingSlot && (
+                                    {isExisting && existingSlot && (
                                       <SlotClientList slot={existingSlot} allSlots={slots} onChanged={fetchSlots} />
                                     )}
                                   </div>
