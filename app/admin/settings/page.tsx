@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck, Pencil, X, MapPin } from "lucide-react"
+import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck, Pencil, X, MapPin, Sun, Moon } from "lucide-react"
+import { useAdminTheme } from "@/lib/use-admin-theme"
 import { formatDistanceToNow, format } from "date-fns"
 import { cn } from "@/lib/utils"
 
@@ -155,6 +156,8 @@ export default function SettingsPage() {
         <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">Loading…</div>
       ) : (
         <div className="space-y-4">
+          <AppearanceCard />
+
           <AssetCard
             title="Logo"
             description="Shown in the header of your public booking page, and used as the browser-tab icon (favicon). Best looks: PNG with transparent background, square or wide format."
@@ -317,6 +320,49 @@ function AssetCard({
             )}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function AppearanceCard() {
+  const { theme, setTheme } = useAdminTheme()
+  const options: { value: "light" | "dark"; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+    { value: "light", label: "Light", icon: Sun },
+    { value: "dark", label: "Dark", icon: Moon },
+  ]
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Moon size={16} className="text-[#2C6E49]" />
+        <h2 className="text-base font-semibold text-gray-900">Appearance</h2>
+      </div>
+      <p className="text-xs text-gray-500 mb-4 max-w-md">
+        Choose how the admin panel looks. Dark theme is easier on the eyes in
+        low light. This preference is saved on this device.
+      </p>
+      <div className="inline-flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+        {options.map((o) => {
+          const active = theme === o.value
+          const Icon = o.icon
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => setTheme(o.value)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                active
+                  ? "bg-[#2C6E49] text-white shadow-sm"
+                  : "text-gray-600 hover:text-gray-900",
+              )}
+              aria-pressed={active}
+            >
+              <Icon size={16} />
+              {o.label}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

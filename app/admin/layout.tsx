@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation"
 import { Calendar, BookOpen, Users, Package, LayoutDashboard, LogOut, Banknote, Settings, ExternalLink, X, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import FloatingInbox from "@/app/_components/FloatingInbox"
+import { useAdminTheme } from "@/lib/use-admin-theme"
 
 const navItems: { href: string; label: string; icon: React.ComponentType<{ size?: number }>; beta?: boolean }[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -32,16 +33,16 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-2">
+      <div className="p-5 border-b border-gray-100 dark:border-white/10 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h1 className="font-bold text-[#2C6E49] text-lg leading-tight">
+          <h1 className="font-bold text-[#2C6E49] dark:text-[#69b58f] text-lg leading-tight">
             {studio?.name || "Gravity Stretching"}
           </h1>
-          <p className="text-xs text-gray-400 mt-1">Admin Panel</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Admin Panel</p>
         </div>
         <button
           onClick={onClose}
-          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg flex-shrink-0"
+          className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-white/10 dark:text-gray-200 rounded-lg flex-shrink-0"
           aria-label="Close menu"
         >
           <X size={18} />
@@ -54,14 +55,14 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           return (
             <Link key={href} href={href}
               className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
-                active ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50"
+                active ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
               )}>
               <Icon size={18} />
               <span className="flex-1">{label}</span>
               {beta && (
                 <span className={cn(
                   "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded",
-                  active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
+                  active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300"
                 )}>
                   Beta
                 </span>
@@ -71,24 +72,24 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
         })}
       </nav>
 
-      <div className="p-4 border-t border-gray-100 space-y-1">
+      <div className="p-4 border-t border-gray-100 dark:border-white/10 space-y-1">
         {/* Open the studio's own booking page in the SAME window (the NextAuth
             session cookie rides along, so the page knows you're the admin and
             shows a "back to dashboard" badge — no re-login). */}
         <Link href={studio?.slug ? `/${studio.slug}` : "/"}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5">
           <ExternalLink size={18} />
           <span className="flex-1">Booking page</span>
         </Link>
         <Link href="/admin/settings"
           className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
-            settingsActive ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50"
+            settingsActive ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
           )}>
           <Settings size={18} />
           Settings
         </Link>
         <button onClick={() => signOut({ callbackUrl: `${window.location.origin}/` })}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full">
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5 w-full">
           <LogOut size={18} />
           Sign Out
         </button>
@@ -107,19 +108,19 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
   }, [])
 
   return (
-    <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
+    <header className="lg:hidden sticky top-0 z-30 bg-white dark:bg-[#12151b] border-b border-gray-100 dark:border-white/10 px-4 py-3 flex items-center gap-3">
       <button
         onClick={onMenuClick}
-        className="p-2 hover:bg-gray-100 rounded-lg"
+        className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 dark:text-gray-200 rounded-lg"
         aria-label="Open menu"
       >
         <Menu size={20} />
       </button>
       <div className="flex-1 min-w-0">
-        <div className="font-bold text-[#2C6E49] text-sm truncate">
+        <div className="font-bold text-[#2C6E49] dark:text-[#69b58f] text-sm truncate">
           {studio?.name || "Gravity Stretching"}
         </div>
-        <div className="text-xs text-gray-400">{activeLabel}</div>
+        <div className="text-xs text-gray-400 dark:text-gray-500">{activeLabel}</div>
       </div>
     </header>
   )
@@ -127,13 +128,18 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [navOpen, setNavOpen] = useState(false)
+  const { theme } = useAdminTheme()
 
   return (
     <SessionProvider>
-      <div className="flex min-h-screen bg-[#F5F4F0]">
+      <div className={cn(
+        "flex min-h-screen",
+        theme === "dark" ? "dark bg-[#0c0f14]" : "bg-[#F5F4F0]",
+      )}>
         <aside
           className={cn(
             "fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-100 flex flex-col transition-transform duration-200",
+            "dark:bg-[#12151b] dark:border-white/10",
             "lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
             navOpen ? "translate-x-0" : "-translate-x-full"
           )}

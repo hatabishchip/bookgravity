@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: `dark:` variants activate for any descendant of an
+   element with the `.dark` class (set on the admin shell when the admin picks
+   the dark theme). This replaces Tailwind's default prefers-color-scheme so a
+   manual toggle is the single source of truth. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: var(--font-geist);
   --color-brand: #2C6E49;
@@ -7,6 +13,51 @@
   --color-accent: #C8956C;
   --color-bg: #F5F4F0;
 }
+
+/* ===========================================================================
+   Admin dark theme.
+   The admin shell (sidebar / top bar) is styled with explicit `dark:` variants
+   in app/admin/layout.tsx. Every admin PAGE (schedule, bookings, trainers,
+   settings, …) is light-only in markup, so instead of editing hundreds of
+   elements we remap the common neutral utilities under `.dark main` to a
+   slate dark palette. Scoping to `main` deliberately excludes the floating
+   inbox (a sibling of <main>), which already ships its own dark: styling.
+   These rules are unlayered, so they win over Tailwind's layered utilities.
+   =========================================================================== */
+.dark { color-scheme: dark; }
+
+/* Surfaces */
+.dark main .bg-white { background-color: #171b21; }
+.dark main .bg-gray-50 { background-color: #1b2128; }
+.dark main .bg-gray-100 { background-color: #232a33; }
+.dark main .bg-gray-200 { background-color: #2b333d; }
+.dark main .hover\:bg-gray-50:hover { background-color: #232a33; }
+.dark main .hover\:bg-gray-100:hover { background-color: #2b333d; }
+.dark main .hover\:bg-white:hover { background-color: #1e242c; }
+
+/* Text */
+.dark main .text-gray-900 { color: #f3f5f7; }
+.dark main .text-gray-800 { color: #e7eaee; }
+.dark main .text-gray-700 { color: #d4d9e0; }
+.dark main .text-gray-600 { color: #aeb6c1; }
+.dark main .text-gray-500 { color: #8d96a3; }
+.dark main .text-gray-400 { color: #717b88; }
+.dark main .text-gray-300 { color: #58616d; }
+
+/* Borders + dividers */
+.dark main .border-gray-100 { border-color: #242b34; }
+.dark main .border-gray-200 { border-color: #2c343f; }
+.dark main .border-gray-300 { border-color: #38414d; }
+.dark main .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #242b34; }
+.dark main .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: #2c343f; }
+
+/* Placeholders + brand accent text (a touch brighter so it pops on dark) */
+.dark main ::placeholder { color: #6b7480; }
+.dark main .text-\[\#2C6E49\] { color: #4cae7a; }
+
+/* Soft brand tints used for selected/active states render fine over dark via
+   their alpha, but the near-white ring offsets need darkening. */
+.dark main .ring-white { --tw-ring-color: #171b21; }
 
 html, body {
   background: #F5F4F0;
