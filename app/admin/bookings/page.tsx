@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { format } from "date-fns"
+import { format, addDays } from "date-fns"
 import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, User, Clock, CreditCard, CheckCircle2, StickyNote, Sparkles, Copy, Check } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
@@ -266,6 +266,9 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [search, setSearch] = useState("")
   const [dateFilter, setDateFilter] = useState("")
+  // Quick date-range chips for "who's booked today / tomorrow / this week /
+  // this month". Filters client-side on the class date.
+  const [range, setRange] = useState<"all" | "today" | "tomorrow" | "week" | "month">("all")
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
 
@@ -294,11 +297,33 @@ export default function BookingsPage() {
     }
   }
 
+  // Date-range bounds (studio-local class dates as yyyy-MM-dd strings).
+  const todayStr = format(new Date(), "yyyy-MM-dd")
+  const tomorrowStr = format(addDays(new Date(), 1), "yyyy-MM-dd")
+  const weekEndStr = format(addDays(new Date(), 6), "yyyy-MM-dd")
+  const monthEndStr = format(addDays(new Date(), 29), "yyyy-MM-dd")
+  const inRange = (d: string) => {
+    if (range === "today") return d === todayStr
+    if (range === "tomorrow") return d === tomorrowStr
+    if (range === "week") return d >= todayStr && d <= weekEndStr
+    if (range === "month") return d >= todayStr && d <= monthEndStr
+    return true
+  }
+
   const filtered = bookings.filter((b) =>
-    !search ||
-    b.clientName.toLowerCase().includes(search.toLowerCase()) ||
-    b.clientPhone.includes(search)
+    (!search ||
+      b.clientName.toLowerCase().includes(search.toLowerCase()) ||
+      b.clientPhone.includes(search)) &&
+    inRange(b.slot.date)
   )
+
+  const RANGES: { value: typeof range; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "today", label: "Today" },
+    { value: "tomorrow", label: "Tomorrow" },
+    { value: "week", label: "This week" },
+    { value: "month", label: "This month" },
+  ]
 
   return (
     <div>
@@ -321,13 +346,32 @@ export default function BookingsPage() {
           <input
             type="date"
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
+            onChange={(e) => { setDateFilter(e.target.value); setRange("all") }}
             className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] bg-white"
           />
         </div>
         {dateFilter && (
-          <button onClick={() => setDateFilter("")} className="text-sm text-gray-500 hover:text-gray-800 px-2">Clear</button>
+          <button onClick={() => { setDateFilter(""); }} className="text-sm text-gray-500 hover:text-gray-800 px-2">Clear</button>
         )}
+      </div>
+
+      {/* Quick date-range filter */}
+      <div className="flex flex-wrap gap-1.5 mb-6">
+        {RANGES.map((r) => (
+          <button
+            key={r.value}
+            type="button"
+            onClick={() => { setRange(r.value); setDateFilter("") }}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-sm font-medium border",
+              range === r.value && !dateFilter
+                ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+            )}
+          >
+            {r.label}
+          </button>
+        ))}
       </div>
 
       {/* Table */}
