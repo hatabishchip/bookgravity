@@ -77,9 +77,25 @@ export interface ComposerProps {
     variables?: string[]
     display?: string
   }) => Promise<void> | void
+  /** The client's saved name — used to personalise the greeting template. */
+  clientName?: string | null
 }
 
-export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, clientName }: ComposerProps) {
+  // Greeting opener: personalise with the client's saved name when it looks
+  // like a real name (contains a letter — filters out phone-number "names").
+  // No name → the plain "Greetings!" template (a WA template variable can't be
+  // empty, so we use a separate variable-less template).
+  const greetingName = (clientName ?? "").trim()
+  const greetingHasName = /\p{L}/u.test(greetingName)
+  const greetingTemplate: TemplateDef = greetingHasName
+    ? {
+        label: `Greeting — ${greetingName}`,
+        text: `Greetings, ${greetingName}!`,
+        templateName: "greeting_named",
+        variables: [greetingName],
+      }
+    : { label: "Greeting", text: "Greetings!", templateName: "greeting" }
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasText, setHasText] = useState(false)
@@ -265,7 +281,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                 </button>
               </div>
               <div className="py-1">
-                {MESSAGE_TEMPLATES.map((tpl) => (
+                {[greetingTemplate, ...MESSAGE_TEMPLATES].map((tpl) => (
                   <button
                     key={tpl.label}
                     type="button"
