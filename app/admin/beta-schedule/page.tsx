@@ -364,7 +364,7 @@ export default function BetaSchedulePage() {
                             {slot.assistant && ` · + ${slot.assistant.name}`}
                           </span>
                           {isHidden && (
-                            <span className="inline-flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-full bg-white border border-gray-300 text-gray-600 text-[9px] font-bold uppercase tracking-wider leading-none">
+                            <span className="inline-flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-full bg-white border border-gray-300 text-[#4b5563] text-[9px] font-bold uppercase tracking-wider leading-none">
                               <EyeOff size={10} strokeWidth={2.25} /> Hidden
                             </span>
                           )}

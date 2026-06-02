@@ -875,7 +875,10 @@ export default function SchedulePage() {
                       : slot.classType === "PRIVATE"
                         ? "bg-purple-100 text-purple-900 border-purple-300"
                         : bright
-                          ? "bg-white/90 text-gray-800 border-white/60"
+                          // Sits on a white pill over the vivid trainer colour,
+                          // so the text must stay dark in BOTH themes — use an
+                          // explicit hex so the dark-mode remap can't lighten it.
+                          ? "bg-white/90 text-[#1f2937] border-white/60"
                           : "bg-gray-100 text-gray-700 border-gray-200"
 
                     const isHidden = !slot.publicVisible
@@ -911,7 +914,7 @@ export default function SchedulePage() {
                             {isHidden && (
                               <span
                                 title="Hidden from clients"
-                                className="inline-flex items-center justify-center w-4 h-4 rounded bg-white/95 border border-gray-300 text-gray-500"
+                                className="inline-flex items-center justify-center w-4 h-4 rounded bg-white/95 border border-gray-300 text-[#6b7280]"
                               >
                                 <EyeOff size={10} strokeWidth={2.25} />
                               </span>
