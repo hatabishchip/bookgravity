@@ -74,6 +74,43 @@ html, body {
   transform-origin: center top;
 }
 
+/* Exit animations when a reaction is chosen / the menu is dismissed:
+   the pill shrinks down toward the message, the menu collapses up, the
+   backdrop fades — then the chosen emoji "lands" on the bubble's badge. */
+@keyframes bg-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.animate-bg-fade-out {
+  animation: bg-fade-out 0.2s ease-in forwards;
+}
+@keyframes reaction-pill-out {
+  0%   { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(0.7) translateY(26px); }
+}
+.animate-reaction-pill-out {
+  animation: reaction-pill-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+  transform-origin: center bottom;
+}
+@keyframes menu-pop-out {
+  0%   { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(0.9) translateY(-6px); }
+}
+.animate-menu-pop-out {
+  animation: menu-pop-out 0.16s ease-in forwards;
+  transform-origin: center top;
+}
+/* The reaction badge drops onto the message with a bounce, so it's obvious
+   which message it belongs to. */
+@keyframes reaction-land {
+  0%   { opacity: 0; transform: scale(1.8) translateY(-12px); }
+  60%  { opacity: 1; transform: scale(0.88) translateY(2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-reaction-land {
+  animation: reaction-land 0.44s cubic-bezier(0.2, 0.8, 0.3, 1.35) both;
+}
+
 /* Copy confirmation toast — WhatsApp style: a dark pill near the bottom that
    slides up + fades in, holds, then fades out (in → hold → out in one run). */
 @keyframes toast-pop {

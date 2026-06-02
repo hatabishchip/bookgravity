@@ -184,12 +184,24 @@ function MessageBubble({
   const isOut = m.direction === "OUTBOUND"
   // WhatsApp-style action menu: long-press (touch) or right-click (desktop).
   const [menuOpen, setMenuOpen] = useState(false)
+  // While true the menu plays its exit animation before unmounting.
+  const [menuClosing, setMenuClosing] = useState(false)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const openMenu = () => setMenuOpen(true)
+  const openMenu = () => { setMenuClosing(false); setMenuOpen(true) }
+  // Animate the menu out, then unmount it once the exit animation finishes.
+  const closeMenu = () => {
+    setMenuClosing(true)
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(() => {
+      setMenuOpen(false)
+      setMenuClosing(false)
+    }, 200)
+  }
   const startPress = () => {
     if (pressTimer.current) clearTimeout(pressTimer.current)
-    pressTimer.current = setTimeout(() => setMenuOpen(true), 450)
+    pressTimer.current = setTimeout(() => openMenu(), 450)
   }
   const cancelPress = () => {
     if (pressTimer.current) {
@@ -207,14 +219,15 @@ function MessageBubble({
       ok = false
     }
     // Close the sheet; the parent shows a WhatsApp-style "Скопировано" toast.
-    setMenuOpen(false)
+    closeMenu()
     if (ok) onCopied?.()
   }
 
   const react = (emoji: string) => {
-    // Tapping the current reaction again clears it (toggle), like WhatsApp.
+    // Apply the reaction immediately so the badge lands on the bubble while
+    // the menu animates closed. Tapping the current reaction again clears it.
     onReact?.(m.id, m.reaction === emoji ? "" : emoji)
-    setMenuOpen(false)
+    closeMenu()
   }
   // Display text: prefer the translation if the server produced one. For
   // inbound that's the admin-language rendering; for outbound it's
@@ -267,15 +280,21 @@ function MessageBubble({
           just Copy + Delete (Delete only for our unread sent messages). */}
       {menuOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-6 animate-bg-fade-in"
-          onClick={() => setMenuOpen(false)}
+          className={cn(
+            "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-6",
+            menuClosing ? "animate-bg-fade-out" : "animate-bg-fade-in",
+          )}
+          onClick={() => closeMenu()}
         >
           <div
             className="flex flex-col items-stretch gap-2 w-full max-w-xs"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Reaction bar — springs up; emojis pop in one after another. */}
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar rounded-full bg-white dark:bg-[#233138] shadow-xl px-2 py-2 animate-reaction-pill-in">
+            <div className={cn(
+              "flex items-center gap-1 overflow-x-auto no-scrollbar rounded-full bg-white dark:bg-[#233138] shadow-xl px-2 py-2",
+              menuClosing ? "animate-reaction-pill-out" : "animate-reaction-pill-in",
+            )}>
               {REACTIONS.map((e, i) => (
                 <button
                   key={e}
@@ -294,7 +313,10 @@ function MessageBubble({
 
             {/* Menu — Copy only (WhatsApp Cloud API has no recall, so there's
                 no real Delete to offer). Scales in just after the pill. */}
-            <div className="rounded-2xl bg-white dark:bg-[#233138] shadow-xl overflow-hidden animate-menu-pop-in">
+            <div className={cn(
+              "rounded-2xl bg-white dark:bg-[#233138] shadow-xl overflow-hidden",
+              menuClosing ? "animate-menu-pop-out" : "animate-menu-pop-in",
+            )}>
               <button
                 type="button"
                 onClick={copyText}
@@ -323,11 +345,14 @@ function MessageBubble({
         )}
         style={{ fontSize: `${fontScale * 0.875}rem`, WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
       >
-        {/* Reaction badge — small pill hanging off the bottom of the bubble. */}
+        {/* Reaction badge — pill hanging off the bottom of the bubble. Keyed by
+            the emoji so it remounts and replays the "land" bounce each time the
+            reaction changes, making it clear which message it's attached to. */}
         {m.reaction && (
           <div
+            key={m.reaction}
             className={cn(
-              "absolute -bottom-3 flex items-center justify-center w-6 h-6 rounded-full bg-white dark:bg-[#233138] shadow border border-gray-100 dark:border-white/10 text-sm",
+              "absolute -bottom-3 flex items-center justify-center w-7 h-7 rounded-full bg-white dark:bg-[#233138] shadow-md border border-gray-100 dark:border-white/10 text-base animate-reaction-land z-10",
               isOut ? "left-1" : "right-1",
             )}
           >
