@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
+import { QueuedClients } from "@/app/_components/QueuedClients"
 
 type View = "week" | "2weeks" | "month"
 type Trainer = { id: string; name: string; color: string }
@@ -79,7 +80,7 @@ function slotCardStyle(slot: Slot) {
   }
 }
 
-type SlotAssignment = { trainerId: string; assistantId: string; classType: ClassType; publicVisible: boolean; maxCapacity: number; repeatWeekly: boolean }
+type SlotAssignment = { trainerId: string; assistantId: string; classType: ClassType; publicVisible: boolean; maxCapacity: number; repeatWeekly: boolean; clients?: NewClient[] }
 type ClassType = "GROUP" | "KIDS" | "PRIVATE"
 
 const CLASS_TYPES: { value: ClassType; label: string; sub: string }[] = [
@@ -368,6 +369,9 @@ export default function SchedulePage() {
 
     type Req = { url: string; method: "POST" | "PATCH" | "DELETE"; body?: unknown }
     const payloads: Req[] = []
+    // New sessions are created via their own awaited routine (not the batch)
+    // so we can read each created slot's id and then book any queued clients.
+    const createSpecs: { startTime: string; body: Record<string, unknown>; clients: NewClient[] }[] = []
 
     const existing = slots.filter((s) => s.date === form.date)
     const existingByTime = new Map(existing.map((s) => [s.startTime, s] as const))
@@ -449,11 +453,11 @@ export default function SchedulePage() {
         seriesId: null,  // server will assign one if repeatWeekly is true
         trainer: tr ? { id: tr.id, name: tr.name, color: tr.color } : null,
         assistant: as ? { id: as.id, name: as.name, color: as.color } : null,
-        _count: { bookings: 0 },
+        _count: { bookings: a.clients?.length ?? 0 },
       })
-      payloads.push({
-        url: "/api/admin/slots",
-        method: "POST",
+      createSpecs.push({
+        startTime,
+        clients: a.clients ?? [],
         body: {
           date: form.date,
           startTime,
@@ -478,10 +482,12 @@ export default function SchedulePage() {
     }
     closeModal()
 
-    if (payloads.length === 0) return
+    if (payloads.length === 0 && createSpecs.length === 0) return
 
-    // Background sync — converge to truth and surface failures unobtrusively
-    Promise.allSettled(
+    // Background sync — converge to truth and surface failures unobtrusively.
+    // Deletes/updates go in a parallel batch; creates run in their own routine
+    // so each created slot's id is known before we book its queued clients.
+    const runBatch = Promise.allSettled(
       payloads.map((p) =>
         fetch(p.url, {
           method: p.method,
@@ -506,11 +512,65 @@ export default function SchedulePage() {
           failed.push(`${payloads[i].method}: ${msg}`)
         }
       }
+      return failed
+    })
+
+    const runCreates = Promise.all(
+      createSpecs.map(async (spec): Promise<string[]> => {
+        const errs: string[] = []
+        let res: Response
+        try {
+          res = await fetch("/api/admin/slots", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(spec.body),
+          })
+        } catch {
+          return [`create ${spec.startTime}: network`]
+        }
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "")
+          let msg = `${res.status}`
+          try { msg = JSON.parse(txt).error ?? msg } catch {}
+          return [`create ${spec.startTime}: ${msg}`]
+        }
+        // Slot created — book any queued clients onto its id.
+        const created = await res.json().catch(() => null) as { id?: string } | null
+        if (created?.id && spec.clients.length) {
+          for (const c of spec.clients) {
+            try {
+              const br = await fetch("/api/admin/bookings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  slotId: created.id,
+                  clientName: c.clientName,
+                  clientPhone: c.clientPhone,
+                  clientEmail: c.clientEmail || undefined,
+                  clientTelegram: c.clientTelegram || undefined,
+                  partySize: 1,
+                }),
+              })
+              if (!br.ok) {
+                const e = await br.json().catch(() => ({}))
+                errs.push(`add ${c.clientName}: ${e.error ?? br.status}`)
+              }
+            } catch {
+              errs.push(`add ${c.clientName}: network`)
+            }
+          }
+        }
+        return errs
+      }),
+    ).then((nested) => nested.flat())
+
+    Promise.all([runBatch, runCreates]).then(([batchFailed, createFailed]) => {
+      const failed = [...batchFailed, ...createFailed]
       // Always refetch to converge with server truth (correct IDs, etc.)
       fetchSlots()
       if (failed.length > 0) {
         setSyncError(failed.slice(0, 2).join(" · "))
-        setTimeout(() => setSyncError(null), 5000)
+        setTimeout(() => setSyncError(null), 6000)
       }
     })
   }
@@ -1193,6 +1253,13 @@ export default function SchedulePage() {
                                     })()}
                                     {isExisting && existingSlot && (
                                       <SlotClientList slot={existingSlot} allSlots={slots} onChanged={fetchSlots} />
+                                    )}
+                                    {!isExisting && (
+                                      <QueuedClients
+                                        clients={assignment.clients ?? []}
+                                        capacity={isPrivate ? 1 : Number(assignment.maxCapacity)}
+                                        onChange={(c) => updateAssignment({ clients: c })}
+                                      />
                                     )}
                                   </div>
                                 )

@@ -10,6 +10,7 @@ import { whatsappLink } from "@/lib/whatsapp"
 import { PriceInput } from "@/app/_components/PriceInput"
 import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
+import { QueuedClients } from "@/app/_components/QueuedClients"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { cn } from "@/lib/utils"
 
@@ -822,7 +823,7 @@ function SlotEditor({
   )
 }
 
-type Assignment = { trainerId: string; assistantId: string; classType: ClassType; publicVisible: boolean; maxCapacity: number; repeatWeekly: boolean }
+type Assignment = { trainerId: string; assistantId: string; classType: ClassType; publicVisible: boolean; maxCapacity: number; repeatWeekly: boolean; clients?: NewClient[] }
 
 function sortTimes(arr: string[]) {
   return [...new Set(arr)].sort()
@@ -903,6 +904,9 @@ function SlotCreator({
 
     type Req = { url: string; method: "POST" | "PATCH" | "DELETE"; body?: unknown; label: string }
     const payloads: Req[] = []
+    // New sessions are created via an awaited routine so we can read each new
+    // slot's id and then book any clients queued in the creation card.
+    const createSpecs: { startTime: string; body: Record<string, unknown>; clients: NewClient[] }[] = []
 
     for (const s of toDelete) {
       payloads.push({ url: `/api/admin/slots?id=${s.id}`, method: "DELETE", label: `delete ${s.startTime}` })
@@ -946,10 +950,9 @@ function SlotCreator({
     for (const startTime of toCreate) {
       const a = assignments[startTime] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
       const isPrivate = a.classType === "PRIVATE"
-      payloads.push({
-        url: "/api/admin/slots",
-        method: "POST",
-        label: `create ${startTime}`,
+      createSpecs.push({
+        startTime,
+        clients: a.clients ?? [],
         body: {
           date,
           startTime,
@@ -964,14 +967,14 @@ function SlotCreator({
       })
     }
 
-    if (payloads.length === 0) {
+    if (payloads.length === 0 && createSpecs.length === 0) {
       onClose()
       return
     }
 
-    // Optimistic — close immediately, fire requests in the background
+    // Optimistic — close immediately, fire requests in the background.
     onClose()
-    Promise.allSettled(
+    const batch = Promise.allSettled(
       payloads.map((p) =>
         fetch(p.url, {
           method: p.method,
@@ -981,7 +984,36 @@ function SlotCreator({
           }),
         }),
       ),
-    ).finally(() => onCreated())
+    )
+    // Creates run sequentially per-slot: POST slot → read id → book clients.
+    const creates = Promise.all(
+      createSpecs.map(async (spec) => {
+        const res = await fetch("/api/admin/slots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(spec.body),
+        }).catch(() => null)
+        if (!res || !res.ok) return
+        const created = (await res.json().catch(() => null)) as { id?: string } | null
+        if (created?.id && spec.clients.length) {
+          for (const c of spec.clients) {
+            await fetch("/api/admin/bookings", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                slotId: created.id,
+                clientName: c.clientName,
+                clientPhone: c.clientPhone,
+                clientEmail: c.clientEmail || undefined,
+                clientTelegram: c.clientTelegram || undefined,
+                partySize: 1,
+              }),
+            }).catch(() => null)
+          }
+        }
+      }),
+    )
+    Promise.all([batch, creates]).finally(() => onCreated())
   }
 
   const counts = useMemo(() => {
@@ -1276,6 +1308,13 @@ function SlotCreator({
                                 </label>
                               )
                             })()}
+                            {!isExisting && (
+                              <QueuedClients
+                                clients={a.clients ?? []}
+                                capacity={a.classType === "PRIVATE" ? 1 : Number(a.maxCapacity)}
+                                onChange={(c) => updateAssignment(t, { clients: c })}
+                              />
+                            )}
                           </div>
                         )
                       })}
