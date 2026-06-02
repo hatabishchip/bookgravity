@@ -486,6 +486,27 @@ export async function sendClientBookingConfirmationWA(opts: {
 }
 
 /**
+ * Day-before class reminder, sent by the daily cron at 17:00 studio-local time.
+ * Signed by the trainer who runs the group.
+ *   {{1}} = trainer name
+ *   {{2}} = class time (e.g. "09:00–11:00")
+ */
+export async function sendClassReminderWA(opts: {
+  clientPhone: string
+  trainerName: string
+  time: string
+}): Promise<SendResult> {
+  const templateName = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder"
+  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+  return sendWhatsAppTemplate({
+    toPhone: opts.clientPhone,
+    templateName,
+    languageCode: lang,
+    variables: [opts.trainerName, opts.time],
+  })
+}
+
+/**
  * Notify trainer of a new booking. Tries free-form text first (works if
  * trainer is in the 24h window), falls back to a utility template if not.
  *

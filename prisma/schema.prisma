@@ -240,6 +240,9 @@ model Booking {
   waNotifyTrainerStatus    String?  @default("not_sent")
   waNotifyTrainerError     String?
   waNotifyTrainerMessageId String?
+  // When the day-before class reminder was sent to the client (null = not yet).
+  // Guards the daily reminder cron against double-sending.
+  reminderSentAt DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 }
