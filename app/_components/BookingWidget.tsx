@@ -1134,7 +1134,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     }}
                     placeholder="+62 812 3456 7890"
                     className={cn(
-                      "w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 transition-colors",
+                      "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 transition-colors",
                       hasError
                         ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
                         : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
@@ -1197,7 +1197,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     onChange={(e) => { setForm({ ...form, clientEmail: e.target.value }); clearFieldError("clientEmail") }}
                     placeholder={phoneDone ? "name@example.com" : "Enter phone number first"}
                     className={cn(
-                      "w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
+                      "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
                       fieldErrors.clientEmail
                         ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
                         : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
@@ -1233,7 +1233,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     onChange={(e) => { setForm({ ...form, clientName: e.target.value }); clearFieldError("clientName") }}
                     placeholder={phoneDone ? "Your full name" : "Enter phone number first"}
                     className={cn(
-                      "w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
+                      "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
                       fieldErrors.clientName
                         ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
                         : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
