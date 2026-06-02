@@ -27,9 +27,9 @@ type TemplateDef = {
 
 const MESSAGE_TEMPLATES: TemplateDef[] = [
   ...TEMPLATE_TIMES.map((t) => ({
-    label: `Reschedule to today — ${t}`,
-    text: `Hello! Would it be convenient to reschedule you to today at ${t}?`,
-    templateName: "reschedule_today",
+    label: `Move — ${t}`,
+    text: `Hello! Would it be convenient to reschedule at ${t}?`,
+    templateName: "reschedule_time",
     variables: [t],
   })),
   {
