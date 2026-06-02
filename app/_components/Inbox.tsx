@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Composer from "@/app/_components/Composer"
 import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns"
@@ -569,6 +569,9 @@ export default function Inbox({
   const [waveLockUntil, setWaveLockUntil] = useState<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
+  // True briefly right after a chat opens (during the programmatic jump to
+  // bottom) so the floating date pill doesn't flash on load.
+  const justOpenedRef = useRef(false)
 
   // Close the full-screen image viewer on Escape.
   useEffect(() => {
@@ -589,6 +592,9 @@ export default function Inbox({
   const handleMessagesScroll = useCallback(() => {
     const c = messagesScrollRef.current
     if (!c) return
+    // Ignore the programmatic jump-to-bottom that fires right after a chat
+    // opens — otherwise the floating date pill flashes during load.
+    if (justOpenedRef.current) return
     const sections = c.querySelectorAll<HTMLElement>("[data-day-label]")
     const cTop = c.getBoundingClientRect().top
     let label: string | null = null
@@ -674,14 +680,18 @@ export default function Inbox({
     return () => clearInterval(t)
   }, [selectedId, refreshDetail])
 
-  // Auto-scroll to bottom when messages change. Use the container's
-  // scrollTop directly (not scrollIntoView) so we don't accidentally
-  // smooth-scroll the underlying page on iOS Safari.
-  useEffect(() => {
+  // Jump to the latest message. useLayoutEffect runs BEFORE the browser
+  // paints, so the chat opens already pinned to the bottom — no visible
+  // "load at top then scroll down" flicker. We also flag the open so the
+  // floating date pill doesn't flash during this programmatic scroll.
+  useLayoutEffect(() => {
     const el = messagesScrollRef.current
     if (!el) return
+    justOpenedRef.current = true
     el.scrollTop = el.scrollHeight
-  }, [detail?.messages.length])
+    const t = setTimeout(() => { justOpenedRef.current = false }, 350)
+    return () => clearTimeout(t)
+  }, [selectedId, detail?.messages.length])
 
   // (Composer owns the textarea, its focus, and its auto-grow logic now —
   // see app/_components/Composer.tsx. The "always-on caret" and
