@@ -133,11 +133,23 @@ function SlotClientList({
   const cancel = async (b: Booking) => {
     if (!confirm(`Cancel ${b.clientName}'s booking?`)) return
     setList((prev) => prev?.filter((x) => x.id !== b.id) ?? null)
-    await fetch(`/api/admin/bookings/${b.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "CANCELLED" }),
-    }).finally(onChanged)
+    try {
+      const res = await fetch(`/api/admin/bookings/${b.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        alert(e.error ?? "Couldn't remove the client. Please try again.")
+        load() // Revert optimistic update
+      }
+    } catch {
+      alert("Network error — couldn't remove the client. Please try again.")
+      load()
+    } finally {
+      onChanged()
+    }
   }
 
   const move = async (b: Booking, targetSlotId: string) => {
@@ -502,14 +514,14 @@ export default function SchedulePage() {
       for (let i = 0; i < results.length; i++) {
         const r = results[i]
         if (r.status === "rejected") {
-          failed.push(`${payloads[i].method}: network`)
+          failed.push("Network error — changes not saved")
           continue
         }
         if (!r.value.ok) {
           const txt = await r.value.text().catch(() => "")
-          let msg = `${r.value.status}`
+          let msg = `Error ${r.value.status}`
           try { msg = JSON.parse(txt).error ?? msg } catch {}
-          failed.push(`${payloads[i].method}: ${msg}`)
+          failed.push(msg)
         }
       }
       return failed
@@ -681,10 +693,12 @@ export default function SchedulePage() {
   return (
     <div>
       {syncError && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] max-w-md px-4 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
-          <span className="text-base">⚠</span>
-          <span className="font-medium">Sync error — page reverted</span>
-          <span className="text-rose-500 truncate max-w-[200px]">{syncError}</span>
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] max-w-sm w-[calc(100vw-2rem)] px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs shadow-lg flex flex-col gap-1 animate-in fade-in slide-in-from-bottom-2">
+          <div className="flex items-center gap-2">
+            <span className="text-base flex-shrink-0">⚠</span>
+            <span className="font-semibold">Save failed — changes reverted</span>
+          </div>
+          <span className="text-rose-600 break-words leading-relaxed pl-6">{syncError}</span>
         </div>
       )}
       {/* Header */}
