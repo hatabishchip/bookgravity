@@ -12,6 +12,10 @@ import StudioCookieSync from "../_components/StudioCookieSync"
 // the path segment — no subdomains. Unknown slugs 404 (static routes like
 // /login, /admin, /privacy win over this dynamic segment automatically).
 
+// Always render per-request so the signed-in staff pill reflects the live
+// session cookie (never a cached/anonymous snapshot).
+export const dynamic = "force-dynamic"
+
 export async function generateMetadata({
   params,
 }: {
@@ -59,6 +63,8 @@ export default async function StudioBookingPage({
   const role = session?.user?.role
   const dashboardHref = role === "ADMIN" ? "/admin" : role === "TRAINER" ? "/trainer" : null
   const signedInLabel = role === "ADMIN" ? "admin" : role === "TRAINER" ? "trainer" : null
+  // Show who they're signed in as (email/name), falling back to the role.
+  const signedInWho = session?.user?.name || session?.user?.email || signedInLabel
 
   return (
     <div className="min-h-screen bg-[#F5F4F0]">
@@ -88,11 +94,12 @@ export default async function StudioBookingPage({
               <Link
                 href={dashboardHref}
                 aria-label={`Open ${signedInLabel} dashboard`}
-                className="inline-flex items-center gap-1.5 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-medium px-3 py-1.5 hover:bg-[#2C6E49]/20"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-medium px-3 py-1.5 hover:bg-[#2C6E49]/20 max-w-[200px]"
+                title={`Signed in as ${signedInWho}`}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
-                {signedInLabel === "admin" ? "Signed in as admin" : "Signed in as trainer"}
-                <span aria-hidden>›</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49] flex-shrink-0" />
+                <span className="truncate">Signed in as {signedInWho}</span>
+                <span aria-hidden className="flex-shrink-0">›</span>
               </Link>
             ) : (
               <Link

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -10,7 +10,25 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  // Already signed in? Bounce straight to the dashboard so staff coming from
+  // the booking page never have to re-enter their credentials.
+  const [checking, setChecking] = useState(true)
   const router = useRouter()
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((s) => {
+        if (cancelled) return
+        const role = s?.user?.role
+        if (role === "ADMIN" || role === "SUPER_ADMIN") router.replace("/admin")
+        else if (role === "TRAINER") router.replace("/trainer")
+        else setChecking(false)
+      })
+      .catch(() => { if (!cancelled) setChecking(false) })
+    return () => { cancelled = true }
+  }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,6 +70,14 @@ export default function LoginPage() {
       // network blip) the button would otherwise stay greyed out forever.
       setLoading(false)
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="h-[100svh] bg-[#F5F4F0] flex items-center justify-center px-4">
+        <div className="text-sm text-gray-400">Loading…</div>
+      </div>
+    )
   }
 
   return (
