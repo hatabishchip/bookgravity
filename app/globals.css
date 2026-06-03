@@ -72,6 +72,28 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* iOS-style petal spinner — 12 fading petals rotating around a centre. */
+@keyframes petal-fade {
+  0%, 39%, 100% { opacity: 0.15; }
+  40% { opacity: 1; }
+}
+.petal-spinner {
+  position: relative;
+  width: 34px;
+  height: 34px;
+}
+.petal-spinner i {
+  position: absolute;
+  top: 1px;
+  left: calc(50% - 1.5px);
+  width: 3px;
+  height: 9px;
+  border-radius: 3px;
+  background: #2C6E49;
+  transform-origin: 1.5px 16px;
+  animation: petal-fade 1s linear infinite;
+}
+
 /* Hide scrollbar but keep scrolling (used by the inbox reaction row). */
 .no-scrollbar {
   -ms-overflow-style: none;

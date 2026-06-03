@@ -90,6 +90,9 @@ export default function TrainerSchedulePage() {
   const todayCellRef = useRef<HTMLDivElement>(null)
   const [slots, setSlots] = useState<Slot[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
+  // True while a slot's client list is loading — avoids flashing "No bookings
+  // yet" before the data arrives.
+  const [loadingBookings, setLoadingBookings] = useState(false)
   const [services, setServices] = useState<Service[]>([])
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
@@ -163,12 +166,17 @@ export default function TrainerSchedulePage() {
   // jump); today is still highlighted via todayCellRef styling.
 
   const fetchBookingsForSlot = useCallback(async (slotId: string) => {
-    const res = await fetch(`/api/trainer/bookings?slotId=${slotId}`)
-    const data: Booking[] = await res.json()
-    setBookings(data)
-    // Already-paid bookings open collapsed; freshly-paid ones (this session)
-    // stay expanded until the trainer taps "Done".
-    setCollapsedIds(new Set(data.filter((b) => b.paymentStatus === "PAID").map((b) => b.id)))
+    setLoadingBookings(true)
+    try {
+      const res = await fetch(`/api/trainer/bookings?slotId=${slotId}`)
+      const data: Booking[] = await res.json()
+      setBookings(data)
+      // Already-paid bookings open collapsed; freshly-paid ones (this session)
+      // stay expanded until the trainer taps "Done".
+      setCollapsedIds(new Set(data.filter((b) => b.paymentStatus === "PAID").map((b) => b.id)))
+    } finally {
+      setLoadingBookings(false)
+    }
   }, [])
 
   // On entering the cabinet: if a class just ended with unpaid clients, open
@@ -586,7 +594,15 @@ export default function TrainerSchedulePage() {
                 so touching a card and pulling down doesn't drag the modal */}
             <div className="flex-1 overflow-y-auto overscroll-none touch-pan-y px-4 py-4 lg:p-0 lg:overflow-visible lg:overscroll-auto">
 
-            {bookings.length === 0 ? (
+            {loadingBookings ? (
+              <div className="flex justify-center py-10" aria-label="Loading">
+                <div className="petal-spinner" aria-hidden>
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <i key={i} style={{ transform: `rotate(${i * 30}deg)`, animationDelay: `${-(11 - i) / 12}s` }} />
+                  ))}
+                </div>
+              </div>
+            ) : bookings.length === 0 ? (
               <div className="text-sm text-gray-400 text-center py-6">No bookings yet</div>
             ) : (
               <div className="space-y-3">
