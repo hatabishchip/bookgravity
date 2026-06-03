@@ -71,7 +71,7 @@ export default function TrainerSchedule({
   trainer: Trainer
   onClose: () => void
 }) {
-  const [view, setView] = useState<View>("month")
+  const [view, setView] = useState<View>("2weeks")
   const [anchor, setAnchor] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [slots, setSlots] = useState<Slot[]>([])
 
@@ -223,7 +223,7 @@ export default function TrainerSchedule({
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
             {/* View toggle */}
             <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
-              {(["week", "2weeks", "month"] as View[]).map((v) => (
+              {(["2weeks", "month"] as View[]).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
@@ -287,19 +287,40 @@ export default function TrainerSchedule({
           </span>
         </div>
 
-        {/* Calendar */}
+        {/* Calendar. In the 2-week view we show ONLY the days that have this
+            trainer's classes (the admin asked to hide empty days); Month keeps
+            the full weekday-aligned calendar grid. */}
         <div className="px-2 sm:px-6 pb-6 flex-1">
-          {/* Day headers — only on desktop */}
-          <div className="hidden lg:grid grid-cols-7 gap-2 mb-1.5">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-              <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
-                {d}
-              </div>
-            ))}
-          </div>
+          {/* Day headers — only for the month calendar grid */}
+          {view === "month" && (
+            <div className="hidden lg:grid grid-cols-7 gap-2 mb-1.5">
+              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
+                  {d}
+                </div>
+              ))}
+            </div>
+          )}
 
-          <div className="grid grid-cols-2 max-lg:landscape:grid-cols-4 lg:grid-cols-7 gap-2">
-            {days.map((day) => {
+          {(() => {
+            const visibleDays = view === "2weeks"
+              ? days.filter((d) => slotsForDay(format(d, "yyyy-MM-dd")).some((s) => s.trainer?.id === trainer.id))
+              : days
+            if (view === "2weeks" && visibleDays.length === 0) {
+              return (
+                <div className="text-center py-12 text-gray-400 text-sm bg-white rounded-2xl">
+                  No classes for {trainer.name} in these two weeks.
+                </div>
+              )
+            }
+            return (
+          <div className={cn(
+            "grid gap-2",
+            view === "month"
+              ? "grid-cols-2 max-lg:landscape:grid-cols-4 lg:grid-cols-7"
+              : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
+          )}>
+            {visibleDays.map((day) => {
               const dateStr = format(day, "yyyy-MM-dd")
               const isToday = dateStr === todayStr
               const isOutsideMonth = view === "month" && !isSameMonth(day, anchor)
@@ -406,6 +427,8 @@ export default function TrainerSchedule({
               )
             })}
           </div>
+            )
+          })()}
         </div>
       </div>
 
