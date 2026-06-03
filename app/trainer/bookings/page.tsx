@@ -168,6 +168,7 @@ export default function TrainerBookingsPage() {
                       isUpdating={updating === b.id}
                       onUpdate={(data) => updateBooking(b.id, data)}
                       onServicePayment={(serviceId, method) => setServicePayment(b.id, serviceId, method)}
+                      onDone={() => setExpandedId(null)}
                     />
                   )}
                 </div>
@@ -193,12 +194,13 @@ function MetaCell({ icon, label, value }: { icon: React.ReactNode; label: string
 }
 
 function BookingDetails({
-  booking, isUpdating, onUpdate, onServicePayment,
+  booking, isUpdating, onUpdate, onServicePayment, onDone,
 }: {
   booking: Booking
   isUpdating: boolean
   onUpdate: (data: Record<string, string>) => Promise<void> | void
   onServicePayment: (serviceId: string, method: string) => Promise<void> | void
+  onDone: () => void
 }) {
   const isMembership = booking.paymentType === "MEMBERSHIP"
   const canUseMembership = (booking.membershipRemaining ?? 0) > 0 || isMembership
@@ -328,6 +330,19 @@ function BookingDetails({
           </div>
           <p className="text-sm text-gray-700 whitespace-pre-wrap">{booking.notes}</p>
         </div>
+      )}
+
+      {/* Once payment is set (general method or, on a membership, each service
+          method), a clear green "Done" button collapses this booking back to
+          its one-line row — same flow as the My Schedule class view. */}
+      {booking.paymentStatus === "PAID" && (
+        <button
+          type="button"
+          onClick={onDone}
+          className="w-full py-3 rounded-xl bg-[#2C6E49] text-white text-sm font-semibold hover:bg-[#1E4D34] touch-manipulation flex items-center justify-center gap-2"
+        >
+          ✓ Done — collapse
+        </button>
       )}
     </div>
   )
