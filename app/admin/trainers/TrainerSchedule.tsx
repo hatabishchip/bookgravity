@@ -454,60 +454,38 @@ export default function TrainerSchedule({
             <form onSubmit={handleCreate} className="flex-1 flex flex-col overflow-hidden min-w-0">
               <div className="px-6 py-4 space-y-4 overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
 
-              {/* Existing sessions already on this day (incl. the active one
-                  with bookings) — so the admin sees what's there before adding. */}
-              {(() => {
-                const dayExisting = slotsForDay(createForm.date)
-                  .slice()
-                  .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                if (dayExisting.length === 0) return null
-                return (
-                  <div className="rounded-xl border border-gray-200 p-2.5">
-                    <div className="text-xs text-gray-500 font-medium mb-2">Already on this day</div>
-                    <div className="space-y-1.5">
-                      {dayExisting.map((s) => {
-                        const mine = s.trainer?.id === trainer.id
-                        return (
-                          <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 bg-gray-50 border border-gray-100">
-                            <span className="text-sm font-medium text-gray-800">
-                              {formatTime(s.startTime)}–{formatTime(s.endTime)}
-                            </span>
-                            <span className="flex items-center gap-2">
-                              <span className="text-xs text-gray-500 tabular-nums">{s._count.bookings}/{s.maxCapacity}</span>
-                              <span className={cn(
-                                "px-1.5 py-0.5 rounded-full text-[10px] font-medium",
-                                mine ? "bg-[#2C6E49]/10 text-[#2C6E49]" : s.trainer ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
-                              )}>
-                                {s.trainer ? s.trainer.name : "Unassigned"}
-                              </span>
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })()}
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
                 <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min)</p>
-                {/* Multi-select presets */}
+                {/* Multi-select presets. Times that already have a class on this
+                    day are shown green and locked (you can't double-book them). */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {TIME_PRESETS.map((t) => {
-                    const selected = createForm.startTimes.includes(t)
-                    return (
-                      <button key={t} type="button" onClick={() => {
-                        const next = selected ? createForm.startTimes.filter((x) => x !== t) : sortTimes([...createForm.startTimes, t])
-                        setCreateForm({ ...createForm, startTimes: next })
-                      }}
-                        className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium",
-                          selected ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
-                        )}>
-                        {formatTime(t)}
-                      </button>
-                    )
-                  })}
+                  {(() => {
+                    const existingTimes = new Set(slotsForDay(createForm.date).map((s) => s.startTime))
+                    return TIME_PRESETS.map((t) => {
+                      const selected = createForm.startTimes.includes(t)
+                      const taken = existingTimes.has(t)
+                      return (
+                        <button key={t} type="button"
+                          disabled={taken}
+                          title={taken ? "A class already exists at this time" : undefined}
+                          onClick={() => {
+                            if (taken) return
+                            const next = selected ? createForm.startTimes.filter((x) => x !== t) : sortTimes([...createForm.startTimes, t])
+                            setCreateForm({ ...createForm, startTimes: next })
+                          }}
+                          className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium",
+                            taken
+                              ? "bg-[#2C6E49]/10 text-[#2C6E49] border-[#2C6E49]/40 cursor-default"
+                              : selected
+                                ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                                : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                          )}>
+                          {formatTime(t)}{taken && " ✓"}
+                        </button>
+                      )
+                    })
+                  })()}
                 </div>
                 {/* Custom time + Add */}
                 <div className="flex gap-2">
@@ -574,6 +552,41 @@ export default function TrainerSchedule({
               {createError && (
                 <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{createError}</div>
               )}
+
+              {/* Existing sessions already on this day (incl. the active one
+                  with bookings) — shown at the bottom for reference. */}
+              {(() => {
+                const dayExisting = slotsForDay(createForm.date)
+                  .slice()
+                  .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                if (dayExisting.length === 0) return null
+                return (
+                  <div className="rounded-xl border border-gray-200 p-2.5">
+                    <div className="text-xs text-gray-500 font-medium mb-2">Already on this day</div>
+                    <div className="space-y-1.5">
+                      {dayExisting.map((s) => {
+                        const mine = s.trainer?.id === trainer.id
+                        return (
+                          <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 bg-gray-50 border border-gray-100">
+                            <span className="text-sm font-medium text-gray-800">
+                              {formatTime(s.startTime)}–{formatTime(s.endTime)}
+                            </span>
+                            <span className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 tabular-nums">{s._count.bookings}/{s.maxCapacity}</span>
+                              <span className={cn(
+                                "px-1.5 py-0.5 rounded-full text-[10px] font-medium",
+                                mine ? "bg-[#2C6E49]/10 text-[#2C6E49]" : s.trainer ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
+                              )}>
+                                {s.trainer ? s.trainer.name : "Unassigned"}
+                              </span>
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
               </div>
 
               <div className="px-6 py-4 flex gap-3 flex-shrink-0 border-t border-gray-100">
