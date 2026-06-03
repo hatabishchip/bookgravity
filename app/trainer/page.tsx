@@ -73,7 +73,7 @@ function formatIDR(amount: number) {
   return Math.round(amount).toString()
 }
 
-type View = "week" | "month"
+type View = "2weeks" | "month"
 
 export default function TrainerSchedulePage() {
   // Stable reference — created once per mount so it doesn't re-trigger
@@ -83,7 +83,7 @@ export default function TrainerSchedulePage() {
   const todayStart = useMemo(() => startOfMonth(today), [today])
   const nextMonthStart = useMemo(() => startOfMonth(addMonths(today, 1)), [today])
 
-  const [view, setView] = useState<View>("week")
+  const [view, setView] = useState<View>("2weeks")
   const [monthAnchor, setMonthAnchor] = useState(startOfMonth(today))
   const todayCellRef = useRef<HTMLDivElement>(null)
   const [slots, setSlots] = useState<Slot[]>([])
@@ -125,10 +125,10 @@ export default function TrainerSchedulePage() {
 
   // Compute the visible date range based on view
   const range = (() => {
-    if (view === "week") {
+    if (view === "2weeks") {
       // 7 days starting from today (no left/right navigation)
-      const days = Array.from({ length: 7 }, (_, i) => addDays(today, i))
-      return { start: today, end: addDays(today, 6), days }
+      const days = Array.from({ length: 14 }, (_, i) => addDays(today, i))
+      return { start: today, end: addDays(today, 13), days }
     }
     // month — full calendar grid so columns line up by weekday
     const mStart = startOfMonth(monthAnchor)
@@ -324,6 +324,12 @@ export default function TrainerSchedulePage() {
 
   const slotsForDay = (date: string) => slots.filter((s) => s.date === date)
 
+  // In the 2-week view, show ONLY the days that have this trainer's own
+  // classes ("mine"); empty days are hidden. Month keeps the full calendar.
+  const visibleDays = view === "2weeks"
+    ? range.days.filter((d) => slotsForDay(format(d, "yyyy-MM-dd")).some((s) => s.state === "mine"))
+    : range.days
+
   // Navigation bounds (only Month view is navigable)
   const canPrevMonth = monthAnchor.getTime() > todayStart.getTime()
   const canNextMonth = monthAnchor.getTime() < nextMonthStart.getTime()
@@ -357,16 +363,16 @@ export default function TrainerSchedulePage() {
 
       {/* View switcher */}
       <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5 mb-3">
-        {(["week", "month"] as View[]).map((v) => (
+        {(["2weeks", "month"] as View[]).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
             className={cn(
-              "flex-1 px-3 py-2 rounded-lg text-sm font-medium capitalize",
+              "flex-1 px-3 py-2 rounded-lg text-sm font-medium",
               view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
             )}
           >
-            {v}
+            {v === "2weeks" ? "2 Weeks" : "Month"}
           </button>
         ))}
       </div>
@@ -410,13 +416,18 @@ export default function TrainerSchedulePage() {
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         {/* Schedule grid — responsive based on view */}
         <div className="flex-1 min-w-0">
+          {view === "2weeks" && visibleDays.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">
+              No classes scheduled in the next two weeks.
+            </div>
+          ) : (
           <div className={cn(
             "grid gap-3",
-            view === "week"
+            view === "2weeks"
               ? "grid-cols-1 lg:grid-cols-2"
               : "grid-cols-2 max-lg:landscape:grid-cols-4 lg:grid-cols-7"
           )}>
-            {range.days.map((day) => {
+            {visibleDays.map((day) => {
               const dateStr = format(day, "yyyy-MM-dd")
               const isToday = dateStr === todayStr
               const isOutsideMonth = view === "month" && !isSameMonth(day, monthAnchor)
@@ -428,11 +439,11 @@ export default function TrainerSchedulePage() {
                   ref={isToday && view === "month" ? todayCellRef : null}
                   className={cn(
                     "bg-white rounded-2xl shadow-sm scroll-mt-20",
-                    view === "week" ? "p-5" : "p-3 min-h-[180px]",
+                    view === "2weeks" ? "p-5" : "p-3 min-h-[180px]",
                     isOutsideMonth && "opacity-40"
                   )}
                 >
-                  {view === "week" ? (
+                  {view === "2weeks" ? (
                     <div className="mb-4 flex items-center justify-between gap-2">
                       <div>
                         <div className={cn(
@@ -477,14 +488,14 @@ export default function TrainerSchedulePage() {
                             key={slot.id}
                             className={cn(
                               "w-full rounded-lg border border-gray-200 bg-gray-50 select-none cursor-default",
-                              view === "week" ? "p-3 flex items-center justify-between" : "p-2"
+                              view === "2weeks" ? "p-3 flex items-center justify-between" : "p-2"
                             )}
                             aria-label="Occupied"
                           >
-                            <div className={cn("font-medium text-gray-400", view === "week" ? "text-base" : "text-xs")}>
+                            <div className={cn("font-medium text-gray-400", view === "2weeks" ? "text-base" : "text-xs")}>
                               {formatTime(slot.startTime)}
                             </div>
-                            <div className={cn("text-gray-300", view === "week" ? "text-xs" : "text-[10px] mt-0.5")}>Occupied</div>
+                            <div className={cn("text-gray-300", view === "2weeks" ? "text-xs" : "text-[10px] mt-0.5")}>Occupied</div>
                           </div>
                         )
                       }
@@ -495,18 +506,18 @@ export default function TrainerSchedulePage() {
                             key={slot.id}
                             className={cn(
                               "w-full rounded-lg border-2 border-dashed border-amber-300 bg-amber-50 select-none cursor-default",
-                              view === "week" ? "p-3" : "p-2"
+                              view === "2weeks" ? "p-3" : "p-2"
                             )}
                             title="No trainer assigned — ask the admin to take this session"
                           >
-                            <div className={cn("font-semibold text-amber-700", view === "week" ? "text-base" : "text-xs")}>
+                            <div className={cn("font-semibold text-amber-700", view === "2weeks" ? "text-base" : "text-xs")}>
                               {formatTime(slot.startTime)}
                             </div>
-                            <div className={cn("text-amber-600 flex items-center gap-1", view === "week" ? "text-sm mt-1" : "text-[10px] mt-0.5")}>
-                              <Users size={view === "week" ? 14 : 10} />
+                            <div className={cn("text-amber-600 flex items-center gap-1", view === "2weeks" ? "text-sm mt-1" : "text-[10px] mt-0.5")}>
+                              <Users size={view === "2weeks" ? 14 : 10} />
                               {slot._count?.bookings ?? 0}/{slot.maxCapacity ?? 0}
                             </div>
-                            <div className={cn("text-amber-700/80 leading-tight", view === "week" ? "text-xs mt-1.5" : "text-[10px] mt-1")}>
+                            <div className={cn("text-amber-700/80 leading-tight", view === "2weeks" ? "text-xs mt-1.5" : "text-[10px] mt-1")}>
                               Free — ask admin
                             </div>
                           </div>
@@ -521,7 +532,7 @@ export default function TrainerSchedulePage() {
                         onClick={() => handleSlotClick(slot)}
                         className={cn(
                           "w-full text-left rounded-lg border-2 touch-manipulation transition-colors",
-                          view === "week" ? "p-3 flex items-center justify-between gap-2" : "p-2",
+                          view === "2weeks" ? "p-3 flex items-center justify-between gap-2" : "p-2",
                           // Class with a booked client → bright (vivid) green.
                           // Class with no bookings yet → pale green.
                           hasBookings
@@ -534,17 +545,17 @@ export default function TrainerSchedulePage() {
                       >
                         <div className={cn(
                           "font-semibold",
-                          view === "week" ? "text-base" : "text-xs",
+                          view === "2weeks" ? "text-base" : "text-xs",
                           hasBookings ? "text-white" : "text-[#2C6E49]"
                         )}>
                           {formatTime(slot.startTime)}
                         </div>
                         <div className={cn(
                           "flex items-center gap-1",
-                          view === "week" ? "text-sm" : "text-xs mt-0.5",
+                          view === "2weeks" ? "text-sm" : "text-xs mt-0.5",
                           hasBookings ? "text-white/80" : "text-[#2C6E49]/70"
                         )}>
-                          <Users size={view === "week" ? 14 : 10} />
+                          <Users size={view === "2weeks" ? 14 : 10} />
                           {slot._count?.bookings ?? 0}/{slot.maxCapacity ?? 0}
                         </div>
                       </button>
@@ -555,6 +566,7 @@ export default function TrainerSchedulePage() {
               )
             })}
           </div>
+          )}
         </div>
 
         {/* Booking list for selected slot — full-screen modal on mobile, side panel on desktop */}
