@@ -285,6 +285,30 @@ export default function TrainerSchedulePage() {
 
   // Set how an already-added extra service was paid (independent of the class
   // payment — e.g. class on a membership, mat in cash).
+  // How an extra service was paid — only relevant when the session itself is
+  // covered by a membership (the pass doesn't cover add-ons, so the trainer
+  // picks how the extra was paid: cash / EDC / QR / transfer).
+  const setServicePayment = async (booking: Booking, serviceId: string, method: string) => {
+    setBookings((prev) => prev.map((b) => {
+      if (b.id !== booking.id) return b
+      return {
+        ...b,
+        services: b.services.map((s) =>
+          s.service.id === serviceId ? { ...s, paymentType: method } : s
+        ),
+      }
+    }))
+    try {
+      await fetch(`/api/trainer/bookings/${booking.id}/services`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceId, paymentType: method }),
+      })
+    } catch {
+      if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+    }
+  }
+
   const slotsForDay = (date: string) => slots.filter((s) => s.date === date)
 
   // Navigation bounds (only Month view is navigable)
@@ -709,42 +733,73 @@ export default function TrainerSchedulePage() {
                       </div>
 
                       {/* Services — framed group; tap to add/remove. The extra's
-                          payment isn't chosen here (it rides with the class). */}
+                          payment is asked per-service ONLY when the session is
+                          paid by membership (the pass doesn't cover add-ons). */}
                       {services.length > 0 && (
                         <div className="mt-4">
                           <div className="text-xs text-gray-500 font-medium mb-2">Services</div>
                           <div className="rounded-xl border border-gray-200 p-2 space-y-1.5">
                             {services.map((svc) => {
-                              const hasService = !!b.services.find((s) => s.service.id === svc.id)
+                              const chosen = b.services.find((s) => s.service.id === svc.id)
+                              const hasService = !!chosen
+                              // The session is on a pass → the add-on still needs
+                              // a money method (cash / EDC / QR / transfer).
+                              const askServicePayment = hasService && b.paymentType === "MEMBERSHIP"
                               return (
-                                <button
-                                  key={svc.id}
-                                  type="button"
-                                  onClick={() => toggleService(b, svc.id)}
-                                  className={cn(
-                                    "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 border text-left touch-manipulation",
-                                    hasService
-                                      ? "bg-[#2C6E49]/5 border-[#2C6E49]/20"
-                                      : "bg-white border-gray-200"
-                                  )}
-                                >
-                                  <span className={cn(
-                                    "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
-                                    hasService ? "bg-[#2C6E49] border-[#2C6E49]" : "bg-white border-gray-300"
-                                  )}>
-                                    {hasService && (
-                                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                        <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                      </svg>
+                                <div key={svc.id}>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleService(b, svc.id)}
+                                    className={cn(
+                                      "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 border text-left touch-manipulation",
+                                      hasService
+                                        ? "bg-[#2C6E49]/5 border-[#2C6E49]/20"
+                                        : "bg-white border-gray-200"
                                     )}
-                                  </span>
-                                  <span className={cn("text-sm flex-1 font-medium", hasService ? "text-gray-900" : "text-gray-700")}>
-                                    {svc.name}
-                                  </span>
-                                  <span className={cn("text-sm font-semibold", hasService ? "text-[#2C6E49]" : "text-gray-400")}>
-                                    +{formatIDR(svc.price)}
-                                  </span>
-                                </button>
+                                  >
+                                    <span className={cn(
+                                      "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
+                                      hasService ? "bg-[#2C6E49] border-[#2C6E49]" : "bg-white border-gray-300"
+                                    )}>
+                                      {hasService && (
+                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                          <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                      )}
+                                    </span>
+                                    <span className={cn("text-sm flex-1 font-medium", hasService ? "text-gray-900" : "text-gray-700")}>
+                                      {svc.name}
+                                    </span>
+                                    <span className={cn("text-sm font-semibold", hasService ? "text-[#2C6E49]" : "text-gray-400")}>
+                                      +{formatIDR(svc.price)}
+                                    </span>
+                                  </button>
+                                  {askServicePayment && (
+                                    <div className="mt-1 ml-8">
+                                      <div className="text-[10px] text-gray-400 font-medium mb-1">How is this paid?</div>
+                                      <div className="flex gap-1">
+                                        {PAYMENT_METHODS.map((pm) => {
+                                          const active = (chosen?.paymentType ?? "CASH") === pm.value
+                                          return (
+                                            <button
+                                              key={pm.value}
+                                              type="button"
+                                              onClick={() => setServicePayment(b, svc.id, pm.value)}
+                                              className={cn(
+                                                "flex-1 py-1 rounded-md text-[11px] font-semibold border touch-manipulation",
+                                                active
+                                                  ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                                                  : "bg-white text-gray-500 border-gray-200"
+                                              )}
+                                            >
+                                              {pm.label}
+                                            </button>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               )
                             })}
                           </div>
