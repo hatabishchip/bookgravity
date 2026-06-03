@@ -229,11 +229,11 @@ function MessageBubble({
     onReact?.(m.id, m.reaction === emoji ? "" : emoji)
     closeMenu()
   }
-  // Display text: prefer the translation if the server produced one. For
-  // inbound that's the admin-language rendering; for outbound it's
-  // (somewhat redundantly) what we actually sent to the client. The
-  // original body is always shown as a smaller line below.
+  // Display text: admins prefer the translation when the server produced one
+  // (with the original shown smaller below). Trainers ALWAYS see the original
+  // language — no translation, no translate button (that's an admin tool).
   const hasTranslation =
+    role === "ADMIN" &&
     !!m.translatedBody && m.translatedBody.trim() !== (m.body ?? "").trim()
   const primaryText = hasTranslation ? m.translatedBody : m.body
   const jumbo = isEmojiOnly(primaryText)
@@ -831,14 +831,6 @@ export default function Inbox({
 
   const waveDisabled = !!(waveLockUntil && waveLockUntil > Date.now())
 
-  const sendWave = useCallback(() => {
-    if (!detail || (waveLockUntil && waveLockUntil > Date.now())) return
-    void send("👋")
-    const now = Date.now()
-    try { window.localStorage.setItem(`wave:${detail.id}`, String(now)) } catch {}
-    setWaveLockUntil(now + WAVE_COOLDOWN_MS)
-  }, [detail, waveLockUntil, send, WAVE_COOLDOWN_MS])
-
   // Send a Meta-approved template (quick replies). Unlike free text, this
   // works even when the 24h customer-service window is closed.
   const sendTemplate = useCallback(async (t: {
@@ -914,6 +906,22 @@ export default function Inbox({
       } : prev)
     }
   }, [detail, refreshList])
+
+  // The trainer's 👋 sends the Meta-approved greeting template (works even when
+  // the 24h window is closed) to re-open the conversation, rate-limited 12h.
+  const sendWave = useCallback(() => {
+    if (!detail || (waveLockUntil && waveLockUntil > Date.now())) return
+    const name = (detail.clientName ?? "").trim()
+    const hasName = /\p{L}/u.test(name)
+    void sendTemplate(
+      hasName
+        ? { templateName: "greeting_named", languageCode: "en", variables: [name], display: `Greetings, ${name}!` }
+        : { templateName: "greeting", languageCode: "en", display: "Greetings!" },
+    )
+    const now = Date.now()
+    try { window.localStorage.setItem(`wave:${detail.id}`, String(now)) } catch {}
+    setWaveLockUntil(now + WAVE_COOLDOWN_MS)
+  }, [detail, waveLockUntil, sendTemplate, WAVE_COOLDOWN_MS])
 
   // Send a photo/video. Optimistic bubble uses a local objectURL so the
   // image shows up instantly while the server uploads to Meta and dispatches
@@ -1439,24 +1447,15 @@ export default function Inbox({
         {/* WhatsApp-style composer row: + on the left, pill input with the
             textarea, white circular Send button on the right. Sits over the
             chat doodle background, no separate border. */}
-        {windowOpen || role === "ADMIN" ? (
-          // Composer always available for admins — server auto-wraps text in
-          // the admin_message template when the 24h window is closed, so we
-          // never need to block typing in the UI. Trainers still get the
-          // amber notice when the window is closed (they shouldn't be
-          // re-starting cold conversations).
+        {/* Composer is always available. Admins: free text outside the 24h
+            window auto-wraps in the admin_message template server-side.
+            Trainers: the 👋 sends an approved greeting template to re-open a
+            cold chat; once the client replies, free text works again. The
+            `windowOpen` flag still drives the 👋 (a greeting only makes sense
+            to re-open a closed window, but it's harmless when open). */}
+        {windowOpen || role === "ADMIN" || role === "TRAINER" ? (
           <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} />
-        ) : (
-          <div className="px-2 pt-2 pb-2 bg-[#ECE5DD] dark:bg-[#0B141A]">
-            <div className="mx-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2 dark:text-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
-              <Sparkles size={14} className="mt-0.5 flex-shrink-0" />
-              <span>
-                The 24-hour window is closed. The client must message first, or
-                ask an admin to reach out.
-              </span>
-            </div>
-          </div>
-        )}
+        ) : null}
         {sendError && (
           <div className="px-3 pb-1 text-xs text-red-600 dark:text-red-400 bg-[#ECE5DD] dark:bg-[#0B141A]">
             {sendError}
