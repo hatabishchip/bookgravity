@@ -20,6 +20,9 @@ model Studio {
   // Google Maps (or any) link to the studio's physical location. Shown in the
   // client's WhatsApp booking confirmation so they can navigate to the studio.
   locationUrl   String?
+  // Admin's WhatsApp number to receive a copy of every booking alert (in
+  // addition to the assigned trainer). Empty = admin copy off.
+  bookingAlertWhatsapp String?
   // Main-service prices (per person) — used as defaults when creating slots
   groupPrice    Float    @default(300000)
   kidsPrice     Float    @default(200000)
@@ -140,7 +143,7 @@ model Trainer {
   // How this trainer is told about new bookings on their classes. Email is on
   // by default; WhatsApp only fires when the studio has WhatsApp connected.
   notifyEmail    Boolean          @default(true)
-  notifyWhatsapp Boolean          @default(false)
+  notifyWhatsapp Boolean          @default(true)
   payments       TrainerPayment[]
   assignedConversations WhatsAppConversation[] @relation("ConversationAssignedTrainer")
   conversationAccess    WhatsAppConversationAccess[] @relation("TrainerConversationAccess")

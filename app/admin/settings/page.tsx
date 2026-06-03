@@ -19,6 +19,8 @@ type Studio = {
   inboxLanguage: string | null
   /** Maps link to the studio, included in the client's WhatsApp confirmation. */
   locationUrl: string | null
+  /** Admin WhatsApp number that also receives booking alerts. */
+  bookingAlertWhatsapp: string | null
   /** True while this admin still uses the auto-generated starter password. */
   usingInitialPassword?: boolean
 }
@@ -76,7 +78,7 @@ function readImageAsDataUrl(file: File, maxDim = 512, quality = 0.85): Promise<s
 
 export default function SettingsPage() {
   const [studio, setStudio] = useState<Studio | null>(null)
-  const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | "location" | null>(null)
+  const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | "location" | "bookingAlert" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
@@ -86,9 +88,9 @@ export default function SettingsPage() {
   }, [])
 
   const update = async (
-    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "inboxLanguage" | "locationUrl">>,
+    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "inboxLanguage" | "locationUrl" | "bookingAlertWhatsapp">>,
   ) => {
-    const which: "logo" | "favicon" | "cover" | "language" | "location" =
+    const which: "logo" | "favicon" | "cover" | "language" | "location" | "bookingAlert" =
       "faviconUrl" in data
         ? "favicon"
         : "coverUrl" in data
@@ -97,7 +99,9 @@ export default function SettingsPage() {
             ? "language"
             : "locationUrl" in data
               ? "location"
-              : "logo"
+              : "bookingAlertWhatsapp" in data
+                ? "bookingAlert"
+                : "logo"
     setSaving(which)
     setError(null)
     const res = await fetch("/api/admin/studio", {
@@ -196,6 +200,12 @@ export default function SettingsPage() {
             value={studio.locationUrl}
             saving={saving === "location"}
             onSave={(url) => update({ locationUrl: url })}
+          />
+
+          <BookingAlertCard
+            value={studio.bookingAlertWhatsapp}
+            saving={saving === "bookingAlert"}
+            onSave={(phone) => update({ bookingAlertWhatsapp: phone })}
           />
 
           <SessionsCard />
@@ -506,6 +516,92 @@ function LocationCard({
         <a href={value ?? "#"} target="_blank" rel="noreferrer" className="text-sm text-[#2C6E49] underline underline-offset-2 break-all">
           {value} ↗
         </a>
+      )}
+    </div>
+  )
+}
+
+function BookingAlertCard({
+  value,
+  saving,
+  onSave,
+}: {
+  value: string | null
+  saving: boolean
+  onSave: (phone: string | null) => Promise<void> | void
+}) {
+  const [text, setText] = useState(value ?? "")
+  const [editing, setEditing] = useState(!value)
+  useEffect(() => {
+    setText(value ?? "")
+    setEditing(!value)
+  }, [value])
+
+  const dirty = text.trim() !== (value ?? "").trim()
+  const save = async () => {
+    if (!dirty) { setEditing(false); return }
+    await onSave(text.trim() === "" ? null : text.trim())
+    setEditing(false)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <Smartphone size={16} className="text-[#2C6E49]" />
+          <h2 className="text-base font-semibold text-gray-900">Booking alerts (WhatsApp)</h2>
+        </div>
+        {value && !editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label="Edit booking alert number"
+            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50"
+          >
+            <Pencil size={16} />
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-gray-500 mb-4 max-w-md">
+        Admin&apos;s WhatsApp number that gets a copy of every booking (in
+        addition to the assigned trainer). Needs WhatsApp connected for this
+        studio. Leave empty to turn the admin copy off.
+      </p>
+
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="tel"
+            inputMode="tel"
+            autoFocus={!!value}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save() }}
+            placeholder="+62 812 3456 789"
+            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+          {value && (
+            <button
+              type="button"
+              onClick={() => { setText(value); setEditing(false) }}
+              disabled={saving}
+              aria-label="Cancel"
+              className="flex-shrink-0 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 disabled:opacity-50"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="text-sm text-gray-700 font-medium">{value}</div>
       )}
     </div>
   )

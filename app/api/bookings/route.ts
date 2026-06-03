@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
         where: { id: data.slotId },
         include: {
           trainer: { select: { name: true, whatsapp: true, notifyWhatsapp: true } },
-          studio: { select: { locationUrl: true, whatsappPhoneNumberId: true, whatsappAccessToken: true } },
+          studio: { select: { locationUrl: true, whatsappPhoneNumberId: true, whatsappAccessToken: true, bookingAlertWhatsapp: true } },
         },
       })
       if (slotForWA) {
@@ -279,9 +279,9 @@ export async function POST(request: NextRequest) {
 
         const trainerWA = slotForWA.trainer?.whatsapp
         const trainerName = slotForWA.trainer?.name
+        const adminWA = slotForWA.studio?.bookingAlertWhatsapp?.trim() || null
         const trainerPromise = (async () => {
-          // Helper to persist outcome on the lead booking so we have a DB
-          // audit trail for why the trainer did/didn't get a notification.
+          // Persist the trainer-notify outcome for the DB audit trail.
           const recordStatus = async (
             status: "sent" | "failed" | "skipped",
             error?: string | null,
@@ -301,50 +301,58 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          if (!slotForWA.trainer?.notifyWhatsapp) {
-            console.log("[bookings] WA trainer notify OFF for this trainer")
-            await recordStatus("skipped", "whatsapp channel off")
+          // Send the booking alert to the assigned trainer (when their WhatsApp
+          // channel is on + a number is set) AND to the studio admin's booking
+          // alert number — so both see who booked.
+          const wantTrainer = !!slotForWA.trainer?.notifyWhatsapp && !!trainerWA && !!trainerName
+          const wantAdmin = !!adminWA
+          if (!wantTrainer && !wantAdmin) {
+            await recordStatus("skipped", "no whatsapp recipients")
             return
           }
-          if (!trainerWA || !trainerName) {
-            console.warn("[bookings] WA trainer notify SKIPPED — no whatsapp on trainer")
-            await recordStatus("skipped", "no whatsapp on trainer")
-            return
-          }
-          // Look up every confirmed booking on this slot (the new ones we
-          // just inserted are included) so the notification tells the
-          // trainer how full the class is and who's attending — without
-          // exposing any phone numbers.
+
+          // Every confirmed booking on this slot → "how full + who's attending"
+          // (no phone numbers exposed).
           const slotBookings = await prisma.booking.findMany({
             where: { slotId: data.slotId, status: "CONFIRMED" },
             select: { clientName: true },
             orderBy: { createdAt: "asc" },
           })
           const clientNames = Array.from(
-            // Deduplicate "John (1/2)" / "John (2/2)" multi-seat entries to
-            // just "John" so the list is compact.
             new Set(
               slotBookings
                 .map((b) => (b.clientName ?? "").replace(/\s*\(\d+\/\d+\)\s*$/, "").trim())
                 .filter(Boolean),
             ),
           )
-          const r = await sendTrainerBookingNotificationWA({
-            trainerPhone: trainerWA,
-            trainerName,
+          const base = {
+            trainerName: trainerName ?? "Trainer",
             date: prettyDate,
             time: prettyTime,
             clientNames,
             bookedCount: slotBookings.length,
             maxCapacity: slotForWA.maxCapacity,
             studioWA: slotForWA.studio,
-          })
-          if (!r.ok) {
-            console.warn("[bookings] WA trainer send failed:", r.error)
-            await recordStatus("failed", r.error)
+          }
+
+          if (wantTrainer) {
+            const r = await sendTrainerBookingNotificationWA({ ...base, trainerPhone: trainerWA! })
+            if (!r.ok) {
+              console.warn("[bookings] WA trainer send failed:", r.error)
+              await recordStatus("failed", r.error)
+            } else {
+              console.log("[bookings] WA trainer sent:", r.messageId)
+              await recordStatus("sent", null, r.messageId)
+            }
           } else {
-            console.log("[bookings] WA trainer sent:", r.messageId)
-            await recordStatus("sent", null, r.messageId)
+            await recordStatus("skipped", "trainer whatsapp off / no number")
+          }
+
+          // Admin copy — best-effort, not part of the trainer audit field.
+          if (wantAdmin) {
+            const ra = await sendTrainerBookingNotificationWA({ ...base, trainerPhone: adminWA! })
+            if (!ra.ok) console.warn("[bookings] WA admin alert failed:", ra.error)
+            else console.log("[bookings] WA admin alert sent:", ra.messageId)
           }
         })()
 

@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         role: "TRAINER",
         initialPassword: pin,
         studioId: ctx.studioId,
-        trainer: { create: { name: data.name, whatsapp: data.whatsapp?.trim() || "", studioId: ctx.studioId } },
+        trainer: { create: { name: data.name, whatsapp: data.whatsapp?.trim() || "", studioId: ctx.studioId, notifyWhatsapp: true } },
       },
       include: { trainer: true },
     })
