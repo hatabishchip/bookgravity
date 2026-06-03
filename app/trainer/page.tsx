@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import Link from "next/link"
 import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns"
-import { ChevronLeft, ChevronRight, Users, X, Pencil } from "lucide-react"
+import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2 } from "lucide-react"
 import { whatsappLink } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
@@ -93,6 +93,11 @@ export default function TrainerSchedulePage() {
   // True while a slot's client list is loading — avoids flashing "No bookings
   // yet" before the data arrives.
   const [loadingBookings, setLoadingBookings] = useState(false)
+  // Bookings with an in-flight payment/notes sync → shows a spinner on the
+  // active button. A per-booking request counter ignores stale responses so
+  // rapid taps (cash → EDC → cash) don't make the buttons blink.
+  const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set())
+  const reqSeqRef = useRef<Record<string, number>>({})
   const [services, setServices] = useState<Service[]>([])
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
@@ -202,26 +207,32 @@ export default function TrainerSchedulePage() {
   // Optimistic update — apply locally first, then sync to server in the
   // background. This avoids the "blink" of disabled state on every tap.
   const updateBooking = async (id: string, data: Record<string, string>) => {
+    // Optimistic: the tapped value shows instantly. A per-booking sequence
+    // number lets us ignore responses from superseded taps so the highlight
+    // never blinks back through the earlier choices.
+    const seq = (reqSeqRef.current[id] = (reqSeqRef.current[id] ?? 0) + 1)
     setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...data } : b)))
+    setSyncingIds((prev) => new Set(prev).add(id))
     try {
       const res = await fetch(`/api/trainer/bookings/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       })
+      const stale = reqSeqRef.current[id] !== seq
       if (!res.ok) {
-        // e.g. tried to charge a membership with no balance left — revert.
-        let msg = "Couldn't update payment."
-        try {
-          const err = await res.json()
-          if (err?.message) msg = err.message
-        } catch { /* ignore */ }
-        alert(msg)
-        if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+        if (!stale) {
+          // e.g. tried to charge a membership with no balance left — revert.
+          let msg = "Couldn't update payment."
+          try { const err = await res.json(); if (err?.message) msg = err.message } catch { /* ignore */ }
+          alert(msg)
+          if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+        }
         return
       }
-      // Apply authoritative server fields (membershipRemaining, membershipId,
-      // paymentStatus) so the card reflects the real balance after a deduction.
+      // Only the latest tap applies the authoritative server fields — stale
+      // responses are dropped so the optimistic (last-tapped) state stays put.
+      if (stale) return
       const saved = await res.json()
       setBookings((prev) =>
         prev.map((b) =>
@@ -240,10 +251,14 @@ export default function TrainerSchedulePage() {
         )
       )
     } catch {
-      // Network error — resync from server
-      if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+      if (reqSeqRef.current[id] === seq && selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+    } finally {
+      // Clear the spinner / refresh salary only when the LATEST request settles.
+      if (reqSeqRef.current[id] === seq) {
+        setSyncingIds((prev) => { const n = new Set(prev); n.delete(id); return n })
+        fetchSalary()
+      }
     }
-    fetchSalary()
   }
 
   const handlePaymentMethod = async (booking: Booking, method: string) => {
@@ -699,10 +714,16 @@ export default function TrainerSchedulePage() {
                                   : "bg-white text-gray-700 border-gray-200 hover:border-[#2C6E49]/40"
                               )}
                             >
-                              🎟️
-                              {b.paymentType === "MEMBERSHIP"
-                                ? `Paid from membership · ${b.membershipRemaining ?? 0} left`
-                                : `Membership (${b.membershipRemaining ?? 0} left)`}
+                              {b.paymentType === "MEMBERSHIP" && syncingIds.has(b.id) ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <>
+                                  🎟️
+                                  {b.paymentType === "MEMBERSHIP"
+                                    ? `Paid from membership · ${b.membershipRemaining ?? 0} left`
+                                    : `Membership (${b.membershipRemaining ?? 0} left)`}
+                                </>
+                              )}
                             </button>
                           )}
 
@@ -715,13 +736,15 @@ export default function TrainerSchedulePage() {
                                   type="button"
                                   onClick={() => handlePaymentMethod(b, pm.value)}
                                   className={cn(
-                                    "py-2.5 rounded-lg text-sm font-semibold border touch-manipulation",
+                                    "py-2.5 rounded-lg text-sm font-semibold border touch-manipulation flex items-center justify-center",
                                     isActive
                                       ? "bg-[#2C6E49] text-white border-[#2C6E49]"
                                       : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
                                   )}
                                 >
-                                  {pm.label}
+                                  {isActive && syncingIds.has(b.id)
+                                    ? <Loader2 size={15} className="animate-spin" />
+                                    : pm.label}
                                 </button>
                               )
                             })}
