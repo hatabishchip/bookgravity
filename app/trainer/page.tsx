@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2 } from "lucide-rea
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import SellMembershipButton from "@/app/_components/SellMembershipButton"
+import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 type Slot = {
   id: string
@@ -87,6 +88,9 @@ export default function TrainerSchedulePage() {
   const [monthAnchor, setMonthAnchor] = useState(startOfMonth(today))
   const todayCellRef = useRef<HTMLDivElement>(null)
   const [slots, setSlots] = useState<Slot[]>([])
+  // False until the first schedule fetch resolves — so we show the petal
+  // spinner instead of flashing "No classes" on refresh.
+  const [slotsLoaded, setSlotsLoaded] = useState(false)
   const [bookings, setBookings] = useState<Booking[]>([])
   // True while a slot's client list is loading — avoids flashing "No bookings
   // yet" before the data arrives.
@@ -147,6 +151,7 @@ export default function TrainerSchedulePage() {
   const fetchSlots = useCallback(async () => {
     const res = await fetch(`/api/trainer/schedule?from=${from}&to=${to}`)
     setSlots(await res.json())
+    setSlotsLoaded(true)
   }, [from, to])
 
   const fetchSalary = useCallback(async () => {
@@ -416,7 +421,9 @@ export default function TrainerSchedulePage() {
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         {/* Schedule grid — responsive based on view */}
         <div className="flex-1 min-w-0">
-          {view === "2weeks" && visibleDays.length === 0 ? (
+          {!slotsLoaded ? (
+            <div className="bg-white rounded-2xl shadow-sm"><PetalSpinner /></div>
+          ) : view === "2weeks" && visibleDays.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">
               No classes scheduled in the next two weeks.
             </div>

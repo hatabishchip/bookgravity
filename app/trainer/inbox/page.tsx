@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import Inbox from "@/app/_components/Inbox"
 import { prisma } from "@/lib/prisma"
 import { requireTrainer } from "@/lib/auth-helpers"
+import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 export default async function TrainerInboxPage() {
   // Studio from the logged-in trainer's session (unified login).
@@ -15,7 +16,7 @@ export default async function TrainerInboxPage() {
   })
   if (!studio?.whatsappEnabled) redirect("/trainer")
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-gray-400">Loading…</div>}>
+    <Suspense fallback={<PetalSpinner />}>
       <Inbox role="TRAINER" />
     </Suspense>
   )
