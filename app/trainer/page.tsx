@@ -520,26 +520,29 @@ export default function TrainerSchedulePage() {
                         key={slot.id}
                         onClick={() => handleSlotClick(slot)}
                         className={cn(
-                          "w-full text-left rounded-lg border-2 touch-manipulation",
+                          "w-full text-left rounded-lg border-2 touch-manipulation transition-colors",
                           view === "week" ? "p-3 flex items-center justify-between gap-2" : "p-2",
-                          isSelected
+                          // Class with a booked client → bright (vivid) green.
+                          // Class with no bookings yet → pale green.
+                          hasBookings
                             ? "bg-[#2C6E49] border-[#2C6E49] text-white"
-                            : hasBookings
-                            ? "bg-[#2C6E49]/5 border-[#2C6E49]/20 hover:border-[#2C6E49]/50"
-                            : "bg-[#ECEDF0] border-gray-300 hover:border-gray-400"
+                            : "bg-[#2C6E49]/8 border-[#2C6E49]/25 hover:border-[#2C6E49]/50",
+                          // The currently-open slot gets a ring (keeps the
+                          // booked/empty colour meaningful even when selected).
+                          isSelected && "ring-2 ring-[#2C6E49] ring-offset-1"
                         )}
                       >
                         <div className={cn(
                           "font-semibold",
                           view === "week" ? "text-base" : "text-xs",
-                          isSelected ? "text-white" : hasBookings ? "text-[#2C6E49]" : "text-gray-500"
+                          hasBookings ? "text-white" : "text-[#2C6E49]"
                         )}>
                           {formatTime(slot.startTime)}
                         </div>
                         <div className={cn(
                           "flex items-center gap-1",
                           view === "week" ? "text-sm" : "text-xs mt-0.5",
-                          isSelected ? "text-white/80" : hasBookings ? "text-gray-500" : "text-gray-400"
+                          hasBookings ? "text-white/80" : "text-[#2C6E49]/70"
                         )}>
                           <Users size={view === "week" ? 14 : 10} />
                           {slot._count?.bookings ?? 0}/{slot.maxCapacity ?? 0}
