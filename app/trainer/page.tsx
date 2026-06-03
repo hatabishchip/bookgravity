@@ -285,27 +285,6 @@ export default function TrainerSchedulePage() {
 
   // Set how an already-added extra service was paid (independent of the class
   // payment — e.g. class on a membership, mat in cash).
-  const setServicePayment = async (booking: Booking, serviceId: string, method: string) => {
-    setBookings((prev) => prev.map((b) => {
-      if (b.id !== booking.id) return b
-      return {
-        ...b,
-        services: b.services.map((s) =>
-          s.service.id === serviceId ? { ...s, paymentType: method } : s
-        ),
-      }
-    }))
-    try {
-      await fetch(`/api/trainer/bookings/${booking.id}/services`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceId, paymentType: method }),
-      })
-    } catch {
-      if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
-    }
-  }
-
   const slotsForDay = (date: string) => slots.filter((s) => s.date === date)
 
   // Navigation bounds (only Month view is navigable)
@@ -676,116 +655,96 @@ export default function TrainerSchedulePage() {
                       </div>
 
 
-                      {/* Payment method buttons */}
+                      {/* Payment method — one framed group; pick a single option.
+                          All options look the same when not selected (neutral
+                          white) and turn green only when chosen, so it's clear
+                          what to tap. */}
                       <div className="mt-4">
                         <div className="text-xs text-gray-500 font-medium mb-2">Payment method</div>
+                        <div className="rounded-xl border border-gray-200 p-2 space-y-1.5">
+                          {/* Pay from membership — only when the client has a pass
+                              with classes left (or this booking already used one). */}
+                          {((b.membershipRemaining ?? 0) > 0 || b.paymentType === "MEMBERSHIP") && (
+                            <button
+                              type="button"
+                              onClick={() => handlePaymentMethod(b, "MEMBERSHIP")}
+                              className={cn(
+                                "w-full py-2.5 rounded-lg text-sm font-semibold border touch-manipulation flex items-center justify-center gap-2",
+                                b.paymentType === "MEMBERSHIP"
+                                  ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                                  : "bg-white text-gray-700 border-gray-200 hover:border-[#2C6E49]/40"
+                              )}
+                            >
+                              🎟️
+                              {b.paymentType === "MEMBERSHIP"
+                                ? `Paid from membership · ${b.membershipRemaining ?? 0} left`
+                                : `Membership (${b.membershipRemaining ?? 0} left)`}
+                            </button>
+                          )}
 
-                        {/* Pay from membership — only when the client has a pass
-                            with classes left (or this booking already used one). */}
-                        {((b.membershipRemaining ?? 0) > 0 || b.paymentType === "MEMBERSHIP") && (
-                          <button
-                            type="button"
-                            onClick={() => handlePaymentMethod(b, "MEMBERSHIP")}
-                            className={cn(
-                              "w-full mb-1.5 py-2.5 rounded-lg text-sm font-semibold border touch-manipulation flex items-center justify-center gap-2",
-                              b.paymentType === "MEMBERSHIP"
-                                ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                                : "bg-[#2C6E49]/5 text-[#2C6E49] border-[#2C6E49]/30 hover:border-[#2C6E49]/60"
-                            )}
-                          >
-                            🎟️
-                            {b.paymentType === "MEMBERSHIP"
-                              ? `Paid from membership · ${b.membershipRemaining ?? 0} left`
-                              : `Pay from membership (${b.membershipRemaining ?? 0} left)`}
-                          </button>
-                        )}
-
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {PAYMENT_METHODS.map((pm) => {
-                            const isActive = b.paymentType === pm.value
-                            return (
-                              <button
-                                key={pm.value}
-                                type="button"
-                                onClick={() => handlePaymentMethod(b, pm.value)}
-                                className={cn(
-                                  "py-2.5 rounded-lg text-sm font-semibold border touch-manipulation",
-                                  isActive
-                                    ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                                    : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
-                                )}
-                              >
-                                {pm.label}
-                              </button>
-                            )
-                          })}
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {PAYMENT_METHODS.map((pm) => {
+                              const isActive = b.paymentType === pm.value
+                              return (
+                                <button
+                                  key={pm.value}
+                                  type="button"
+                                  onClick={() => handlePaymentMethod(b, pm.value)}
+                                  className={cn(
+                                    "py-2.5 rounded-lg text-sm font-semibold border touch-manipulation",
+                                    isActive
+                                      ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                                      : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                                  )}
+                                >
+                                  {pm.label}
+                                </button>
+                              )
+                            })}
+                          </div>
                         </div>
                         {isPaid && (
                           <div className="mt-1.5 text-xs text-[#2C6E49] font-medium">✓ Paid · {paymentLabel}</div>
                         )}
                       </div>
 
-                      {/* Services — bigger tap targets, instant toggle */}
+                      {/* Services — framed group; tap to add/remove. The extra's
+                          payment isn't chosen here (it rides with the class). */}
                       {services.length > 0 && (
                         <div className="mt-4">
                           <div className="text-xs text-gray-500 font-medium mb-2">Services</div>
-                          <div className="space-y-1.5">
+                          <div className="rounded-xl border border-gray-200 p-2 space-y-1.5">
                             {services.map((svc) => {
-                              const chosen = b.services.find((s) => s.service.id === svc.id)
-                              const hasService = !!chosen
+                              const hasService = !!b.services.find((s) => s.service.id === svc.id)
                               return (
-                                <div key={svc.id}>
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleService(b, svc.id)}
-                                    className={cn(
-                                      "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 border text-left touch-manipulation",
-                                      hasService
-                                        ? "bg-[#2C6E49]/5 border-[#2C6E49]/20"
-                                        : "bg-white border-gray-200"
-                                    )}
-                                  >
-                                    <span className={cn(
-                                      "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
-                                      hasService ? "bg-[#2C6E49] border-[#2C6E49]" : "bg-white border-gray-300"
-                                    )}>
-                                      {hasService && (
-                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                          <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                      )}
-                                    </span>
-                                    <span className={cn("text-sm flex-1 font-medium", hasService ? "text-gray-900" : "text-gray-700")}>
-                                      {svc.name}
-                                    </span>
-                                    <span className={cn("text-sm font-semibold", hasService ? "text-[#2C6E49]" : "text-gray-400")}>
-                                      +{formatIDR(svc.price)}
-                                    </span>
-                                  </button>
-                                  {/* How this extra service was paid — only once added */}
-                                  {hasService && (
-                                    <div className="mt-1 ml-8 flex gap-1">
-                                      {PAYMENT_METHODS.map((pm) => {
-                                        const active = (chosen?.paymentType ?? "CASH") === pm.value
-                                        return (
-                                          <button
-                                            key={pm.value}
-                                            type="button"
-                                            onClick={() => setServicePayment(b, svc.id, pm.value)}
-                                            className={cn(
-                                              "flex-1 py-1 rounded-md text-[11px] font-semibold border touch-manipulation",
-                                              active
-                                                ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                                                : "bg-white text-gray-500 border-gray-200"
-                                            )}
-                                          >
-                                            {pm.label}
-                                          </button>
-                                        )
-                                      })}
-                                    </div>
+                                <button
+                                  key={svc.id}
+                                  type="button"
+                                  onClick={() => toggleService(b, svc.id)}
+                                  className={cn(
+                                    "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 border text-left touch-manipulation",
+                                    hasService
+                                      ? "bg-[#2C6E49]/5 border-[#2C6E49]/20"
+                                      : "bg-white border-gray-200"
                                   )}
-                                </div>
+                                >
+                                  <span className={cn(
+                                    "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
+                                    hasService ? "bg-[#2C6E49] border-[#2C6E49]" : "bg-white border-gray-300"
+                                  )}>
+                                    {hasService && (
+                                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                        <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                      </svg>
+                                    )}
+                                  </span>
+                                  <span className={cn("text-sm flex-1 font-medium", hasService ? "text-gray-900" : "text-gray-700")}>
+                                    {svc.name}
+                                  </span>
+                                  <span className={cn("text-sm font-semibold", hasService ? "text-[#2C6E49]" : "text-gray-400")}>
+                                    +{formatIDR(svc.price)}
+                                  </span>
+                                </button>
                               )
                             })}
                           </div>
