@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Plus, Trash2, X, Package, Pencil, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PriceInput } from "@/app/_components/PriceInput"
+import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 type Service = { id: string; name: string; price: number; active: boolean }
 
@@ -22,11 +23,15 @@ export default function ServicesPage() {
   const [form, setForm] = useState({ name: "", priceK: "50" })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const fetchServices = useCallback(async () => {
-    const res = await fetch("/api/admin/services")
-    const data = await res.json()
-    setServices(data)
+    try {
+      const res = await fetch("/api/admin/services")
+      setServices(await res.json())
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchServices() }, [fetchServices])
@@ -203,7 +208,9 @@ export default function ServicesPage() {
           </div>
         ))}
 
-        {services.length === 0 && (
+        {loading && <PetalSpinner />}
+
+        {!loading && services.length === 0 && (
           <div className="text-center py-12 text-gray-400 text-sm bg-white rounded-2xl">
             No additional services yet.
           </div>

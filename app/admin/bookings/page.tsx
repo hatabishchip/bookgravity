@@ -5,6 +5,7 @@ import { format, addDays } from "date-fns"
 import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, User, Clock, CreditCard, CheckCircle2, StickyNote, Sparkles, Copy, Check } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
+import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 type Booking = {
   id: string
@@ -271,12 +272,17 @@ export default function BookingsPage() {
   const [range, setRange] = useState<"all" | "today" | "tomorrow" | "week" | "month">("all")
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const fetchBookings = useCallback(async () => {
-    const url = dateFilter ? `/api/admin/bookings?date=${dateFilter}` : "/api/admin/bookings"
-    const res = await fetch(url)
-    const data = await res.json()
-    setBookings(data)
+    setLoading(true)
+    try {
+      const url = dateFilter ? `/api/admin/bookings?date=${dateFilter}` : "/api/admin/bookings"
+      const res = await fetch(url)
+      setBookings(await res.json())
+    } finally {
+      setLoading(false)
+    }
   }, [dateFilter])
 
   useEffect(() => { fetchBookings() }, [fetchBookings])
@@ -385,7 +391,9 @@ export default function BookingsPage() {
           <div />
         </div>
 
-        {filtered.length === 0 ? (
+        {loading ? (
+          <PetalSpinner />
+        ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-gray-400 text-sm">No bookings found</div>
         ) : (
           <div className="divide-y divide-gray-50">

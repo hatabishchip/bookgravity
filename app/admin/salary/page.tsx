@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { format, addMonths, subMonths } from "date-fns"
 import { ChevronLeft, ChevronRight, Plus, Trash2, X, TrendingUp, Wallet, CreditCard, Receipt, DollarSign } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 type Payment = { id: string; amount: number; note: string | null; createdAt: string }
 type TrainerSalary = {
@@ -227,7 +228,7 @@ export default function SalaryPage() {
         </div>
 
         {loading ? (
-          <div className="bg-white rounded-2xl py-12 text-center text-gray-400 text-sm shadow-sm">Loading...</div>
+          <div className="bg-white rounded-2xl shadow-sm"><PetalSpinner /></div>
         ) : trainers.length === 0 ? (
           <div className="bg-white rounded-2xl py-12 text-center text-gray-400 text-sm shadow-sm">No trainers found.</div>
         ) : (

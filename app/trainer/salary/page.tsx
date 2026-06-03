@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { format, addMonths, subMonths, startOfMonth } from "date-fns"
 import { ChevronLeft, ChevronRight, Banknote, Users, HandHelping, TrendingUp } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 type Salary = {
   baseSalary: number
@@ -93,9 +94,7 @@ export default function TrainerSalaryPage() {
       </div>
 
       {loading || !salary ? (
-        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">
-          Loading…
-        </div>
+        <div className="bg-white rounded-2xl shadow-sm"><PetalSpinner /></div>
       ) : (
         <div className="space-y-3">
           {/* Total card */}

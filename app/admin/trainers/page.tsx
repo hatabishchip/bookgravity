@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Plus, Trash2, X, User, CalendarDays, Pencil, Check, Mail } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import TrainerSchedule from "./TrainerSchedule"
 import PhoneInput from "@/app/_components/PhoneInput"
 import { formatPhoneInput, validatePhone } from "@/lib/phone"
@@ -117,6 +118,7 @@ export default function TrainersPage() {
   const [error, setError] = useState("")
   const [deleting, setDeleting] = useState<string | null>(null)
   const [scheduleFor, setScheduleFor] = useState<Trainer | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const fetchTrainers = useCallback(async () => {
     const res = await fetch("/api/admin/trainers")
@@ -129,6 +131,7 @@ export default function TrainersPage() {
         whatsapp: t.whatsapp ? formatPhoneInput(t.whatsapp) : "",
       })),
     )
+    setLoading(false)
   }, [])
 
   useEffect(() => { fetchTrainers() }, [fetchTrainers])
@@ -247,7 +250,9 @@ export default function TrainersPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {loading && <PetalSpinner />}
+
+      <div className={cn("grid grid-cols-1 lg:grid-cols-3 gap-4", loading && "hidden")}>
         {trainers.map((trainer) => (
           <div
             key={trainer.id}
