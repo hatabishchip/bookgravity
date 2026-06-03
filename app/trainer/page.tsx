@@ -594,11 +594,15 @@ export default function TrainerSchedulePage() {
                   const isPaid = b.paymentStatus === "PAID"
                   const isUpdating = updating === b.id
                   // Once paid, the card collapses to a single "Paid" line. The
-                  // pencil re-opens it for edits, but only for 30 min after the
-                  // payment (uses updatedAt); after that it's locked.
-                  const paidWithin30 = isPaid && b.updatedAt
-                    ? Date.now() - new Date(b.updatedAt).getTime() < 30 * 60 * 1000
-                    : false
+                  // pencil re-opens it for edits until 30 minutes AFTER the
+                  // class ends (not 30 min after payment); then it's locked.
+                  // Class end parsed in WITA (Bali, UTC+8).
+                  const classEndMs = selectedSlot
+                    ? Date.parse(`${selectedSlot.date}T${selectedSlot.endTime}:00+08:00`)
+                    : NaN
+                  const paidWithin30 = Number.isFinite(classEndMs)
+                    ? Date.now() < classEndMs + 30 * 60 * 1000
+                    : true
                   const collapsed = isPaid && collapsedIds.has(b.id)
                   const paymentLabel = b.paymentType === "MEMBERSHIP"
                     ? "Membership"
