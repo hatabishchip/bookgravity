@@ -431,6 +431,41 @@ export default function TrainerSchedule({
             <form onSubmit={handleCreate} className="flex-1 flex flex-col overflow-hidden min-w-0">
               <div className="px-6 py-4 space-y-4 overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
 
+              {/* Existing sessions already on this day (incl. the active one
+                  with bookings) — so the admin sees what's there before adding. */}
+              {(() => {
+                const dayExisting = slotsForDay(createForm.date)
+                  .slice()
+                  .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                if (dayExisting.length === 0) return null
+                return (
+                  <div className="rounded-xl border border-gray-200 p-2.5">
+                    <div className="text-xs text-gray-500 font-medium mb-2">Already on this day</div>
+                    <div className="space-y-1.5">
+                      {dayExisting.map((s) => {
+                        const mine = s.trainer?.id === trainer.id
+                        return (
+                          <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 bg-gray-50 border border-gray-100">
+                            <span className="text-sm font-medium text-gray-800">
+                              {formatTime(s.startTime)}–{formatTime(s.endTime)}
+                            </span>
+                            <span className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 tabular-nums">{s._count.bookings}/{s.maxCapacity}</span>
+                              <span className={cn(
+                                "px-1.5 py-0.5 rounded-full text-[10px] font-medium",
+                                mine ? "bg-[#2C6E49]/10 text-[#2C6E49]" : s.trainer ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
+                              )}>
+                                {s.trainer ? s.trainer.name : "Unassigned"}
+                              </span>
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
                 <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min)</p>
