@@ -907,21 +907,25 @@ export default function Inbox({
     }
   }, [detail, refreshList])
 
-  // The trainer's 👋 sends the Meta-approved greeting template (works even when
-  // the 24h window is closed) to re-open the conversation, rate-limited 12h.
+  // The trainer's 👋 button literally sends a wave emoji into the chat —
+  // nothing else (no "Greetings, <name>!" text). When the 24h window is open a
+  // plain 👋 text message does the job; when it's closed we must go through a
+  // Meta-approved template, so we use the `wave` template whose body is itself
+  // just the 👋 emoji. Rate-limited to once / 12h per conversation.
   const sendWave = useCallback(() => {
     if (!detail || (waveLockUntil && waveLockUntil > Date.now())) return
-    const name = (detail.clientName ?? "").trim()
-    const hasName = /\p{L}/u.test(name)
-    void sendTemplate(
-      hasName
-        ? { templateName: "greeting_named", languageCode: "en", variables: [name], display: `Greetings, ${name}!` }
-        : { templateName: "greeting", languageCode: "en", display: "Greetings!" },
-    )
+    const open = detail.lastInboundAt
+      ? Date.now() - new Date(detail.lastInboundAt).getTime() < ONE_DAY_MS
+      : false
+    if (open) {
+      void send("👋")
+    } else {
+      void sendTemplate({ templateName: "wave", languageCode: "en", display: "👋" })
+    }
     const now = Date.now()
     try { window.localStorage.setItem(`wave:${detail.id}`, String(now)) } catch {}
     setWaveLockUntil(now + WAVE_COOLDOWN_MS)
-  }, [detail, waveLockUntil, sendTemplate, WAVE_COOLDOWN_MS])
+  }, [detail, waveLockUntil, send, sendTemplate, WAVE_COOLDOWN_MS])
 
   // Send a photo/video. Optimistic bubble uses a local objectURL so the
   // image shows up instantly while the server uploads to Meta and dispatches

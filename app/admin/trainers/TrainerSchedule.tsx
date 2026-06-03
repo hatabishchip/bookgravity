@@ -333,31 +333,36 @@ export default function TrainerSchedule({
                   <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
                     {daySlots.map((slot) => {
                       const isMine = slot.trainer?.id === trainer.id
+                      const hasBookings = slot._count.bookings > 0
                       const otherColor = slot.trainer && !isMine ? slot.trainer.color : null
 
-                      const otherStyle = otherColor
-                        ? { backgroundColor: hexToRgba(otherColor, 0.12), borderColor: hexToRgba(otherColor, 0.4) }
-                        : {}
+                      // Bright solid fill ONLY when this is the selected trainer's
+                      // class AND it has at least one booked client. An empty class
+                      // of theirs shows a faint tint, like other trainers' classes.
+                      const mineBright = isMine && hasBookings
+                      const faintColor = isMine ? trainer.color : otherColor
+
+                      const cellStyle = mineBright
+                        ? { backgroundColor: trainer.color, borderColor: trainer.color }
+                        : faintColor
+                          ? { backgroundColor: hexToRgba(faintColor, 0.12), borderColor: hexToRgba(faintColor, 0.4) }
+                          : {}
 
                       return (
                         <button
                           key={slot.id}
                           onClick={() => handleToggle(slot)}
-                          style={
-                            isMine
-                              ? { backgroundColor: trainer.color, borderColor: trainer.color }
-                              : otherStyle
-                          }
+                          style={cellStyle}
                           className={cn(
                             "w-full text-left rounded-lg border p-1.5 touch-manipulation",
-                            !isMine && !otherColor && "bg-[#EDEEF1] border-gray-200 hover:border-gray-300 hover:bg-gray-200"
+                            !mineBright && !faintColor && "bg-[#EDEEF1] border-gray-200 hover:border-gray-300 hover:bg-gray-200"
                           )}
                         >
                           <div className="flex items-start gap-1">
                             {/* Checkbox */}
                             <span className={cn(
                               "flex-shrink-0 mt-0.5 rounded-sm border flex items-center justify-center transition-colors w-3.5 h-3.5",
-                              isMine ? "bg-white border-white" : "border-gray-300 bg-white"
+                              mineBright ? "bg-white border-white" : "border-gray-300 bg-white"
                             )}>
                               {isMine && <Check size={9} strokeWidth={3} style={{ color: trainer.color }} />}
                             </span>
@@ -366,27 +371,27 @@ export default function TrainerSchedule({
                               <div
                                 className={cn(
                                   "font-semibold leading-tight truncate text-xs",
-                                  isMine ? "text-white" : "text-gray-700"
+                                  mineBright ? "text-white" : "text-gray-700"
                                 )}
-                                style={!isMine && otherColor ? { color: otherColor } : {}}
+                                style={!mineBright && faintColor ? { color: faintColor } : {}}
                               >
                                 {formatTime(slot.startTime)}
                               </div>
                               <div
                                 className={cn(
                                   "text-[10px] truncate mt-0.5",
-                                  isMine ? "text-white/70" : "text-gray-400"
+                                  mineBright ? "text-white/70" : "text-gray-400"
                                 )}
-                                style={!isMine && otherColor ? { color: hexToRgba(otherColor, 0.85) } : {}}
+                                style={!mineBright && faintColor ? { color: hexToRgba(faintColor, 0.85) } : {}}
                               >
                                 {slot.trainer ? slot.trainer.name : "Unassigned"}
                               </div>
                               <div
                                 className={cn(
                                   "text-[10px]",
-                                  isMine ? "text-white/60" : "text-gray-400"
+                                  mineBright ? "text-white/60" : "text-gray-400"
                                 )}
-                                style={!isMine && otherColor ? { color: hexToRgba(otherColor, 0.7) } : {}}
+                                style={!mineBright && faintColor ? { color: hexToRgba(faintColor, 0.7) } : {}}
                               >
                                 {slot._count.bookings}/{slot.maxCapacity}
                               </div>
