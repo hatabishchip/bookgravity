@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import Link from "next/link"
 import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns"
-import { ChevronLeft, ChevronRight, Users, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Users, X, Pencil } from "lucide-react"
 import { whatsappLink } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
@@ -32,6 +32,8 @@ type Booking = {
   paymentStatus: string
   checkedIn: boolean
   notes?: string
+  // Last change time — used to allow editing a paid booking for 30 minutes.
+  updatedAt?: string
   services: { service: Service; paymentType?: string | null }[]
   slot: { id: string }
   // Membership: how many classes the client has left at this studio, and the
@@ -92,8 +94,10 @@ export default function TrainerSchedulePage() {
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
   const [salary, setSalary] = useState<Salary | null>(null)
-  const [verifyCodes, setVerifyCodes] = useState<Record<string, string>>({})
-  const [verifyStates, setVerifyStates] = useState<Record<string, "ok" | "error" | "idle">>({})
+  // Paid bookings collapse to a one-line "Paid" row; the pencil re-expands them
+  // for editing (allowed for 30 min after payment). This set tracks which paid
+  // bookings the trainer has re-opened.
+  const [editingPaid, setEditingPaid] = useState<Set<string>>(new Set())
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -162,23 +166,7 @@ export default function TrainerSchedulePage() {
   const handleSlotClick = (slot: Slot) => {
     setSelectedSlot(slot)
     fetchBookingsForSlot(slot.id)
-    setVerifyCodes({})
-    setVerifyStates({})
-  }
-
-  const handleVerify = async (bookingId: string, code: string) => {
-    if (code.length !== 3) return
-    const res = await fetch("/api/trainer/bookings/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId, code }),
-    })
-    if (res.ok) {
-      setVerifyStates((prev) => ({ ...prev, [bookingId]: "ok" }))
-      fetchBookingsForSlot(selectedSlot!.id)
-    } else {
-      setVerifyStates((prev) => ({ ...prev, [bookingId]: "error" }))
-    }
+    setEditingPaid(new Set())
   }
 
   // Optimistic update — apply locally first, then sync to server in the
@@ -561,6 +549,41 @@ export default function TrainerSchedulePage() {
                 {bookings.map((b, idx) => {
                   const isPaid = b.paymentStatus === "PAID"
                   const isUpdating = updating === b.id
+                  // Once paid, the card collapses to a single "Paid" line. The
+                  // pencil re-opens it for edits, but only for 30 min after the
+                  // payment (uses updatedAt); after that it's locked.
+                  const paidWithin30 = isPaid && b.updatedAt
+                    ? Date.now() - new Date(b.updatedAt).getTime() < 30 * 60 * 1000
+                    : false
+                  const collapsed = isPaid && !editingPaid.has(b.id)
+                  const paymentLabel = b.paymentType === "MEMBERSHIP"
+                    ? "Membership"
+                    : (PAYMENT_METHODS.find((p) => p.value === b.paymentType)?.label ?? b.paymentType)
+
+                  if (collapsed) {
+                    return (
+                      <div key={b.id} className="rounded-xl px-4 py-3 border-2 border-[#2C6E49]/25 bg-[#2C6E49]/5 shadow-sm flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-6 h-6 rounded-full bg-[#2C6E49]/15 text-[#2C6E49] text-xs font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                          <span className="font-semibold text-gray-900 truncate">{b.clientName}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs font-semibold text-[#2C6E49] whitespace-nowrap">✓ Paid · {paymentLabel}</span>
+                          {paidWithin30 && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingPaid((prev) => new Set(prev).add(b.id))}
+                              className="p-1.5 -mr-1 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-[#2C6E49]/10 touch-manipulation"
+                              aria-label="Edit payment"
+                              title="Edit — available for 30 minutes after payment"
+                            >
+                              <Pencil size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  }
 
                   return (
                     <div key={b.id} className="rounded-xl p-4 border-2 border-gray-200 bg-white shadow-sm">
@@ -588,37 +611,6 @@ export default function TrainerSchedulePage() {
                         })()}
                       </div>
 
-                      {/* Code verification */}
-                      {!b.checkedIn && (
-                        <div className="ml-8 mb-3 flex items-center gap-2">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={3}
-                            placeholder="000"
-                            value={verifyCodes[b.id] ?? ""}
-                            onChange={(e) => {
-                              const code = e.target.value.replace(/\D/g, "").slice(0, 3)
-                              setVerifyCodes((prev) => ({ ...prev, [b.id]: code }))
-                              if (verifyStates[b.id]) setVerifyStates((prev) => ({ ...prev, [b.id]: "idle" }))
-                              if (code.length === 3) handleVerify(b.id, code)
-                            }}
-                            className={cn(
-                              "w-20 border-2 rounded-lg px-2 py-1.5 text-base font-mono tracking-widest text-center focus:outline-none transition-colors",
-                              !verifyStates[b.id] || verifyStates[b.id] === "idle"
-                                ? "border-gray-200 bg-white text-gray-700 focus:border-[#2C6E49]"
-                                : verifyStates[b.id] === "ok"
-                                ? "border-green-400 bg-green-50 text-green-800"
-                                : "border-red-400 bg-red-50 text-red-700"
-                            )}
-                          />
-                          {verifyStates[b.id] === "ok" && <span className="text-green-500 text-xl font-bold">✓</span>}
-                          {verifyStates[b.id] === "error" && <span className="text-red-400 text-sm">Wrong code</span>}
-                          {(!verifyStates[b.id] || verifyStates[b.id] === "idle") && (
-                            <span className="text-xs text-gray-400">Client code</span>
-                          )}
-                        </div>
-                      )}
 
                       {/* Payment method buttons */}
                       <div className="mt-4">
@@ -665,8 +657,15 @@ export default function TrainerSchedulePage() {
                           })}
                         </div>
                         {isPaid && (
-                          <div className="mt-1.5 text-xs text-[#2C6E49] font-medium">
-                            ✓ Paid · {b.paymentType}
+                          <div className="mt-1.5 flex items-center justify-between gap-2">
+                            <span className="text-xs text-[#2C6E49] font-medium">✓ Paid · {paymentLabel}</span>
+                            <button
+                              type="button"
+                              onClick={() => setEditingPaid((prev) => { const n = new Set(prev); n.delete(b.id); return n })}
+                              className="text-xs font-medium text-gray-400 hover:text-[#2C6E49] touch-manipulation"
+                            >
+                              Done
+                            </button>
                           </div>
                         )}
                       </div>
