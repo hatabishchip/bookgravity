@@ -94,10 +94,11 @@ export default function TrainerSchedulePage() {
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
   const [salary, setSalary] = useState<Salary | null>(null)
-  // Paid bookings collapse to a one-line "Paid" row; the pencil re-expands them
-  // for editing (allowed for 30 min after payment). This set tracks which paid
-  // bookings the trainer has re-opened.
-  const [editingPaid, setEditingPaid] = useState<Set<string>>(new Set())
+  // Which paid bookings are collapsed to the one-line "Paid" row. A booking
+  // collapses only when the trainer taps "Done" (not the instant they pick a
+  // method — that felt jumpy). Already-paid bookings open collapsed; the pencil
+  // re-expands them for editing (allowed for 30 min after payment).
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [isMobile, setIsMobile] = useState(false)
   // When a class just ended with unpaid clients, the cabinet opens straight
   // into that class's payment list and can't be closed until everyone is paid.
@@ -163,7 +164,11 @@ export default function TrainerSchedulePage() {
 
   const fetchBookingsForSlot = useCallback(async (slotId: string) => {
     const res = await fetch(`/api/trainer/bookings?slotId=${slotId}`)
-    setBookings(await res.json())
+    const data: Booking[] = await res.json()
+    setBookings(data)
+    // Already-paid bookings open collapsed; freshly-paid ones (this session)
+    // stay expanded until the trainer taps "Done".
+    setCollapsedIds(new Set(data.filter((b) => b.paymentStatus === "PAID").map((b) => b.id)))
   }, [])
 
   // On entering the cabinet: if a class just ended with unpaid clients, open
@@ -184,7 +189,6 @@ export default function TrainerSchedulePage() {
   const handleSlotClick = (slot: Slot) => {
     setSelectedSlot(slot)
     fetchBookingsForSlot(slot.id)
-    setEditingPaid(new Set())
   }
 
   // Optimistic update — apply locally first, then sync to server in the
@@ -595,7 +599,7 @@ export default function TrainerSchedulePage() {
                   const paidWithin30 = isPaid && b.updatedAt
                     ? Date.now() - new Date(b.updatedAt).getTime() < 30 * 60 * 1000
                     : false
-                  const collapsed = isPaid && !editingPaid.has(b.id)
+                  const collapsed = isPaid && collapsedIds.has(b.id)
                   const paymentLabel = b.paymentType === "MEMBERSHIP"
                     ? "Membership"
                     : (PAYMENT_METHODS.find((p) => p.value === b.paymentType)?.label ?? b.paymentType)
@@ -612,7 +616,7 @@ export default function TrainerSchedulePage() {
                           {paidWithin30 && (
                             <button
                               type="button"
-                              onClick={() => setEditingPaid((prev) => new Set(prev).add(b.id))}
+                              onClick={() => setCollapsedIds((prev) => { const n = new Set(prev); n.delete(b.id); return n })}
                               className="p-1.5 -mr-1 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-[#2C6E49]/10 touch-manipulation"
                               aria-label="Edit payment"
                               title="Edit — available for 30 minutes after payment"
@@ -697,16 +701,7 @@ export default function TrainerSchedulePage() {
                           })}
                         </div>
                         {isPaid && (
-                          <div className="mt-1.5 flex items-center justify-between gap-2">
-                            <span className="text-xs text-[#2C6E49] font-medium">✓ Paid · {paymentLabel}</span>
-                            <button
-                              type="button"
-                              onClick={() => setEditingPaid((prev) => { const n = new Set(prev); n.delete(b.id); return n })}
-                              className="text-xs font-medium text-gray-400 hover:text-[#2C6E49] touch-manipulation"
-                            >
-                              Done
-                            </button>
-                          </div>
+                          <div className="mt-1.5 text-xs text-[#2C6E49] font-medium">✓ Paid · {paymentLabel}</div>
                         )}
                       </div>
 
@@ -807,6 +802,19 @@ export default function TrainerSchedulePage() {
                           placeholder="Add note..."
                         />
                       </div>
+
+                      {/* Once a payment method is picked, a clear "Done" button
+                          appears — tapping it collapses this client to a compact
+                          paid row (so nothing jumps the moment a method is set). */}
+                      {isPaid && (
+                        <button
+                          type="button"
+                          onClick={() => setCollapsedIds((prev) => new Set(prev).add(b.id))}
+                          className="mt-4 w-full py-3 rounded-xl bg-[#2C6E49] text-white text-sm font-semibold hover:bg-[#1E4D34] touch-manipulation flex items-center justify-center gap-2"
+                        >
+                          ✓ Done — collapse
+                        </button>
+                      )}
                     </div>
                   )
                 })}
