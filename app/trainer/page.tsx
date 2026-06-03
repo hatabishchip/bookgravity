@@ -4,10 +4,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import Link from "next/link"
 import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns"
 import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2 } from "lucide-react"
-import { whatsappLink } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
-import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import SellMembershipButton from "@/app/_components/SellMembershipButton"
 
 type Slot = {
@@ -676,23 +674,9 @@ export default function TrainerSchedulePage() {
                         </div>
                         {b.checkedIn && <span className="text-[10px] font-medium text-green-700 bg-green-200 px-2 py-0.5 rounded-full">✓ checked in</span>}
                       </div>
-                      <div className="ml-8 mb-3">
-                        {(() => {
-                          const wa = whatsappLink(b.clientPhone, `Hi ${b.clientName.replace(/\s*\(\d+\/\d+\)$/, "")}! Just a friendly reminder about your stretching class today 🌿`)
-                          const content = (
-                            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#25D366]/8 border border-[#25D366]/20">
-                              <WhatsAppIcon size={15} />
-                              <span className="text-sm text-gray-800 font-medium">{b.clientPhone}</span>
-                            </span>
-                          )
-                          return wa ? (
-                            <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-block hover:opacity-90 transition-opacity">
-                              {content}
-                            </a>
-                          ) : content
-                        })()}
-                      </div>
 
+                      {/* Client phone is intentionally NOT shown to trainers —
+                          only the client's name. */}
 
                       {/* Payment method — one framed group; pick a single option.
                           All options look the same when not selected (neutral
