@@ -440,7 +440,8 @@ export default function TrainerSchedule({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
                 <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min)</p>
                 {/* Multi-select presets. Times that already have a class on this
-                    day are shown green and locked (you can't double-book them). */}
+                    day are filled solid green (same as the Schedule / Schedule
+                    Beta views) and locked — you can't double-book them. */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {(() => {
                     const existingTimes = new Set(slotsForDay(createForm.date).map((s) => s.startTime))
@@ -458,12 +459,12 @@ export default function TrainerSchedule({
                           }}
                           className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium",
                             taken
-                              ? "bg-[#2C6E49]/10 text-[#2C6E49] border-[#2C6E49]/40 cursor-default"
+                              ? "bg-[#2C6E49] text-white border-[#2C6E49] cursor-default"
                               : selected
                                 ? "bg-[#2C6E49] text-white border-[#2C6E49]"
                                 : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
                           )}>
-                          {formatTime(t)}{taken && " ✓"}
+                          {formatTime(t)}
                         </button>
                       )
                     })
