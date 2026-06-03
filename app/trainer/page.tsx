@@ -99,6 +99,9 @@ export default function TrainerSchedulePage() {
   // bookings the trainer has re-opened.
   const [editingPaid, setEditingPaid] = useState<Set<string>>(new Set())
   const [isMobile, setIsMobile] = useState(false)
+  // When a class just ended with unpaid clients, the cabinet opens straight
+  // into that class's payment list and can't be closed until everyone is paid.
+  const [forcedSlotId, setForcedSlotId] = useState<string | null>(null)
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)")
@@ -162,6 +165,21 @@ export default function TrainerSchedulePage() {
     const res = await fetch(`/api/trainer/bookings?slotId=${slotId}`)
     setBookings(await res.json())
   }, [])
+
+  // On entering the cabinet: if a class just ended with unpaid clients, open
+  // straight into its payment list and lock it (can't close until all paid).
+  useEffect(() => {
+    fetch("/api/trainer/pending-payments")
+      .then((r) => (r.ok ? r.json() : { slot: null }))
+      .then((d: { slot: Slot | null }) => {
+        if (d.slot) {
+          setSelectedSlot(d.slot)
+          setForcedSlotId(d.slot.id)
+          fetchBookingsForSlot(d.slot.id)
+        }
+      })
+      .catch(() => {})
+  }, [fetchBookingsForSlot])
 
   const handleSlotClick = (slot: Slot) => {
     setSelectedSlot(slot)
@@ -529,13 +547,35 @@ export default function TrainerSchedulePage() {
                   {selectedSlot._count?.bookings ?? 0}/{selectedSlot.maxCapacity ?? 0} booked
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedSlot(null)}
-                aria-label="Close"
-                className="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors lg:w-7 lg:h-7 lg:rounded-lg"
-              >
-                <X size={18} />
-              </button>
+              {(() => {
+                const forced = forcedSlotId === selectedSlot.id
+                const allPaid = bookings.length > 0 && bookings.every((b) => b.paymentStatus === "PAID")
+                // Forced (a just-ended class with unpaid clients): no close until
+                // every client's payment is set, then a "Done" button releases it.
+                if (forced) {
+                  return allPaid ? (
+                    <button
+                      onClick={() => { setForcedSlotId(null); setSelectedSlot(null) }}
+                      className="px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-semibold hover:bg-[#1E4D34] touch-manipulation"
+                    >
+                      Done
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-amber-600 font-medium max-w-[150px] text-right leading-tight">
+                      Set payment for all clients to continue
+                    </span>
+                  )
+                }
+                return (
+                  <button
+                    onClick={() => setSelectedSlot(null)}
+                    aria-label="Close"
+                    className="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors lg:w-7 lg:h-7 lg:rounded-lg"
+                  >
+                    <X size={18} />
+                  </button>
+                )
+              })()}
             </div>
 
             {/* Scrollable body — overscroll-none kills iOS rubber-band bounce
