@@ -1,14 +1,14 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { useCallback, useState } from "react"
 
 // Opens the in-app chat (internal inbox conversation) for a client by phone.
-// Resolves/creates the conversation server-side, then navigates to the inbox
-// deep-link (?c=<id>) so the admin can read the full conversation history in
-// the system — instead of jumping out to the external WhatsApp app.
-export function useOpenChat(basePath: string = "/admin/inbox") {
-  const router = useRouter()
+// Resolves/creates the conversation server-side, then dispatches a global
+// event that the FloatingInbox listens for — so the SAME chat modal opens
+// straight onto that client's conversation, overlaying the current page.
+// Closing the modal returns the user to exactly where they were (no
+// navigation, no studio header).
+export function useOpenChat() {
   const [opening, setOpening] = useState(false)
 
   const openChat = useCallback(
@@ -26,14 +26,14 @@ export function useOpenChat(basePath: string = "/admin/inbox") {
           return
         }
         const { id } = (await res.json()) as { id: string }
-        router.push(`${basePath}?c=${id}`)
+        window.dispatchEvent(new CustomEvent("bg:open-chat", { detail: { id } }))
       } catch {
         alert("Сетевая ошибка — не удалось открыть чат.")
       } finally {
         setOpening(false)
       }
     },
-    [router, basePath, opening],
+    [opening],
   )
 
   return { openChat, opening }

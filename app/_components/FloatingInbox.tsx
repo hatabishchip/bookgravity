@@ -28,6 +28,9 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   // theme on the portal root so it matches the rest of the admin.
   const { theme } = useAdminTheme()
   const [open, setOpen] = useState(false)
+  // When opened via the "Open chat" buttons elsewhere (Bookings / Schedule /
+  // Schedule Beta / Trainers), this holds the conversation to jump straight to.
+  const [initialChatId, setInitialChatId] = useState<string | null>(null)
   const [unreadChats, setUnreadChats] = useState(0)
   const [mounted, setMounted] = useState(false)
   // Per-studio gate. We default to `null` while loading so the FAB doesn't
@@ -164,6 +167,20 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     return () => window.removeEventListener("keydown", onKey)
   }, [open])
 
+  // "Open chat" buttons across the admin dispatch this event with a resolved
+  // conversation id — open the same modal, straight onto that conversation,
+  // so closing it returns the user to the page they came from.
+  useEffect(() => {
+    const onOpenChat = (e: Event) => {
+      const id = (e as CustomEvent<{ id?: string }>).detail?.id
+      if (!id) return
+      setInitialChatId(id)
+      setOpen(true)
+    }
+    window.addEventListener("bg:open-chat", onOpenChat as EventListener)
+    return () => window.removeEventListener("bg:open-chat", onOpenChat as EventListener)
+  }, [])
+
   // Block iOS Safari's two-finger pinch-to-zoom while the modal is open.
   // The viewport meta + CSS touch-action take care of most cases, but iOS
   // still fires non-standard `gesturestart` events for pinch — calling
@@ -215,7 +232,7 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
                 : { inset: 0 }
             }
           >
-            <Inbox role={role} embedded onClose={() => setOpen(false)} />
+            <Inbox role={role} embedded initialSelectedId={initialChatId} onClose={() => { setOpen(false); setInitialChatId(null) }} />
           </div>
         </div>
       </main>
@@ -225,7 +242,7 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => { setInitialChatId(null); setOpen(true) }}
         className={cn(
           "fixed right-5 lg:right-6 z-40",
           "w-14 h-14 rounded-full bg-[#2C6E49] hover:bg-[#1E4D34] text-white shadow-lg",

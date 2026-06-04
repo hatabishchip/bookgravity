@@ -532,6 +532,7 @@ export default function Inbox({
   role,
   embedded = false,
   onClose,
+  initialSelectedId = null,
 }: {
   role: "ADMIN" | "TRAINER"
   /** When true, the Inbox tracks its own selection in component state and
@@ -541,10 +542,18 @@ export default function Inbox({
   /** Optional close handler. When provided, an X button is rendered in the
    *  list-column header (only meaningful in embedded mode). */
   onClose?: () => void
+  /** Embedded mode: open straight onto this conversation (e.g. when the
+   *  modal is launched from a booking's "Open chat" button). */
+  initialSelectedId?: string | null
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [embeddedSelectedId, setEmbeddedSelectedId] = useState<string | null>(null)
+  const [embeddedSelectedId, setEmbeddedSelectedId] = useState<string | null>(initialSelectedId)
+  // If a fresh conversation is requested while the modal is already mounted,
+  // jump to it.
+  useEffect(() => {
+    if (embedded && initialSelectedId) setEmbeddedSelectedId(initialSelectedId)
+  }, [embedded, initialSelectedId])
   const selectedId = embedded ? embeddedSelectedId : searchParams.get("c")
 
   const [convos, setConvos] = useState<ConversationListItem[] | null>(null)
