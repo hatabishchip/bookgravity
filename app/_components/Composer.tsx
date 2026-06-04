@@ -38,9 +38,9 @@ const MESSAGE_TEMPLATES: TemplateDef[] = [
     templateName: "reschedule_other_day",
   },
   {
-    label: "Confirm booking",
-    text: "Hello! Please confirm your booking for the Gravity Stretching group class.",
-    templateName: "confirm_group_booking",
+    label: "Booking canceled",
+    text: "Done 😊 Your booking has been canceled. We'd love to welcome you back on any day that's convenient for you!",
+    templateName: "booking_canceled",
   },
 ]
 
