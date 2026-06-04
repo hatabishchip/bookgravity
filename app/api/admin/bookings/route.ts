@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { notifyBookingCreated } from "@/lib/booking-notify"
 import { z } from "zod"
 
 export async function GET(request: NextRequest) {
@@ -107,6 +108,20 @@ export async function POST(request: NextRequest) {
     })
     bookings.push(b)
   }
+
+  // Mirror the public booking flow: open/refresh the WhatsApp conversation,
+  // send the client a confirmation, and alert the trainer — so an
+  // admin-created booking still shows up as a chat in the inbox. The admin
+  // alert copy is skipped (the admin is the one who just booked it).
+  await notifyBookingCreated({
+    studioId: ctx.studioId,
+    slotId: data.slotId,
+    clientName: data.clientName,
+    clientPhone: data.clientPhone,
+    leadBookingId: bookings[0].id,
+    ticketCode: bookings[0].ticketCode,
+    skipAdminAlert: true,
+  })
 
   return NextResponse.json(bookings[0], { status: 201 })
 }
