@@ -16,3 +16,6 @@ yarn-error.*
 .DS_Store
 .env*.local
 expo-env.d.ts
+
+# Google Play service-account key (secret — never commit)
+google-play-service-account.json

@@ -1,9 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowRightLeft, X, Check } from "lucide-react"
+import { ArrowRightLeft, X, Check, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 
 // A single registered-client row used inside both the Schedule and the Beta
 // Schedule class editors. Keeps the Move / Cancel actions visually identical
@@ -14,7 +13,7 @@ export type MoveTarget = { id: string; label: string }
 export function ClientBookingRow({
   name,
   phone,
-  whatsappHref,
+  onOpenChat,
   targets,
   onMove,
   onCancel,
@@ -22,8 +21,8 @@ export function ClientBookingRow({
 }: {
   name: string
   phone?: string | null
-  /** When provided, the phone renders as a tappable WhatsApp link. */
-  whatsappHref?: string | null
+  /** When provided, shows an "Open chat" action that opens the in-app chat. */
+  onOpenChat?: () => void
   /** Other classes with a free seat the client can be moved to. */
   targets: MoveTarget[]
   onMove: (targetId: string) => void
@@ -37,20 +36,16 @@ export function ClientBookingRow({
     <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2.5">
       <div className="min-w-0 flex-1">
         <div className="text-sm font-semibold text-gray-800 truncate">{name}</div>
-        {phone &&
-          (whatsappHref ? (
-            <a
-              href={whatsappHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-[#25D366]"
-            >
-              <WhatsAppIcon size={11} />
-              {phone}
-            </a>
-          ) : (
-            <div className="text-xs text-gray-500">{phone}</div>
-          ))}
+        {phone && <div className="text-xs text-gray-500 truncate">{phone}</div>}
+        {onOpenChat && (
+          <button
+            type="button"
+            onClick={onOpenChat}
+            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#2C6E49] hover:underline"
+          >
+            <MessageSquare size={12} strokeWidth={2.25} /> Открыть чат
+          </button>
+        )}
       </div>
 
       {moving ? (

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { format, addDays } from "date-fns"
 import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, CheckCircle2, Copy, Check, X } from "lucide-react"
-import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
+import { useOpenChat } from "@/lib/use-open-chat"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
@@ -86,16 +86,7 @@ function BookingDetails({
 }) {
   const [noteDraft, setNoteDraft] = useState(booking.notes ?? "")
   const [noteSaved, setNoteSaved] = useState(false)
-  const cleanName = booking.clientName.replace(/\s*\(\d+\/\d+\)$/, "")
-  const wa = whatsappLink(
-    booking.clientPhone,
-    bookingConfirmationMessage({
-      clientName: cleanName,
-      date: format(new Date(booking.slot.date), "EEE, MMM d"),
-      time: formatTime(booking.slot.startTime),
-      ticketCode: booking.ticketCode || "",
-    })
-  )
+  const { openChat } = useOpenChat()
 
   const saveNote = () => {
     const trimmed = noteDraft.trim()
@@ -133,17 +124,13 @@ function BookingDetails({
               <CopyButton value={booking.clientTelegram} />
             </div>
           )}
-          {wa && (
-            <a
-              href={wa}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="mt-0.5 w-full flex items-center justify-center gap-2 text-sm font-medium bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1a7e43] dark:text-[#5fd98a] border border-[#25D366]/25 px-3 py-2 rounded-lg transition-colors"
-            >
-              <MessageCircle size={14} /> Send WhatsApp confirmation
-            </a>
-          )}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openChat(booking.clientPhone, booking.clientName) }}
+            className="mt-0.5 w-full flex items-center justify-center gap-2 text-sm font-medium bg-[#2C6E49]/10 hover:bg-[#2C6E49]/20 text-[#2C6E49] border border-[#2C6E49]/25 px-3 py-2 rounded-lg transition-colors"
+          >
+            <MessageCircle size={14} /> Открыть чат
+          </button>
         </div>
 
         {/* Payment — no "Mark as paid with" label, it's self-evident */}

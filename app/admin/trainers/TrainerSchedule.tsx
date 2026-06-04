@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
-import { whatsappLink } from "@/lib/whatsapp"
+import { useOpenChat } from "@/lib/use-open-chat"
 
 type View = "week" | "2weeks" | "month"
 
@@ -659,6 +659,7 @@ function SlotClients({
 }) {
   type Booking = { id: string; clientName: string; clientPhone: string; status: string; paymentStatus: string; slot: { id: string } }
   const [list, setList] = useState<Booking[] | null>(null)
+  const { openChat } = useOpenChat()
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/bookings?date=${slot.date}`)
@@ -723,7 +724,7 @@ function SlotClients({
                 key={b.id}
                 name={b.clientName}
                 phone={b.clientPhone}
-                whatsappHref={whatsappLink(b.clientPhone, `Hi ${b.clientName.replace(/\s*\(\d+\/\d+\)$/, "")}!`)}
+                onOpenChat={() => openChat(b.clientPhone, b.clientName)}
                 targets={targetOptions}
                 onMove={(targetId) => move(b, targetId)}
                 onCancel={() => cancel(b)}

@@ -9,6 +9,7 @@ import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import { QueuedClients } from "@/app/_components/QueuedClients"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { useOpenChat } from "@/lib/use-open-chat"
 
 type View = "week" | "2weeks" | "month"
 type Trainer = { id: string; name: string; color: string }
@@ -122,6 +123,7 @@ function SlotClientList({
   type Booking = { id: string; clientName: string; clientPhone: string; status: string; paymentStatus: string; slot: { id: string } }
   const [list, setList] = useState<Booking[] | null>(null)
   const [adding, setAdding] = useState(false)
+  const { openChat } = useOpenChat()
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/bookings?date=${slot.date}`)
@@ -225,6 +227,7 @@ function SlotClientList({
           key={b.id}
           name={b.clientName}
           phone={b.clientPhone}
+          onOpenChat={() => openChat(b.clientPhone, b.clientName)}
           targets={targetOptions}
           onMove={(targetId) => move(b, targetId)}
           onCancel={() => cancel(b)}

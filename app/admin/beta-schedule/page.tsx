@@ -6,7 +6,7 @@ import {
   addMonths, isSameMonth, isSameDay,
 } from "date-fns"
 import { X, Plus, Trash2, Eye, EyeOff } from "lucide-react"
-import { whatsappLink } from "@/lib/whatsapp"
+import { useOpenChat } from "@/lib/use-open-chat"
 import { PriceInput } from "@/app/_components/PriceInput"
 import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
@@ -490,6 +490,7 @@ function SlotEditor({
     else setPublicVisible(true)
   }
   const [bookings, setBookings] = useState<Booking[]>([])
+  const { openChat } = useOpenChat()
   const [loadingBookings, setLoadingBookings] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
@@ -779,7 +780,7 @@ function SlotEditor({
                     key={b.id}
                     name={b.clientName}
                     phone={b.clientPhone}
-                    whatsappHref={whatsappLink(b.clientPhone, `Hi ${b.clientName.replace(/\s*\(\d+\/\d+\)$/, "")}!`)}
+                    onOpenChat={() => openChat(b.clientPhone, b.clientName)}
                     targets={moveTargets}
                     onMove={(targetId) => handleMoveBooking(b, targetId)}
                     onCancel={() => handleCancelBooking(b)}
