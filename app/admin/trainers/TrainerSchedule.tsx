@@ -5,10 +5,12 @@ import {
   format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks,
   startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth,
 } from "date-fns"
-import { ChevronLeft, ChevronRight, X, Check, Plus } from "lucide-react"
+import { ChevronLeft, ChevronRight, X, Check, Plus, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
+import { whatsappLink } from "@/lib/whatsapp"
 
 type View = "week" | "2weeks" | "month"
 
@@ -81,6 +83,8 @@ export default function TrainerSchedule({
 
   // Create modal
   const [createModal, setCreateModal] = useState<string | null>(null) // date string
+  // Which slot's client list is open (the "people" button popup).
+  const [clientsSlot, setClientsSlot] = useState<Slot | null>(null)
   const [createForm, setCreateForm] = useState(EMPTY_CREATE)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState("")
@@ -410,15 +414,35 @@ export default function TrainerSchedule({
                               >
                                 {slot.trainer ? slot.trainer.name : "Unassigned"}
                               </div>
-                              <div
-                                className={cn(
-                                  "text-[10px]",
-                                  mineBright ? "text-white/60" : "text-gray-400"
-                                )}
-                                style={!mineBright && faintColor ? { color: hexToRgba(faintColor, 0.7) } : {}}
-                              >
-                                {slot._count.bookings}/{slot.maxCapacity}
-                              </div>
+                              {slot._count.bookings > 0 ? (
+                                // Tappable people-count: opens the client list
+                                // (Move / Cancel) without toggling assignment.
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => { e.stopPropagation(); setClientsSlot(slot) }}
+                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setClientsSlot(slot) } }}
+                                  title="Показать клиентов"
+                                  className={cn(
+                                    "inline-flex items-center gap-1 text-[10px] font-medium rounded px-1 -ml-1 py-0.5 cursor-pointer underline decoration-dotted underline-offset-2",
+                                    mineBright ? "text-white/90 hover:bg-white/15" : "text-gray-500 hover:bg-black/5"
+                                  )}
+                                  style={!mineBright && faintColor ? { color: hexToRgba(faintColor, 0.85) } : {}}
+                                >
+                                  <Users size={10} />
+                                  {slot._count.bookings}/{slot.maxCapacity}
+                                </span>
+                              ) : (
+                                <div
+                                  className={cn(
+                                    "text-[10px]",
+                                    mineBright ? "text-white/60" : "text-gray-400"
+                                  )}
+                                  style={!mineBright && faintColor ? { color: hexToRgba(faintColor, 0.7) } : {}}
+                                >
+                                  {slot._count.bookings}/{slot.maxCapacity}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </button>
@@ -608,6 +632,107 @@ export default function TrainerSchedule({
           </div>
         </div>
       )}
+
+      {/* Client list popup for a class (Move / Cancel per client). */}
+      {clientsSlot && (
+        <SlotClients
+          slot={clientsSlot}
+          allSlots={slots}
+          onClose={() => setClientsSlot(null)}
+          onChanged={fetchSlots}
+        />
+      )}
+    </div>
+  )
+}
+
+// Popup listing the clients booked into one class, with Move (to another
+// class with a free seat) and Cancel per client — mirrors the Schedule /
+// Schedule Beta client rows. Opened from the "people" count on a class.
+function SlotClients({
+  slot, allSlots, onClose, onChanged,
+}: {
+  slot: Slot
+  allSlots: Slot[]
+  onClose: () => void
+  onChanged: () => void
+}) {
+  type Booking = { id: string; clientName: string; clientPhone: string; status: string; paymentStatus: string; slot: { id: string } }
+  const [list, setList] = useState<Booking[] | null>(null)
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/admin/bookings?date=${slot.date}`)
+    if (!res.ok) { setList([]); return }
+    const all: Booking[] = await res.json()
+    setList(all.filter((b) => b.slot?.id === slot.id && b.status === "CONFIRMED"))
+  }, [slot.date, slot.id])
+  useEffect(() => { load() }, [load])
+
+  const cancel = async (b: Booking) => {
+    if (!confirm(`Отменить запись клиента ${b.clientName}?`)) return
+    setList((prev) => prev?.filter((x) => x.id !== b.id) ?? null)
+    try {
+      const res = await fetch(`/api/admin/bookings/${b.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      })
+      if (!res.ok) { alert("Не удалось отменить запись. Попробуйте ещё раз."); load() }
+    } catch { alert("Сетевая ошибка — не удалось отменить запись."); load() }
+    finally { onChanged() }
+  }
+
+  const move = async (b: Booking, targetSlotId: string) => {
+    setList((prev) => prev?.filter((x) => x.id !== b.id) ?? null)
+    try {
+      const res = await fetch(`/api/admin/bookings/${b.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slotId: targetSlotId }),
+      })
+      if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error ?? "Не удалось перенести запись."); load() }
+    } catch { alert("Сетевая ошибка — не удалось перенести запись."); load() }
+    finally { onChanged() }
+  }
+
+  const targetOptions = allSlots
+    .filter((s) => s.id !== slot.id && s.maxCapacity - s._count.bookings > 0)
+    .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
+    .map((t) => ({ id: t.id, label: `${format(new Date(t.date + "T00:00:00"), "MMM d")} · ${formatTime(t.startTime)}` }))
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-semibold text-gray-900">Клиенты класса</div>
+            <div className="text-xs text-gray-400 mt-0.5">
+              {format(new Date(slot.date + "T00:00:00"), "EEE, MMM d")} · {formatTime(slot.startTime)}–{formatTime(slot.endTime)}
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Закрыть" className="p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-4 overflow-y-auto space-y-2">
+          {list === null ? (
+            <PetalSpinner />
+          ) : list.length === 0 ? (
+            <div className="text-center text-sm text-gray-400 py-6">На этот класс пока никто не записан.</div>
+          ) : (
+            list.map((b) => (
+              <ClientBookingRow
+                key={b.id}
+                name={b.clientName}
+                phone={b.clientPhone}
+                whatsappHref={whatsappLink(b.clientPhone, `Hi ${b.clientName.replace(/\s*\(\d+\/\d+\)$/, "")}!`)}
+                targets={targetOptions}
+                onMove={(targetId) => move(b, targetId)}
+                onCancel={() => cancel(b)}
+                paid={b.paymentStatus === "PAID"}
+              />
+            ))
+          )}
+        </div>
+      </div>
     </div>
   )
 }
