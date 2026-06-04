@@ -8,6 +8,7 @@ import {
 import { ChevronLeft, ChevronRight, X, Check, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
+import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 type View = "week" | "2weeks" | "month"
 
@@ -74,6 +75,9 @@ export default function TrainerSchedule({
   const [view, setView] = useState<View>("month")
   const [anchor, setAnchor] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [slots, setSlots] = useState<Slot[]>([])
+  // False until the first slots fetch resolves — show the petal spinner
+  // instead of a blank, seemingly-frozen grid.
+  const [slotsLoaded, setSlotsLoaded] = useState(false)
 
   // Create modal
   const [createModal, setCreateModal] = useState<string | null>(null) // date string
@@ -108,6 +112,7 @@ export default function TrainerSchedule({
   const fetchSlots = useCallback(async () => {
     const res = await fetch(`/api/admin/slots?from=${from}&to=${to}`)
     setSlots(await res.json())
+    setSlotsLoaded(true)
   }, [from, to])
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
@@ -215,7 +220,7 @@ export default function TrainerSchedule({
                 {headerLabel} · {mySlots} sessions
               </p>
             </div>
-            <button onClick={onClose} className="sm:hidden p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
+            <button onClick={onClose} aria-label="Close schedule" className="sm:hidden flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 flex-shrink-0">
               <X size={18} />
             </button>
           </div>
@@ -263,7 +268,7 @@ export default function TrainerSchedule({
               </button>
             </div>
 
-            <button onClick={onClose} className="hidden sm:block p-2 hover:bg-gray-100 rounded-lg ml-1">
+            <button onClick={onClose} aria-label="Close schedule" className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 ml-1 flex-shrink-0">
               <X size={18} />
             </button>
           </div>
@@ -289,8 +294,9 @@ export default function TrainerSchedule({
 
         {/* Calendar */}
         <div className="px-2 sm:px-6 pb-6 flex-1">
+          {!slotsLoaded && <PetalSpinner className="py-20" />}
           {/* Day headers — only on desktop */}
-          <div className="hidden lg:grid grid-cols-7 gap-2 mb-1.5">
+          <div className={cn("hidden lg:grid grid-cols-7 gap-2 mb-1.5", !slotsLoaded && "lg:hidden")}>
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
               <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
                 {d}
@@ -298,7 +304,7 @@ export default function TrainerSchedule({
             ))}
           </div>
 
-          <div className="grid grid-cols-2 max-lg:landscape:grid-cols-4 lg:grid-cols-7 gap-2">
+          <div className={cn("grid grid-cols-2 max-lg:landscape:grid-cols-4 lg:grid-cols-7 gap-2", !slotsLoaded && "hidden")}>
             {days.map((day) => {
               const dateStr = format(day, "yyyy-MM-dd")
               const isToday = dateStr === todayStr

@@ -8,6 +8,7 @@ import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import { QueuedClients } from "@/app/_components/QueuedClients"
+import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 type View = "week" | "2weeks" | "month"
 type Trainer = { id: string; name: string; color: string }
@@ -252,6 +253,9 @@ export default function SchedulePage() {
     else setAnchor(startOfMonth(new Date()))
   }, [view])
   const [slots, setSlots] = useState<Slot[]>([])
+  // False until the first slots fetch resolves — show the petal spinner
+  // instead of an empty grid that looks frozen on mobile.
+  const [slotsLoaded, setSlotsLoaded] = useState(false)
   const [blockedDays, setBlockedDays] = useState<BlockedDay[]>([])
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [studioPrices, setStudioPrices] = useState<{ groupPrice: number; kidsPrice: number; privatePrice: number } | null>(null)
@@ -315,6 +319,7 @@ export default function SchedulePage() {
   const fetchSlots = useCallback(async () => {
     const res = await fetch(`/api/admin/slots?from=${from}&to=${to}`, { cache: "no-store" })
     setSlots(await res.json())
+    setSlotsLoaded(true)
   }, [from, to])
 
   const fetchBlocked = useCallback(async () => {
@@ -767,9 +772,11 @@ export default function SchedulePage() {
         </div>
       </div>
 
+      {!slotsLoaded && <PetalSpinner className="py-20" />}
+
       {/* Day headers — only for 2weeks/month, hidden in Week view since
           cells already display weekday + date prominently */}
-      {view !== "week" && (
+      {slotsLoaded && view !== "week" && (
         <div className="hidden lg:grid lg:grid-cols-7 gap-2 mb-1.5 px-0.5">
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
             <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
@@ -784,6 +791,7 @@ export default function SchedulePage() {
           2 cols on lg, like the trainer's Week view */}
       <div className={cn(
         "grid gap-2",
+        !slotsLoaded && "hidden",
         view === "week"
           ? "grid-cols-1 lg:grid-cols-2"
           : "grid-cols-2 max-lg:landscape:grid-cols-4 lg:grid-cols-7"

@@ -455,7 +455,7 @@ export default function TrainersPage() {
             {/* View Schedule */}
             <button
               onClick={() => setScheduleFor(trainer)}
-              className="mt-4 w-full flex items-center justify-center gap-2 bg-white/70 hover:bg-white/90 border border-black/8 text-gray-700 py-2 rounded-xl text-sm font-medium transition-colors"
+              className="mt-4 w-full flex items-center justify-center gap-2 bg-white/70 hover:bg-white/90 border border-black/8 text-gray-700 dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/15 dark:text-gray-100 py-2 rounded-xl text-sm font-medium transition-colors"
             >
               <CalendarDays size={14} />
               View Schedule

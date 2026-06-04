@@ -13,6 +13,7 @@ import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import { QueuedClients } from "@/app/_components/QueuedClients"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { cn } from "@/lib/utils"
+import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 type Trainer = { id: string; name: string; color: string }
 
@@ -331,11 +332,7 @@ export default function BetaSchedulePage() {
 
           <div className="flex-1 min-w-0 pb-6">
             {loading && selectedSlots.length === 0 ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-14 bg-gray-100 rounded-2xl animate-pulse" />
-                ))}
-              </div>
+              <div className="bg-white rounded-2xl shadow-sm"><PetalSpinner /></div>
             ) : (
               <div className="space-y-2">
                 {selectedSlots.map((slot) => {
