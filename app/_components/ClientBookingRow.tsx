@@ -37,15 +37,6 @@ export function ClientBookingRow({
       <div className="min-w-0 flex-1">
         <div className="text-sm font-semibold text-gray-800 truncate">{name}</div>
         {phone && <div className="text-xs text-gray-500 truncate">{phone}</div>}
-        {onOpenChat && (
-          <button
-            type="button"
-            onClick={onOpenChat}
-            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#2C6E49] hover:underline"
-          >
-            <MessageSquare size={12} strokeWidth={2.25} /> Открыть чат
-          </button>
-        )}
       </div>
 
       {moving ? (
@@ -86,36 +77,49 @@ export function ClientBookingRow({
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
+          {/* Open chat — icon only, the largest target (most-used). */}
+          {onOpenChat && (
+            <button
+              type="button"
+              onClick={onOpenChat}
+              title="Открыть чат"
+              aria-label="Открыть чат"
+              className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#2C6E49]/10 text-[#2C6E49] hover:bg-[#2C6E49]/15 active:scale-95 transition flex-shrink-0"
+            >
+              <MessageSquare size={16} strokeWidth={2.25} />
+            </button>
+          )}
+          {/* Move — icon only, a touch smaller. */}
           <button
             type="button"
             onClick={() => setMoving(true)}
             disabled={targets.length === 0}
-            title={
-              targets.length === 0
-                ? "No other class with a free seat"
-                : "Move to another class"
-            }
+            title={targets.length === 0 ? "Нет другого класса со свободным местом" : "Перенести в другой класс"}
+            aria-label="Перенести"
             className={cn(
-              "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition active:scale-95",
+              "flex items-center justify-center w-8 h-8 rounded-lg transition active:scale-95 flex-shrink-0",
               targets.length === 0
                 ? "bg-gray-50 text-gray-300 cursor-not-allowed"
                 : "bg-[#2C6E49]/10 text-[#2C6E49] hover:bg-[#2C6E49]/15",
             )}
           >
-            <ArrowRightLeft size={14} strokeWidth={2.25} />
-            Move
+            <ArrowRightLeft size={15} strokeWidth={2.25} />
           </button>
+          {/* Divider + red Cancel — kept apart so it's not confused with Move. */}
           {!paid && (
-            <button
-              type="button"
-              onClick={onCancel}
-              title="Cancel this booking"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-95 transition"
-            >
-              <X size={14} strokeWidth={2.5} />
-              Cancel
-            </button>
+            <>
+              <span className="w-px h-6 bg-gray-200 flex-shrink-0" aria-hidden />
+              <button
+                type="button"
+                onClick={onCancel}
+                title="Отменить запись"
+                aria-label="Отменить запись"
+                className="flex items-center justify-center w-8 h-8 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-95 transition flex-shrink-0"
+              >
+                <X size={15} strokeWidth={2.5} />
+              </button>
+            </>
           )}
         </div>
       )}

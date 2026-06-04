@@ -1118,25 +1118,9 @@ export default function SchedulePage() {
                                 const hasBookings = bookingCount > 0
                                 return (
                                   <div key={t} className={cn(
-                                    "relative rounded-lg text-xs border pl-3 pr-10 py-2.5 space-y-2",
+                                    "rounded-lg text-xs border px-3 py-2.5 space-y-2",
                                     isExisting ? "bg-gray-50 border-gray-200" : "bg-[#2C6E49]/5 border-[#2C6E49]/15"
                                   )}>
-                                    <button type="button"
-                                      disabled={hasBookings}
-                                      onClick={() => {
-                                        const newAssignments = { ...form.assignments }
-                                        delete newAssignments[t]
-                                        setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newAssignments })
-                                      }}
-                                      title={hasBookings
-                                        ? `Has ${bookingCount} booking${bookingCount === 1 ? "" : "s"} — cancel them first or hide the session instead`
-                                        : isExisting ? "Remove this session" : "Discard this new session"}
-                                      aria-label="Remove session"
-                                      className={cn(
-                                        "absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center text-lg leading-none touch-manipulation",
-                                        hasBookings ? "text-gray-300 cursor-not-allowed" :
-                                          isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-[#2C6E49]/60 hover:text-rose-600 hover:bg-rose-50"
-                                      )}>×</button>
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className={cn(
                                         "font-medium whitespace-nowrap",
@@ -1199,6 +1183,24 @@ export default function SchedulePage() {
                                           </button>
                                         </>
                                       )}
+                                      {/* Remove session — inline at the end of the time row so it
+                                          doesn't reserve a wasted vertical strip down the card. */}
+                                      <button type="button"
+                                        disabled={hasBookings}
+                                        onClick={() => {
+                                          const newAssignments = { ...form.assignments }
+                                          delete newAssignments[t]
+                                          setForm({ ...form, startTimes: form.startTimes.filter((x) => x !== t), assignments: newAssignments })
+                                        }}
+                                        title={hasBookings
+                                          ? `Has ${bookingCount} booking${bookingCount === 1 ? "" : "s"} — cancel them first or hide the session instead`
+                                          : isExisting ? "Remove this session" : "Discard this new session"}
+                                        aria-label="Remove session"
+                                        className={cn(
+                                          "w-6 h-6 rounded-md flex items-center justify-center text-lg leading-none touch-manipulation flex-shrink-0",
+                                          hasBookings ? "text-gray-300 cursor-not-allowed" :
+                                            isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-[#2C6E49]/60 hover:text-rose-600 hover:bg-rose-50"
+                                        )}>×</button>
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <select
