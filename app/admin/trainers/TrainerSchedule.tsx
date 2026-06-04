@@ -700,7 +700,7 @@ function SlotClients({
     .map((t) => ({ id: t.id, label: `${format(new Date(t.date + "T00:00:00"), "MMM d")} · ${formatTime(t.startTime)}` }))
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -709,7 +709,7 @@ function SlotClients({
               {format(new Date(slot.date + "T00:00:00"), "EEE, MMM d")} · {formatTime(slot.startTime)}–{formatTime(slot.endTime)}
             </div>
           </div>
-          <button onClick={onClose} aria-label="Закрыть" className="p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
+          <button onClick={onClose} aria-label="Закрыть" className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 flex-shrink-0">
             <X size={18} />
           </button>
         </div>
