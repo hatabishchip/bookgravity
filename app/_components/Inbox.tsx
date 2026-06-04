@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   Loader2,
   MessageSquare,
+  Search,
   Send,
   Sparkles,
   UserCircle2,
@@ -89,6 +90,15 @@ function formatPhone(p: string) {
   if (!p) return ""
   if (p.length <= 4) return "+" + p
   return "+" + p.slice(0, p.length - 9) + " " + p.slice(-9, -6) + "-" + p.slice(-6, -3) + "-" + p.slice(-3)
+}
+
+// WhatsApp's Cloud API doesn't expose clients' profile photos, so we render a
+// nice initial avatar instead — deterministically coloured by name/phone so
+// each client is visually distinct (like a contact list).
+function avatarBg(seed: string): React.CSSProperties {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360
+  return { background: `linear-gradient(135deg, hsl(${h} 42% 46%), hsl(${(h + 28) % 360} 44% 36%))` }
 }
 
 function previewText(m: ConversationListItem["lastMessage"]): string {
@@ -557,6 +567,7 @@ export default function Inbox({
   const selectedId = embedded ? embeddedSelectedId : searchParams.get("c")
 
   const [convos, setConvos] = useState<ConversationListItem[] | null>(null)
+  const [search, setSearch] = useState("")
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [trainers, setTrainers] = useState<Trainer[]>([])
@@ -1130,6 +1141,16 @@ export default function Inbox({
   }, [detail?.lastInboundAt])
 
   // ---------- List column ----------
+  // Client-side search over the loaded conversation list (by name; admin can
+  // also match by phone digits).
+  const searchQ = search.trim().toLowerCase()
+  const searchDigits = searchQ.replace(/\D/g, "")
+  const visibleConvos = convos && searchQ
+    ? convos.filter((c) =>
+        (c.clientName ?? "").toLowerCase().includes(searchQ) ||
+        (role === "ADMIN" && searchDigits.length > 0 && c.clientPhone.replace(/\D/g, "").includes(searchDigits)))
+    : convos
+
   const listColumn = (
     <div className="bg-white border-r border-gray-100 flex flex-col h-full dark:bg-[#0B141A] dark:border-transparent">
       {/* WhatsApp-style header: title left, action icons + close on the right. */}
@@ -1168,6 +1189,22 @@ export default function Inbox({
         </div>
       </div>
 
+      {/* Search by client name (or phone for admin). */}
+      {convos && convos.length > 0 && (
+        <div className="px-3 pb-2 flex-shrink-0">
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-[#8696A0]" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Поиск по имени"
+              className="w-full bg-gray-100 dark:bg-[#202C33] rounded-lg pl-9 pr-3 py-2 text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0] focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+            />
+          </div>
+        </div>
+      )}
+
       {!convos ? (
         <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
           <Loader2 size={16} className="animate-spin mr-2" /> Loading...
@@ -1184,7 +1221,10 @@ export default function Inbox({
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          {convos.map((c) => {
+          {visibleConvos!.length === 0 && (
+            <div className="py-10 text-center text-gray-400 dark:text-[#8696A0] text-sm">Ничего не найдено</div>
+          )}
+          {visibleConvos!.map((c) => {
             const hasUnread = c.unread > 0
             return (
               <button
@@ -1198,7 +1238,10 @@ export default function Inbox({
               >
                 {/* Avatar — WhatsApp uses ~52px, default to a neutral gradient
                     if no profile photo is set. */}
-                <div className="w-[52px] h-[52px] rounded-full bg-gradient-to-br from-[#3B4A54] to-[#54656F] text-white flex items-center justify-center font-semibold text-xl flex-shrink-0 select-none">
+                <div
+                  className="w-[52px] h-[52px] rounded-full text-white flex items-center justify-center font-semibold text-xl flex-shrink-0 select-none"
+                  style={avatarBg(c.clientName || c.clientPhone || "?")}
+                >
                   {(c.clientName?.[0] ?? "?").toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-[#222D34] pb-2.5">
@@ -1305,7 +1348,10 @@ export default function Inbox({
         >
           <ArrowLeft size={18} />
         </button>
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#3B4A54] to-[#54656F] text-white flex items-center justify-center font-semibold text-base flex-shrink-0 select-none">
+        <div
+          className="w-10 h-10 rounded-full text-white flex items-center justify-center font-semibold text-base flex-shrink-0 select-none"
+          style={avatarBg(detail?.clientName || detail?.clientPhone || "?")}
+        >
           {(detail?.clientName?.[0] ?? "?").toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">

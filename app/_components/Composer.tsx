@@ -109,6 +109,17 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
   const [bottomPanel, setBottomPanel] = useState<"keyboard" | "stickers">("keyboard")
   // Quick-reply templates popover.
   const [showTemplates, setShowTemplates] = useState(false)
+  // Desktop = wide viewport with a real pointer → use the real OS keyboard, no
+  // on-screen VirtualKeyboard. The emoji picker becomes a toggled panel.
+  const [desktop, setDesktop] = useState(false)
+  const [emojiOpen, setEmojiOpen] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px) and (pointer: fine)")
+    const update = () => setDesktop(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [])
 
   // Recompute the textarea's height (up to 3 lines, then internal scroll).
   // Read-then-write in the same task to avoid layout thrashing. Coalesced
@@ -366,14 +377,24 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                 type="button"
                 tabIndex={-1}
                 onPointerDown={(e) => e.preventDefault()}
-                onClick={() =>
-                  setBottomPanel((m) => (m === "keyboard" ? "stickers" : "keyboard"))
-                }
+                onClick={() => {
+                  if (desktop) {
+                    setEmojiOpen((v) => !v)
+                    textareaRef.current?.focus({ preventScroll: true })
+                  } else {
+                    setBottomPanel((m) => (m === "keyboard" ? "stickers" : "keyboard"))
+                  }
+                }}
                 disabled={!onAttach}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 dark:text-[#8696A0] flex-shrink-0 disabled:opacity-40 active:opacity-60"
-                aria-label={bottomPanel === "keyboard" ? "Open stickers" : "Open keyboard"}
+                className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 active:opacity-60",
+                  desktop && emojiOpen ? "text-[#2C6E49] dark:text-[#69B58F]" : "text-gray-600 dark:text-[#8696A0]",
+                )}
+                aria-label="Emoji"
               >
-                {bottomPanel === "keyboard" ? <Smile size={22} /> : <Keyboard size={22} />}
+                {/* On desktop the icon is always the smiley (toggles an emoji
+                    panel); on mobile it flips between emoji + keyboard. */}
+                {desktop || bottomPanel === "keyboard" ? <Smile size={22} /> : <Keyboard size={22} />}
               </button>
 
               {/* Quick-reply templates toggle. */}
@@ -421,7 +442,10 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                 updateHeight()
                 syncHasText()
               }}
-              onBlur={() => {
+              // Mobile only: the VirtualKeyboard drives input, so we keep the
+              // textarea focused (re-grab focus if it's lost to <body>). On
+              // desktop the real keyboard is used, so we let blur happen.
+              onBlur={desktop ? undefined : () => {
                 requestAnimationFrame(() => {
                   const active = document.activeElement
                   if (
@@ -432,10 +456,17 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                   }
                 })
               }}
-              inputMode="none"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
+              // Desktop: Enter sends, Shift+Enter makes a newline.
+              onKeyDown={desktop ? (e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  void send()
+                }
+              } : undefined}
+              inputMode={desktop ? undefined : "none"}
+              autoCorrect={desktop ? "on" : "off"}
+              autoCapitalize={desktop ? "sentences" : "off"}
+              spellCheck={desktop}
               placeholder="Message"
               disabled={sending}
               rows={1}
@@ -463,7 +494,19 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
         </div>
       </div>
 
-      {bottomPanel === "keyboard" ? (
+      {/* Desktop: no on-screen keyboard — the real keyboard is used. The emoji
+          picker is a toggled panel. Mobile: keep the VirtualKeyboard / sticker
+          panel always docked at the bottom. */}
+      {desktop ? (
+        emojiOpen && (
+          <StickerPicker
+            onPick={(emoji) => {
+              insertText(emoji)
+              textareaRef.current?.focus({ preventScroll: true })
+            }}
+          />
+        )
+      ) : bottomPanel === "keyboard" ? (
         <VirtualKeyboard onInsert={insertText} onBackspace={backspace} />
       ) : (
         <StickerPicker
