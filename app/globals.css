@@ -25,6 +25,10 @@
    These rules are unlayered, so they win over Tailwind's layered utilities.
    =========================================================================== */
 .dark { color-scheme: dark; }
+/* Paint the document itself dark when the admin dark theme is on — so the
+   first frame and any rubber-band overscroll never flash the light page bg
+   from behind the app shell. (`.dark` lives on <html>.) */
+html.dark, .dark body { background-color: #0c0f14; }
 
 /* Surfaces */
 .dark main .bg-white { background-color: #171b21; }
