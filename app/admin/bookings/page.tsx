@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { format, addDays } from "date-fns"
-import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, User, Clock, CreditCard, CheckCircle2, StickyNote, Sparkles, Copy, Check, X } from "lucide-react"
+import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, CheckCircle2, Copy, Check, X } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
@@ -107,59 +107,47 @@ function BookingDetails({
   }
 
   return (
-    <div className="px-4 lg:px-6 py-5 bg-[#2C6E49]/[0.03] border-t border-[#2C6E49]/15 space-y-4">
-      {/* Top meta row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <MetaCell icon={<Calendar size={13} />} label="Date" value={format(new Date(booking.slot.date), "EEE, MMM d")} />
-        <MetaCell icon={<Clock size={13} />} label="Time" value={`${formatTime(booking.slot.startTime)} – ${formatTime(booking.slot.endTime)}`} />
-        <MetaCell icon={<User size={13} />} label="Trainer" value={booking.slot.trainer?.name ?? "—"} />
-        <MetaCell icon={<Calendar size={13} />} label="Booked on" value={format(new Date(booking.createdAt), "MMM d")} />
+    <div className="px-4 lg:px-6 py-4 bg-[#2C6E49]/[0.03] border-t border-[#2C6E49]/15 space-y-3">
+      {/* Date & time already live in the row header — here we only keep the
+          secondary bits (trainer + booked-on) as quiet, de-emphasised text. */}
+      <div className="flex items-center gap-x-4 gap-y-0.5 flex-wrap text-xs text-gray-400">
+        <span>Trainer <span className="text-gray-500 font-medium">{booking.slot.trainer?.name ?? "—"}</span></span>
+        <span>Booked <span className="text-gray-500 font-medium">{format(new Date(booking.createdAt), "MMM d")}</span></span>
       </div>
 
-      {/* Two-column main layout: contact + payment | services + notes */}
+      {/* Contact + Payment */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* Contact card */}
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-1.5 mb-3">
-            <Phone size={14} className="text-[#2C6E49]" />
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact</h3>
+        {/* Contact — no heading; the phone/telegram speak for themselves */}
+        <div className="bg-white rounded-xl p-3 border border-gray-100 space-y-2">
+          <div className="flex items-center gap-2 group">
+            <Phone size={14} className="text-gray-400 flex-shrink-0" />
+            <a href={`tel:${booking.clientPhone}`} className="text-sm text-gray-800 hover:text-[#2C6E49] flex-1 truncate">
+              {booking.clientPhone}
+            </a>
+            <CopyButton value={booking.clientPhone} />
           </div>
-          <div className="space-y-2">
+          {booking.clientTelegram && (
             <div className="flex items-center gap-2 group">
-              <Phone size={14} className="text-gray-400 flex-shrink-0" />
-              <a href={`tel:${booking.clientPhone}`} className="text-sm text-gray-800 hover:text-[#2C6E49] flex-1 truncate">
-                {booking.clientPhone}
-              </a>
-              <CopyButton value={booking.clientPhone} />
+              <Send size={14} className="text-gray-400 flex-shrink-0" />
+              <span className="text-sm text-gray-800 flex-1 truncate">{booking.clientTelegram}</span>
+              <CopyButton value={booking.clientTelegram} />
             </div>
-            {booking.clientTelegram && (
-              <div className="flex items-center gap-2 group">
-                <Send size={14} className="text-gray-400 flex-shrink-0" />
-                <span className="text-sm text-gray-800 flex-1 truncate">{booking.clientTelegram}</span>
-                <CopyButton value={booking.clientTelegram} />
-              </div>
-            )}
-            {wa && (
-              <a
-                href={wa}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="mt-2 w-full flex items-center justify-center gap-2 text-sm font-medium bg-[#25D366] hover:bg-[#1da851] text-white px-3 py-2 rounded-lg transition-colors"
-              >
-                <MessageCircle size={14} /> Send WhatsApp confirmation
-              </a>
-            )}
-          </div>
+          )}
+          {wa && (
+            <a
+              href={wa}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="mt-0.5 w-full flex items-center justify-center gap-2 text-sm font-medium bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1a7e43] dark:text-[#5fd98a] border border-[#25D366]/25 px-3 py-2 rounded-lg transition-colors"
+            >
+              <MessageCircle size={14} /> Send WhatsApp confirmation
+            </a>
+          )}
         </div>
 
-        {/* Payment card */}
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-1.5 mb-3">
-            <CreditCard size={14} className="text-[#2C6E49]" />
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</h3>
-          </div>
-
+        {/* Payment — no "Mark as paid with" label, it's self-evident */}
+        <div className="bg-white rounded-xl p-3 border border-gray-100">
           {booking.paymentStatus === "PAID" ? (
             <div className="flex items-center justify-between gap-2 bg-[#2C6E49]/5 border border-[#2C6E49]/20 rounded-lg px-3 py-2">
               <span className="flex items-center gap-1.5 text-sm font-medium text-[#2C6E49]">
@@ -176,77 +164,53 @@ function BookingDetails({
               </button>
             </div>
           ) : (
-            <div>
-              <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">Mark as paid with</label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {PAYMENT_METHODS.map((pm) => (
-                  <button
-                    key={pm.value}
-                    type="button"
-                    disabled={isUpdating}
-                    onClick={() => onUpdate({ paymentType: pm.value, paymentStatus: "PAID" })}
-                    className={cn(
-                      "px-2 py-2 rounded-lg text-xs font-medium border text-center truncate touch-manipulation",
-                      "bg-white text-gray-500 border-gray-200 hover:border-[#2C6E49]/40 hover:text-[#2C6E49]"
-                    )}
-                  >
-                    {pm.label}
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {PAYMENT_METHODS.map((pm) => (
+                <button
+                  key={pm.value}
+                  type="button"
+                  disabled={isUpdating}
+                  onClick={() => onUpdate({ paymentType: pm.value, paymentStatus: "PAID" })}
+                  className={cn(
+                    "px-2 py-2 rounded-lg text-xs font-medium border text-center truncate touch-manipulation",
+                    "bg-white text-gray-500 border-gray-200 hover:border-[#2C6E49]/40 hover:text-[#2C6E49]"
+                  )}
+                >
+                  {pm.label}
+                </button>
+              ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* Services + Notes */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {booking.services.length > 0 && (
-          <div className="bg-white rounded-xl p-4 border border-gray-100">
-            <div className="flex items-center gap-1.5 mb-3">
-              <Sparkles size={14} className="text-[#2C6E49]" />
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Additional services</h3>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {booking.services.map((s, i) => (
-                <span key={i} className="inline-flex items-center gap-1.5 text-xs bg-[#2C6E49]/5 text-[#2C6E49] px-2.5 py-1 rounded-lg font-medium">
-                  {s.service.name}
-                  <span className="text-[#2C6E49]/60">·</span>
-                  <span className="text-[#2C6E49]/80">{Math.round(s.service.price / 1000)}k</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className={cn("bg-white rounded-xl p-4 border border-gray-100", booking.services.length === 0 && "lg:col-span-2")}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5">
-              <StickyNote size={14} className="text-[#2C6E49]" />
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</h3>
-            </div>
-            {noteSaved && (
-              <span className="text-[10px] text-green-600 flex items-center gap-1">
-                <Check size={10} /> Saved
-              </span>
-            )}
-          </div>
-          <textarea
-            value={noteDraft}
-            onChange={(e) => setNoteDraft(e.target.value)}
-            onBlur={saveNote}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.currentTarget.blur()
-              }
-            }}
-            onClick={(e) => e.stopPropagation()}
-            rows={2}
-            disabled={isUpdating}
-            placeholder="Add a note about this client..."
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] resize-none disabled:opacity-50"
-          />
+      {/* Services — only if any; just the chips, compact */}
+      {booking.services.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {booking.services.map((s, i) => (
+            <span key={i} className="inline-flex items-center gap-1.5 text-xs bg-[#2C6E49]/5 text-[#2C6E49] px-2.5 py-1 rounded-lg font-medium">
+              {s.service.name}
+              <span className="text-[#2C6E49]/60">·</span>
+              <span className="text-[#2C6E49]/80">{Math.round(s.service.price / 1000)}k</span>
+            </span>
+          ))}
         </div>
+      )}
+
+      {/* Notes — a single light line; the label lives in the placeholder */}
+      <div className="relative">
+        <input
+          type="text"
+          value={noteDraft}
+          onChange={(e) => setNoteDraft(e.target.value)}
+          onBlur={saveNote}
+          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur() }}
+          onClick={(e) => e.stopPropagation()}
+          disabled={isUpdating}
+          placeholder="Notes"
+          className="w-full bg-white border border-gray-100 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-50"
+        />
+        {noteSaved && <Check size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-600" />}
       </div>
 
       {/* Cancel — same action as in Schedule / Schedule Beta. Hidden once the
@@ -265,18 +229,6 @@ function BookingDetails({
           </button>
         </div>
       )}
-    </div>
-  )
-}
-
-function MetaCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="px-3 py-2 rounded-lg bg-white/60 border border-gray-100">
-      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-0.5">
-        <span className="text-gray-300">{icon}</span>
-        {label}
-      </div>
-      <div className="text-sm font-medium text-gray-700 truncate">{value}</div>
     </div>
   )
 }
