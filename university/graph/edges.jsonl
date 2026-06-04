@@ -1,0 +1,7 @@
+{"from":"src-20260604-hbr-value-keeping-right-customers","to":"n-acquiring-customer-5-25x-costlier-than-retention","type":"produced","ts":"2026-06-04T02:06:57Z"}
+{"from":"src-20260604-hbr-value-keeping-right-customers","to":"n-5pct-retention-lift-raises-profit-25-95pct","type":"produced","ts":"2026-06-04T02:06:57Z"}
+{"from":"n-acquiring-customer-5-25x-costlier-than-retention","to":"n-5pct-retention-lift-raises-profit-25-95pct","type":"supports"}
+{"from":"n-5pct-retention-lift-raises-profit-25-95pct","to":"n-acquiring-customer-5-25x-costlier-than-retention","type":"supports"}
+{"from":"n-acquiring-customer-5-25x-costlier-than-retention","to":"c-0001","type":"supports"}
+{"from":"n-5pct-retention-lift-raises-profit-25-95pct","to":"c-0001","type":"supports"}
+{"from":"src-20260604-hbr-value-keeping-right-customers","to":"syn-retention","type":"cited_by"}

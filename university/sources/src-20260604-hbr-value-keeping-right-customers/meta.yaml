@@ -1,0 +1,41 @@
+id: src-20260604-hbr-value-keeping-right-customers
+url: https://hbr.org/2014/10/the-value-of-keeping-the-right-customers
+canonical_url: https://hbr.org/2014/10/the-value-of-keeping-the-right-customers
+type: blog
+title: 'The Value of Keeping the Right Customers'
+authors:
+  - name: 'Amy Gallo'
+    affiliation: 'Harvard Business Review (contributing editor)'
+published: 2014-10-29
+fetched_at: 2026-06-04T02:06:57Z
+language: en
+fetch_method: webfetch
+storage:
+  original: original.md
+  bytes: 0
+
+relevance: 4   # §2 — прямо в growth/retention; не студийно-специфично, но применимо
+quality: 5     # §3 — вторичка, но с эмпирикой Bain/Reichheld
+quality_breakdown:
+  primary_source: false      # сама статья — журналистика; первоисточник цифр у Bain
+  author_credible: true      # +1 HBR contributing editor
+  has_math: false
+  has_empirics: true         # +2 конкретные цифры с названным источником (Bain)
+  reproducible: false
+  recent: false              # 2014 (>24 мес), но retention-экономика стабильна — не штрафуем
+  cited: true                # +1 Reichheld/Bain широко цитируются
+  substance_over_disclaimer: true  # +1
+
+bias:
+  protocol_sponsored: false
+  marketing: false
+  notes: 'Редакционная статья HBR. Полный текст за пейволлом — извлечено intro + ключевые цифры.'
+
+extracted:
+  notes: [n-acquiring-customer-5-25x-costlier-than-retention, n-5pct-retention-lift-raises-profit-25-95pct]
+  claims: [c-0001]
+  contradictions: []
+  outbound_links_tracked: 2
+
+status: processed
+reject_reason: null
