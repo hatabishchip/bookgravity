@@ -1322,7 +1322,7 @@ export default function Inbox({
 
   // ---------- Chat column ----------
   const chatColumn = !selectedId ? (
-    <div className="hidden lg:flex flex-1 items-center justify-center text-gray-400 text-sm bg-[#F5F4F0]">
+    <div className="hidden lg:flex flex-1 items-center justify-center text-gray-400 dark:text-[#8696A0] text-sm bg-[#F5F4F0] dark:bg-[#0B141A]">
       <div className="text-center">
         <MessageSquare size={48} className="mx-auto opacity-20 mb-3" />
         <div>Select a conversation on the left</div>
