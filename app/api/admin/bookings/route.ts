@@ -13,6 +13,9 @@ export async function GET(request: NextRequest) {
 
   const bookings = await prisma.booking.findMany({
     where: {
+      // Cancelled bookings must not show up in the Bookings list (or the
+      // Schedule client lists) — otherwise a cancel looks like it did nothing.
+      status: { not: "CANCELLED" },
       slot: {
         studioId: ctx.studioId,
         ...(date ? { date } : {}),
