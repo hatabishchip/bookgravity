@@ -86,21 +86,7 @@ export interface ComposerProps {
   waveDisabled?: boolean
 }
 
-export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, clientName, onWave, waveDisabled }: ComposerProps) {
-  // Greeting opener: personalise with the client's saved name when it looks
-  // like a real name (contains a letter — filters out phone-number "names").
-  // No name → the plain "Greetings!" template (a WA template variable can't be
-  // empty, so we use a separate variable-less template).
-  const greetingName = (clientName ?? "").trim()
-  const greetingHasName = /\p{L}/u.test(greetingName)
-  const greetingTemplate: TemplateDef = greetingHasName
-    ? {
-        label: `Greeting — ${greetingName}`,
-        text: `Greetings, ${greetingName}!`,
-        templateName: "greeting_named",
-        variables: [greetingName],
-      }
-    : { label: "Greeting", text: "Greetings!", templateName: "greeting" }
+export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasText, setHasText] = useState(false)
@@ -297,7 +283,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                 </button>
               </div>
               <div className="py-1">
-                {[greetingTemplate, ...MESSAGE_TEMPLATES].map((tpl) => (
+                {MESSAGE_TEMPLATES.map((tpl) => (
                   <button
                     key={tpl.label}
                     type="button"
@@ -416,9 +402,11 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             </>
           )}
 
-          {/* Trainer-only: a single 👋 wave button. Sends a wave to the chat;
-              rate-limited to once per 12h (greyed out during the cooldown). */}
-          {role === "TRAINER" && onWave && (
+          {/* 👋 wave button — a quick greeting that re-opens a cold chat.
+              Shown for BOTH admin and trainer (trainers get only this button;
+              admins get it alongside attach / stickers / templates).
+              Rate-limited to once per 12h (greyed out during the cooldown). */}
+          {onWave && (
             <button
               type="button"
               tabIndex={-1}
