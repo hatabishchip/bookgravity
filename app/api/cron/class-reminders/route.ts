@@ -126,8 +126,8 @@ export async function GET(req: NextRequest) {
             type: "template",
             body:
               `Reminder: your group class is tomorrow at ${time}. ` +
-              `Please arrive 10 minutes early. — ${trainerName}`,
-            templateName: process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder",
+              `Please arrive 10 minutes early.`,
+            templateName: process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder_v2",
             waMessageId: res.messageId ?? null,
             status: "sent",
             fromTrainerId: null,

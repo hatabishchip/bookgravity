@@ -503,9 +503,11 @@ export async function sendClientBookingConfirmationWA(opts: {
 
 /**
  * Day-before class reminder, sent by the daily cron at 17:00 studio-local time.
- * Signed by the trainer who runs the group.
- *   {{1}} = trainer name
- *   {{2}} = class time (e.g. "09:00–11:00")
+ * The trainer's name is deliberately NOT shown to the client (owner's choice);
+ * the message is from the studio. Single variable:
+ *   {{1}} = class time (e.g. "09:00–11:00")
+ * `trainerName` is still accepted (callers pass it for the admin-side chat log)
+ * but isn't sent in the client message.
  */
 export async function sendClassReminderWA(opts: {
   clientPhone: string
@@ -514,13 +516,13 @@ export async function sendClassReminderWA(opts: {
   /** The class's studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
-  const templateName = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder"
+  const templateName = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder_v2"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
   return sendWhatsAppTemplate({
     toPhone: opts.clientPhone,
     templateName,
     languageCode: lang,
-    variables: [opts.trainerName, opts.time],
+    variables: [opts.time],
     config: getConfigFor(opts.studioWA),
   })
 }
