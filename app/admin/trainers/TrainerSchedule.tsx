@@ -117,6 +117,13 @@ export default function TrainerSchedule({
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
 
+  // Esc closes the overlay (desktop keyboards) — another way back out.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
   const handlePrev = () => {
     if (view === "month") setAnchor(subMonths(startOfMonth(anchor), 1))
     else if (view === "2weeks") setAnchor(subWeeks(anchor, 2))
@@ -202,6 +209,18 @@ export default function TrainerSchedule({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex">
+      {/* Always-visible close button (mobile/tablet) — pinned to the viewport
+          so it never scrolls away with the (long) month grid. The reliable
+          way back to the Trainers list. On desktop the header X + the
+          tap-outside backdrop already cover this. */}
+      <button
+        onClick={onClose}
+        aria-label="Close schedule"
+        className="lg:hidden fixed top-3 right-3 z-[55] flex items-center justify-center w-11 h-11 rounded-full bg-white text-gray-700 shadow-lg ring-1 ring-black/10 hover:bg-gray-100 active:scale-95 transition"
+      >
+        <X size={22} />
+      </button>
+
       <div className="hidden lg:block flex-1" onClick={onClose} />
 
       <div className="w-full max-w-5xl bg-gray-50 h-full overflow-y-auto flex flex-col shadow-2xl">
@@ -220,9 +239,6 @@ export default function TrainerSchedule({
                 {headerLabel} · {mySlots} sessions
               </p>
             </div>
-            <button onClick={onClose} aria-label="Close schedule" className="sm:hidden flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 flex-shrink-0">
-              <X size={18} />
-            </button>
           </div>
 
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
@@ -268,7 +284,9 @@ export default function TrainerSchedule({
               </button>
             </div>
 
-            <button onClick={onClose} aria-label="Close schedule" className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 ml-1 flex-shrink-0">
+            {/* Desktop close — hidden on mobile/tablet where the floating
+                fixed X handles it. */}
+            <button onClick={onClose} aria-label="Close schedule" className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 ml-1 flex-shrink-0">
               <X size={18} />
             </button>
           </div>
