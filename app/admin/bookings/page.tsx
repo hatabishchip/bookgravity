@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { format, addDays } from "date-fns"
-import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, User, Clock, CreditCard, CheckCircle2, StickyNote, Sparkles, Copy, Check } from "lucide-react"
+import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, User, Clock, CreditCard, CheckCircle2, StickyNote, Sparkles, Copy, Check, X } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
@@ -77,11 +77,12 @@ function CopyButton({ value }: { value: string }) {
 }
 
 function BookingDetails({
-  booking, isUpdating, onUpdate,
+  booking, isUpdating, onUpdate, onCancel,
 }: {
   booking: Booking
   isUpdating: boolean
   onUpdate: (data: Record<string, string>) => Promise<void> | void
+  onCancel: () => void
 }) {
   const [noteDraft, setNoteDraft] = useState(booking.notes ?? "")
   const [noteSaved, setNoteSaved] = useState(false)
@@ -247,6 +248,20 @@ function BookingDetails({
           />
         </div>
       </div>
+
+      {/* Cancel — same action as in Schedule / Schedule Beta. */}
+      <div className="flex justify-end pt-1">
+        <button
+          type="button"
+          disabled={isUpdating}
+          onClick={onCancel}
+          title="Cancel this booking"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-95 transition disabled:opacity-50"
+        >
+          <X size={14} strokeWidth={2.5} />
+          Cancel booking
+        </button>
+      </div>
     </div>
   )
 }
@@ -299,6 +314,30 @@ export default function BookingsPage() {
       })
     } catch {
       // Network error — pull authoritative state back
+      fetchBookings()
+    }
+  }
+
+  // Cancel a booking — identical mechanism to Schedule / Schedule Beta:
+  // confirm, optimistically drop it from the list, then PATCH status=CANCELLED.
+  const cancelBooking = async (id: string, name: string) => {
+    const cleanName = name.replace(/\s*\(\d+\/\d+\)$/, "")
+    if (!confirm(`Cancel ${cleanName}'s booking?`)) return
+    setBookings((prev) => prev.filter((b) => b.id !== id))
+    setExpandedId(null)
+    try {
+      const res = await fetch(`/api/admin/bookings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        alert(e.error ?? "Couldn't cancel the booking. Please try again.")
+        fetchBookings()
+      }
+    } catch {
+      alert("Network error — couldn't cancel the booking. Please try again.")
       fetchBookings()
     }
   }
@@ -447,6 +486,7 @@ export default function BookingsPage() {
                       booking={b}
                       isUpdating={updating === b.id}
                       onUpdate={(data) => updateBooking(b.id, data)}
+                      onCancel={() => cancelBooking(b.id, b.clientName)}
                     />
                   )}
                 </div>
