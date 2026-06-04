@@ -435,7 +435,7 @@ export default function BookingsPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-gray-400 text-sm">No bookings found</div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-gray-50 dark:divide-transparent">
             {filtered.map((b) => {
               const badge = paymentBadge(b.paymentType, b.paymentStatus)
               const isExpanded = expandedId === b.id
@@ -444,7 +444,11 @@ export default function BookingsPage() {
                 <div
                   key={b.id}
                   className={cn(
-                    isExpanded && "relative z-10 my-2 mx-2 lg:mx-3 rounded-xl ring-1 ring-[#2C6E49]/25 shadow-sm overflow-hidden bg-white"
+                    // Dark mode: each client is a clearly framed card so rows
+                    // don't melt into the dark background (the light-mode
+                    // divide-gray-50 separators are invisible on dark).
+                    "dark:border dark:border-white/15 dark:rounded-xl dark:bg-white/[0.03] dark:mx-2 dark:my-2",
+                    isExpanded && "relative z-10 my-2 mx-2 lg:mx-3 rounded-xl ring-1 ring-[#2C6E49]/25 shadow-sm overflow-hidden bg-white dark:bg-white/[0.05] dark:border-[#4cae7a]/50"
                   )}
                 >
                   <div
