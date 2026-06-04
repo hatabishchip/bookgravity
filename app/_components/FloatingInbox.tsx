@@ -31,6 +31,18 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   // When opened via the "Open chat" buttons elsewhere (Bookings / Schedule /
   // Schedule Beta / Trainers), this holds the conversation to jump straight to.
   const [initialChatId, setInitialChatId] = useState<string | null>(null)
+  // Desktop = wide viewport + real pointer. The visualViewport-tracking hack
+  // below is ONLY needed on mobile (to dodge the iOS keyboard); on desktop it
+  // can mis-size/offset the modal when browser zoom ≠ 100% (the visual and
+  // layout viewports diverge), which made the chat "float"/overlap.
+  const [desktop, setDesktop] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px) and (pointer: fine)")
+    const update = () => setDesktop(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [])
   const [unreadChats, setUnreadChats] = useState(0)
   const [mounted, setMounted] = useState(false)
   // Per-studio gate. We default to `null` while loading so the FAB doesn't
@@ -134,7 +146,8 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
     null,
   )
   useEffect(() => {
-    if (!open) return
+    // Desktop: never track visualViewport — keep the modal pinned to inset:0.
+    if (!open || desktop) { setVv(null); return }
     const visual = window.visualViewport
     if (!visual) return
     let raf = 0
@@ -155,7 +168,7 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
       cancelAnimationFrame(raf)
       visual.removeEventListener("resize", update)
     }
-  }, [open])
+  }, [open, desktop])
 
   // ESC closes the modal.
   useEffect(() => {
