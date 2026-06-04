@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation"
 import { Calendar, BookOpen, Users, Package, LayoutDashboard, LogOut, Banknote, Settings, ExternalLink, X, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import FloatingInbox from "@/app/_components/FloatingInbox"
-import { useAdminTheme } from "@/lib/use-admin-theme"
 
 const navItems: { href: string; label: string; icon: React.ComponentType<{ size?: number }>; beta?: boolean }[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -128,14 +127,29 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [navOpen, setNavOpen] = useState(false)
-  const { theme } = useAdminTheme()
+
+  // Keep <html>.dark in sync with the saved admin theme. The anti-FOUC script
+  // in the root layout sets it on the first paint (so no white flash on
+  // refresh); this keeps it correct for client-side navigation into admin and
+  // live theme toggles, and removes it when leaving admin so the public site
+  // and trainer area stay light. Reads localStorage directly (not the laggy
+  // hook state) so there's no flash on mount.
+  useEffect(() => {
+    const root = document.documentElement
+    const apply = () => root.classList.toggle("dark", localStorage.getItem("admin-theme") === "dark")
+    apply()
+    window.addEventListener("admin-theme-change", apply)
+    window.addEventListener("storage", apply)
+    return () => {
+      window.removeEventListener("admin-theme-change", apply)
+      window.removeEventListener("storage", apply)
+      root.classList.remove("dark")
+    }
+  }, [])
 
   return (
     <SessionProvider>
-      <div className={cn(
-        "flex min-h-screen",
-        theme === "dark" ? "dark bg-[#0c0f14]" : "bg-[#F5F4F0]",
-      )}>
+      <div className="flex min-h-screen bg-[#F5F4F0] dark:bg-[#0c0f14]">
         <aside
           className={cn(
             "fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-100 flex flex-col transition-transform duration-200",

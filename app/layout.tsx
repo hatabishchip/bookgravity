@@ -67,8 +67,20 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geist.variable} h-full overflow-x-hidden`}>
-      <body className="min-h-full bg-[#F5F4F0] font-sans antialiased overflow-x-hidden">
+    <html lang="en" suppressHydrationWarning className={`${geist.variable} h-full overflow-x-hidden`}>
+      <body className="min-h-full bg-[#F5F4F0] dark:bg-[#0c0f14] font-sans antialiased overflow-x-hidden">
+        {/* Anti-FOUC: the admin dark theme is stored in localStorage and applied
+            client-side. Without this, a dark-mode admin sees a white flash on
+            every refresh (light first paint → JS flips to dark). This runs
+            synchronously before the body paints and sets `.dark` on <html> so
+            the very first frame is already dark. Scoped to /admin so the public
+            site and trainer area stay light. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{if(location.pathname.indexOf('/admin')===0&&localStorage.getItem('admin-theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}})();",
+          }}
+        />
         <OfflineBanner />
         {children}
       </body>
