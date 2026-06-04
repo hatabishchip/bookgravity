@@ -1550,11 +1550,15 @@ export default function Inbox({
         </div>
       )}
 
-      {/* Desktop: side-by-side. Mobile: show list, or chat if selected */}
+      {/* Desktop: side-by-side. Mobile: show list, or chat if selected.
+          NOTE: use lg:block (not lg:flex) here — as a flex item the list
+          column wouldn't shrink below its content's intrinsic width
+          (min-width:auto), so the inner column overflowed past the fixed
+          360/400px and the search bar/rows spilled over the chat pane. */}
       <div
         className={cn(
-          "w-full lg:w-[360px] xl:w-[400px] flex-shrink-0",
-          selectedId && "hidden lg:flex",
+          "w-full lg:w-[360px] xl:w-[400px] flex-shrink-0 overflow-hidden",
+          selectedId && "hidden lg:block",
         )}
       >
         {listColumn}
