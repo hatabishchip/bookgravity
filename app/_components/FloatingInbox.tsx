@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { MessageSquare } from "lucide-react"
 import Inbox from "@/app/_components/Inbox"
 import { cn } from "@/lib/utils"
+import { useAdminTheme } from "@/lib/use-admin-theme"
 
 /**
  * Floating chat button anchored to the bottom-right of every page in the
@@ -21,6 +22,11 @@ import { cn } from "@/lib/utils"
  */
 export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   const pathname = usePathname()
+  // The modal is portaled to <body>, OUTSIDE the admin shell's `.dark`
+  // wrapper — so the dark theme (both the `dark:` variants and the
+  // `.dark main` remap) is lost and the chat renders light. Re-apply the
+  // theme on the portal root so it matches the rest of the admin.
+  const { theme } = useAdminTheme()
   const [open, setOpen] = useState(false)
   const [unreadChats, setUnreadChats] = useState(0)
   const [mounted, setMounted] = useState(false)
@@ -182,29 +188,37 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
   if (waEnabled !== true) return null
 
   const modal = open ? (
-    <div
-      // `touch-action: pan-y` blocks pinch-to-zoom on iOS Safari while still
-      // allowing vertical scroll of the chat thread (we don't need horizontal
-      // pan anywhere inside the modal). Without this iOS lets two-finger
-      // gestures zoom the page even though the viewport meta has
-      // user-scalable=no.
-      className="fixed inset-0 z-[2147483646] bg-white dark:bg-[#0B141A] overflow-hidden touch-pan-y"
-      // The outer layer NEVER moves and is fully opaque — this is what
-      // guarantees the underlying admin page can't peek through.
-      role="dialog"
-      aria-modal="true"
-      aria-label="WhatsApp Inbox"
-    >
-      <div
-        className="absolute bg-white dark:bg-[#0B141A] overflow-hidden"
-        style={
-          vv
-            ? { top: vv.y, left: vv.x, width: vv.w, height: vv.h }
-            : { inset: 0 }
-        }
-      >
-        <Inbox role={role} embedded onClose={() => setOpen(false)} />
-      </div>
+    // `.dark` re-applies the dark theme inside the portal; the nested
+    // <main> (display:contents, so it adds no box) re-establishes the
+    // `.dark main` remap scope used across the admin. Both are needed
+    // because the portal lives under <body>, outside the admin shell.
+    <div className={theme === "dark" ? "dark" : undefined}>
+      <main className="contents">
+        <div
+          // `touch-action: pan-y` blocks pinch-to-zoom on iOS Safari while still
+          // allowing vertical scroll of the chat thread (we don't need horizontal
+          // pan anywhere inside the modal). Without this iOS lets two-finger
+          // gestures zoom the page even though the viewport meta has
+          // user-scalable=no.
+          className="fixed inset-0 z-[2147483646] bg-white dark:bg-[#0B141A] overflow-hidden touch-pan-y"
+          // The outer layer NEVER moves and is fully opaque — this is what
+          // guarantees the underlying admin page can't peek through.
+          role="dialog"
+          aria-modal="true"
+          aria-label="WhatsApp Inbox"
+        >
+          <div
+            className="absolute bg-white dark:bg-[#0B141A] overflow-hidden"
+            style={
+              vv
+                ? { top: vv.y, left: vv.x, width: vv.w, height: vv.h }
+                : { inset: 0 }
+            }
+          >
+            <Inbox role={role} embedded onClose={() => setOpen(false)} />
+          </div>
+        </div>
+      </main>
     </div>
   ) : null
 
