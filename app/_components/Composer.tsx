@@ -25,13 +25,10 @@ type TemplateDef = {
   variables?: string[]
 }
 
+// The two fixed quick replies. "Reschedule at <time>" is rendered separately
+// as one entry that expands the TEMPLATE_TIMES chips (so the menu isn't
+// cluttered with 7 rows), and the 👋 wave is the first entry.
 const MESSAGE_TEMPLATES: TemplateDef[] = [
-  ...TEMPLATE_TIMES.map((t) => ({
-    label: `Move — ${t}`,
-    text: `Hello! Would it be convenient to reschedule at ${t}?`,
-    templateName: "reschedule_time",
-    variables: [t],
-  })),
   {
     label: "Reschedule to another day",
     text: "Hello! Would it be convenient to reschedule you to another day? Today's group didn't reach more than 2 people.",
@@ -283,6 +280,49 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                 </button>
               </div>
               <div className="py-1">
+                {/* 👋 wave — first entry. Re-opens a cold chat. */}
+                {onWave && (
+                  <button
+                    type="button"
+                    disabled={waveDisabled}
+                    onClick={() => { if (!waveDisabled) { onWave(); setShowTemplates(false) } }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-[#2A3942] active:bg-gray-100 dark:active:bg-[#33444E] transition-colors disabled:opacity-40"
+                  >
+                    <div className="text-xs font-semibold text-[#2C6E49] dark:text-[#69B58F]">Wave</div>
+                    <div className="text-2xl leading-none mt-0.5">👋</div>
+                  </button>
+                )}
+
+                {/* Reschedule at <time> — one entry; tap a time chip to send. */}
+                <div className="px-4 py-2.5 border-t border-gray-100 dark:border-[#2A3942]">
+                  <div className="text-xs font-semibold text-[#2C6E49] dark:text-[#69B58F]">Reschedule at…</div>
+                  <div className="text-sm text-gray-600 dark:text-[#C8D0D4] mt-0.5">Hello! Would it be convenient to reschedule at …?</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {TEMPLATE_TIMES.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => {
+                          if (onSendTemplate) {
+                            void onSendTemplate({
+                              templateName: "reschedule_time",
+                              languageCode: "en",
+                              variables: [t],
+                              display: `Hello! Would it be convenient to reschedule at ${t}?`,
+                            })
+                            setShowTemplates(false)
+                          } else {
+                            applyTemplate(`Hello! Would it be convenient to reschedule at ${t}?`)
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#2C6E49]/10 text-[#2C6E49] dark:bg-[#2C6E49]/20 dark:text-[#69B58F] hover:bg-[#2C6E49]/15 touch-manipulation"
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {MESSAGE_TEMPLATES.map((tpl) => (
                   <button
                     key={tpl.label}
@@ -402,11 +442,10 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             </>
           )}
 
-          {/* 👋 wave button — a quick greeting that re-opens a cold chat.
-              Shown for BOTH admin and trainer (trainers get only this button;
-              admins get it alongside attach / stickers / templates).
-              Rate-limited to once per 12h (greyed out during the cooldown). */}
-          {onWave && (
+          {/* Trainer-only standalone 👋 button (trainers have no templates
+              menu). Admins send the wave from the first entry of the templates
+              menu instead, so it isn't duplicated here. Rate-limited 12h. */}
+          {role === "TRAINER" && onWave && (
             <button
               type="button"
               tabIndex={-1}
