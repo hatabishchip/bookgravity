@@ -119,7 +119,7 @@ function SlotClientList({
   allSlots: Slot[]
   onChanged: () => void
 }) {
-  type Booking = { id: string; clientName: string; clientPhone: string; status: string; slot: { id: string } }
+  type Booking = { id: string; clientName: string; clientPhone: string; status: string; paymentStatus: string; slot: { id: string } }
   const [list, setList] = useState<Booking[] | null>(null)
   const [adding, setAdding] = useState(false)
 
@@ -172,7 +172,7 @@ function SlotClientList({
     setAdding(false)
     const tempId = `tmp-${Date.now()}`
     setList((prev) => [...(prev ?? []), {
-      id: tempId, clientName: c.clientName, clientPhone: c.clientPhone, status: "CONFIRMED", slot: { id: slot.id },
+      id: tempId, clientName: c.clientName, clientPhone: c.clientPhone, status: "CONFIRMED", paymentStatus: "UNPAID", slot: { id: slot.id },
     }])
     fetch("/api/admin/bookings", {
       method: "POST",
@@ -228,6 +228,7 @@ function SlotClientList({
           targets={targetOptions}
           onMove={(targetId) => move(b, targetId)}
           onCancel={() => cancel(b)}
+          paid={b.paymentStatus === "PAID"}
         />
       ))}
       {adding && <AddClientForm onSubmit={handleAdd} onCancel={() => setAdding(false)} />}

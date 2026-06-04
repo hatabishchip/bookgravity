@@ -18,6 +18,7 @@ export function ClientBookingRow({
   targets,
   onMove,
   onCancel,
+  paid = false,
 }: {
   name: string
   phone?: string | null
@@ -27,6 +28,8 @@ export function ClientBookingRow({
   targets: MoveTarget[]
   onMove: (targetId: string) => void
   onCancel: () => void
+  /** When the client has already paid, the Cancel action is hidden. */
+  paid?: boolean
 }) {
   const [moving, setMoving] = useState(false)
 
@@ -108,15 +111,17 @@ export function ClientBookingRow({
             <ArrowRightLeft size={14} strokeWidth={2.25} />
             Move
           </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            title="Cancel this booking"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-95 transition"
-          >
-            <X size={14} strokeWidth={2.5} />
-            Cancel
-          </button>
+          {!paid && (
+            <button
+              type="button"
+              onClick={onCancel}
+              title="Cancel this booking"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-95 transition"
+            >
+              <X size={14} strokeWidth={2.5} />
+              Cancel
+            </button>
+          )}
         </div>
       )}
     </div>

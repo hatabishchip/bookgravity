@@ -249,19 +249,22 @@ function BookingDetails({
         </div>
       </div>
 
-      {/* Cancel — same action as in Schedule / Schedule Beta. */}
-      <div className="flex justify-end pt-1">
-        <button
-          type="button"
-          disabled={isUpdating}
-          onClick={onCancel}
-          title="Cancel this booking"
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-95 transition disabled:opacity-50"
-        >
-          <X size={14} strokeWidth={2.5} />
-          Cancel booking
-        </button>
-      </div>
+      {/* Cancel — same action as in Schedule / Schedule Beta. Hidden once the
+          client has paid for the class (a paid booking can't be cancelled here). */}
+      {booking.paymentStatus !== "PAID" && (
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            disabled={isUpdating}
+            onClick={onCancel}
+            title="Cancel this booking"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-95 transition disabled:opacity-50"
+          >
+            <X size={14} strokeWidth={2.5} />
+            Cancel booking
+          </button>
+        </div>
+      )}
     </div>
   )
 }

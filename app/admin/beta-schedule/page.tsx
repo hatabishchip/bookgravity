@@ -783,6 +783,7 @@ function SlotEditor({
                     targets={moveTargets}
                     onMove={(targetId) => handleMoveBooking(b, targetId)}
                     onCancel={() => handleCancelBooking(b)}
+                    paid={b.paymentStatus === "PAID"}
                   />
                 ))}
               </div>
