@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getPublicStudioId } from "@/lib/studio"
-import { isSlotBookable, slotStartMs } from "@/lib/booking-cutoff"
+import { isSlotBookable, slotStartMs, slotEndMs } from "@/lib/booking-cutoff"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -51,6 +51,9 @@ export async function GET(request: NextRequest) {
         bookedCount: s._count.bookings,
         available: s._count.bookings < s.maxCapacity,
         bookable: isSlotBookable(s.date, s.startTime, nowMs),
+        // Class already finished — lets the widget keep an in-progress class
+        // visible (greyed) but hide ones that are fully over.
+        ended: slotEndMs(s.date, s.endTime) <= nowMs,
         price: s.price,
       }))
     )
@@ -72,7 +75,8 @@ export async function GET(request: NextRequest) {
   // already in the past are dropped entirely (nothing to contact about).
   const nowMs = Date.now()
   const result = slots
-    .filter((slot) => slotStartMs(slot.date, slot.startTime) > nowMs)
+    // Keep in-progress classes visible; drop only fully-finished ones.
+    .filter((slot) => slotEndMs(slot.date, slot.endTime) > nowMs)
     .map((slot) => ({
       id: slot.id,
       date: slot.date,
@@ -84,6 +88,8 @@ export async function GET(request: NextRequest) {
       available: slot._count.bookings < slot.maxCapacity,
       // Online booking allowed only outside the 2-hour cutoff.
       bookable: isSlotBookable(slot.date, slot.startTime, nowMs),
+      // Class is currently running (started but not yet finished).
+      started: slotStartMs(slot.date, slot.startTime) <= nowMs,
       price: slot.price,
     }))
 

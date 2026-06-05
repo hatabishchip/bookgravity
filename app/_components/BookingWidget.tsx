@@ -157,6 +157,10 @@ type Slot = {
   bookedCount: number
   available: boolean
   bookable?: boolean
+  /** Class already finished (end time passed). */
+  ended?: boolean
+  /** Class currently running (started, not yet finished). */
+  started?: boolean
   price?: number
 }
 
@@ -369,6 +373,23 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     allSlots
       .filter((s) => s.date < todayStr)
       .map((s) => s.date)
+  )
+  // Today/future dates that DO have a class but it can't be booked online
+  // (inside the 2h cutoff, or already in progress) — shown greyed so visitors
+  // still see "there are classes today" and can message us. Excludes days that
+  // are already bookable/full (those have their own state) and classes that
+  // have fully finished (`ended`).
+  const infoDates = new Set(
+    allSlots
+      .filter(
+        (s) =>
+          s.date >= todayStr &&
+          s.ended !== true &&
+          s.bookable === false &&
+          !availableDates.has(s.date) &&
+          !fullyBookedDates.has(s.date),
+      )
+      .map((s) => s.date),
   )
 
   useEffect(() => { fetchAvailableDates() }, [fetchAvailableDates])
@@ -598,6 +619,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // the nearest such month.
   const monthsWithBookable = new Set<string>()
   for (const d of availableDates) monthsWithBookable.add(d.slice(0, 7))
+  // Also keep months that only have not-yet-finished, non-bookable classes
+  // (e.g. today's class inside the cutoff) so the calendar still lands there
+  // and doesn't show "no dates available".
+  for (const d of infoDates) monthsWithBookable.add(d.slice(0, 7))
   const sortedBookableMonths = Array.from(monthsWithBookable).sort()
   const hasAnyBookable = sortedBookableMonths.length > 0
 
@@ -627,18 +652,23 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             const hasSlot = availableDates.has(str)
             const isFull = fullyBookedDates.has(str)
             const hadPastClass = pastDatesWithSlots.has(str)
-            const clickable = hasSlot && !isPast
+            // Has a class today/soon that can't be booked online (cutoff / in
+            // progress) — still selectable so the visitor can see it greyed.
+            const hasInfo = infoDates.has(str)
+            const clickable = (hasSlot || hasInfo) && !isPast
 
             // No persistent "selected day" highlight: tapping a date advances
             // straight to the time step, and going back shouldn't leave it
             // filled. Days just show their availability dot.
-            const dotColor = clickable
+            const dotColor = hasSlot
               ? "bg-[#2C6E49]"
-              : isFull && !isPast
-                ? "bg-rose-500"
-                : isPast && hadPastClass
-                  ? "bg-gray-300"
-                  : null
+              : hasInfo
+                ? "bg-amber-400"
+                : isFull && !isPast
+                  ? "bg-rose-500"
+                  : isPast && hadPastClass
+                    ? "bg-gray-300"
+                    : null
             return (
               <button
                 key={str}
@@ -647,13 +677,15 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 aria-disabled={!clickable}
                 className={cn(
                   "aspect-square rounded-full text-sm font-medium flex flex-col items-center justify-center gap-1 leading-none",
-                  clickable
+                  hasSlot
                     ? "text-gray-900 hover:bg-[#2C6E49]/10 cursor-pointer"
-                    : isFull && !isPast
-                      ? "text-gray-500 cursor-not-allowed"
-                      : isPast
-                        ? "text-gray-300 cursor-not-allowed"
-                        : "text-gray-700 cursor-not-allowed",
+                    : hasInfo
+                      ? "text-gray-700 hover:bg-amber-400/10 cursor-pointer"
+                      : isFull && !isPast
+                        ? "text-gray-500 cursor-not-allowed"
+                        : isPast
+                          ? "text-gray-300 cursor-not-allowed"
+                          : "text-gray-700 cursor-not-allowed",
                 )}
               >
                 <span>{day.getDate()}</span>
@@ -1124,7 +1156,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                             </div>
                             <div className={cn("text-sm", withinCutoff ? "text-gray-400" : "text-gray-400")}>
                               {withinCutoff
-                                ? "Online booking closed — message us to join"
+                                ? slot.started
+                                  ? "Class in progress"
+                                  : "Online booking closed — message us to join"
                                 : slot.classType === "PRIVATE"
                                   ? "Private session · 1 person"
                                   : slot.classType === "KIDS"
@@ -1135,7 +1169,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                         </div>
                         <div className="text-right flex flex-col items-end gap-0.5">
                           {withinCutoff ? (
-                            <span className="inline-block text-center leading-5 px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-gray-300 text-gray-600">Closed</span>
+                            <span className={cn(
+                              "inline-block text-center leading-5 px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide",
+                              slot.started ? "bg-[#2C6E49] text-white" : "bg-gray-300 text-gray-600",
+                            )}>{slot.started ? "Live" : "Closed"}</span>
                           ) : isFull ? (
                             <span className="inline-block text-center leading-5 px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-rose-500 text-white">Sold out</span>
                           ) : !enoughForParty ? (

@@ -9,6 +9,13 @@ export function slotStartMs(date: string, startTime: string): number {
   return new Date(`${date}T${startTime}:00${STUDIO_UTC_OFFSET}`).getTime()
 }
 
+// When the class ends (studio-local). Used to keep an in-progress class visible
+// (greyed, "booking closed") until it actually finishes, instead of hiding it
+// the moment it starts.
+export function slotEndMs(date: string, endTime: string): number {
+  return new Date(`${date}T${endTime}:00${STUDIO_UTC_OFFSET}`).getTime()
+}
+
 export function isSlotBookable(date: string, startTime: string, nowMs = Date.now()): boolean {
   return slotStartMs(date, startTime) > nowMs + CUTOFF_MS
 }
