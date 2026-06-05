@@ -514,7 +514,10 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               autoCapitalize={desktop ? "sentences" : "off"}
               spellCheck={desktop}
               placeholder={windowOpen ? "Message" : "Window closed — use a template to reach this client"}
-              disabled={sending}
+              // Block typing entirely when the 24h window is closed — free text
+              // can't reach the client, so the field is inactive until a client
+              // message re-opens the window.
+              disabled={sending || !windowOpen}
               rows={1}
               className={cn(
                 "flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 disabled:text-gray-400 dark:disabled:text-[#5C6970]",

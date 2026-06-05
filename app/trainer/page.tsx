@@ -167,6 +167,16 @@ export default function TrainerSchedulePage() {
   }, [])
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
+  // Live booking counts: re-fetch the schedule every 20s (and the moment the
+  // tab becomes visible again) so the "booked/capacity" numbers update on the
+  // trainer's phone in real time without a manual reload. No spinner on these
+  // refreshes — slotsLoaded stays true.
+  useEffect(() => {
+    const tick = () => { if (document.visibilityState === "visible") fetchSlots() }
+    const t = setInterval(tick, 20_000)
+    document.addEventListener("visibilitychange", tick)
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick) }
+  }, [fetchSlots])
   useEffect(() => {
     Promise.all([fetchSalary(), fetchServices()])
   }, [fetchSalary, fetchServices])

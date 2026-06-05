@@ -277,7 +277,7 @@ export default function VirtualKeyboard({
     <div
       className={cn(
         "bg-[#D1D5DB] dark:bg-[#1F1F22] px-1 pt-2 pb-1.5 select-none transition-opacity",
-        inactive && "opacity-50",
+        inactive && "opacity-50 pointer-events-none",
       )}
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 6px)" }}
     >
