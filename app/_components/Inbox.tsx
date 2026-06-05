@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Composer from "@/app/_components/Composer"
+import ImageLightbox from "@/app/_components/ImageLightbox"
 import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns"
 import {
   ArrowLeft,
@@ -1538,28 +1539,10 @@ export default function Inbox({
         </div>
       </div>
 
-      {/* Full-screen image viewer (lightbox). Tap anywhere or the ✕ to close. */}
+      {/* Full-screen image viewer with zoom + pan (portaled to body so the
+          floating-inbox transform can't clip it; shows the whole image). */}
       {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center touch-none animate-in fade-in"
-          onClick={() => setLightboxSrc(null)}
-        >
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); setLightboxSrc(null) }}
-            aria-label="Close"
-            className="absolute top-4 right-4 z-10 w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center backdrop-blur"
-          >
-            <X size={22} />
-          </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={lightboxSrc}
-            alt="full size"
-            onClick={(e) => e.stopPropagation()}
-            className="max-w-[100vw] max-h-[100vh] object-contain select-none"
-          />
-        </div>
+        <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
       )}
 
       {/* Composer + VirtualKeyboard always at the bottom of the chat column
