@@ -528,6 +528,98 @@ export async function sendClassReminderWA(opts: {
 }
 
 /**
+ * Same-day "are you still coming to today's class?" check-in, sent ~2.5h
+ * before the class by the frequent today-reminder cron. Uses the approved,
+ * variable-free `class_today_confirm` template (no good-morning/afternoon so
+ * it reads naturally at any hour). The client's reply is later forwarded to
+ * the trainer — see forwardClientReplyToTrainer + the webhook.
+ */
+export async function sendClassTodayConfirmWA(opts: {
+  clientPhone: string
+  /** The class's studio's own WhatsApp config (per-studio number). */
+  studioWA?: StudioWA
+}): Promise<SendResult> {
+  const templateName =
+    process.env.WHATSAPP_TEMPLATE_TODAY_CONFIRM || "class_today_confirm"
+  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+  return sendWhatsAppTemplate({
+    toPhone: opts.clientPhone,
+    templateName,
+    languageCode: lang,
+    // class_today_confirm has no variables.
+    config: getConfigFor(opts.studioWA),
+  })
+}
+
+/**
+ * Forward a client's reply (to the same-day reminder) to the class trainer's
+ * personal WhatsApp, so the trainer knows who's still coming. Trainers don't
+ * write to the business number, so they have no open 24h window — we MUST use
+ * an approved template (free text would be silently dropped). Template:
+ *   {{1}} = client name
+ *   {{2}} = the client's reply (or a short "[photo]" label for media)
+ * Name from WHATSAPP_TEMPLATE_CLIENT_REPLY (default "client_reply_to_trainer").
+ */
+export async function forwardClientReplyToTrainer(opts: {
+  trainerPhone: string
+  clientName: string
+  /** Inbound message type (text/image/audio/...). */
+  type: string
+  /** Text body OR media caption (whichever applies). */
+  body: string | null
+  /** Filename for documents (optional). */
+  filename?: string | null
+  /** The class's studio's own WhatsApp config (per-studio number). */
+  config?: CloudConfig | null
+}): Promise<SendResult> {
+  const cfg = opts.config ?? getConfig()
+  if (!cfg) return { ok: false, error: "not_configured" }
+  const templateName =
+    process.env.WHATSAPP_TEMPLATE_CLIENT_REPLY || "client_reply_to_trainer"
+  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+
+  // Media types have no text → substitute a short label (Meta rejects empty
+  // variables). Captions append after the label so context isn't lost.
+  const typeLabel = (() => {
+    switch (opts.type) {
+      case "text":
+        return null
+      case "image":
+        return "📷 [photo]"
+      case "video":
+        return "🎬 [video]"
+      case "audio":
+        return "🎤 [voice message]"
+      case "sticker":
+        return "💬 [sticker]"
+      case "document":
+        return `📄 [document${opts.filename ? `: ${opts.filename}` : ""}]`
+      default:
+        return `📨 [${opts.type}]`
+    }
+  })()
+  const replyText =
+    typeLabel === null
+      ? opts.body && opts.body.trim().length > 0
+        ? opts.body
+        : "(empty)"
+      : opts.body && opts.body.trim().length > 0
+        ? `${typeLabel}\n${opts.body}`
+        : typeLabel
+
+  const MAX_VAR = 1000
+  const safe = (s: string) => (s.length > MAX_VAR ? s.slice(0, MAX_VAR - 1) + "…" : s)
+
+  return sendWhatsAppTemplate({
+    toPhone: opts.trainerPhone,
+    templateName,
+    languageCode: lang,
+    variables: [safe(opts.clientName || "A client"), safe(replyText)],
+    config: cfg,
+  })
+}
+
+/**
  * Notify trainer of a new booking. Tries free-form text first (works if
  * trainer is in the 24h window), falls back to a utility template if not.
  *

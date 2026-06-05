@@ -246,6 +246,10 @@ model Booking {
   // When the day-before class reminder was sent to the client (null = not yet).
   // Guards the daily reminder cron against double-sending.
   reminderSentAt DateTime?
+  // When the same-day "are you still coming?" check-in (class_today_confirm)
+  // was sent — ~2.5h before the class. Null = not yet. Guards the frequent
+  // today-reminder cron against double-sending.
+  todayReminderSentAt DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 }
@@ -349,6 +353,11 @@ model WhatsAppConversation {
   // park the booking id here until they answer (or it goes stale).
   pendingCancelBookingId String?
   pendingCancelAt        DateTime?
+  // Set when the same-day class reminder (class_today_confirm) is sent: holds
+  // the class trainer's WhatsApp number so the client's FIRST reply is
+  // forwarded to that trainer. Cleared after the first reply is forwarded, so
+  // only one reply per reminder reaches the trainer.
+  pendingReminderTrainerPhone String?
   // Unread counters tracked separately per role so admin & trainer don't
   // clobber each other when one of them reads.
   unreadAdmin       Int      @default(0)

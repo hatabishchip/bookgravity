@@ -6,7 +6,12 @@ import {
   appendInboundMessage,
   updateMessageStatus,
 } from "@/lib/whatsapp-conversation"
-import { fetchMetaMedia, forwardInboundToOwner, getConfigFor } from "@/lib/whatsapp-cloud"
+import {
+  fetchMetaMedia,
+  forwardInboundToOwner,
+  forwardClientReplyToTrainer,
+  getConfigFor,
+} from "@/lib/whatsapp-cloud"
 import { sendInboundWhatsAppCopy } from "@/lib/mailer"
 import { translateAndDetect } from "@/lib/translate"
 import { handleCancelBotMessage } from "@/lib/cancel-bot"
@@ -254,6 +259,44 @@ export async function POST(request: NextRequest) {
               })
             } catch (err) {
               console.error("[whatsapp-webhook] cancel bot failed:", err)
+            }
+
+            // Forward the client's FIRST reply to the same-day class reminder
+            // to the class trainer's WhatsApp, so the trainer knows who's
+            // still coming. The today-reminder cron armed this by stashing the
+            // trainer's number on the conversation; we clear it on a successful
+            // forward so only the first reply reaches the trainer. Trainers
+            // have no open 24h window, so this goes via an approved template.
+            if (convo.pendingReminderTrainerPhone) {
+              try {
+                const clientName =
+                  convo.clientName ?? contactName ?? recentBooking?.clientName ?? "A client"
+                const fwd = await forwardClientReplyToTrainer({
+                  trainerPhone: convo.pendingReminderTrainerPhone,
+                  clientName,
+                  type,
+                  body: msgBody,
+                  filename: msg.document?.filename ?? null,
+                  config: waConfig,
+                })
+                if (fwd.ok) {
+                  // First reply delivered → disarm so later messages don't
+                  // keep pinging the trainer.
+                  await prisma.whatsAppConversation.update({
+                    where: { id: convo.id },
+                    data: { pendingReminderTrainerPhone: null },
+                  })
+                } else {
+                  // Keep it armed (e.g. template still pending approval) so a
+                  // later reply retries once it can actually deliver.
+                  console.warn(
+                    "[whatsapp-webhook] forward reply to trainer failed:",
+                    fwd.error,
+                  )
+                }
+              } catch (err) {
+                console.error("[whatsapp-webhook] forward reply to trainer threw:", err)
+              }
             }
 
             // Fire-and-forget translation: if the studio is set up with an
