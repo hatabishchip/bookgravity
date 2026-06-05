@@ -223,6 +223,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const [otpCode, setOtpCode] = useState("")
   const [otpSending, setOtpSending] = useState(false)
   const [otpError, setOtpError] = useState("")
+  // Brief "Booking confirmed ✓" flash shown on the verify step right before we
+  // auto-advance to the ticket.
+  const [confirmed, setConfirmed] = useState(false)
   const [error, setError] = useState("")
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const fieldRefs = {
@@ -458,7 +461,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     return errors
   }
 
-  const submitBooking = async (confirmDuplicate: boolean) => {
+  const submitBooking = async (confirmDuplicate: boolean, codeOverride?: string) => {
     if (!selectedSlot) return
     setSubmitting(true)
     setError("")
@@ -472,7 +475,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           serviceIds: selectedServices,
           partySize,
           confirmDuplicate,
-          otpCode,
+          otpCode: codeOverride ?? otpCode,
         }),
       })
 
@@ -503,9 +506,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
       const data = await res.json()
       setDupWarn(null)
+      setOtpError("")
       const bookingData = { id: data.id, clientName: form.clientName, slot: selectedSlot, ticketCode: data.ticketCode }
       setBooking(bookingData)
-      setStep("done")
       // Persist ticket so it survives page reloads until the class is in the past
       try {
         const persisted = {
@@ -516,6 +519,14 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         }
         localStorage.setItem("bg_active_ticket", JSON.stringify(persisted))
       } catch {}
+      // From the verify step: flash "confirmed" for a beat, then auto-advance
+      // to the ticket. Otherwise go straight to the ticket.
+      if (step === "verify") {
+        setConfirmed(true)
+        setTimeout(() => { setConfirmed(false); setStep("done") }, 1100)
+      } else {
+        setStep("done")
+      }
     } finally {
       setSubmitting(false)
     }
@@ -1381,60 +1392,81 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         </div>
       )}
 
-      {/* Step 4 — WhatsApp code confirmation (anti-spam). */}
+      {/* Step 4 — WhatsApp code confirmation (anti-spam). Auto-verifies the
+          moment 2 digits are entered: no Confirm button. Wrong → red field;
+          right → a brief "Booking confirmed" flash, then auto-advance. */}
       {step === "verify" && selectedSlot && (
         <div>
-          <button
-            onClick={() => { setStep("details"); setOtpError("") }}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4"
-          >
-            ← Back
-          </button>
+          {!confirmed && (
+            <button
+              onClick={() => { setStep("details"); setOtpError(""); setOtpCode("") }}
+              className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4"
+            >
+              ← Back
+            </button>
+          )}
           <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
-            <div className="text-3xl mb-2">📲</div>
-            <h3 className="text-lg font-bold text-gray-900">Confirm your booking</h3>
-            <p className="text-sm text-gray-500 mt-1">
-              We sent a 2-digit code to your WhatsApp
-              <br />
-              <span className="font-medium text-gray-700">{form.clientPhone}</span>
-            </p>
+            {confirmed ? (
+              <div className="py-6 animate-in fade-in zoom-in duration-300">
+                <div className="text-5xl mb-3">✅</div>
+                <h3 className="text-xl font-bold text-[#2C6E49]">Booking confirmed</h3>
+                <p className="text-sm text-gray-500 mt-1">Code {otpCode} accepted — opening your ticket…</p>
+              </div>
+            ) : (
+              <>
+                <div className="text-3xl mb-2">📲</div>
+                <h3 className="text-lg font-bold text-gray-900">Confirm your booking</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Enter the 2-digit code from your WhatsApp
+                  <br />
+                  <span className="font-medium text-gray-700">{form.clientPhone}</span>
+                </p>
 
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={2}
-              value={otpCode}
-              onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 2)); setOtpError("") }}
-              placeholder="—"
-              aria-label="Confirmation code"
-              className="mt-5 w-32 mx-auto block text-center text-3xl font-bold tracking-[0.4em] border-2 border-gray-200 rounded-xl py-3 focus:outline-none focus:border-[#2C6E49] focus:ring-2 focus:ring-[#2C6E49]/20"
-            />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  maxLength={2}
+                  value={otpCode}
+                  disabled={submitting}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, "").slice(0, 2)
+                    setOtpCode(v)
+                    setOtpError("")
+                    // Auto-verify as soon as both digits are in — no button.
+                    if (v.length === 2 && !submitting) submitBooking(false, v)
+                  }}
+                  placeholder="—"
+                  aria-label="Confirmation code"
+                  className={cn(
+                    "mt-5 w-32 mx-auto block text-center text-3xl font-bold tracking-[0.4em] border-2 rounded-xl py-3 focus:outline-none focus:ring-2 disabled:opacity-60",
+                    otpError
+                      ? "border-red-500 text-red-600 focus:border-red-500 focus:ring-red-500/20"
+                      : "border-gray-200 focus:border-[#2C6E49] focus:ring-[#2C6E49]/20",
+                  )}
+                />
 
-            {otpError && (
-              <div className="mt-3 text-sm text-red-600">{otpError}</div>
+                {submitting ? (
+                  <div className="mt-3 text-sm text-gray-400">Checking…</div>
+                ) : otpError ? (
+                  <div className="mt-3 text-sm text-red-600">{otpError}</div>
+                ) : error ? (
+                  <div className="mt-3 text-sm text-red-600">{error}</div>
+                ) : (
+                  <div className="mt-3 text-xs text-gray-400">The code pops up in your WhatsApp notification.</div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={requestOtp}
+                  disabled={otpSending || submitting}
+                  className="mt-4 text-sm text-[#2C6E49] font-medium hover:underline disabled:opacity-50"
+                >
+                  {otpSending ? "Sending…" : "Resend code"}
+                </button>
+              </>
             )}
-            {error && (
-              <div className="mt-3 text-sm text-red-600">{error}</div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => submitBooking(false)}
-              disabled={submitting || otpCode.length < 2}
-              className="mt-5 w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors"
-            >
-              {submitting ? "Confirming…" : "Confirm Booking"}
-            </button>
-
-            <button
-              type="button"
-              onClick={requestOtp}
-              disabled={otpSending}
-              className="mt-3 text-sm text-[#2C6E49] font-medium hover:underline disabled:opacity-50"
-            >
-              {otpSending ? "Sending…" : "Resend code"}
-            </button>
           </div>
         </div>
       )}

@@ -453,6 +453,44 @@ export async function sendWhatsAppTemplate(opts: {
   })
 }
 
+/**
+ * Send a WhatsApp AUTHENTICATION template carrying a one-time code. These
+ * templates render the code prominently in the notification + offer a one-tap
+ * "Copy code" button — the closest WhatsApp gets to OTP autofill. Both the body
+ * and the copy-code button take the same code as their parameter.
+ */
+export async function sendWhatsAppAuthCode(opts: {
+  toPhone: string
+  templateName: string
+  languageCode: string
+  code: string
+  config?: CloudConfig | null
+}): Promise<SendResult> {
+  const cfg = opts.config ?? getConfig()
+  if (!cfg) return { ok: false, error: "not_configured" }
+  const to = normalizePhone(opts.toPhone)
+  if (!to) return { ok: false, error: "empty_phone" }
+  return postMessage(cfg, {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "template",
+    template: {
+      name: opts.templateName,
+      language: { code: opts.languageCode },
+      components: [
+        { type: "body", parameters: [{ type: "text", text: opts.code }] },
+        {
+          type: "button",
+          sub_type: "url",
+          index: 0,
+          parameters: [{ type: "text", text: opts.code }],
+        },
+      ],
+    },
+  })
+}
+
 // --- High-level helpers wired to your booking domain --------------------------
 
 /**

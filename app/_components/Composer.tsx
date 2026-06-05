@@ -128,6 +128,14 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     const paddingBottom = parseFloat(style.paddingBottom) || 0
     const borderTop = parseFloat(style.borderTopWidth) || 0
     const borderBottom = parseFloat(style.borderBottomWidth) || 0
+    const singleH = lineHeight + paddingTop + paddingBottom + borderTop + borderBottom
+    // Empty field → always a single row. Without this, a long placeholder (e.g.
+    // the window-closed hint) wraps and inflates scrollHeight on iOS, leaving a
+    // tall, stretched, empty box.
+    if (!t.value) {
+      t.style.height = singleH + "px"
+      return
+    }
     const maxH = lineHeight * 3 + paddingTop + paddingBottom + borderTop + borderBottom
     const naturalH = t.scrollHeight
     t.style.height = Math.min(naturalH, maxH) + "px"
@@ -516,7 +524,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               autoCorrect={desktop ? "on" : "off"}
               autoCapitalize={desktop ? "sentences" : "off"}
               spellCheck={desktop}
-              placeholder={windowOpen ? "Message" : "Window closed — use a template to reach this client"}
+              placeholder={windowOpen ? "Message" : "Window closed — use a template"}
               // Block typing entirely when the 24h window is closed — free text
               // can't reach the client, so the field is inactive until a client
               // message re-opens the window.

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { sendWhatsAppTemplate, type CloudConfig } from "@/lib/whatsapp-cloud"
+import { sendWhatsAppTemplate, sendWhatsAppAuthCode, type CloudConfig } from "@/lib/whatsapp-cloud"
 
 // WhatsApp one-time code for public bookings. A 2-digit code (per owner's
 // request) is enough to prove the phone is a real, reachable WhatsApp number —
@@ -53,20 +53,28 @@ export async function sendBookingOtp(opts: {
 
   const code = generateCode()
   const firstName = (opts.name ?? "").trim().split(/\s+/)[0] || "there"
-  const templateName = process.env.WHATSAPP_TEMPLATE_OTP || "admin_message"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
-  const message =
-    `Your booking confirmation code is ${code}. ` +
-    `Enter it on the booking page to confirm your class. ` +
-    `Didn't request this? Just ignore it.`
-
-  const res = await sendWhatsAppTemplate({
-    toPhone: phone,
-    templateName,
-    languageCode: lang,
-    variables: [firstName, message],
-    config: opts.config,
-  })
+  // Preferred: a WhatsApp AUTHENTICATION template (WHATSAPP_TEMPLATE_OTP_AUTH) —
+  // shows the code big in the notification popup + a one-tap "Copy code" button,
+  // with essentially no other text. Fallback (until that template is approved):
+  // the already-approved admin_message, with the code leading the body so it
+  // still shows early in the preview.
+  const authTemplate = process.env.WHATSAPP_TEMPLATE_OTP_AUTH
+  const res = authTemplate
+    ? await sendWhatsAppAuthCode({
+        toPhone: phone,
+        templateName: authTemplate,
+        languageCode: lang,
+        code,
+        config: opts.config,
+      })
+    : await sendWhatsAppTemplate({
+        toPhone: phone,
+        templateName: process.env.WHATSAPP_TEMPLATE_OTP || "admin_message",
+        languageCode: lang,
+        variables: [firstName, `${code} is your booking confirmation code — enter it to confirm your class.`],
+        config: opts.config,
+      })
   if (!res.ok) return { ok: false, error: "send_failed", detail: res.error }
 
   // Only persist the code once Meta accepted the send. Clear old codes first.

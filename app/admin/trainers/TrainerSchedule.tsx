@@ -383,7 +383,9 @@ export default function TrainerSchedule({
                           style={cellStyle}
                           className={cn(
                             "w-full text-left rounded-lg border p-1.5 touch-manipulation",
-                            !mineBright && !faintColor && "bg-[#EDEEF1] border-gray-200 hover:border-gray-300 hover:bg-gray-200"
+                            // Unassigned slot: theme-aware utilities (not a hardcoded light hex)
+            // so the dark remap keeps it a dark, readable card.
+            !mineBright && !faintColor && "bg-gray-100 border-gray-200 hover:border-gray-300 hover:bg-gray-200"
                           )}
                         >
                           <div className="flex items-start gap-1">
