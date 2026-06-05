@@ -560,66 +560,36 @@ export async function sendTrainerBookingNotificationWA(opts: {
 }): Promise<SendResult> {
   const cfg = getConfigFor(opts.studioWA)
   const namesLine = opts.clientNames.join(", ")
-  // Owner-specified format. Date is rendered long-form (e.g. "Friday, 28 May")
-  // without a "Date:" prefix. Time keeps the prefix. Free-form text isn't
-  // subject to Meta's template character ratio rule so we can keep it terse.
-  //
-  //   New booking
-  //
-  //   Friday, 28 May
-  //   Time: 7:00-9:00
-  //   Booked 1/6: test 88
-  const text = [
-    `New booking`,
-    ``,
-    formatLongDate(opts.date),
-    `Time: ${opts.time}`,
-    `Booked ${opts.bookedCount}/${opts.maxCapacity}: ${namesLine}`,
-  ].join("\n")
 
-  const textResult = await sendWhatsAppText(opts.trainerPhone, text, cfg)
-  if (textResult.ok) return textResult
-
-  // Re-engagement / 24h window errors → fall back to template.
-  // Meta error code 131047 = "Message failed to send because more than 24
-  // hours have passed since the customer last replied."
-  if (
-    textResult.error.includes("131047") ||
-    textResult.error.toLowerCase().includes("re-engagement") ||
-    textResult.error.toLowerCase().includes("24 hours")
-  ) {
-    const templateName =
-      process.env.WHATSAPP_TEMPLATE_TRAINER_NOTIFICATION || "trainer_new_booking"
-    const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
-    // Two template variants are live in our WABA. The new, terse one
-    // (`trainer_class_booking`) carries 4 variables but is still PENDING
-    // Meta approval; the old one (`trainer_new_booking`) carries 5 and is
-    // APPROVED. We dispatch the right shape based on whatever env points
-    // at, so we can swap to the new template the moment Meta approves it
-    // without a code change.
-    const isV2 = templateName === "trainer_class_booking"
-    // Use long-form date ("Friday, 28 May") as the {{1}} variable so the
-    // template's "Date: {{1}}" line renders like the owner-specified format
-    // even when we fall back to the template path.
-    const longDate = formatLongDate(opts.date)
-    const variables = isV2
-      ? [longDate, opts.time, `${opts.bookedCount}/${opts.maxCapacity}`, namesLine || "—"]
-      : [
-          longDate,
-          opts.time,
-          String(opts.bookedCount),
-          String(opts.maxCapacity),
-          namesLine || "—",
-        ]
-    return sendWhatsAppTemplate({
-      toPhone: opts.trainerPhone,
-      templateName,
-      languageCode: lang,
-      variables,
-      config: cfg,
-    })
-  }
-  return textResult
+  // ALWAYS send via the approved UTILITY template. Trainers don't message the
+  // business number, so they have no open 24h window — free text would be
+  // rejected (or, worse, accepted with a 200 and then silently dropped, which
+  // made the notification never arrive). A template delivers regardless of the
+  // window, so this is the reliable path.
+  const templateName =
+    process.env.WHATSAPP_TEMPLATE_TRAINER_NOTIFICATION || "trainer_new_booking"
+  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+  // `trainer_class_booking` carries 4 variables; `trainer_new_booking` /
+  // `trainer_booking_v3` carry 5. Dispatch the right shape for whatever env
+  // points at. Long-form date ("Friday, 28 May") fills {{1}}.
+  const isV2 = templateName === "trainer_class_booking"
+  const longDate = formatLongDate(opts.date)
+  const variables = isV2
+    ? [longDate, opts.time, `${opts.bookedCount}/${opts.maxCapacity}`, namesLine || "—"]
+    : [
+        longDate,
+        opts.time,
+        String(opts.bookedCount),
+        String(opts.maxCapacity),
+        namesLine || "—",
+      ]
+  return sendWhatsAppTemplate({
+    toPhone: opts.trainerPhone,
+    templateName,
+    languageCode: lang,
+    variables,
+    config: cfg,
+  })
 }
 
 /**
