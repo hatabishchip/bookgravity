@@ -96,6 +96,37 @@ export async function POST(
       errorDetail: res.ok ? null : res.error,
       fromTrainerId,
     })
+
+    // Same-day reminder sent manually (trainer/admin picked the
+    // class_today_confirm template): arm the conversation so the client's NEXT
+    // reply is forwarded to the trainer assigned to them — identical behaviour
+    // to the automatic 2.5h cron. The webhook forwards the first reply, then
+    // disarms (only one message reaches the trainer). Re-arms on every send of
+    // this template.
+    const todayConfirmName =
+      process.env.WHATSAPP_TEMPLATE_TODAY_CONFIRM || "class_today_confirm"
+    if (res.ok && parsed.data.templateName === todayConfirmName) {
+      try {
+        // The trainer assigned to this client; fall back to the sending trainer.
+        const trainerId = convo.assignedTrainerId ?? fromTrainerId
+        if (trainerId) {
+          const t = await prisma.trainer.findUnique({
+            where: { id: trainerId },
+            select: { whatsapp: true, notifyWhatsapp: true },
+          })
+          const phone = t?.whatsapp?.trim()
+          await prisma.whatsAppConversation.update({
+            where: { id: convo.id },
+            data: {
+              pendingReminderTrainerPhone: t?.notifyWhatsapp && phone ? phone : null,
+            },
+          })
+        }
+      } catch (err) {
+        console.error("[messages/POST] arm reminder-forward failed:", err)
+      }
+    }
+
     return NextResponse.json(
       { message: saved, sendResult: res },
       { status: res.ok ? 201 : 502 },
