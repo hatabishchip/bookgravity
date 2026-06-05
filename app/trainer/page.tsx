@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import Link from "next/link"
 import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns"
-import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import SellMembershipButton from "@/app/_components/SellMembershipButton"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { useOpenChat } from "@/lib/use-open-chat"
 
 type Slot = {
   id: string
@@ -84,6 +85,7 @@ export default function TrainerSchedulePage() {
   const todayStart = useMemo(() => startOfMonth(today), [today])
   const nextMonthStart = useMemo(() => startOfMonth(addMonths(today, 1)), [today])
 
+  const { openChat } = useOpenChat()
   const [view, setView] = useState<View>("2weeks")
   const [monthAnchor, setMonthAnchor] = useState(startOfMonth(today))
   const todayCellRef = useRef<HTMLDivElement>(null)
@@ -671,6 +673,15 @@ export default function TrainerSchedulePage() {
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className="text-xs font-semibold text-[#2C6E49] whitespace-nowrap">✓ Paid · {paymentLabel}</span>
+                          <button
+                            type="button"
+                            onClick={() => openChat(b.clientPhone, b.clientName)}
+                            title="Написать клиенту"
+                            aria-label="Написать клиенту"
+                            className="p-1.5 rounded-lg text-[#2C6E49] hover:bg-[#2C6E49]/10 touch-manipulation"
+                          >
+                            <MessageSquare size={16} strokeWidth={2.25} />
+                          </button>
                           {paidWithin30 && (
                             <button
                               type="button"
@@ -694,7 +705,19 @@ export default function TrainerSchedulePage() {
                           <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
                           <div className="font-semibold text-gray-900">{b.clientName}</div>
                         </div>
-                        {b.checkedIn && <span className="text-[10px] font-medium text-green-700 bg-green-200 px-2 py-0.5 rounded-full">✓ checked in</span>}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {b.checkedIn && <span className="text-[10px] font-medium text-green-700 bg-green-200 px-2 py-0.5 rounded-full">✓ checked in</span>}
+                          {/* Message this client in the in-app chat. */}
+                          <button
+                            type="button"
+                            onClick={() => openChat(b.clientPhone, b.clientName)}
+                            title="Написать клиенту"
+                            aria-label="Написать клиенту"
+                            className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#2C6E49]/10 text-[#2C6E49] hover:bg-[#2C6E49]/15 active:scale-95 transition touch-manipulation"
+                          >
+                            <MessageSquare size={17} strokeWidth={2.25} />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Client phone is intentionally NOT shown to trainers —
