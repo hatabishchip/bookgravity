@@ -60,21 +60,32 @@ export async function sendBookingOtp(opts: {
   // the already-approved admin_message, with the code leading the body so it
   // still shows early in the preview.
   const authTemplate = process.env.WHATSAPP_TEMPLATE_OTP_AUTH
-  const res = authTemplate
-    ? await sendWhatsAppAuthCode({
-        toPhone: phone,
-        templateName: authTemplate,
-        languageCode: lang,
-        code,
-        config: opts.config,
-      })
-    : await sendWhatsAppTemplate({
-        toPhone: phone,
-        templateName: process.env.WHATSAPP_TEMPLATE_OTP || "admin_message",
-        languageCode: lang,
-        variables: [firstName, `${code} is your booking confirmation code — enter it to confirm your class.`],
-        config: opts.config,
-      })
+  let res
+  if (authTemplate) {
+    res = await sendWhatsAppAuthCode({
+      toPhone: phone,
+      templateName: authTemplate,
+      languageCode: lang,
+      code,
+      config: opts.config,
+    })
+  } else {
+    // Non-auth path. `admin_message` (approved fallback) takes 2 vars
+    // [name, body]; a minimal one-variable code template (e.g. booking_code2 →
+    // "Code: {{1}}.") takes just [code].
+    const tpl = process.env.WHATSAPP_TEMPLATE_OTP || "admin_message"
+    const variables =
+      tpl === "admin_message"
+        ? [firstName, `${code} is your booking confirmation code — enter it to confirm your class.`]
+        : [code]
+    res = await sendWhatsAppTemplate({
+      toPhone: phone,
+      templateName: tpl,
+      languageCode: lang,
+      variables,
+      config: opts.config,
+    })
+  }
   if (!res.ok) return { ok: false, error: "send_failed", detail: res.error }
 
   // Only persist the code once Meta accepted the send. Clear old codes first.
