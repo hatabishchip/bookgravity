@@ -59,7 +59,10 @@ export async function sendBookingOtp(opts: {
   // with essentially no other text. Fallback (until that template is approved):
   // the already-approved admin_message, with the code leading the body so it
   // still shows early in the preview.
-  const authTemplate = process.env.WHATSAPP_TEMPLATE_OTP_AUTH
+  // Default to the approved AUTHENTICATION template (code shown big in the
+  // WhatsApp popup + Copy-code button, no expiry line) — the most minimal
+  // message Meta's policy permits for an OTP. Override via env if needed.
+  const authTemplate = process.env.WHATSAPP_TEMPLATE_OTP_AUTH || "booking_auth_code2"
   let res
   if (authTemplate) {
     res = await sendWhatsAppAuthCode({
