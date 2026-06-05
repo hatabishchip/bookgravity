@@ -12,6 +12,7 @@ import {
   CheckCheck,
   ChevronDown,
   Image as ImageIcon,
+  Calendar,
   Loader2,
   MessageSquare,
   Search,
@@ -35,6 +36,9 @@ type ConversationListItem = {
   lastMessageAt: string
   lastInboundAt: string | null
   unread: number
+  /** The client's latest class by class date — their next/upcoming booking,
+   *  or (if none) the last class they had. Null if they never booked. */
+  lastClass: { date: string; startTime: string; endTime: string } | null
   lastMessage: {
     id: string
     direction: "INBOUND" | "OUTBOUND"
@@ -1286,6 +1290,16 @@ export default function Inbox({
                       </span>
                     )}
                   </div>
+                  {/* The client's class: their upcoming booking, or — if none —
+                      the last class they had. Nothing for chat-only clients. */}
+                  {c.lastClass && (
+                    <div className="mt-1 flex items-center gap-1 text-[11px] text-gray-500 dark:text-[#8696A0]">
+                      <Calendar size={11} className="flex-shrink-0 opacity-70" />
+                      <span className="tabular-nums">
+                        {format(new Date(c.lastClass.date + "T00:00:00"), "EEE, MMM d")} · {c.lastClass.startTime}
+                      </span>
+                    </div>
+                  )}
                   {role === "ADMIN" && c.accessTrainers.length > 0 && (
                     // Multi-assign: every trainer who has access (= booked
                     // by this client) appears as a colored dot + name. Names

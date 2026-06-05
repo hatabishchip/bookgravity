@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
+import { phoneTail } from "@/lib/membership"
 
 // GET /api/whatsapp/conversations
 // Admin: all conversations in their studio.
@@ -46,8 +47,31 @@ export async function GET(_req: NextRequest) {
     take: 200,
   })
 
+  // For each client, the date+time of their LATEST class by class date:
+  //  - a future booking (the one they're booked onto next) wins, since it has
+  //    the latest date;
+  //  - if there's no future booking (or it was cancelled), this is the last
+  //    class they actually had;
+  //  - clients who only chat and never booked have nothing → null.
+  // Matched by phone tail (conversations store Meta digits, bookings store a
+  // formatted number).
+  const confirmed = await prisma.booking.findMany({
+    where: { status: "CONFIRMED", slot: { studioId: ctx.studioId } },
+    select: { clientPhone: true, slot: { select: { date: true, startTime: true, endTime: true } } },
+  })
+  type Slot = { date: string; startTime: string; endTime: string }
+  const sortKey = (s: Slot) => `${s.date}T${s.startTime}`
+  const lastClassByTail = new Map<string, Slot>()
+  for (const b of confirmed) {
+    const tail = phoneTail(b.clientPhone)
+    if (!tail) continue
+    const cur = lastClassByTail.get(tail)
+    if (!cur || sortKey(b.slot) > sortKey(cur)) lastClassByTail.set(tail, b.slot)
+  }
+
   return NextResponse.json(
     conversations.map((c) => ({
+      lastClass: lastClassByTail.get(phoneTail(c.clientPhone)) ?? null,
       id: c.id,
       clientPhone: c.clientPhone,
       clientName: c.clientName,
