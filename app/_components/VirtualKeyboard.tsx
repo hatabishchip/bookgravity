@@ -120,13 +120,22 @@ function KeyButton({
 export interface VirtualKeyboardProps {
   onInsert: (text: string) => void
   onBackspace: () => void
+  /** Greyed-out look when the 24h window is closed (free text can't reach the
+   *  client — only an approved template can). Stays usable for admins whose
+   *  free text is wrapped server-side. */
+  inactive?: boolean
+  /** Which layout the keyboard opens on. Admin defaults to "ru", trainers to
+   *  "en". The user can still flip languages with the globe key. */
+  defaultLang?: Lang
 }
 
 export default function VirtualKeyboard({
   onInsert,
   onBackspace,
+  inactive = false,
+  defaultLang = "ru",
 }: VirtualKeyboardProps) {
-  const [lang, setLang] = useState<Lang>("ru")
+  const [lang, setLang] = useState<Lang>(defaultLang)
   const [layer, setLayer] = useState<Layer>("letters")
   const [shift, setShift] = useState(false)
   const [dictating, setDictating] = useState(false)
@@ -266,7 +275,10 @@ export default function VirtualKeyboard({
 
   return (
     <div
-      className="bg-[#D1D5DB] dark:bg-[#1F1F22] px-1 pt-2 pb-1.5 select-none"
+      className={cn(
+        "bg-[#D1D5DB] dark:bg-[#1F1F22] px-1 pt-2 pb-1.5 select-none transition-opacity",
+        inactive && "opacity-50",
+      )}
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 6px)" }}
     >
       {/* Letter / symbol rows */}

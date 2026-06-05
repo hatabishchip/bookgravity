@@ -1527,7 +1527,7 @@ export default function Inbox({
             `windowOpen` flag still drives the 👋 (a greeting only makes sense
             to re-open a closed window, but it's harmless when open). */}
         {windowOpen || role === "ADMIN" || role === "TRAINER" ? (
-          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} />
+          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} windowOpen={windowOpen} />
         ) : null}
         {sendError && (
           <div className="px-3 pb-1 text-xs text-red-600 dark:text-red-400 bg-[#ECE5DD] dark:bg-[#0B141A]">

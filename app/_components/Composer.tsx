@@ -86,9 +86,13 @@ export interface ComposerProps {
   onWave?: () => void
   /** TRAINER-only: greys out the wave button during its 12h cooldown. */
   waveDisabled?: boolean
+  /** True while the 24h customer-service window is open (the client has
+   *  written within 24h). When closed, free text can't reach the client —
+   *  only an approved template/wave can — so the text field is shown muted. */
+  windowOpen?: boolean
 }
 
-export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, windowOpen = true }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasText, setHasText] = useState(false)
@@ -468,7 +472,15 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
           )}
 
           {/* Pill input with the textarea inside. */}
-          <div className="flex-1 min-w-0 flex items-end bg-white dark:bg-[#1F2C34] rounded-3xl px-4 py-1 shadow-sm">
+          <div className={cn(
+            "flex-1 min-w-0 flex items-end rounded-3xl px-4 py-1 transition-colors",
+            // Window open → normal white pill. Window closed → muted grey so
+            // it's visually clear free text can't reach the client (only an
+            // approved template / wave can).
+            windowOpen
+              ? "bg-white dark:bg-[#1F2C34] shadow-sm"
+              : "bg-gray-200/70 dark:bg-[#202C33]",
+          )}>
             <textarea
               ref={textareaRef}
               defaultValue=""
@@ -501,10 +513,15 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               autoCorrect={desktop ? "on" : "off"}
               autoCapitalize={desktop ? "sentences" : "off"}
               spellCheck={desktop}
-              placeholder="Message"
+              placeholder={windowOpen ? "Message" : "Window closed — use a template to reach this client"}
               disabled={sending}
               rows={1}
-              className="flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0] disabled:text-gray-400 dark:disabled:text-[#5C6970]"
+              className={cn(
+                "flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 disabled:text-gray-400 dark:disabled:text-[#5C6970]",
+                windowOpen
+                  ? "text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0]"
+                  : "text-gray-500 dark:text-[#8696A0] placeholder-gray-400 dark:placeholder-[#5C6970]",
+              )}
               style={{ fontSize: `${fontScale * 0.95}rem` }}
             />
           </div>
@@ -541,7 +558,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
           />
         )
       ) : bottomPanel === "keyboard" ? (
-        <VirtualKeyboard onInsert={insertText} onBackspace={backspace} />
+        <VirtualKeyboard onInsert={insertText} onBackspace={backspace} inactive={!windowOpen} defaultLang={role === "TRAINER" ? "en" : "ru"} />
       ) : (
         <StickerPicker
           onPick={(emoji) => {
