@@ -63,14 +63,19 @@ export default async function StudioBookingPage({
 
   const role = session?.user?.role
   // SUPER_ADMIN (platform owner) acts as an admin everywhere — proxy.ts lets
-  // them into /admin, so the booking page must recognise them too. Without
-  // this the owner sees a "Sign in" link even though they're fully logged in
-  // (the session cookie rides along fine), making it look like auth was lost.
+  // them into /admin, so the booking page must recognise them too.
   const isAdminish = role === "ADMIN" || role === "SUPER_ADMIN"
   const dashboardHref = isAdminish ? "/admin" : role === "TRAINER" ? "/trainer" : null
-  const signedInLabel = isAdminish ? "admin" : role === "TRAINER" ? "trainer" : null
-  // Show who they're signed in as (email/name), falling back to the role.
-  const signedInWho = session?.user?.name || session?.user?.email || signedInLabel
+  // The top-right staff badge shows ONLY: a trainer's own name, or just
+  // "Admin" for any admin — no "Signed in as", no email, no other details.
+  let badgeLabel: string | null = isAdminish ? "Admin" : null
+  if (!badgeLabel && role === "TRAINER" && session?.user?.id) {
+    const trainer = await prisma.trainer.findFirst({
+      where: { userId: session.user.id },
+      select: { name: true },
+    })
+    badgeLabel = trainer?.name?.trim() || "Trainer"
+  }
 
   return (
     <div className="min-h-screen bg-[#F5F4F0]">
@@ -94,17 +99,15 @@ export default async function StudioBookingPage({
             </div>
           </div>
           <div className="flex items-center flex-shrink-0">
-            {dashboardHref && signedInLabel ? (
-              // Signed-in staff: show clearly that they're still authenticated
-              // (no re-login needed) with a one-tap way back to their dashboard.
+            {dashboardHref && badgeLabel ? (
+              // Signed-in staff: just the trainer's name, or "Admin" — no
+              // "Signed in as", no email. Tapping it returns to the dashboard.
               <Link
                 href={dashboardHref}
-                aria-label={`Open ${signedInLabel} dashboard`}
+                aria-label={`Open dashboard (${badgeLabel})`}
                 className="inline-flex items-center gap-1.5 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-medium px-3 py-1.5 hover:bg-[#2C6E49]/20 max-w-[200px]"
-                title={`Signed in as ${signedInWho}`}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49] flex-shrink-0" />
-                <span className="truncate">Signed in as {signedInWho}</span>
+                <span className="truncate">{badgeLabel}</span>
                 <span aria-hidden className="flex-shrink-0">›</span>
               </Link>
             ) : (
