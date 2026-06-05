@@ -30,6 +30,11 @@ type TemplateDef = {
 // cluttered with 7 rows), and the 👋 wave is the first entry.
 const MESSAGE_TEMPLATES: TemplateDef[] = [
   {
+    label: "Today's class — still coming?",
+    text: "Hello! 🌿 Just a gentle reminder about your class today — are you still able to join us? We'd love to see you on the mat. 🙏",
+    templateName: "class_today_confirm",
+  },
+  {
     label: "Reschedule to another day",
     text: "Hello! Would it be convenient to reschedule you to another day? Today's group didn't reach more than 2 people.",
     templateName: "reschedule_other_day",
@@ -280,8 +285,9 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                 </button>
               </div>
               <div className="py-1">
-                {/* 👋 wave — first entry. Re-opens a cold chat. */}
-                {onWave && (
+                {/* 👋 wave — first entry (admin only; trainers have a standalone
+                    👋 button next to this menu). Re-opens a cold chat. */}
+                {role === "ADMIN" && onWave && (
                   <button
                     type="button"
                     disabled={waveDisabled}
@@ -422,29 +428,11 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                     panel); on mobile it flips between emoji + keyboard. */}
                 {desktop || bottomPanel === "keyboard" ? <Smile size={22} /> : <Keyboard size={22} />}
               </button>
-
-              {/* Quick-reply templates toggle. */}
-              <button
-                type="button"
-                tabIndex={-1}
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => setShowTemplates((v) => !v)}
-                className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:opacity-60",
-                  showTemplates
-                    ? "text-[#2C6E49] dark:text-[#69B58F]"
-                    : "text-gray-600 dark:text-[#8696A0]",
-                )}
-                aria-label="Message templates"
-              >
-                <MessageSquareText size={21} />
-              </button>
             </>
           )}
 
-          {/* Trainer-only standalone 👋 button (trainers have no templates
-              menu). Admins send the wave from the first entry of the templates
-              menu instead, so it isn't duplicated here. Rate-limited 12h. */}
+          {/* Trainer-only standalone 👋 button. Admins send the wave from the
+              first entry of the templates menu instead. Rate-limited 12h. */}
           {role === "TRAINER" && onWave && (
             <button
               type="button"
@@ -457,6 +445,25 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               title={waveDisabled ? "You can send a wave once every 12 hours" : "Send a wave 👋"}
             >
               👋
+            </button>
+          )}
+
+          {/* Quick-reply templates toggle — available to admin AND trainer. */}
+          {onSendTemplate && (
+            <button
+              type="button"
+              tabIndex={-1}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => setShowTemplates((v) => !v)}
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:opacity-60",
+                showTemplates
+                  ? "text-[#2C6E49] dark:text-[#69B58F]"
+                  : "text-gray-600 dark:text-[#8696A0]",
+              )}
+              aria-label="Message templates"
+            >
+              <MessageSquareText size={21} />
             </button>
           )}
 
