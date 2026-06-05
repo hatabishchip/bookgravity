@@ -48,6 +48,14 @@ html.dark, .dark body { background-color: #0c0f14; }
 .dark main .text-gray-400 { color: #717b88; }
 .dark main .text-gray-300 { color: #58616d; }
 
+/* Native form controls: a bare <select> inherits the OS canvas text colour
+   (near-black), which becomes invisible once its .bg-white is remapped dark —
+   the chosen value (e.g. a selected trainer) then "disappears". Force a light
+   value + a dark option list so the selection always shows. Selects that set
+   their own text-gray-* class keep it (higher specificity). */
+.dark main select { color: #e7eaee; }
+.dark main option { background-color: #171b21; color: #e7eaee; }
+
 /* Borders + dividers */
 .dark main .border-gray-100 { border-color: #242b34; }
 .dark main .border-gray-200 { border-color: #2c343f; }
