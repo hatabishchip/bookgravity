@@ -62,16 +62,39 @@ export async function GET(_req: NextRequest) {
   type Slot = { date: string; startTime: string; endTime: string }
   const sortKey = (s: Slot) => `${s.date}T${s.startTime}`
   const lastClassByTail = new Map<string, Slot>()
+  // Which calendar dates (studio-local) each client is booked on — used to
+  // filter the chat list by "today" / "tomorrow".
+  const datesByTail = new Map<string, Set<string>>()
   for (const b of confirmed) {
     const tail = phoneTail(b.clientPhone)
     if (!tail) continue
     const cur = lastClassByTail.get(tail)
     if (!cur || sortKey(b.slot) > sortKey(cur)) lastClassByTail.set(tail, b.slot)
+    let set = datesByTail.get(tail)
+    if (!set) { set = new Set(); datesByTail.set(tail, set) }
+    set.add(b.slot.date)
   }
 
+  // Today / tomorrow in Bali time (WITA, UTC+8, no DST) as YYYY-MM-DD.
+  const baliDate = (offsetDays: number) => {
+    const ms = Date.now() + offsetDays * 86400000
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Makassar",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(ms))
+  }
+  const todayBali = baliDate(0)
+  const tomorrowBali = baliDate(1)
+
   return NextResponse.json(
-    conversations.map((c) => ({
+    conversations.map((c) => {
+      const dates = datesByTail.get(phoneTail(c.clientPhone))
+      return {
       lastClass: lastClassByTail.get(phoneTail(c.clientPhone)) ?? null,
+      bookedToday: dates?.has(todayBali) ?? false,
+      bookedTomorrow: dates?.has(tomorrowBali) ?? false,
       id: c.id,
       clientPhone: c.clientPhone,
       clientName: c.clientName,
@@ -91,6 +114,7 @@ export async function GET(_req: NextRequest) {
             createdAt: c.messages[0].createdAt,
           }
         : null,
-    })),
+      }
+    }),
   )
 }

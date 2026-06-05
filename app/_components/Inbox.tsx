@@ -39,6 +39,10 @@ type ConversationListItem = {
   /** The client's latest class by class date — their next/upcoming booking,
    *  or (if none) the last class they had. Null if they never booked. */
   lastClass: { date: string; startTime: string; endTime: string } | null
+  /** Does this client have a CONFIRMED booking today / tomorrow (studio-local)?
+   *  Drives the Today / Tomorrow chat-list filter. */
+  bookedToday?: boolean
+  bookedTomorrow?: boolean
   lastMessage: {
     id: string
     direction: "INBOUND" | "OUTBOUND"
@@ -572,6 +576,8 @@ export default function Inbox({
 
   const [convos, setConvos] = useState<ConversationListItem[] | null>(null)
   const [search, setSearch] = useState("")
+  // Chat-list filter by booking day: all chats / booked today / booked tomorrow.
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "tomorrow">("all")
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [trainers, setTrainers] = useState<Trainer[]>([])
@@ -1149,11 +1155,24 @@ export default function Inbox({
   // also match by phone digits).
   const searchQ = search.trim().toLowerCase()
   const searchDigits = searchQ.replace(/\D/g, "")
-  const visibleConvos = convos && searchQ
-    ? convos.filter((c) =>
-        (c.clientName ?? "").toLowerCase().includes(searchQ) ||
-        (role === "ADMIN" && searchDigits.length > 0 && c.clientPhone.replace(/\D/g, "").includes(searchDigits)))
-    : convos
+  const visibleConvos = useMemo(() => {
+    if (!convos) return convos
+    let list = convos
+    // Day filter: only clients booked today / tomorrow.
+    if (dateFilter === "today") list = list.filter((c) => c.bookedToday)
+    else if (dateFilter === "tomorrow") list = list.filter((c) => c.bookedTomorrow)
+    // Name / phone search.
+    if (searchQ) {
+      list = list.filter(
+        (c) =>
+          (c.clientName ?? "").toLowerCase().includes(searchQ) ||
+          (role === "ADMIN" &&
+            searchDigits.length > 0 &&
+            c.clientPhone.replace(/\D/g, "").includes(searchDigits)),
+      )
+    }
+    return list
+  }, [convos, dateFilter, searchQ, searchDigits, role])
 
   const listColumn = (
     <div className="bg-white border-r border-gray-100 flex flex-col h-full dark:bg-[#0B141A] dark:border-transparent">
@@ -1206,6 +1225,38 @@ export default function Inbox({
               className="w-full bg-gray-100 dark:bg-[#202C33] rounded-lg pl-9 pr-3 py-2 text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0] focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
             />
           </div>
+        </div>
+      )}
+
+      {/* Day filter: All / Today / Tomorrow — by the client's booking date. */}
+      {convos && convos.length > 0 && (
+        <div className="px-3 pb-2 flex-shrink-0 flex items-center gap-1.5">
+          {([
+            { key: "all", label: "All chats", count: convos.length },
+            { key: "today", label: "Today", count: convos.filter((c) => c.bookedToday).length },
+            { key: "tomorrow", label: "Tomorrow", count: convos.filter((c) => c.bookedTomorrow).length },
+          ] as const).map((f) => {
+            const active = dateFilter === f.key
+            return (
+              <button
+                key={f.key}
+                onClick={() => setDateFilter(f.key)}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors",
+                  active
+                    ? "bg-[#2C6E49] text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#202C33] dark:text-[#8696A0] dark:hover:bg-[#2A3942]",
+                )}
+              >
+                {f.label}
+                {f.key !== "all" && (
+                  <span className={cn("ml-1", active ? "text-white/80" : "text-gray-400 dark:text-[#6B7C85]")}>
+                    {f.count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       )}
 
