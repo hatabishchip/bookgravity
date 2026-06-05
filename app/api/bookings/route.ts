@@ -13,6 +13,7 @@ import {
   appendOutboundMessage,
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
+import { verifyBookingOtp } from "@/lib/otp"
 import { z } from "zod"
 
 const BookingSchema = z.object({
@@ -26,6 +27,9 @@ const BookingSchema = z.object({
   // e.g. when a client knowingly books an extra spot for a friend under their
   // own name/phone.
   confirmDuplicate: z.boolean().optional(),
+  // WhatsApp confirmation code the client received (anti-spam). Required when
+  // the studio has WhatsApp enabled; ignored otherwise.
+  otpCode: z.string().optional(),
 })
 
 async function generateUniqueCode(slotId: string): Promise<string> {
@@ -74,6 +78,28 @@ export async function POST(request: NextRequest) {
     const seatsLeft = slot.maxCapacity - slot._count.bookings
     if (seatsLeft < data.partySize) {
       return NextResponse.json({ error: `Only ${seatsLeft} spot(s) left, you requested ${data.partySize}` }, { status: 409 })
+    }
+
+    // Anti-spam: when the studio has WhatsApp enabled, the client must enter the
+    // 2-digit code we sent to their WhatsApp before any booking is created. The
+    // code isn't consumed on success, so the duplicate-confirm re-POST still
+    // passes within the validity window.
+    if (await isStudioWhatsAppEnabled(studioId)) {
+      const otp = await verifyBookingOtp({
+        studioId,
+        phone: data.clientPhone,
+        code: data.otpCode ?? "",
+      })
+      if (!otp.ok) {
+        return NextResponse.json(
+          {
+            error: "Confirmation code is incorrect or expired. Please re-enter the code from WhatsApp.",
+            otpError: otp.error,
+            otpRemaining: otp.remaining,
+          },
+          { status: 401 },
+        )
+      }
     }
 
     // Duplicate guard is now a soft warning, not a hard block: a client may

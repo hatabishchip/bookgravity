@@ -166,7 +166,7 @@ type Service = {
   price: number
 }
 
-type Step = "date" | "time" | "details" | "done"
+type Step = "date" | "time" | "details" | "verify" | "done"
 
 function formatTime(time: string) {
   const [h, m] = time.split(":").map(Number)
@@ -218,6 +218,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const [dupWarn, setDupWarn] = useState<{ existingName: string | null } | null>(null)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // WhatsApp confirmation code (anti-spam): the 2-digit code the client types
+  // on the "verify" step, plus send/verify status.
+  const [otpCode, setOtpCode] = useState("")
+  const [otpSending, setOtpSending] = useState(false)
+  const [otpError, setOtpError] = useState("")
   const [error, setError] = useState("")
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const fieldRefs = {
@@ -467,6 +472,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           serviceIds: selectedServices,
           partySize,
           confirmDuplicate,
+          otpCode,
         }),
       })
 
@@ -475,6 +481,20 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         // Soft duplicate warning → show the confirm dialog instead of an error.
         if (err.duplicate) {
           setDupWarn({ existingName: err.existingName ?? null })
+          return
+        }
+        // Bad/expired confirmation code → keep the verify step, show the hint.
+        if (err.otpError) {
+          setStep("verify")
+          setOtpError(
+            err.otpError === "expired"
+              ? "That code expired. Tap “Resend code” to get a new one."
+              : err.otpError === "locked"
+                ? "Too many tries. Tap “Resend code” to get a new one."
+                : typeof err.otpRemaining === "number"
+                  ? `Wrong code — ${err.otpRemaining} tries left.`
+                  : "Enter the code we sent to your WhatsApp.",
+          )
           return
         }
         setError(err.error || "Booking failed")
@@ -501,6 +521,44 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     }
   }
 
+  // Request a WhatsApp confirmation code, then move to the verify step. If the
+  // studio has no WhatsApp (skipped), book straight away as before.
+  const requestOtp = async () => {
+    if (!selectedSlot) return
+    setOtpSending(true)
+    setError("")
+    setOtpError("")
+    try {
+      const res = await fetch(`/api/otp/send${studioParam ? `?${studioParam}` : ""}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: form.clientPhone, name: form.clientName }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.skipped) {
+        // No WhatsApp for this studio → original no-OTP flow.
+        submitBooking(false)
+        return
+      }
+      if (res.ok && data.sent) {
+        setOtpCode("")
+        setStep("verify")
+        return
+      }
+      if (res.status === 429) {
+        // A code was just sent — go enter it.
+        setStep("verify")
+        setOtpError("A code was just sent. Check WhatsApp and enter it below.")
+        return
+      }
+      setError(data.error || "Couldn't send the confirmation code. Check your number.")
+    } catch {
+      setError("Network error — please try again.")
+    } finally {
+      setOtpSending(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedSlot) return
@@ -515,7 +573,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     }
 
     setFieldErrors({})
-    submitBooking(false)
+    // Send the WhatsApp code and advance to the verify step (book happens there).
+    requestOtp()
   }
 
   const clearFieldError = (field: string) => {
@@ -794,6 +853,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 setSelectedServices([])
                 setBooking(null)
                 setPartySize(1)
+                setOtpCode("")
+                setOtpError("")
                 fetchAvailableDates()
               }}
               className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-3 rounded-xl text-sm font-medium transition-colors"
@@ -813,7 +874,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           vertical space. Clicking a completed step jumps back. */}
       {(() => {
         const stepList = ["date", "time", "details"] as Step[]
-        const currentIdx = step === "done" ? 3 : stepList.indexOf(step)
+        // "verify" is part of the details phase → keep the last dot active.
+        const currentIdx = step === "done" ? 3 : step === "verify" ? 2 : stepList.indexOf(step)
         const canNavigateTo = (s: Step) => {
           const targetIdx = stepList.indexOf(s)
           if (targetIdx >= currentIdx) return false
@@ -1307,12 +1369,73 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || otpSending}
               className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-60 text-white font-semibold py-4 rounded-xl transition-colors"
             >
-              {submitting ? "Booking..." : "Confirm Booking"}
+              {otpSending ? "Sending code…" : "Continue"}
             </button>
+            <p className="text-[11px] text-gray-400 text-center -mt-1">
+              We&apos;ll send a confirmation code to your WhatsApp.
+            </p>
           </form>
+        </div>
+      )}
+
+      {/* Step 4 — WhatsApp code confirmation (anti-spam). */}
+      {step === "verify" && selectedSlot && (
+        <div>
+          <button
+            onClick={() => { setStep("details"); setOtpError("") }}
+            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4"
+          >
+            ← Back
+          </button>
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
+            <div className="text-3xl mb-2">📲</div>
+            <h3 className="text-lg font-bold text-gray-900">Confirm your booking</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              We sent a 2-digit code to your WhatsApp
+              <br />
+              <span className="font-medium text-gray-700">{form.clientPhone}</span>
+            </p>
+
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={2}
+              value={otpCode}
+              onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 2)); setOtpError("") }}
+              placeholder="—"
+              aria-label="Confirmation code"
+              className="mt-5 w-32 mx-auto block text-center text-3xl font-bold tracking-[0.4em] border-2 border-gray-200 rounded-xl py-3 focus:outline-none focus:border-[#2C6E49] focus:ring-2 focus:ring-[#2C6E49]/20"
+            />
+
+            {otpError && (
+              <div className="mt-3 text-sm text-red-600">{otpError}</div>
+            )}
+            {error && (
+              <div className="mt-3 text-sm text-red-600">{error}</div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => submitBooking(false)}
+              disabled={submitting || otpCode.length < 2}
+              className="mt-5 w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors"
+            >
+              {submitting ? "Confirming…" : "Confirm Booking"}
+            </button>
+
+            <button
+              type="button"
+              onClick={requestOtp}
+              disabled={otpSending}
+              className="mt-3 text-sm text-[#2C6E49] font-medium hover:underline disabled:opacity-50"
+            >
+              {otpSending ? "Sending…" : "Resend code"}
+            </button>
+          </div>
         </div>
       )}
 

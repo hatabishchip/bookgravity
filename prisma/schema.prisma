@@ -278,6 +278,22 @@ model BookingService {
   @@unique([bookingId, serviceId])
 }
 
+// One-time WhatsApp confirmation code a client must enter before a public
+// booking is created. Stops drive-by spam booking — you can't confirm without
+// a real WhatsApp number that received the code. One active row per (studio,
+// phone), replaced on each send; expires after a few minutes, attempts capped.
+model BookingOtp {
+  id        String   @id @default(cuid())
+  studioId  String
+  phone     String // digits only (normalized)
+  code      String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([studioId, phone])
+}
+
 // ---------------------------------------------------------------------------
 // Memberships (абонементы)
 //
