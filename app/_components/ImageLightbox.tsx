@@ -90,9 +90,8 @@ export default function ImageLightbox({
     if (pointers.current.size === 0) panStart.current = null
   }
 
-  const onDoubleClick = () => {
-    setScale((s) => (s > 1 ? 1 : 2.5))
-  }
+  // Double-tap closes the viewer (owner's request). Pinch / wheel / buttons zoom.
+  const onDoubleClick = () => onClose()
 
   if (!mounted) return null
 
@@ -156,10 +155,13 @@ export default function ImageLightbox({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        className="max-w-[100dvw] max-h-[100dvh] object-contain"
+        // Cap to the full-viewport parent (not dvh units, which some iOS
+        // versions ignore — leaving the image unconstrained so it overflowed
+        // and got clipped top/bottom). object-contain shows the whole image.
+        className="max-w-full max-h-full object-contain"
         style={{
           transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
-          cursor: scale > 1 ? "grab" : "zoom-in",
+          cursor: scale > 1 ? "grab" : "zoom-out",
           touchAction: "none",
         }}
       />
