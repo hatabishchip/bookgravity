@@ -261,6 +261,34 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     t.focus()
   }, [])
 
+  // One quick-reply row. Picking it sends the approved template straight away
+  // (works outside the 24h window); falls back to filling the input as free
+  // text when no template sender is wired.
+  const renderTplButton = (tpl: TemplateDef) => (
+    <button
+      key={tpl.label}
+      type="button"
+      onClick={() => {
+        if (onSendTemplate) {
+          void onSendTemplate({
+            templateName: tpl.templateName,
+            languageCode: "en",
+            variables: tpl.variables,
+            display: tpl.text,
+          })
+          setShowTemplates(false)
+        } else {
+          applyTemplate(tpl.text)
+        }
+      }}
+      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-[#2A3942] active:bg-gray-100 dark:active:bg-[#33444E] transition-colors"
+    >
+      <div className="text-xs font-semibold text-[#2C6E49] dark:text-[#69B58F]">{tpl.label}</div>
+      <div className="text-sm text-gray-600 dark:text-[#C8D0D4] mt-0.5 line-clamp-2">{tpl.text}</div>
+    </button>
+  )
+  const tplByName = (name: string) => MESSAGE_TEMPLATES.find((t) => t.templateName === name)
+
   return (
     <>
       <div
@@ -303,6 +331,12 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                   </button>
                 )}
 
+                {/* Fixed order (requested): 1) today's class — still coming,
+                    2) reschedule to another day, 3) reschedule at <time>,
+                    then booking-canceled last. */}
+                {(() => { const t = tplByName("class_today_confirm"); return t ? renderTplButton(t) : null })()}
+                {(() => { const t = tplByName("reschedule_other_day"); return t ? renderTplButton(t) : null })()}
+
                 {/* Reschedule at <time> — one entry; tap a time chip to send. */}
                 <div className="px-4 py-2.5 border-t border-gray-100 dark:border-[#2A3942]">
                   <div className="text-xs font-semibold text-[#2C6E49] dark:text-[#69B58F]">Reschedule at…</div>
@@ -333,38 +367,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                   </div>
                 </div>
 
-                {MESSAGE_TEMPLATES.map((tpl) => (
-                  <button
-                    key={tpl.label}
-                    type="button"
-                    onClick={() => {
-                      if (onSendTemplate) {
-                        // Approved template → send straight away (works even
-                        // outside the 24h window). Templates can't be edited
-                        // before sending, so there's nothing to review.
-                        void onSendTemplate({
-                          templateName: tpl.templateName,
-                          languageCode: "en",
-                          variables: tpl.variables,
-                          display: tpl.text,
-                        })
-                        setShowTemplates(false)
-                      } else {
-                        // No template sender wired → fall back to filling the
-                        // input so the user can still send it as free text.
-                        applyTemplate(tpl.text)
-                      }
-                    }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-[#2A3942] active:bg-gray-100 dark:active:bg-[#33444E] transition-colors"
-                  >
-                    <div className="text-xs font-semibold text-[#2C6E49] dark:text-[#69B58F]">
-                      {tpl.label}
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-[#C8D0D4] mt-0.5 line-clamp-2">
-                      {tpl.text}
-                    </div>
-                  </button>
-                ))}
+                {(() => { const t = tplByName("booking_canceled"); return t ? renderTplButton(t) : null })()}
               </div>
             </div>
           </>
