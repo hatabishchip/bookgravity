@@ -21,6 +21,8 @@ const PAYMENT_METHODS = [
 ]
 
 const MEMBERSHIP_CLASSES = 5
+const MEMBERSHIP_PRICE = 250000
+const PRICE_LABEL = `Rp ${MEMBERSHIP_PRICE.toLocaleString("en-US")}` // "Rp 250,000"
 
 export default function SellMembershipButton({
   className,
@@ -30,7 +32,8 @@ export default function SellMembershipButton({
   onSold?: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const [phone, setPhone] = useState("")
+  // Pre-fill the international "+" so the seller doesn't have to type it.
+  const [phone, setPhone] = useState("+")
   const [name, setName] = useState("")
   const [payment, setPayment] = useState("CASH")
   const [existing, setExisting] = useState<number | null>(null)
@@ -86,7 +89,7 @@ export default function SellMembershipButton({
   }, [open, phone, phoneOk])
 
   function reset() {
-    setPhone("")
+    setPhone("+")
     setName("")
     setPayment("CASH")
     setExisting(null)
@@ -153,6 +156,12 @@ export default function SellMembershipButton({
 
             {done == null ? (
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                {/* Price banner — so admin & trainer always see what 5 classes cost. */}
+                <div className="rounded-xl bg-[#2C6E49]/[0.08] border border-[#2C6E49]/20 px-4 py-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">{MEMBERSHIP_CLASSES} classes</span>
+                  <span className="text-lg font-bold text-[#2C6E49]">{PRICE_LABEL}</span>
+                </div>
+
                 {/* Phone — large, monospaced-feel digits for readability. */}
                 <div className="relative">
                   <PhoneInput
@@ -223,7 +232,7 @@ export default function SellMembershipButton({
                   onClick={submit}
                   className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
                 >
-                  {submitting ? "Saving…" : `Sell (${MEMBERSHIP_CLASSES} classes)`}
+                  {submitting ? "Saving…" : `Sell · ${PRICE_LABEL}`}
                 </button>
               </div>
             ) : (
