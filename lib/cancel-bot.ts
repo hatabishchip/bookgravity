@@ -19,13 +19,14 @@ import { slotStartMs } from "@/lib/booking-cutoff"
 // A pending "1/0" confirmation is only honoured for 15 minutes.
 const PENDING_TTL_MS = 15 * 60 * 1000
 // Cancellation is allowed when EITHER condition holds:
-const CANCEL_LEAD_MS = 4 * 60 * 60 * 1000 // class is >= 4h away, OR
+const CANCEL_LEAD_MS = 2 * 60 * 60 * 1000 // class is >= 2h away, OR
 const GRACE_AFTER_BOOKING_MS = 30 * 60 * 1000 // booking was made <= 30 min ago.
 
 /**
- * The cancellation policy. Allowed if the class is at least 4h away, OR the
- * booking was created within the last 30 minutes (grace window for someone who
- * just booked a soon-to-start class and immediately changed their mind).
+ * The cancellation policy. Allowed if the class is at least 2h away (matches
+ * the booking cutoff and what clients are told), OR the booking was created
+ * within the last 30 minutes (grace window for someone who just booked a
+ * soon-to-start class and immediately changed their mind).
  */
 export function canCancelBooking(
   slotDate: string,
@@ -118,12 +119,18 @@ export async function handleCancelBotMessage(opts: {
   }
 
   // --- Step 1: a 3-digit ticket code ---
-  if (/^\d{3}$/.test(text)) {
+  // Accept either a bare code ("482") or the confirmation's cancel-link text
+  // ("Cancel 482"), so tapping the link in the WhatsApp booking confirmation
+  // kicks off the same cancel flow.
+  const code = /^\d{3}$/.test(text)
+    ? text
+    : (text.match(/cancel\D*(\d{3})\b/i)?.[1] ?? null)
+  if (code) {
     const tail = phoneTail(opts.clientPhone)
     if (tail.length < 6) return
     const candidates = await prisma.booking.findMany({
       where: {
-        ticketCode: text,
+        ticketCode: code,
         status: "CONFIRMED",
         clientPhone: { contains: tail },
         slot: { studioId: opts.studioId },

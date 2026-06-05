@@ -480,6 +480,8 @@ export async function sendClientBookingConfirmationWA(opts: {
   ticketCode: string
   /** Studio's Google Maps link (Studio.locationUrl). Used by the v3 template. */
   locationUrl?: string | null
+  /** Studio's WhatsApp number (digits) for the v4 one-tap cancel link. */
+  cancelWaNumber?: string | null
   /** The booked studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
@@ -487,10 +489,19 @@ export async function sendClientBookingConfirmationWA(opts: {
     process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
   const variables = [opts.clientName, opts.date, opts.time, opts.ticketCode]
-  // v3 carries an extra {{5}} location variable. Fall back to a dash if the
-  // studio has no location set (Meta rejects empty body parameters).
-  if (/v3$/.test(templateName)) {
+  // v3 and v4 carry an extra {{5}} location variable. Fall back to a dash if
+  // the studio has no location set (Meta rejects empty body parameters).
+  const isV4 = /v4$/.test(templateName)
+  if (/v3$/.test(templateName) || isV4) {
     variables.push(opts.locationUrl?.trim() || "—")
+  }
+  // v4 adds {{6}}: a one-tap wa.me cancel link prefilled with "Cancel <code>".
+  if (isV4) {
+    const num = (opts.cancelWaNumber || "").replace(/\D/g, "")
+    const cancelUrl = num
+      ? `https://wa.me/${num}?text=${encodeURIComponent(`Cancel ${opts.ticketCode}`)}`
+      : "—"
+    variables.push(cancelUrl)
   }
   return sendWhatsAppTemplate({
     toPhone: opts.clientPhone,

@@ -33,6 +33,10 @@ model Studio {
   // While false, the FloatingInbox FAB / /admin/inbox / /trainer/inbox
   // pages stay hidden and the inbox API rejects requests for this studio.
   whatsappEnabled Boolean @default(false)
+  // When WhatsApp is enabled, require clients to confirm a public booking with
+  // a one-time code sent to their WhatsApp (anti-spam). On by default; admins
+  // can turn it off per studio in Settings. Ignored when WhatsApp is disabled.
+  requireBookingOtp Boolean @default(true)
   // Per-studio WhatsApp Cloud API credentials. Populated by /super-admin
   // either via Embedded Signup OAuth (future) or manual entry from Meta
   // Business Suite. If null we fall back to the global env vars so the

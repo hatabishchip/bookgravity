@@ -29,6 +29,8 @@ const StudioUpdateSchema = z.object({
   privatePrice: z.number().min(0).optional(),
   // Optional ISO 639-1 lowercase code, or null to turn translation off.
   inboxLanguage: z.enum(SUPPORTED_INBOX_LANGS).nullable().optional(),
+  // Anti-spam: require a WhatsApp one-time code before a public booking.
+  requireBookingOtp: z.boolean().optional(),
 })
 
 const STUDIO_SELECT = {
@@ -45,6 +47,8 @@ const STUDIO_SELECT = {
   kidsPrice: true,
   privatePrice: true,
   inboxLanguage: true,
+  whatsappEnabled: true,
+  requireBookingOtp: true,
 } as const
 
 export async function GET() {

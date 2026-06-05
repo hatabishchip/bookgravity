@@ -47,7 +47,7 @@ export async function notifyBookingCreated(opts: {
       where: { id: opts.slotId },
       include: {
         trainer: { select: { name: true, whatsapp: true, notifyWhatsapp: true } },
-        studio: { select: { locationUrl: true, whatsappPhoneNumberId: true, whatsappAccessToken: true, bookingAlertWhatsapp: true } },
+        studio: { select: { locationUrl: true, whatsappPhoneNumberId: true, whatsappAccessToken: true, whatsappDisplayPhone: true, bookingAlertWhatsapp: true } },
       },
     })
     if (!slotForWA) return
@@ -83,6 +83,7 @@ export async function notifyBookingCreated(opts: {
       time: prettyTime,
       ticketCode: opts.ticketCode,
       locationUrl: slotForWA.studio?.locationUrl,
+      cancelWaNumber: slotForWA.studio?.whatsappDisplayPhone || process.env.WHATSAPP_DISPLAY_PHONE || "628213130468",
       studioWA: slotForWA.studio,
     }).then(async (r) => {
       if (!r.ok) console.warn("[booking-notify] WA client send failed:", r.error)

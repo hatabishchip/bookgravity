@@ -27,8 +27,12 @@ export async function POST(request: NextRequest) {
 
     const studio = await prisma.studio.findUnique({
       where: { id: studioId },
-      select: { whatsappPhoneNumberId: true, whatsappAccessToken: true },
+      select: { whatsappPhoneNumberId: true, whatsappAccessToken: true, requireBookingOtp: true },
     })
+    // Admin turned the confirmation off for this studio → no code required.
+    if (studio && studio.requireBookingOtp === false) {
+      return NextResponse.json({ skipped: true })
+    }
     const config = getConfigFor(studio)
     if (!config) return NextResponse.json({ skipped: true })
 

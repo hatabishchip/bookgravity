@@ -80,11 +80,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Only ${seatsLeft} spot(s) left, you requested ${data.partySize}` }, { status: 409 })
     }
 
-    // Anti-spam: when the studio has WhatsApp enabled, the client must enter the
-    // 2-digit code we sent to their WhatsApp before any booking is created. The
-    // code isn't consumed on success, so the duplicate-confirm re-POST still
-    // passes within the validity window.
-    if (await isStudioWhatsAppEnabled(studioId)) {
+    // Anti-spam: when the studio has WhatsApp enabled AND the admin kept the
+    // confirmation on, the client must enter the 2-digit code we sent to their
+    // WhatsApp before any booking is created. The code isn't consumed on
+    // success, so the duplicate-confirm re-POST still passes within the window.
+    const otpStudio = await prisma.studio.findUnique({
+      where: { id: studioId },
+      select: { requireBookingOtp: true },
+    })
+    if ((await isStudioWhatsAppEnabled(studioId)) && otpStudio?.requireBookingOtp !== false) {
       const otp = await verifyBookingOtp({
         studioId,
         phone: data.clientPhone,
@@ -245,7 +249,7 @@ export async function POST(request: NextRequest) {
         where: { id: data.slotId },
         include: {
           trainer: { select: { name: true, whatsapp: true, notifyWhatsapp: true } },
-          studio: { select: { locationUrl: true, whatsappPhoneNumberId: true, whatsappAccessToken: true, bookingAlertWhatsapp: true } },
+          studio: { select: { locationUrl: true, whatsappPhoneNumberId: true, whatsappAccessToken: true, whatsappDisplayPhone: true, bookingAlertWhatsapp: true } },
         },
       })
       if (slotForWA) {
@@ -280,6 +284,9 @@ export async function POST(request: NextRequest) {
           time: prettyTime,
           ticketCode: bookings[0].ticketCode,
           locationUrl: slotForWA.studio?.locationUrl,
+          // wa.me cancel link target: studio's own display number, else the
+          // global studio WhatsApp number.
+          cancelWaNumber: slotForWA.studio?.whatsappDisplayPhone || process.env.WHATSAPP_DISPLAY_PHONE || "628213130468",
           studioWA: slotForWA.studio,
         }).then(async (r) => {
           if (!r.ok) console.warn("[bookings] WA client send failed:", r.error)

@@ -21,6 +21,10 @@ type Studio = {
   locationUrl: string | null
   /** Admin WhatsApp number that also receives booking alerts. */
   bookingAlertWhatsapp: string | null
+  /** Whether WhatsApp is connected/active for this studio. */
+  whatsappEnabled?: boolean
+  /** Require a WhatsApp one-time code before a public booking (anti-spam). */
+  requireBookingOtp?: boolean
   /** True while this admin still uses the auto-generated starter password. */
   usingInitialPassword?: boolean
 }
@@ -78,7 +82,7 @@ function readImageAsDataUrl(file: File, maxDim = 512, quality = 0.85): Promise<s
 
 export default function SettingsPage() {
   const [studio, setStudio] = useState<Studio | null>(null)
-  const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | "location" | "bookingAlert" | null>(null)
+  const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | "location" | "bookingAlert" | "otp" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
@@ -88,9 +92,9 @@ export default function SettingsPage() {
   }, [])
 
   const update = async (
-    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "inboxLanguage" | "locationUrl" | "bookingAlertWhatsapp">>,
+    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "inboxLanguage" | "locationUrl" | "bookingAlertWhatsapp" | "requireBookingOtp">>,
   ) => {
-    const which: "logo" | "favicon" | "cover" | "language" | "location" | "bookingAlert" =
+    const which: "logo" | "favicon" | "cover" | "language" | "location" | "bookingAlert" | "otp" =
       "faviconUrl" in data
         ? "favicon"
         : "coverUrl" in data
@@ -101,7 +105,9 @@ export default function SettingsPage() {
               ? "location"
               : "bookingAlertWhatsapp" in data
                 ? "bookingAlert"
-                : "logo"
+                : "requireBookingOtp" in data
+                  ? "otp"
+                  : "logo"
     setSaving(which)
     setError(null)
     const res = await fetch("/api/admin/studio", {
@@ -207,6 +213,16 @@ export default function SettingsPage() {
             saving={saving === "bookingAlert"}
             onSave={(phone) => update({ bookingAlertWhatsapp: phone })}
           />
+
+          {/* WhatsApp code confirmation toggle — only meaningful when WhatsApp
+              is connected for this studio. */}
+          {studio.whatsappEnabled && (
+            <BookingOtpCard
+              value={studio.requireBookingOtp !== false}
+              saving={saving === "otp"}
+              onToggle={(on) => update({ requireBookingOtp: on })}
+            />
+          )}
 
           <SessionsCard />
 
@@ -517,6 +533,51 @@ function LocationCard({
           {value} ↗
         </a>
       )}
+    </div>
+  )
+}
+
+// Toggle: require a WhatsApp one-time code before a public booking (anti-spam).
+// Only rendered when WhatsApp is connected for the studio.
+function BookingOtpCard({
+  value,
+  saving,
+  onToggle,
+}: {
+  value: boolean
+  saving: boolean
+  onToggle: (on: boolean) => Promise<void> | void
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-gray-900">WhatsApp booking confirmation</h3>
+          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+            Clients must enter a code sent to their WhatsApp before a booking is
+            created. Stops fake / spam bookings. {saving && <span className="text-[#2C6E49]">Saving…</span>}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={value}
+          disabled={saving}
+          onClick={() => onToggle(!value)}
+          className={cn(
+            "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+            value ? "bg-[#2C6E49]" : "bg-gray-300",
+          )}
+          aria-label="Toggle WhatsApp booking confirmation"
+        >
+          <span
+            className={cn(
+              "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+              value ? "translate-x-[22px]" : "translate-x-0.5",
+            )}
+          />
+        </button>
+      </div>
     </div>
   )
 }
