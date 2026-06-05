@@ -569,20 +569,23 @@ export async function sendTrainerBookingNotificationWA(opts: {
   const templateName =
     process.env.WHATSAPP_TEMPLATE_TRAINER_NOTIFICATION || "trainer_new_booking"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
-  // `trainer_class_booking` carries 4 variables; `trainer_new_booking` /
-  // `trainer_booking_v3` carry 5. Dispatch the right shape for whatever env
-  // points at. Long-form date ("Friday, 28 May") fills {{1}}.
-  const isV2 = templateName === "trainer_class_booking"
+  // Only the legacy `trainer_new_booking` template has 5 params (separate
+  // booked + capacity). The modern templates — `trainer_booking_v3` (what
+  // production uses) and `trainer_class_booking` — have 4, with a combined
+  // "booked/max" param. Sending 5 to a 4-param template makes Meta reject the
+  // send ("localizable_params (5) does not match expected (4)"), which is why
+  // trainers stopped receiving notifications. Long-form date fills {{1}}.
+  const legacy5 = templateName === "trainer_new_booking"
   const longDate = formatLongDate(opts.date)
-  const variables = isV2
-    ? [longDate, opts.time, `${opts.bookedCount}/${opts.maxCapacity}`, namesLine || "—"]
-    : [
+  const variables = legacy5
+    ? [
         longDate,
         opts.time,
         String(opts.bookedCount),
         String(opts.maxCapacity),
         namesLine || "—",
       ]
+    : [longDate, opts.time, `${opts.bookedCount}/${opts.maxCapacity}`, namesLine || "—"]
   return sendWhatsAppTemplate({
     toPhone: opts.trainerPhone,
     templateName,
