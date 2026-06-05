@@ -529,19 +529,30 @@ export async function sendClientBookingConfirmationWA(opts: {
     process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
 
-  // v5 — new layout, no name greeting: {{1}} pretty date, {{2}} start time
-  // ("7:00 am"), {{3}} ticket, {{4}} location.
-  if (/v5$/.test(templateName)) {
+  // v5/v6 — new layout, no name greeting: {{1}} pretty date, {{2}} start time
+  // ("7:00 am"), {{3}} ticket, {{4}} location. v6 adds {{5}} = one-tap wa.me
+  // cancel link prefilled with "Cancel <code>".
+  const isV6 = /v6$/.test(templateName)
+  if (/v5$/.test(templateName) || isV6) {
+    const vars = [
+      opts.date,
+      (opts.startTimePretty || opts.time) ?? "—",
+      opts.ticketCode,
+      opts.locationUrl?.trim() || "—",
+    ]
+    if (isV6) {
+      const num = (opts.cancelWaNumber || "").replace(/\D/g, "")
+      vars.push(
+        num
+          ? `https://wa.me/${num}?text=${encodeURIComponent(`Cancel ${opts.ticketCode}`)}`
+          : "—",
+      )
+    }
     return sendWhatsAppTemplate({
       toPhone: opts.clientPhone,
       templateName,
       languageCode: lang,
-      variables: [
-        opts.date,
-        (opts.startTimePretty || opts.time) ?? "—",
-        opts.ticketCode,
-        opts.locationUrl?.trim() || "—",
-      ],
+      variables: vars,
       config: getConfigFor(opts.studioWA),
     })
   }
