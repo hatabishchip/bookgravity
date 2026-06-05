@@ -99,6 +99,17 @@ export async function GET(req: NextRequest) {
       continue
     }
 
+    // Atomically CLAIM this booking before sending — set todayReminderSentAt
+    // only if it's still null. If two cron runs overlap (e.g. Vercel cron +
+    // an external pinger), only one wins the claim; the other sees count===0
+    // and skips, so the client never gets a duplicate. On send failure we roll
+    // the claim back to null so a later run retries.
+    const claim = await prisma.booking.updateMany({
+      where: { id: b.id, todayReminderSentAt: null },
+      data: { todayReminderSentAt: new Date() },
+    })
+    if (claim.count === 0) continue // already claimed by a concurrent run
+
     const res = await sendClassTodayConfirmWA({
       clientPhone: b.clientPhone,
       studioWA: b.slot.studio,
@@ -107,14 +118,15 @@ export async function GET(req: NextRequest) {
     if (!res.ok) {
       failed++
       console.warn("[today-reminders] send failed:", b.clientPhone, res.error)
+      // Release the claim so the next run can retry.
+      await prisma.booking.update({
+        where: { id: b.id },
+        data: { todayReminderSentAt: null },
+      })
       continue
     }
 
     sent++
-    await prisma.booking.update({
-      where: { id: b.id },
-      data: { todayReminderSentAt: new Date() },
-    })
 
     // Find the client's conversation (booking phones are FORMATTED, convo
     // phones are Meta bare digits → match on the last-10-digit tail). Log the
