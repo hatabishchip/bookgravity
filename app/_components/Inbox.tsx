@@ -1233,8 +1233,8 @@ export default function Inbox({
         <div className="px-3 pb-2 flex-shrink-0 flex items-center gap-1.5">
           {([
             { key: "all", label: "All chats", count: convos.length },
-            { key: "today", label: "Today", count: convos.filter((c) => c.bookedToday).length },
-            { key: "tomorrow", label: "Tomorrow", count: convos.filter((c) => c.bookedTomorrow).length },
+            { key: "today", label: "Today's class", count: convos.filter((c) => c.bookedToday).length },
+            { key: "tomorrow", label: "Tomorrow's class", count: convos.filter((c) => c.bookedTomorrow).length },
           ] as const).map((f) => {
             const active = dateFilter === f.key
             return (
