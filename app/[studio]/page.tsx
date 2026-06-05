@@ -61,8 +61,13 @@ export default async function StudioBookingPage({
   ])
 
   const role = session?.user?.role
-  const dashboardHref = role === "ADMIN" ? "/admin" : role === "TRAINER" ? "/trainer" : null
-  const signedInLabel = role === "ADMIN" ? "admin" : role === "TRAINER" ? "trainer" : null
+  // SUPER_ADMIN (platform owner) acts as an admin everywhere — proxy.ts lets
+  // them into /admin, so the booking page must recognise them too. Without
+  // this the owner sees a "Sign in" link even though they're fully logged in
+  // (the session cookie rides along fine), making it look like auth was lost.
+  const isAdminish = role === "ADMIN" || role === "SUPER_ADMIN"
+  const dashboardHref = isAdminish ? "/admin" : role === "TRAINER" ? "/trainer" : null
+  const signedInLabel = isAdminish ? "admin" : role === "TRAINER" ? "trainer" : null
   // Show who they're signed in as (email/name), falling back to the role.
   const signedInWho = session?.user?.name || session?.user?.email || signedInLabel
 
