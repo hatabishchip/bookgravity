@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { touchLoginActivity } from "@/lib/activity"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireTrainer()
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  // Keep the admin "last active" view fresh: the trainer cabinet loads + polls
+  // this endpoint, so a trainer on a long-lived session still registers as
+  // active even though they never re-enter their password. Throttled to 5 min.
+  await touchLoginActivity(ctx.userId, request.headers.get("user-agent"))
 
   const trainer = await prisma.trainer.findFirst({
     where: { userId: ctx.userId, studioId: ctx.studioId },
