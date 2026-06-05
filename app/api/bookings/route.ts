@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { format, parseISO } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { getPublicStudioId } from "@/lib/studio"
 import { isSlotBookable } from "@/lib/booking-cutoff"
@@ -253,8 +254,17 @@ export async function POST(request: NextRequest) {
         },
       })
       if (slotForWA) {
-        const prettyDate = slotForWA.date // YYYY-MM-DD; template can format
+        const prettyDate = slotForWA.date // YYYY-MM-DD; trainer template formats it
         const prettyTime = `${slotForWA.startTime}–${slotForWA.endTime}`
+        // Client-facing formatting: "June 6, Friday" + "7:00 am".
+        const niceDate = (() => {
+          try { return format(parseISO(slotForWA.date), "MMMM d, EEEE") } catch { return slotForWA.date }
+        })()
+        const niceStart = (() => {
+          const [h, m] = slotForWA.startTime.split(":").map(Number)
+          if (Number.isNaN(h)) return slotForWA.startTime
+          return `${h % 12 || 12}:${String(m || 0).padStart(2, "0")} ${h >= 12 ? "pm" : "am"}`
+        })()
 
         // 1) Ensure a Conversation exists for this client and is assigned to
         //    the slot's trainer. This is what powers /admin/inbox + /trainer/inbox.
@@ -273,15 +283,16 @@ export async function POST(request: NextRequest) {
         }
 
         const clientMessageBody =
-          `Hi ${data.clientName}, your booking is confirmed.\n` +
-          `Date: ${prettyDate}\nTime: ${prettyTime}\nTicket: ${bookings[0].ticketCode}\n\n` +
+          `Booking is confirmed.\n\n` +
+          `${niceDate}\nClass at ${niceStart}\nTicket: ${bookings[0].ticketCode}\n\n` +
           `Please arrive 10 minutes before the class starts.`
 
         const clientPromise = sendClientBookingConfirmationWA({
           clientPhone: data.clientPhone,
           clientName: data.clientName,
-          date: prettyDate,
+          date: niceDate,
           time: prettyTime,
+          startTimePretty: niceStart,
           ticketCode: bookings[0].ticketCode,
           locationUrl: slotForWA.studio?.locationUrl,
           // wa.me cancel link target: studio's own display number, else the

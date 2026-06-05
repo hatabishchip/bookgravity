@@ -520,12 +520,32 @@ export async function sendClientBookingConfirmationWA(opts: {
   locationUrl?: string | null
   /** Studio's WhatsApp number (digits) for the v4 one-tap cancel link. */
   cancelWaNumber?: string | null
+  /** Pretty start time ("7:00 am") used by the v5 layout's "Class at {{2}}". */
+  startTimePretty?: string | null
   /** The booked studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
   const templateName =
     process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+
+  // v5 — new layout, no name greeting: {{1}} pretty date, {{2}} start time
+  // ("7:00 am"), {{3}} ticket, {{4}} location.
+  if (/v5$/.test(templateName)) {
+    return sendWhatsAppTemplate({
+      toPhone: opts.clientPhone,
+      templateName,
+      languageCode: lang,
+      variables: [
+        opts.date,
+        (opts.startTimePretty || opts.time) ?? "—",
+        opts.ticketCode,
+        opts.locationUrl?.trim() || "—",
+      ],
+      config: getConfigFor(opts.studioWA),
+    })
+  }
+
   const variables = [opts.clientName, opts.date, opts.time, opts.ticketCode]
   // v3 and v4 carry an extra {{5}} location variable. Fall back to a dash if
   // the studio has no location set (Meta rejects empty body parameters).
