@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import Link from "next/link"
 import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns"
-import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2, MessageSquare } from "lucide-react"
+import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2, MessageSquare, Bell } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import SellMembershipButton from "@/app/_components/SellMembershipButton"
@@ -77,6 +77,12 @@ function formatIDR(amount: number) {
 
 type View = "2weeks" | "month"
 
+// localStorage key holding the per-slot booked count the trainer has already
+// "seen". Anything above this baseline is a NEW registration → drives the bell
+// badge. Stored so pre-existing bookings never look new and the badge survives
+// a page reload.
+const SEEN_KEY = "bg:trainer:seenBookings"
+
 export default function TrainerSchedulePage() {
   // Stable reference — created once per mount so it doesn't re-trigger
   // effects on every render (which caused a visible "blink" / re-scroll
@@ -115,6 +121,11 @@ export default function TrainerSchedulePage() {
   // When a class just ended with unpaid clients, the cabinet opens straight
   // into that class's payment list and can't be closed until everyone is paid.
   const [forcedSlotId, setForcedSlotId] = useState<string | null>(null)
+  // "New bookings" bell: baseline of already-seen counts (per slot), whether
+  // it's been loaded from localStorage yet, and the dropdown open state.
+  const [seenCounts, setSeenCounts] = useState<Record<string, number>>({})
+  const [seenLoaded, setSeenLoaded] = useState(false)
+  const [bellOpen, setBellOpen] = useState(false)
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)")
@@ -181,6 +192,63 @@ export default function TrainerSchedulePage() {
     Promise.all([fetchSalary(), fetchServices()])
   }, [fetchSalary, fetchServices])
 
+  // ── New-bookings bell ──────────────────────────────────────────────────
+  // Load the seen baseline once on mount (client-only — guarded for SSR).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SEEN_KEY)
+      if (raw) setSeenCounts(JSON.parse(raw))
+    } catch { /* ignore corrupt/blocked storage */ }
+    setSeenLoaded(true)
+  }, [])
+
+  const persistSeen = useCallback((next: Record<string, number>) => {
+    setSeenCounts(next)
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+  }, [])
+
+  // The first time we ever see one of the trainer's upcoming classes, record
+  // its current count as the baseline so its already-existing bookings don't
+  // show up as "new". Only fills in unseen slots — never overwrites a baseline.
+  useEffect(() => {
+    if (!seenLoaded || !slotsLoaded) return
+    let changed = false
+    const next = { ...seenCounts }
+    for (const s of slots) {
+      if (s.state !== "mine" || s.date < todayStr) continue
+      if (!(s.id in next)) { next[s.id] = s._count?.bookings ?? 0; changed = true }
+    }
+    if (changed) persistSeen(next)
+  }, [slots, seenLoaded, slotsLoaded, seenCounts, todayStr, persistSeen])
+
+  // Upcoming classes whose booked count has grown past the seen baseline.
+  const newItems = useMemo(() => {
+    if (!seenLoaded) return [] as { slot: Slot; delta: number }[]
+    return slots
+      .filter((s) => s.state === "mine" && s.date >= todayStr)
+      .map((s) => {
+        const cur = s._count?.bookings ?? 0
+        const base = seenCounts[s.id]
+        return { slot: s, delta: base === undefined ? 0 : cur - base }
+      })
+      .filter((x) => x.delta > 0)
+      .sort((a, b) =>
+        (a.slot.date + a.slot.startTime).localeCompare(b.slot.date + b.slot.startTime)
+      )
+  }, [slots, seenCounts, seenLoaded, todayStr])
+
+  const newTotal = newItems.reduce((sum, x) => sum + x.delta, 0)
+
+  const markSlotSeen = useCallback((slot: Slot) => {
+    persistSeen({ ...seenCounts, [slot.id]: slot._count?.bookings ?? 0 })
+  }, [seenCounts, persistSeen])
+
+  const markAllSeen = useCallback(() => {
+    const next = { ...seenCounts }
+    for (const x of newItems) next[x.slot.id] = x.slot._count?.bookings ?? 0
+    persistSeen(next)
+  }, [newItems, seenCounts, persistSeen])
+
   // NOTE: Month view intentionally does NOT auto-scroll to today. The grid
   // renders from the 1st and the page stays put (the "Month" toggle doesn't
   // jump); today is still highlighted via todayCellRef styling.
@@ -217,6 +285,9 @@ export default function TrainerSchedulePage() {
   const handleSlotClick = (slot: Slot) => {
     setSelectedSlot(slot)
     fetchBookingsForSlot(slot.id)
+    // Opening a class clears its "new" badge.
+    markSlotSeen(slot)
+    setBellOpen(false)
   }
 
   // Optimistic update — apply locally first, then sync to server in the
@@ -364,6 +435,75 @@ export default function TrainerSchedulePage() {
       <div className="flex items-center justify-between gap-3 mb-3 lg:mb-4">
         <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Schedule</h1>
         <div className="flex items-center gap-3">
+          {/* New-bookings bell — badge counts clients who registered for the
+              trainer's upcoming classes since they last looked. Updates live
+              via the 20s schedule poll. */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setBellOpen((o) => !o)}
+              aria-label="New bookings"
+              className={cn(
+                "relative w-10 h-10 flex items-center justify-center rounded-xl border touch-manipulation transition-colors",
+                newTotal > 0
+                  ? "border-[#2C6E49]/30 bg-[#2C6E49]/10 text-[#2C6E49] hover:bg-[#2C6E49]/15"
+                  : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+              )}
+            >
+              <Bell size={20} strokeWidth={2.25} />
+              {newTotal > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm">
+                  {newTotal > 99 ? "99+" : newTotal}
+                </span>
+              )}
+            </button>
+            {bellOpen && (
+              <>
+                {/* Click-away backdrop */}
+                <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-lg border border-gray-100 z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-gray-800">New bookings</span>
+                    {newTotal > 0 && (
+                      <button
+                        type="button"
+                        onClick={markAllSeen}
+                        className="text-xs text-[#2C6E49] font-medium hover:underline"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  {newItems.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-gray-400">
+                      No new bookings
+                    </div>
+                  ) : (
+                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                      {newItems.map(({ slot, delta }) => (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          onClick={() => handleSlotClick(slot)}
+                          className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between gap-2 touch-manipulation"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-gray-900">
+                              {format(new Date(slot.date + "T00:00:00"), "EEE, MMM d")}
+                            </div>
+                            <div className="text-xs text-gray-500">{formatTime(slot.startTime)}</div>
+                          </div>
+                          <span className="flex-shrink-0 text-xs font-bold text-white bg-[#2C6E49] rounded-full px-2 py-1">
+                            +{delta}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
           <SellMembershipButton />
           {salary && (
             <Link
