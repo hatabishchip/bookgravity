@@ -7,6 +7,7 @@ import { auth } from "@/auth"
 import BookingWidget from "../_components/BookingWidget"
 import StudioSwitcher from "../_components/StudioSwitcher"
 import StudioCookieSync from "../_components/StudioCookieSync"
+import SiteFooter from "../_components/SiteFooter"
 
 // Per-studio booking page: bookgravity.com/canggu, /ubud, etc. The studio is
 // the path segment — no subdomains. Unknown slugs 404 (static routes like
@@ -122,6 +123,8 @@ export default async function StudioBookingPage({
       <div className="max-w-4xl mx-auto px-4 py-6">
         <BookingWidget services={services} studio={studio} studioSlug={studio.slug} />
       </div>
+
+      <SiteFooter />
     </div>
   )
 }

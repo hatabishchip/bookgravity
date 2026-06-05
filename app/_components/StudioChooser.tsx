@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { ArrowRight } from "lucide-react"
+import SiteFooter from "./SiteFooter"
 
 type StudioOption = { slug: string; name: string; isDefault: boolean; coverUrl?: string | null }
 
@@ -95,12 +96,7 @@ export default function StudioChooser({ studios }: { studios: StudioOption[] }) 
         </div>
       </div>
 
-      {/* Staff sign-in — single unified login */}
-      <footer className="pb-8 text-center">
-        <a href="/login" className="text-xs text-gray-400 hover:text-[#2C6E49]">
-          Staff sign in
-        </a>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }
