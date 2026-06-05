@@ -908,8 +908,15 @@ export default function SchedulePage() {
                       >
                         <div className="flex items-start justify-between gap-1">
                           <div
-                            className="text-xs font-semibold leading-tight"
-                            style={bright ? { color: "white" } : trainerColor ? { color: trainerColor } : {}}
+                            className={cn(
+                              "text-xs font-semibold leading-tight",
+                              // Unassigned (no trainer colour): use a theme-aware
+                              // utility so the dark-mode remap keeps it readable.
+                              // An empty inline style would inherit the dark
+                              // default → black-on-black on the dark card.
+                              !bright && !trainerColor && "text-gray-800",
+                            )}
+                            style={bright ? { color: "white" } : trainerColor ? { color: trainerColor } : undefined}
                           >
                             {formatTime(slot.startTime)}
                             <span className="block font-normal text-[10px] opacity-70">{formatTime(slot.endTime)}</span>
@@ -933,8 +940,8 @@ export default function SchedulePage() {
                             )}
                           </div>
                         </div>
-                        <div className="mt-0.5 truncate text-[10px]"
-                          style={bright ? { color: "rgba(255,255,255,0.75)" } : trainerColor ? { color: hexToRgba(trainerColor, 0.9) } : { color: "#9CA3AF" }}
+                        <div className={cn("mt-0.5 truncate text-[10px]", !bright && !trainerColor && "text-gray-500")}
+                          style={bright ? { color: "rgba(255,255,255,0.75)" } : trainerColor ? { color: hexToRgba(trainerColor, 0.9) } : undefined}
                         >
                           {slot.trainer?.name ?? "—"}
                           {slot.assistant && (
@@ -942,8 +949,8 @@ export default function SchedulePage() {
                           )}
                         </div>
                         <div
-                          className="text-[10px]"
-                          style={bright ? { color: "rgba(255,255,255,0.6)" } : trainerColor ? { color: hexToRgba(trainerColor, 0.7) } : { color: "#D1D5DB" }}
+                          className={cn("text-[10px]", !bright && !trainerColor && "text-gray-400")}
+                          style={bright ? { color: "rgba(255,255,255,0.6)" } : trainerColor ? { color: hexToRgba(trainerColor, 0.7) } : undefined}
                         >
                           {slot._count.bookings}/{slot.maxCapacity}
                         </div>
