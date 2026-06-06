@@ -39,7 +39,7 @@ const PHONE_COUNTRIES: PhoneCountry[] = [
   { code: "+66",  flag: "🇹🇭", name: "Thailand",            min: 8,  max: 9  },
   { code: "+65",  flag: "🇸🇬", name: "Singapore",           min: 8,  max: 8  },
   { code: "+63",  flag: "🇵🇭", name: "Philippines",         min: 10, max: 10 },
-  { code: "+62",  flag: "🇮🇩", name: "Indonesia",           min: 8,  max: 12 },
+  { code: "+62",  flag: "🇮🇩", name: "Indonesia",           min: 11, max: 12 },
   { code: "+61",  flag: "🇦🇺", name: "Australia",           min: 9,  max: 9  },
   { code: "+60",  flag: "🇲🇾", name: "Malaysia",            min: 9,  max: 10 },
   { code: "+55",  flag: "🇧🇷", name: "Brazil",              min: 10, max: 11 },
@@ -121,6 +121,26 @@ function detectCountry(phone: string): PhoneCountry | null {
 function subscriberDigits(phone: string, country: PhoneCountry): number {
   const codeLen = country.code.length - 1
   return phone.replace(/\D/g, "").slice(codeLen).length
+}
+
+// Build a "what's still missing" hint: the entered subscriber digits followed
+// by • placeholders for however many more are needed to reach the country's
+// minimum, grouped for readability (e.g. "821 101 ••••"). Makes it obvious at a
+// glance that the number isn't finished yet.
+function phoneHint(phone: string, country: PhoneCountry): { sub: number; masked: string; done: boolean } {
+  const codeLen = country.code.length - 1
+  const subStr = phone.replace(/\D/g, "").slice(codeLen)
+  const sub = subStr.length
+  const need = Math.max(0, country.min - sub)
+  const combined = subStr + "•".repeat(need)
+  const groups: string[] = []
+  for (let i = 0; i < combined.length; ) {
+    const rem = combined.length - i
+    const size = rem > 4 ? 3 : rem
+    groups.push(combined.slice(i, i + size))
+    i += size
+  }
+  return { sub, masked: groups.join(" "), done: sub >= country.min }
 }
 
 function applyMask(digits: string, mask: string): string {
@@ -1256,14 +1276,21 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     <p className="text-xs text-red-500 mt-1">Unknown country code — please start with a valid code, e.g. +62</p>
                   ) : country ? (
                     (() => {
-                      const sub = subscriberDigits(form.clientPhone, country)
-                      const done = sub >= country.min
+                      const { sub, masked, done } = phoneHint(form.clientPhone, country)
                       return (
-                        <p className={cn("text-xs mt-1", done ? "text-[#2C6E49]" : "text-amber-500")}>
-                          {country.flag} {country.name}
-                          {!done && ` · ${sub} / ${country.min} digits`}
-                          {done && " ✓"}
-                        </p>
+                        <div className={cn("flex items-center gap-2 mt-1.5 text-xs", done ? "text-[#2C6E49]" : "text-amber-600")}>
+                          <span>{country.flag} {country.name}</span>
+                          {/* Live mask: entered digits + • for the rest, so it's
+                              clear the number isn't finished. */}
+                          <span className="font-mono tracking-wide text-gray-600">
+                            {country.code} {masked}
+                          </span>
+                          {done ? (
+                            <span className="font-semibold">✓</span>
+                          ) : (
+                            <span className="text-amber-600">· {country.min - sub} more</span>
+                          )}
+                        </div>
                       )
                     })()
                   ) : (
