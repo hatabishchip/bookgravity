@@ -55,6 +55,12 @@ html.dark, .dark body { background-color: #0c0f14; }
    their own text-gray-* class keep it (higher specificity). */
 .dark main select { color: #e7eaee; }
 .dark main option { background-color: #171b21; color: #e7eaee; }
+/* Same for bare <input>/<textarea>: without an explicit text colour they
+   render near-black, which is invisible once their background is a dark
+   surface (e.g. the trainer WhatsApp field). Inputs that set their own
+   text-gray-* class keep it (higher specificity). */
+.dark main input,
+.dark main textarea { color: #e7eaee; }
 
 /* Borders + dividers */
 .dark main .border-gray-100 { border-color: #242b34; }
