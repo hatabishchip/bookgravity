@@ -229,7 +229,7 @@ function clientEndTime(startTime: string) {
 
 export default function BookingWidget({ services, studio, studioSlug }: {
   services: Service[]
-  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null }
+  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null; whatsappEnabled?: boolean }
   // Slug of the studio this widget books into. Sent as ?studio= on the
   // slots/bookings calls so the API scopes to the right studio regardless of
   // host (we serve every studio from bookgravity.com now). Falls back to the
@@ -1003,7 +1003,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
           {/* Actions */}
           <div className="mt-4 space-y-2">
-            {waLink && (
+            {/* "Send to WhatsApp" only for studios WITHOUT WhatsApp — those WITH
+                it already auto-send the ticket to the client's WhatsApp. */}
+            {waLink && !studio?.whatsappEnabled && (
               <button
                 onClick={() => shareTicketToWhatsApp(messageText, waLink)}
                 className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white py-3 rounded-xl text-sm font-semibold transition-colors shadow-sm"

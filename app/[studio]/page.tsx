@@ -48,7 +48,7 @@ export default async function StudioBookingPage({
 
   const studio = await prisma.studio.findFirst({
     where: { slug },
-    select: { id: true, name: true, slug: true, logoUrl: true, locationUrl: true },
+    select: { id: true, name: true, slug: true, logoUrl: true, locationUrl: true, whatsappEnabled: true },
   })
   if (!studio) notFound()
 
