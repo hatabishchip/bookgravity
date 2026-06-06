@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { sendClassTodayConfirmWA } from "@/lib/whatsapp-cloud"
-import { appendOutboundMessage } from "@/lib/whatsapp-conversation"
+import { appendOutboundMessage, upsertConversation } from "@/lib/whatsapp-conversation"
 import { phoneTail } from "@/lib/membership"
 
 export const dynamic = "force-dynamic"
@@ -138,31 +138,43 @@ export async function GET(req: NextRequest) {
         where: { studioId: b.slot.studio.id },
         select: { id: true, clientPhone: true },
       })
-      const convo = convos.find((c) => phoneTail(c.clientPhone) === tail)
-      if (convo) {
-        // Only arm forwarding when the trainer opted into WhatsApp notifications
-        // and actually has a number on file.
-        const trainerWA = b.slot.trainer?.whatsapp?.trim()
-        const wantForward = !!b.slot.trainer?.notifyWhatsapp && !!trainerWA
-        await prisma.whatsAppConversation.update({
-          where: { id: convo.id },
-          data: {
-            pendingReminderTrainerPhone: wantForward ? trainerWA : null,
-          },
-        })
-        await appendOutboundMessage({
-          conversationId: convo.id,
-          type: "template",
-          body:
-            "Hello! 🌿 Just a gentle reminder about your class today — are you " +
-            "still able to join us? We'd love to see you on the mat. 🙏",
-          templateName:
-            process.env.WHATSAPP_TEMPLATE_TODAY_CONFIRM || "class_today_confirm",
-          waMessageId: res.messageId ?? null,
-          status: "sent",
-          fromTrainerId: null,
-        })
-      }
+      const match = convos.find((c) => phoneTail(c.clientPhone) === tail)
+      // No conversation yet? This reminder is the FIRST contact with the
+      // client. Create the thread now (assigning the class trainer) so the
+      // reminder is logged as the opening message — otherwise the client's
+      // reply later shows up alone, with no context. (Bug the owner hit.)
+      const convoId =
+        match?.id ??
+        (
+          await upsertConversation({
+            studioId: b.slot.studio.id,
+            clientPhone: b.clientPhone,
+            clientName: b.clientName ?? null,
+            assignedTrainerId: b.slot.trainerId ?? null,
+          })
+        ).id
+      // Only arm forwarding when the trainer opted into WhatsApp notifications
+      // and actually has a number on file.
+      const trainerWA = b.slot.trainer?.whatsapp?.trim()
+      const wantForward = !!b.slot.trainer?.notifyWhatsapp && !!trainerWA
+      await prisma.whatsAppConversation.update({
+        where: { id: convoId },
+        data: {
+          pendingReminderTrainerPhone: wantForward ? trainerWA : null,
+        },
+      })
+      await appendOutboundMessage({
+        conversationId: convoId,
+        type: "template",
+        body:
+          "Hello! 🌿 Just a gentle reminder about your class today — are you " +
+          "still able to join us? We'd love to see you on the mat. 🙏",
+        templateName:
+          process.env.WHATSAPP_TEMPLATE_TODAY_CONFIRM || "class_today_confirm",
+        waMessageId: res.messageId ?? null,
+        status: "sent",
+        fromTrainerId: null,
+      })
     } catch (err) {
       console.error("[today-reminders] convo log/arm failed:", err)
     }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { sendClassReminderWA } from "@/lib/whatsapp-cloud"
-import { appendOutboundMessage } from "@/lib/whatsapp-conversation"
+import { appendOutboundMessage, upsertConversation } from "@/lib/whatsapp-conversation"
 import { phoneTail } from "@/lib/membership"
 
 export const dynamic = "force-dynamic"
@@ -119,20 +119,31 @@ export async function GET(req: NextRequest) {
           where: { studioId: b.slot.studioId },
           select: { id: true, clientPhone: true },
         })
-        const convo = convos.find((c) => phoneTail(c.clientPhone) === tail)
-        if (convo) {
-          await appendOutboundMessage({
-            conversationId: convo.id,
-            type: "template",
-            body:
-              `Reminder: your group class is tomorrow at ${time}. ` +
-              `Please arrive 10 minutes early.`,
-            templateName: process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder_v2",
-            waMessageId: res.messageId ?? null,
-            status: "sent",
-            fromTrainerId: null,
-          })
-        }
+        const match = convos.find((c) => phoneTail(c.clientPhone) === tail)
+        // No conversation yet? Create it now (assigning the class trainer) so
+        // the reminder is logged as the opening message and any later reply has
+        // context — otherwise the reply shows up alone in the inbox.
+        const convoId =
+          match?.id ??
+          (
+            await upsertConversation({
+              studioId: b.slot.studioId,
+              clientPhone: b.clientPhone,
+              clientName: b.clientName ?? null,
+              assignedTrainerId: b.slot.trainerId ?? null,
+            })
+          ).id
+        await appendOutboundMessage({
+          conversationId: convoId,
+          type: "template",
+          body:
+            `Reminder: your group class is tomorrow at ${time}. ` +
+            `Please arrive 10 minutes early.`,
+          templateName: process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder_v2",
+          waMessageId: res.messageId ?? null,
+          status: "sent",
+          fromTrainerId: null,
+        })
       } catch (err) {
         console.error("[class-reminders] convo log failed:", err)
       }
