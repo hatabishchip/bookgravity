@@ -278,42 +278,18 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   }
   const [booking, setBooking] = useState<{ id: string; clientName: string; slot: Slot; ticketCode: string } | null>(null)
   const ticketRef = useRef<HTMLDivElement>(null)
-  const [sharing, setSharing] = useState(false)
 
   // Send the ticket to the client's OWN WhatsApp number.
   // We intentionally do NOT use the Web Share API (it opens the system share
   // sheet / contact picker, letting you send to anyone). Instead we save the
   // ticket image to the device and open a wa.me chat pre-targeted to the
   // number used for the booking, with the confirmation text prefilled.
-  async function shareTicketToWhatsApp(messageText: string, waLink: string | null) {
-    if (!ticketRef.current || sharing) return
-    setSharing(true)
-    try {
-      const { toBlob } = await import("html-to-image")
-      const blob = await toBlob(ticketRef.current, {
-        pixelRatio: 2,
-        backgroundColor: "#ffffff",
-        cacheBust: true,
-      })
-      // Save the ticket PNG to the device so the client keeps it (wa.me links
-      // can't carry an image attachment). Best-effort — never blocks the link.
-      if (blob) {
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = `gravity-ticket-${booking?.ticketCode || "ticket"}.png`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        setTimeout(() => URL.revokeObjectURL(url), 1000)
-      }
-    } catch (e) {
-      console.error("Render ticket image failed:", e)
-    } finally {
-      // Always open the client's own WhatsApp chat with the text prefilled.
-      if (waLink) window.open(waLink, "_blank")
-      setSharing(false)
-    }
+  // Open the client's own WhatsApp chat with the booking details prefilled as
+  // text. We intentionally do NOT render/download a PNG (that popped a confusing
+  // "download this image?" dialog) — the message already carries the ticket
+  // code + details + a link to view it.
+  function shareTicketToWhatsApp(_messageText: string, waLink: string | null) {
+    if (waLink) window.open(waLink, "_blank")
   }
 
   const [form, setForm] = useState({
@@ -417,8 +393,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
   // Auto-send the code the instant the phone is fully entered. If the number
   // changes or becomes incomplete, reset verification + clear any prefilled
-  // name/email (privacy).
+  // name/email (privacy). Only on the details step — otherwise navigating back
+  // to a restored ticket (step "done", phone restored) would re-send a code.
   useEffect(() => {
+    if (step !== "details") return
     const country = detectCountry(form.clientPhone)
     const complete = !!country && subscriberDigits(form.clientPhone, country) >= country.min
     const digits = form.clientPhone.replace(/\D/g, "")
@@ -447,7 +425,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     setForm((f) => ({ ...f, clientName: "", clientEmail: "" }))
     void sendOtp(form.clientPhone)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.clientPhone])
+  }, [form.clientPhone, step])
 
   // Poll the code's WhatsApp delivery status. We only reveal the code input
   // once we're confident the number is on WhatsApp:
@@ -997,11 +975,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             {waLink && (
               <button
                 onClick={() => shareTicketToWhatsApp(messageText, waLink)}
-                disabled={sharing}
-                className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold transition-colors shadow-sm"
+                className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white py-3 rounded-xl text-sm font-semibold transition-colors shadow-sm"
               >
                 <MessageCircle size={16} />
-                {sharing ? "Preparing ticket..." : "Send to WhatsApp"}
+                Send to WhatsApp
               </button>
             )}
 
