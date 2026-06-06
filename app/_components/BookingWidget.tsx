@@ -123,24 +123,33 @@ function subscriberDigits(phone: string, country: PhoneCountry): number {
   return phone.replace(/\D/g, "").slice(codeLen).length
 }
 
-// Build a "what's still missing" hint: the entered subscriber digits followed
-// by • placeholders for however many more are needed to reach the country's
-// minimum, grouped for readability (e.g. "821 101 ••••"). Makes it obvious at a
-// glance that the number isn't finished yet.
-function phoneHint(phone: string, country: PhoneCountry): { sub: number; masked: string; done: boolean } {
-  const codeLen = country.code.length - 1
-  const subStr = phone.replace(/\D/g, "").slice(codeLen)
-  const sub = subStr.length
-  const need = Math.max(0, country.min - sub)
-  const combined = subStr + "•".repeat(need)
-  const groups: string[] = []
-  for (let i = 0; i < combined.length; ) {
-    const rem = combined.length - i
-    const size = rem > 4 ? 3 : rem
-    groups.push(combined.slice(i, i + size))
-    i += size
+// Mask the FULL template (entered digits + remaining slots) using the
+// country's "#" format, keeping separators across the placeholder region too.
+function applyMaskFull(chars: string, mask: string): string {
+  let result = ""
+  let di = 0
+  for (let i = 0; i < mask.length && di < chars.length; i++) {
+    if (mask[i] === "#") result += chars[di++]
+    else result += mask[i]
   }
-  return { sub, masked: groups.join(" "), done: sub >= country.min }
+  if (di < chars.length) result += chars.slice(di)
+  return result
+}
+
+// In-field phone display: the already-formatted typed value (`typed`), the amber
+// "_" placeholder tail for the digits still missing (`tail`), and whether the
+// number is complete. Used to render the mask INSIDE the input so the client
+// never has to look below the field to see what's left to type.
+function phoneFieldDisplay(phone: string, country: PhoneCountry): { typed: string; tail: string; done: boolean } {
+  const codeLen = country.code.length - 1
+  const sub = phone.replace(/\D/g, "").slice(codeLen)
+  const mask = PHONE_FORMATS[country.code]
+  const need = Math.max(0, country.min - sub.length)
+  const combined = sub + "_".repeat(need)
+  const full = country.code + " " + (mask ? applyMaskFull(combined, mask) : combined)
+  const typed = formatPhoneInput(phone) // identical to the input's current value
+  const tail = full.length > typed.length ? full.slice(typed.length) : ""
+  return { typed, tail, done: sub.length >= country.min }
 }
 
 function applyMask(digits: string, mask: string): string {
@@ -1263,59 +1272,62 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               // Unknown code = typed more than the max code length (3 digits after +) but still no match
               const unknownCode = !country && digits.length > 3
               const hasError = !!fieldErrors.clientPhone || unknownCode
+              const display = country ? phoneFieldDisplay(form.clientPhone, country) : null
+              const done = !!display?.done
               return (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
-                  <input
-                    ref={fieldRefs.clientPhone}
-                    type="tel"
-                    autoFocus
-                    value={form.clientPhone}
-                    onChange={(e) => {
-                      const stripped = "+" + e.target.value.replace(/\D/g, "")
-                      const c = detectCountry(stripped)
-                      // Block if unknown code and already past max prefix length
-                      if (!c && stripped.replace(/\D/g, "").length > 3) return
-                      // Block if known code but subscriber digits exceeded max
-                      if (c && subscriberDigits(stripped, c) > c.max) return
-                      const formatted = c ? formatPhoneInput(stripped) : stripped
-                      setForm({ ...form, clientPhone: formatted })
-                      clearFieldError("clientPhone")
-                    }}
-                    placeholder="+62 812 3456 7890"
-                    className={cn(
-                      "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 transition-colors",
-                      hasError
-                        ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
-                        : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                  {/* Label row: the country + amber/green status sits right next
+                      to the field (not far below), turning green with a ✓ when
+                      the number is complete. */}
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700">Phone *</label>
+                    {country && (
+                      <span className={cn("text-xs font-medium flex items-center gap-1", done ? "text-[#2C6E49]" : "text-amber-600")}>
+                        {country.flag} {country.name}{done && " ✓"}
+                      </span>
                     )}
-                  />
+                  </div>
+                  <div className="relative">
+                    <input
+                      ref={fieldRefs.clientPhone}
+                      type="tel"
+                      autoFocus
+                      value={form.clientPhone}
+                      onChange={(e) => {
+                        const stripped = "+" + e.target.value.replace(/\D/g, "")
+                        const c = detectCountry(stripped)
+                        if (!c && stripped.replace(/\D/g, "").length > 3) return
+                        if (c && subscriberDigits(stripped, c) > c.max) return
+                        const formatted = c ? formatPhoneInput(stripped) : stripped
+                        setForm({ ...form, clientPhone: formatted })
+                        clearFieldError("clientPhone")
+                      }}
+                      placeholder="+62 812 3456 7890"
+                      // Real text is transparent while we draw the masked overlay
+                      // (so typed digits + amber _ placeholders show inside the
+                      // field); the caret stays visible via caret-color.
+                      className={cn(
+                        "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 transition-colors caret-[#2C6E49]",
+                        display && form.clientPhone ? "text-transparent" : "text-gray-900",
+                        hasError
+                          ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
+                          : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                      )}
+                    />
+                    {display && form.clientPhone && (
+                      <div className="absolute inset-0 px-4 py-3 text-lg flex items-center pointer-events-none whitespace-pre">
+                        <span className="text-gray-900">{display.typed}</span>
+                        <span className="text-amber-500">{display.tail}</span>
+                      </div>
+                    )}
+                  </div>
                   {fieldErrors.clientPhone ? (
                     <p className="text-xs text-red-500 mt-1">{fieldErrors.clientPhone}</p>
                   ) : unknownCode ? (
                     <p className="text-xs text-red-500 mt-1">Unknown country code — please start with a valid code, e.g. +62</p>
-                  ) : country ? (
-                    (() => {
-                      const { sub, masked, done } = phoneHint(form.clientPhone, country)
-                      return (
-                        <div className={cn("flex items-center gap-2 mt-1.5 text-xs", done ? "text-[#2C6E49]" : "text-amber-600")}>
-                          <span>{country.flag} {country.name}</span>
-                          {/* Live mask: entered digits + • for the rest, so it's
-                              clear the number isn't finished. */}
-                          <span className="font-mono tracking-wide text-gray-600">
-                            {country.code} {masked}
-                          </span>
-                          {done ? (
-                            <span className="font-semibold">✓</span>
-                          ) : (
-                            <span className="text-amber-600">· {country.min - sub} more</span>
-                          )}
-                        </div>
-                      )
-                    })()
-                  ) : (
+                  ) : !country ? (
                     <p className="text-xs text-gray-400 mt-1">Start with country code, e.g. +62 for Indonesia</p>
-                  )}
+                  ) : null}
                 </div>
               )
             })()}
