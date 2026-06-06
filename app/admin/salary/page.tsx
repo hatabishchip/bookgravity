@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Plus, Trash2, X, TrendingUp, Wallet, CreditC
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
-type Payment = { id: string; amount: number; note: string | null; createdAt: string }
+type Payment = { id: string; amount: number; note: string | null; createdAt: string; kind?: string }
 type TrainerSalary = {
   id: string
   name: string
@@ -269,8 +269,8 @@ export default function SalaryPage() {
                     <div className="flex flex-wrap gap-1.5">
                       {t.payments.map((p) => (
                         <div key={p.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 text-xs">
-                          {p.amount < 0 ? (
-                            <span className="text-amber-600 font-medium">+{formatIDR(-p.amount)} credit</span>
+                          {p.kind === "accrual" ? (
+                            <span className="text-amber-600 font-medium">+{formatIDR(p.amount)} accrued</span>
                           ) : (
                             <span className="text-[#2C6E49] font-medium">{formatIDR(p.amount)} paid</span>
                           )}

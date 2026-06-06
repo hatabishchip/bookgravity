@@ -176,6 +176,10 @@ model TrainerPayment {
   amount    Float
   month     String
   note      String?
+  // "payout" = money paid to the trainer (reduces what's owed).
+  // "accrual" = a manual amount the studio owes the trainer (e.g. a no-show
+  // comp) — adds to ACCRUED / balance. Always a positive amount either way.
+  kind      String   @default("payout")
   createdAt DateTime @default(now())
 }
 
