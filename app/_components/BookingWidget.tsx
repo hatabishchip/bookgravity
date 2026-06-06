@@ -1262,13 +1262,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                         <div className="text-right flex flex-col items-end gap-0.5">
                           {withinCutoff ? (
                             <span className={cn(
-                              "inline-block text-center leading-5 px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide",
+                              "inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide leading-none",
                               slot.started ? "bg-[#2C6E49] text-white" : "bg-gray-300 text-gray-600",
                             )}>{slot.started ? "Live" : "Closed"}</span>
                           ) : isFull ? (
-                            <span className="inline-block text-center leading-5 px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-rose-500 text-white">Sold out</span>
+                            <span className="inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide leading-none bg-rose-500 text-white">Sold out</span>
                           ) : !enoughForParty ? (
-                            <span className="inline-block text-center leading-5 px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-amber-500 text-white">{`Only ${spotsLeft} left`}</span>
+                            <span className="inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide leading-none bg-amber-500 text-white">{`Only ${spotsLeft} left`}</span>
                           ) : (
                             <div className="flex items-center gap-1 text-sm font-medium text-[#2C6E49]">
                               <Users size={14} />
