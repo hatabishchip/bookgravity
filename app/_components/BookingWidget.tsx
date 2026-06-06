@@ -529,11 +529,6 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       .map((s) => s.date)
   )
   // Past dates that had a class scheduled — shown so the user sees there was a session
-  const pastDatesWithSlots = new Set(
-    allSlots
-      .filter((s) => s.date < todayStr)
-      .map((s) => s.date)
-  )
   // Today/future dates that DO have a class but it can't be booked online
   // (inside the 2h cutoff, or already in progress) — shown greyed so visitors
   // still see "there are classes today" and can message us. Excludes days that
@@ -550,6 +545,14 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           !fullyBookedDates.has(s.date),
       )
       .map((s) => s.date),
+  )
+  // Grey "had a class" dot: any day that has slots but nothing bookable or in
+  // progress — past days, AND today once all its classes have finished (so the
+  // day never looks empty when there genuinely were lessons).
+  const historyDates = new Set(
+    allSlots
+      .map((s) => s.date)
+      .filter((d) => !availableDates.has(d) && !fullyBookedDates.has(d) && !infoDates.has(d)),
   )
 
   useEffect(() => { fetchAvailableDates() }, [fetchAvailableDates])
@@ -765,7 +768,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             const isPast = isBefore(day, today)
             const hasSlot = availableDates.has(str)
             const isFull = fullyBookedDates.has(str)
-            const hadPastClass = pastDatesWithSlots.has(str)
+            // Had a class but nothing actionable now (past day, or today's
+            // classes already finished) → grey dot so the day isn't blank.
+            const hadClass = historyDates.has(str)
             // Has a class today/soon that can't be booked online (cutoff / in
             // progress) — still selectable so the visitor can see it greyed.
             const hasInfo = infoDates.has(str)
@@ -780,7 +785,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 ? "bg-amber-400"
                 : isFull && !isPast
                   ? "bg-rose-500"
-                  : isPast && hadPastClass
+                  : hadClass
                     ? "bg-gray-300"
                     : null
             return (
