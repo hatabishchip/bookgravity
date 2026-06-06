@@ -264,6 +264,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // WhatsApp delivery status of the code we sent (polled): sent → delivered →
   // read, or failed if the number isn't on WhatsApp.
   const [otpDelivery, setOtpDelivery] = useState<"sent" | "delivered" | "read" | "failed">("sent")
+  // Only show the code input once we're confident the number is on WhatsApp
+  // (delivered, or a fallback timeout with no failure). Until then we show a
+  // "checking…" spinner; on failure we ask the client to change the number.
+  const [otpReady, setOtpReady] = useState(false)
+  const otpFailedRef = useRef(false)
   const [error, setError] = useState("")
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const fieldRefs = {
@@ -333,6 +338,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     setOtpError("")
     setError("")
     setOtpDelivery("sent")
+    setOtpReady(false)
+    otpFailedRef.current = false
     try {
       const res = await fetch(`/api/otp/send${studioParam ? `?${studioParam}` : ""}`, {
         method: "POST",
@@ -419,6 +426,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         sentDigitsRef.current = ""
         setOtpSent(false)
         setOtpVerified(false)
+        setOtpReady(false)
+        otpFailedRef.current = false
         setOtpCode("")
         setOtpError("")
         setMembershipLeft(0)
@@ -439,11 +448,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.clientPhone])
 
-  // While waiting for the code, poll its WhatsApp delivery status so we can tell
-  // the client if their number isn't on WhatsApp (status "failed") instead of
-  // leaving them staring at an empty code field.
+  // Poll the code's WhatsApp delivery status. We only reveal the code input
+  // once we're confident the number is on WhatsApp:
+  //   • delivered/read  → show the code field
+  //   • failed          → number isn't on WhatsApp → ask to change it
+  //   • still "sent" after a short wait → assume valid (recipient maybe offline)
   useEffect(() => {
-    if (!otpSent || otpVerified) return
+    if (!otpSent || otpVerified || otpReady) return
     let tries = 0
     let cancelled = false
     const poll = async () => {
@@ -453,17 +464,27 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           { cache: "no-store" },
         )
         const d = await r.json().catch(() => ({}))
-        if (!cancelled && d.status && d.status !== "none") setOtpDelivery(d.status)
+        if (cancelled || !d.status || d.status === "none") return
+        setOtpDelivery(d.status)
+        if (d.status === "failed") {
+          otpFailedRef.current = true
+          setOtpReady(false)
+        } else if (d.status === "delivered" || d.status === "read") {
+          setOtpReady(true)
+        }
       } catch { /* ignore */ }
     }
     void poll()
     const id = setInterval(() => {
       tries++
       void poll()
-      if (tries >= 12) clearInterval(id) // ~30s then stop
-    }, 2500)
+      // Fallback after ~8s with no failure: a valid number whose phone is just
+      // offline still got the code — let them enter it.
+      if (tries >= 4 && !otpFailedRef.current) setOtpReady(true)
+      if (tries >= 12 || otpFailedRef.current) clearInterval(id)
+    }, 2000)
     return () => { cancelled = true; clearInterval(id) }
-  }, [otpSent, otpVerified, form.clientPhone, studioParam])
+  }, [otpSent, otpVerified, otpReady, form.clientPhone, studioParam])
 
   const today = startOfDay(new Date())
 
@@ -1369,9 +1390,14 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     )}
                     {/* Sending the WhatsApp code — a spinner at the field's edge so
                         the client knows something is happening in the 1–2s wait. */}
-                    {otpSending && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#2C6E49] pointer-events-none" aria-label="Sending code">
+                    {(otpSending || (otpSent && !otpReady && !otpVerified && otpDelivery !== "failed")) && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#2C6E49] pointer-events-none" aria-label="Checking WhatsApp">
                         <Loader2 size={20} className="animate-spin" />
+                      </div>
+                    )}
+                    {otpDelivery === "failed" && !otpVerified && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none" aria-label="Not on WhatsApp">
+                        <span className="text-lg">⚠️</span>
                       </div>
                     )}
                   </div>
@@ -1386,10 +1412,25 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               )
             })()}
 
-            {/* WhatsApp code — appears once the phone is fully entered; we
-                auto-send a code and reveal this field. A correct code unlocks
-                name/email below. */}
-            {otpSent && !otpVerified && (
+            {/* Checking delivery — the code field stays hidden until we know
+                the number is on WhatsApp. */}
+            {otpSent && !otpReady && !otpVerified && otpDelivery !== "failed" && (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
+                <Loader2 size={16} className="animate-spin text-[#2C6E49]" />
+                Sending a code to your WhatsApp…
+              </div>
+            )}
+
+            {/* Number isn't on WhatsApp → ask to change it; no code field. */}
+            {otpSent && !otpReady && !otpVerified && otpDelivery === "failed" && (
+              <div className="rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                <span className="font-semibold">⚠️ This number isn&apos;t on WhatsApp.</span>{" "}
+                Please change the number above to one that has WhatsApp — then we&apos;ll send the code.
+              </div>
+            )}
+
+            {/* WhatsApp code — only once we know the number is on WhatsApp. */}
+            {otpSent && otpReady && !otpVerified && (
               <div className="rounded-xl border-2 border-[#2C6E49]/20 bg-[#2C6E49]/5 p-4 text-center">
                 <div className="text-sm font-semibold text-gray-800">📲 Enter the code from your WhatsApp</div>
                 <p className="text-xs mt-0.5">
