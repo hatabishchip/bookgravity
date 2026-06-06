@@ -400,7 +400,7 @@ export default function TrainersPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                               title="Open WhatsApp chat with this trainer"
-                              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#075E54] bg-[#25D366]/10 border border-[#25D366]/30 rounded-lg px-2 py-1 max-w-full truncate hover:bg-[#25D366]/20 transition-colors touch-manipulation"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0b7a4b] dark:text-[#4ade80] bg-[#25D366]/10 dark:bg-[#25D366]/15 border border-[#25D366]/40 rounded-lg px-2 py-1 max-w-full truncate hover:bg-[#25D366]/20 transition-colors touch-manipulation"
                             >
                               <WhatsAppIcon size={12} />
                               <span className="truncate">{trainer.whatsapp}</span>
