@@ -318,7 +318,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
   const [form, setForm] = useState({
     clientName: "",
-    clientPhone: "",
+    // Pre-fill the leading "+" so the client doesn't have to type it.
+    clientPhone: "+",
     clientEmail: "",
   })
   const [lookupState, setLookupState] = useState<"idle" | "loading" | "found" | "new">("idle")
@@ -1005,7 +1006,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 setStep("date")
                 setSelectedDate(null)
                 setSelectedSlot(null)
-                setForm({ clientName: "", clientPhone: "", clientEmail: "" })
+                setForm({ clientName: "", clientPhone: "+", clientEmail: "" })
                 setSelectedServices([])
                 setBooking(null)
                 setPartySize(1)
