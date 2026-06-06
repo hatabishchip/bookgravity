@@ -269,7 +269,11 @@ export default function SalaryPage() {
                     <div className="flex flex-wrap gap-1.5">
                       {t.payments.map((p) => (
                         <div key={p.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 text-xs">
-                          <span className="text-[#2C6E49] font-medium">{formatIDR(p.amount)}</span>
+                          {p.amount < 0 ? (
+                            <span className="text-amber-600 font-medium">+{formatIDR(-p.amount)} credit</span>
+                          ) : (
+                            <span className="text-[#2C6E49] font-medium">{formatIDR(p.amount)} paid</span>
+                          )}
                           <span className="text-gray-300">·</span>
                           <span className="text-gray-400">{format(new Date(p.createdAt), "d MMM")}</span>
                           {p.note && <span className="text-gray-400 truncate max-w-[120px]" title={p.note}>· {p.note}</span>}

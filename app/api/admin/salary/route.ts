@@ -67,8 +67,13 @@ export async function GET(request: NextRequest) {
 
     const commission = mainCommission + assistantCommission
     const revenue = trainer.timeSlots.reduce((sum, slot) => sum + slot.price * slot.bookings.length, 0)
-    const accrued = commission
-    const paid = trainer.payments.reduce((sum, p) => sum + p.amount, 0)
+    // A TrainerPayment with a NEGATIVE amount is a manual CREDIT/adjustment
+    // (e.g. a no-show comp the studio owes the trainer): it adds to what's
+    // owed. Positive amounts are money actually paid out.
+    const paidOut = trainer.payments.filter((p) => p.amount > 0).reduce((sum, p) => sum + p.amount, 0)
+    const credits = trainer.payments.filter((p) => p.amount < 0).reduce((sum, p) => sum - p.amount, 0)
+    const accrued = commission + credits
+    const paid = paidOut
     const balance = accrued - paid
 
     return {
