@@ -98,7 +98,9 @@ export default function ImageLightbox({
   return createPortal(
     <div
       className="fixed inset-0 z-[2000] bg-black/90 flex items-center justify-center overflow-hidden touch-none select-none animate-in fade-in"
-      style={{ height: "100dvh", width: "100dvw" }}
+      // 100svh = the SMALL (always-visible) viewport, so the image can never
+      // extend behind the mobile URL bar / home indicator and get clipped.
+      style={{ height: "100svh", width: "100vw" }}
       onClick={() => onClose()}
     >
       {/* Controls */}
@@ -155,11 +157,13 @@ export default function ImageLightbox({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        // Cap to the full-viewport parent (not dvh units, which some iOS
-        // versions ignore — leaving the image unconstrained so it overflowed
-        // and got clipped top/bottom). object-contain shows the whole image.
-        className="max-w-full max-h-full object-contain"
+        // Cap to the small (always-visible) viewport directly on the image, so
+        // it never overflows behind the mobile chrome and gets clipped.
+        // object-contain shows the whole image.
+        className="object-contain"
         style={{
+          maxHeight: "100svh",
+          maxWidth: "100vw",
           transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
           cursor: scale > 1 ? "grab" : "zoom-out",
           touchAction: "none",
