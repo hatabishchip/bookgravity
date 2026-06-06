@@ -399,6 +399,10 @@ function MessageBubble({
                 src={src}
                 alt={m.body ?? "photo"}
                 onClick={(e) => { e.stopPropagation(); onImageClick?.(src) }}
+                // Keep the touch off the bubble's long-press handler, which on
+                // iOS swallowed the tap so the fullscreen viewer never opened.
+                // A genuine tap still fires onClick (and opens); a scroll won't.
+                onTouchStart={(e) => e.stopPropagation()}
                 className="rounded-xl max-w-full max-h-72 object-cover mb-1 bg-black/10 cursor-zoom-in"
               />
             )
