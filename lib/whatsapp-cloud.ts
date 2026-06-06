@@ -525,8 +525,9 @@ export async function sendClientBookingConfirmationWA(opts: {
   /** The booked studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
+  // Default to the approved v6 (new layout + cancel link). Override via env.
   const templateName =
-    process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed"
+    process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed_v6"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
 
   // v5/v6 — new layout, no name greeting: {{1}} pretty date, {{2}} start time
