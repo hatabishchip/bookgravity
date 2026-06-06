@@ -305,6 +305,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const [membershipLeft, setMembershipLeft] = useState(0)
   // Phone (digits only) we last sent a code to — guards against re-sending.
   const sentDigitsRef = useRef("")
+  // Phones already verified in THIS session (digits → verified code + the
+  // client details we looked up). Lets "Book another" with the same number
+  // skip the WhatsApp code entirely.
+  const verifiedClientsRef = useRef<Map<string, { code: string; name: string | null; email: string | null; membership: number }>>(new Map())
 
   // Send a WhatsApp confirmation code to the entered number, revealing the code
   // field. We deliberately do NOT look the client up here — name/email are only
@@ -373,6 +377,14 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         } else {
           setLookupState("new")
         }
+        // Remember this number as verified for the rest of the session, so
+        // "Book another" with the same phone won't ask for a code again.
+        verifiedClientsRef.current.set(form.clientPhone.replace(/\D/g, ""), {
+          code,
+          name: c?.name ?? null,
+          email: c?.email ?? null,
+          membership: c?.membershipRemaining ?? 0,
+        })
       } else {
         setOtpError(
           data.error === "expired"
@@ -417,9 +429,24 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     }
     if (digits === sentDigitsRef.current) return
     sentDigitsRef.current = digits
-    setOtpVerified(false)
-    setOtpCode("")
     setOtpError("")
+    setOtpCode("")
+    otpFailedRef.current = false
+    // Already verified this number this session → skip the code, just unlock +
+    // restore the details (and the verified code for the booking call).
+    const cached = verifiedClientsRef.current.get(digits)
+    if (cached) {
+      setOtpSent(false)
+      setOtpVerified(true)
+      setOtpReady(true)
+      setOtpCode(cached.code)
+      setMembershipLeft(cached.membership)
+      setLookupState(cached.name || cached.email ? "found" : "new")
+      setForm((f) => ({ ...f, clientName: cached.name ?? "", clientEmail: cached.email ?? "" }))
+      return
+    }
+    setOtpVerified(false)
+    setOtpReady(false)
     setMembershipLeft(0)
     setLookupState("idle")
     setForm((f) => ({ ...f, clientName: "", clientEmail: "" }))
@@ -651,15 +678,19 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         // Code went stale between verify and submit → re-lock + show the hint
         // inline on the details step (no separate verify step anymore).
         if (err.otpError) {
+          // The code went stale (e.g. a cached "Book another" code expired).
+          // Drop the cached verification and send a fresh code automatically.
+          const d = form.clientPhone.replace(/\D/g, "")
+          verifiedClientsRef.current.delete(d)
+          sentDigitsRef.current = ""
           setOtpVerified(false)
-          setOtpSent(true)
+          setOtpReady(false)
           setOtpError(
-            err.otpError === "expired"
-              ? "That code expired. Tap “Resend code” to get a new one."
-              : err.otpError === "locked"
-                ? "Too many tries. Tap “Resend code” to get a new one."
-                : "Re-enter the code we sent to your WhatsApp.",
+            err.otpError === "locked"
+              ? "Too many tries. We're sending a new code."
+              : "That code expired — sending a new one.",
           )
+          void sendOtp(form.clientPhone)
           return
         }
         setError(err.error || "Booking failed")
