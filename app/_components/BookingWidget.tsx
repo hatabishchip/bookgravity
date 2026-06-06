@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { format, startOfMonth, getDaysInMonth, getDay, isBefore, startOfDay, parseISO } from "date-fns"
-import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle } from "lucide-react"
+import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle, Loader2 } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
 
@@ -1352,15 +1352,26 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       className={cn(
                         "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 transition-colors caret-[#2C6E49]",
                         display && form.clientPhone ? "text-transparent" : "text-gray-900",
+                        otpSending && "pr-11",
                         hasError
                           ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
                           : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
                       )}
                     />
                     {display && form.clientPhone && (
-                      <div className="absolute inset-0 px-4 py-3 text-lg flex items-center pointer-events-none whitespace-pre">
+                      <div className={cn(
+                        "absolute inset-0 px-4 py-3 text-lg flex items-center pointer-events-none whitespace-pre",
+                        otpSending && "pr-11",
+                      )}>
                         <span className="text-gray-900">{display.typed}</span>
                         <span className="text-amber-500">{display.tail}</span>
+                      </div>
+                    )}
+                    {/* Sending the WhatsApp code — a spinner at the field's edge so
+                        the client knows something is happening in the 1–2s wait. */}
+                    {otpSending && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#2C6E49] pointer-events-none" aria-label="Sending code">
+                        <Loader2 size={20} className="animate-spin" />
                       </div>
                     )}
                   </div>
