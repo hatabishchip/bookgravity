@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { format, parseISO } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { getPublicStudioId } from "@/lib/studio"
-import { isSlotBookable } from "@/lib/booking-cutoff"
+import { isSlotBookableWithAttendees } from "@/lib/booking-cutoff"
 import { sendTrainerBookingNotification, sendClientBookingConfirmation } from "@/lib/mailer"
 import { sendPush } from "@/lib/expo-push"
 import {
@@ -59,10 +59,17 @@ export async function POST(request: NextRequest) {
 
     if (!slot) return NextResponse.json({ error: "Slot not found" }, { status: 404 })
 
-    if (!isSlotBookable(slot.date, slot.startTime)) {
+    // A class with at least one attendee stays open until it ends; an empty one
+    // closes 2 hours before it starts.
+    if (!isSlotBookableWithAttendees(slot.date, slot.startTime, slot.endTime, slot._count.bookings)) {
       return NextResponse.json(
-        { error: "Bookings close 2 hours before the session starts" },
-        { status: 409 }
+        {
+          error:
+            slot._count.bookings >= 1
+              ? "This class has already finished — bookings are closed."
+              : "Bookings close 2 hours before the session starts.",
+        },
+        { status: 409 },
       )
     }
 

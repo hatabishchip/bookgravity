@@ -19,3 +19,20 @@ export function slotEndMs(date: string, endTime: string): number {
 export function isSlotBookable(date: string, startTime: string, nowMs = Date.now()): boolean {
   return slotStartMs(date, startTime) > nowMs + CUTOFF_MS
 }
+
+/**
+ * Booking availability that accounts for existing attendees: a class with at
+ * least one person already booked stays OPEN for booking right up until it
+ * ends (so latecomers can still join an already-running class), and closes the
+ * moment it finishes. An empty class follows the normal 2-hour cutoff.
+ */
+export function isSlotBookableWithAttendees(
+  date: string,
+  startTime: string,
+  endTime: string,
+  bookedCount: number,
+  nowMs = Date.now(),
+): boolean {
+  if (bookedCount >= 1) return slotEndMs(date, endTime) > nowMs
+  return isSlotBookable(date, startTime, nowMs)
+}
