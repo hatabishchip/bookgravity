@@ -7,6 +7,24 @@ const CLASS_DURATION_MIN = 120
 const MIN_GAP_MIN = 0
 const MAX_SLOTS_PER_DAY = 7
 
+// Delete a slot together with any leftover bookings that still reference it.
+// Booking → TimeSlot is ON DELETE RESTRICT, so even a CANCELLED booking blocks
+// the delete (a plain timeSlot.delete then 500s). Callers must ensure there are
+// no CONFIRMED bookings first; this clears the remaining (cancelled) rows +
+// their services, then removes the slot.
+async function deleteSlotCascade(slotId: string) {
+  const bookings = await prisma.booking.findMany({
+    where: { slotId },
+    select: { id: true },
+  })
+  const ids = bookings.map((b) => b.id)
+  if (ids.length) {
+    await prisma.bookingService.deleteMany({ where: { bookingId: { in: ids } } })
+    await prisma.booking.deleteMany({ where: { id: { in: ids } } })
+  }
+  await prisma.timeSlot.delete({ where: { id: slotId } })
+}
+
 function timeToMin(t: string) {
   const [h, m] = t.split(":").map(Number)
   return h * 60 + m
@@ -256,7 +274,7 @@ export async function PATCH(request: NextRequest) {
           await prisma.timeSlot.update({ where: { id: f.id }, data: { seriesId: null } })
           kept++
         } else {
-          await prisma.timeSlot.delete({ where: { id: f.id } })
+          await deleteSlotCascade(f.id)
           deleted++
         }
       }
@@ -296,6 +314,11 @@ export async function DELETE(request: NextRequest) {
     )
   }
 
-  await prisma.timeSlot.delete({ where: { id: slot.id } })
-  return NextResponse.json({ success: true })
+  try {
+    await deleteSlotCascade(slot.id)
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error("[slots/DELETE] failed:", err)
+    return NextResponse.json({ error: "Couldn't delete the session. Please try again." }, { status: 500 })
+  }
 }
