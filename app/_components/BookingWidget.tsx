@@ -261,6 +261,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const [otpVerified, setOtpVerified] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [otpError, setOtpError] = useState("")
+  // WhatsApp delivery status of the code we sent (polled): sent → delivered →
+  // read, or failed if the number isn't on WhatsApp.
+  const [otpDelivery, setOtpDelivery] = useState<"sent" | "delivered" | "read" | "failed">("sent")
   const [error, setError] = useState("")
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const fieldRefs = {
@@ -329,6 +332,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     setOtpSending(true)
     setOtpError("")
     setError("")
+    setOtpDelivery("sent")
     try {
       const res = await fetch(`/api/otp/send${studioParam ? `?${studioParam}` : ""}`, {
         method: "POST",
@@ -342,8 +346,21 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         setOtpVerified(true)
         return
       }
-      setOtpSent(true) // "sent" or 429 too_soon → either way show the code field
+      if ((res.ok && data.sent) || res.status === 429) {
+        // Sent (or a fresh code already exists) → show the code field.
+        setOtpSent(true)
+        return
+      }
+      // Synchronous failure — Meta refused the number outright (bad format /
+      // not reachable). Don't show the code field; tell the client now.
+      setOtpSent(false)
+      setError(
+        data.code === "send_failed"
+          ? "We couldn't send a code to that number. Check it's correct and has WhatsApp."
+          : data.error || "Couldn't send the code — check the number and try again.",
+      )
     } catch {
+      setOtpSent(false)
       setError("Couldn't send the code — check the number and try again.")
     } finally {
       setOtpSending(false)
@@ -421,6 +438,32 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     void sendOtp(form.clientPhone)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.clientPhone])
+
+  // While waiting for the code, poll its WhatsApp delivery status so we can tell
+  // the client if their number isn't on WhatsApp (status "failed") instead of
+  // leaving them staring at an empty code field.
+  useEffect(() => {
+    if (!otpSent || otpVerified) return
+    let tries = 0
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const r = await fetch(
+          `/api/otp/status?phone=${encodeURIComponent(form.clientPhone)}${studioParam ? `&${studioParam}` : ""}`,
+          { cache: "no-store" },
+        )
+        const d = await r.json().catch(() => ({}))
+        if (!cancelled && d.status && d.status !== "none") setOtpDelivery(d.status)
+      } catch { /* ignore */ }
+    }
+    void poll()
+    const id = setInterval(() => {
+      tries++
+      void poll()
+      if (tries >= 12) clearInterval(id) // ~30s then stop
+    }, 2500)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [otpSent, otpVerified, form.clientPhone, studioParam])
 
   const today = startOfDay(new Date())
 
@@ -1338,7 +1381,15 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             {otpSent && !otpVerified && (
               <div className="rounded-xl border-2 border-[#2C6E49]/20 bg-[#2C6E49]/5 p-4 text-center">
                 <div className="text-sm font-semibold text-gray-800">📲 Enter the code from your WhatsApp</div>
-                <p className="text-xs text-gray-500 mt-0.5">Sent to {form.clientPhone}</p>
+                <p className="text-xs mt-0.5">
+                  {otpDelivery === "failed" ? (
+                    <span className="text-red-600 font-medium">⚠️ This number isn&apos;t on WhatsApp</span>
+                  ) : otpDelivery === "delivered" || otpDelivery === "read" ? (
+                    <span className="text-[#2C6E49]">Delivered to {form.clientPhone} ✓</span>
+                  ) : (
+                    <span className="text-gray-500">Sent to {form.clientPhone}</span>
+                  )}
+                </p>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -1367,6 +1418,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     <span className="text-gray-400">Checking…</span>
                   ) : otpError ? (
                     <span className="text-red-600">{otpError}</span>
+                  ) : otpDelivery === "failed" ? (
+                    <span className="text-red-600">Fix the number above (it must have WhatsApp), then resend.</span>
                   ) : (
                     <span className="text-gray-400">The code pops up in your WhatsApp notification.</span>
                   )}

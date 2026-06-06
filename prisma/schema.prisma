@@ -294,6 +294,13 @@ model BookingOtp {
   attempts  Int      @default(0)
   expiresAt DateTime
   createdAt DateTime @default(now())
+  // WhatsApp delivery tracking: the sent message's wamid + its latest delivery
+  // status (sent | delivered | read | failed). The webhook updates this; the
+  // booking widget polls it so a client who typed a number that isn't on
+  // WhatsApp gets told instead of waiting forever for a code.
+  waMessageId String?
+  status      String  @default("sent")
+  statusError String?
 
   @@index([studioId, phone])
 }

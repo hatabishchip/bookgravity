@@ -441,6 +441,17 @@ export async function POST(request: NextRequest) {
           } catch (err) {
             console.error("[whatsapp-webhook] status update failed:", err)
           }
+          // Mirror delivery status onto a matching booking-OTP send, so the
+          // booking widget can tell a client their number isn't on WhatsApp
+          // (status "failed") instead of leaving them waiting for a code.
+          try {
+            await prisma.bookingOtp.updateMany({
+              where: { waMessageId: st.id },
+              data: { status: st.status, statusError: errDetail },
+            })
+          } catch (err) {
+            console.error("[whatsapp-webhook] otp status update failed:", err)
+          }
           if (st.status === "failed" || st.errors?.length) {
             console.warn("[whatsapp-webhook] status:", st.status, st.id, errDetail)
           }

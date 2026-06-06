@@ -92,9 +92,18 @@ export async function sendBookingOtp(opts: {
   if (!res.ok) return { ok: false, error: "send_failed", detail: res.error }
 
   // Only persist the code once Meta accepted the send. Clear old codes first.
+  // Store the wamid + status "sent"; the webhook flips it to delivered/read or
+  // failed (e.g. number not on WhatsApp) and the widget polls /api/otp/status.
   await prisma.bookingOtp.deleteMany({ where: { studioId: opts.studioId, phone } })
   await prisma.bookingOtp.create({
-    data: { studioId: opts.studioId, phone, code, expiresAt: new Date(Date.now() + CODE_TTL_MS) },
+    data: {
+      studioId: opts.studioId,
+      phone,
+      code,
+      expiresAt: new Date(Date.now() + CODE_TTL_MS),
+      waMessageId: res.messageId || null,
+      status: "sent",
+    },
   })
   return { ok: true }
 }
