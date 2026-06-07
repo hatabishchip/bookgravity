@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, Fragment } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { format, startOfMonth, getDaysInMonth, getDay, isBefore, startOfDay, parseISO } from "date-fns"
 import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle, Loader2 } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
@@ -1480,10 +1480,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     <span className="text-gray-500">Sent to {form.clientPhone}</span>
                   )}
                 </p>
-                {/* One field for the 2-digit code: a single box showing the two
-                    digits with a short dash between them. A transparent input
-                    over the box drives the state + keyboard; we draw the digits
-                    and a blinking caret at the active position. */}
+                {/* 2-digit code: two airy slots, each a big digit over an
+                    underline. The underline UNDER the slot you type next blinks
+                    green; no separator dash. A transparent input over the slots
+                    drives the state + keyboard. */}
                 <div
                   className="relative mt-3 mx-auto w-fit cursor-text"
                   onClick={() => otpInputRef.current?.focus()}
@@ -1508,39 +1508,33 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     aria-label="Confirmation code (2 digits)"
                     className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-text disabled:cursor-default"
                   />
-                  <div
-                    className={cn(
-                      "flex h-16 items-center justify-center gap-3 rounded-2xl border-2 bg-white px-7 transition-all duration-200",
-                      otpError
-                        ? "border-red-400"
-                        : otpFocused
-                          ? "border-[#2C6E49] ring-4 ring-[#2C6E49]/15"
-                          : "border-gray-200",
-                    )}
-                    aria-hidden
-                  >
+                  <div className="flex items-end justify-center gap-6 px-2" aria-hidden>
                     {[0, 1].map((i) => {
                       const digit = otpCode[i] ?? ""
                       const active = otpFocused && !verifying && otpCode.length === i
                       return (
-                        <Fragment key={i}>
-                          {/* short dash between the two digits */}
-                          {i === 1 && <span className="h-[3px] w-3 rounded-full bg-gray-300" />}
+                        <div key={i} className="flex flex-col items-center gap-2.5">
                           <span
                             className={cn(
-                              "flex w-6 items-center justify-center text-3xl font-bold tabular-nums",
+                              "flex h-11 w-9 items-center justify-center text-4xl font-bold leading-none tabular-nums transition-colors duration-200",
                               otpError ? "text-red-600" : "text-[#1f5236]",
                             )}
                           >
-                            {digit ? (
-                              digit
-                            ) : active ? (
-                              <span className="animate-caret h-8 w-[3px] rounded-full bg-[#2C6E49]" />
-                            ) : (
-                              <span className="h-[3px] w-4 rounded-full bg-gray-200" />
-                            )}
+                            {digit || " "}
                           </span>
-                        </Fragment>
+                          <span
+                            className={cn(
+                              "h-1 w-9 rounded-full transition-colors duration-200",
+                              otpError
+                                ? "bg-red-400"
+                                : active
+                                  ? "animate-caret bg-[#2C6E49]"
+                                  : digit
+                                    ? "bg-[#2C6E49]/60"
+                                    : "bg-gray-200",
+                            )}
+                          />
+                        </div>
                       )
                     })}
                   </div>
