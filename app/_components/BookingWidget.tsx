@@ -272,6 +272,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // The 2-digit code input — auto-focused (and keyboard raised) the moment it
   // appears, so the client just types the code with zero extra taps.
   const otpInputRef = useRef<HTMLInputElement>(null)
+  // Whether the (transparent) code input is focused — drives the blinking
+  // caret on the active segmented cell.
+  const [otpFocused, setOtpFocused] = useState(false)
   const [error, setError] = useState("")
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const fieldRefs = {
@@ -1477,30 +1480,67 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     <span className="text-gray-500">Sent to {form.clientPhone}</span>
                   )}
                 </p>
-                <input
-                  ref={otpInputRef}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  autoFocus
-                  maxLength={2}
-                  value={otpCode}
-                  disabled={verifying}
-                  onChange={(e) => {
-                    const v = e.target.value.replace(/\D/g, "").slice(0, 2)
-                    setOtpCode(v)
-                    setOtpError("")
-                    if (v.length === 2 && !verifying) verifyOtp(v)
-                  }}
-                  placeholder="—"
-                  aria-label="Confirmation code"
-                  className={cn(
-                    "mt-3 w-28 mx-auto block text-center text-2xl font-bold tracking-[0.4em] border-2 rounded-xl py-2.5 focus:outline-none focus:ring-2 disabled:opacity-60",
-                    otpError
-                      ? "border-red-500 text-red-600 focus:ring-red-500/20"
-                      : "border-gray-200 focus:border-[#2C6E49] focus:ring-[#2C6E49]/20",
-                  )}
-                />
+                {/* Segmented 2-digit code. One real (transparent) input drives
+                    the state + keyboard; two cells are the visual layer. Tapping
+                    anywhere on the cells focuses the input. */}
+                <div
+                  className="relative mt-3 mx-auto w-fit cursor-text"
+                  onClick={() => otpInputRef.current?.focus()}
+                >
+                  <input
+                    ref={otpInputRef}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    maxLength={2}
+                    value={otpCode}
+                    disabled={verifying}
+                    onFocus={() => setOtpFocused(true)}
+                    onBlur={() => setOtpFocused(false)}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 2)
+                      setOtpCode(v)
+                      setOtpError("")
+                      if (v.length === 2 && !verifying) verifyOtp(v)
+                    }}
+                    aria-label="Confirmation code (2 digits)"
+                    // The input itself is invisible (transparent text + caret),
+                    // laid over the cells so it still captures typing + keyboard.
+                    className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-text disabled:cursor-default"
+                  />
+                  <div className="flex items-center justify-center gap-3" aria-hidden>
+                    {[0, 1].map((i) => {
+                      const digit = otpCode[i] ?? ""
+                      const active = otpFocused && !verifying && otpCode.length === i
+                      return (
+                        <div
+                          key={i}
+                          className={cn(
+                            "relative flex h-16 w-14 items-center justify-center rounded-2xl border-2 bg-white text-3xl font-bold tabular-nums transition-all duration-200",
+                            otpError
+                              ? "border-red-400 text-red-600"
+                              : digit
+                                ? "border-[#2C6E49]/50 text-[#1f5236]"
+                                : active
+                                  ? "border-[#2C6E49] ring-4 ring-[#2C6E49]/15"
+                                  : "border-gray-200",
+                          )}
+                        >
+                          {digit ? (
+                            digit
+                          ) : active ? (
+                            // Blinking caret in the cell we're about to fill.
+                            <span className="animate-caret h-8 w-[3px] rounded-full bg-[#2C6E49]" />
+                          ) : (
+                            // Faint underline so it's obvious a digit goes here.
+                            <span className="h-[3px] w-6 rounded-full bg-gray-200" />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
                 <div className="mt-2 text-xs">
                   {verifying ? (
                     <span className="text-gray-400">Checking…</span>

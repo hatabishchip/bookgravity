@@ -119,6 +119,14 @@ html, body {
   -webkit-touch-callout: none !important;
 }
 
+/* Blinking text caret for the segmented OTP code cells (we draw our own caret
+   because the real input is transparent). steps(1) = hard on/off blink. */
+@keyframes caret-blink { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }
+.animate-caret { animation: caret-blink 1.06s steps(1) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-caret { animation: none; opacity: 1; }
+}
+
 /* iOS-style petal spinner — 12 fading petals rotating around a centre. */
 @keyframes petal-fade {
   0%, 39%, 100% { opacity: 0.15; }
