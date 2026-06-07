@@ -90,6 +90,24 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Chat message area on TOUCH devices: the chat has its own long-press
+   reaction menu, so the OS text-selection/callout must not hijack the
+   long-press (it would highlight an emoji or the whole region, and swallow
+   the tap that opens an image). Scoped to coarse pointers so desktop admins
+   can still select+copy message text with the mouse. */
+@media (pointer: coarse) {
+  .chat-scroll,
+  .chat-scroll * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .chat-scroll img {
+    -webkit-user-drag: none;
+    user-drag: none;
+  }
+}
+
 /* iOS-style petal spinner — 12 fading petals rotating around a centre. */
 @keyframes petal-fade {
   0%, 39%, 100% { opacity: 0.15; }

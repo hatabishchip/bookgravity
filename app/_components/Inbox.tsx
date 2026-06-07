@@ -208,7 +208,13 @@ function MessageBubble({
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const openMenu = () => { setMenuClosing(false); setMenuOpen(true) }
+  const openMenu = () => {
+    // Clear any OS selection that may have begun before our long-press fired,
+    // so the reaction menu doesn't open on top of a blue text highlight.
+    try { window.getSelection?.()?.removeAllRanges() } catch {}
+    setMenuClosing(false)
+    setMenuOpen(true)
+  }
   // Animate the menu out, then unmount it once the exit animation finishes.
   const closeMenu = () => {
     setMenuClosing(true)
@@ -218,15 +224,32 @@ function MessageBubble({
       setMenuClosing(false)
     }, 200)
   }
-  const startPress = () => {
+  // Long-press start position — used to keep the timer alive through tiny
+  // finger jitter (cancelling on ANY move made the menu rarely open while iOS
+  // proceeded with its own selection gesture).
+  const pressPos = useRef<{ x: number; y: number } | null>(null)
+  const startPress = (e: React.TouchEvent) => {
+    const t = e.touches[0]
+    pressPos.current = t ? { x: t.clientX, y: t.clientY } : null
     if (pressTimer.current) clearTimeout(pressTimer.current)
     pressTimer.current = setTimeout(() => openMenu(), 450)
+  }
+  const movePress = (e: React.TouchEvent) => {
+    if (!pressTimer.current || !pressPos.current) return
+    const t = e.touches[0]
+    if (!t) return
+    // Only treat it as a scroll (and cancel the long-press) once the finger
+    // has travelled more than ~10px — otherwise a steady hold survives jitter.
+    if (Math.hypot(t.clientX - pressPos.current.x, t.clientY - pressPos.current.y) > 10) {
+      cancelPress()
+    }
   }
   const cancelPress = () => {
     if (pressTimer.current) {
       clearTimeout(pressTimer.current)
       pressTimer.current = null
     }
+    pressPos.current = null
   }
 
   const copyText = async () => {
@@ -247,6 +270,28 @@ function MessageBubble({
     // the menu animates closed. Tapping the current reaction again clears it.
     onReact?.(m.id, m.reaction === emoji ? "" : emoji)
     closeMenu()
+  }
+
+  // Image tap → open the fullscreen viewer. On iOS the synthesized onClick is
+  // unreliable inside a long-press bubble, so we detect a clean tap on
+  // touchend and preventDefault to suppress the ghost click (no double-open).
+  const imgTap = useRef<{ x: number; y: number; t: number } | null>(null)
+  const onImgTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation() // don't arm the bubble's long-press on an image tap
+    const t = e.touches[0]
+    imgTap.current = t ? { x: t.clientX, y: t.clientY, t: Date.now() } : null
+  }
+  const onImgTouchEnd = (e: React.TouchEvent, src: string) => {
+    e.stopPropagation()
+    const start = imgTap.current
+    imgTap.current = null
+    const end = e.changedTouches[0]
+    if (!start || !end) return
+    const moved = Math.hypot(end.clientX - start.x, end.clientY - start.y)
+    if (moved <= 12 && Date.now() - start.t <= 600) {
+      e.preventDefault() // stop the ghost click from opening it twice
+      onImageClick?.(src)
+    }
   }
   // Display text: admins prefer the translation when the server produced one
   // (with the original shown smaller below). Trainers ALWAYS see the original
@@ -352,7 +397,8 @@ function MessageBubble({
         onContextMenu={(e) => { e.preventDefault(); openMenu() }}
         onTouchStart={startPress}
         onTouchEnd={cancelPress}
-        onTouchMove={cancelPress}
+        onTouchCancel={cancelPress}
+        onTouchMove={movePress}
         className={cn(
           "relative max-w-[78%] rounded-2xl leading-snug shadow-sm select-none",
           jumbo ? "px-2.5 py-1.5" : "px-3 py-2",
@@ -398,12 +444,12 @@ function MessageBubble({
               <img
                 src={src}
                 alt={m.body ?? "photo"}
+                draggable={false}
                 onClick={(e) => { e.stopPropagation(); onImageClick?.(src) }}
-                // Keep the touch off the bubble's long-press handler, which on
-                // iOS swallowed the tap so the fullscreen viewer never opened.
-                // A genuine tap still fires onClick (and opens); a scroll won't.
-                onTouchStart={(e) => e.stopPropagation()}
+                onTouchStart={onImgTouchStart}
+                onTouchEnd={(e) => onImgTouchEnd(e, src)}
                 className="rounded-xl max-w-full max-h-72 object-cover mb-1 bg-black/10 cursor-zoom-in"
+                style={{ WebkitTouchCallout: "none" }}
               />
             )
           })()
@@ -1511,7 +1557,7 @@ export default function Inbox({
         <div
           ref={messagesScrollRef}
           onScroll={handleMessagesScroll}
-          className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-2"
+          className="chat-scroll flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-2"
         >
           {loadingDetail && !detail ? (
             <div className="text-center text-gray-400 text-sm py-8">
