@@ -29,6 +29,12 @@ export default function ImageLightbox({
   const [scale, setScale] = useState(1)
   const [tx, setTx] = useState(0)
   const [ty, setTy] = useState(0)
+  // When the viewer opens from a TAP, iOS fires a synthesized "ghost" click
+  // ~300ms later at the same spot — which now lands on this backdrop and would
+  // instantly close the viewer (looked like "tapping the image does nothing").
+  // Ignore any close for a short window after opening.
+  const openedAt = useRef(0)
+  const guarded = () => Date.now() - openedAt.current < 450
 
   // Active pointers (for pinch) + gesture start refs.
   const pointers = useRef<Map<number, { x: number; y: number }>>(new Map())
@@ -36,7 +42,10 @@ export default function ImageLightbox({
   const panStart = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
   const movedRef = useRef(false)
 
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    setMounted(true)
+    openedAt.current = Date.now()
+  }, [])
 
   const clamp = (s: number) => Math.min(5, Math.max(1, s))
   const reset = useCallback(() => { setScale(1); setTx(0); setTy(0) }, [])
@@ -101,7 +110,7 @@ export default function ImageLightbox({
       // 100svh = the SMALL (always-visible) viewport, so the image can never
       // extend behind the mobile URL bar / home indicator and get clipped.
       style={{ height: "100svh", width: "100vw" }}
-      onClick={() => onClose()}
+      onClick={() => { if (!guarded()) onClose() }}
     >
       {/* Controls */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -149,7 +158,8 @@ export default function ImageLightbox({
         onClick={(e) => {
           e.stopPropagation()
           // A clean tap at 1× closes; a tap that was actually a drag does not.
-          if (scale === 1 && !movedRef.current) onClose()
+          // Ignore the ghost click that fires right after the opening tap.
+          if (scale === 1 && !movedRef.current && !guarded()) onClose()
         }}
         onDoubleClick={onDoubleClick}
         onWheel={onWheel}
