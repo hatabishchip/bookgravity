@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, Fragment } from "react"
 import { format, startOfMonth, getDaysInMonth, getDay, isBefore, startOfDay, parseISO } from "date-fns"
 import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle, Loader2 } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
@@ -1480,9 +1480,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     <span className="text-gray-500">Sent to {form.clientPhone}</span>
                   )}
                 </p>
-                {/* Segmented 2-digit code. One real (transparent) input drives
-                    the state + keyboard; two cells are the visual layer. Tapping
-                    anywhere on the cells focuses the input. */}
+                {/* One field for the 2-digit code: a single box showing the two
+                    digits with a short dash between them. A transparent input
+                    over the box drives the state + keyboard; we draw the digits
+                    and a blinking caret at the active position. */}
                 <div
                   className="relative mt-3 mx-auto w-fit cursor-text"
                   onClick={() => otpInputRef.current?.focus()}
@@ -1505,38 +1506,41 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       if (v.length === 2 && !verifying) verifyOtp(v)
                     }}
                     aria-label="Confirmation code (2 digits)"
-                    // The input itself is invisible (transparent text + caret),
-                    // laid over the cells so it still captures typing + keyboard.
                     className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-text disabled:cursor-default"
                   />
-                  <div className="flex items-center justify-center gap-3" aria-hidden>
+                  <div
+                    className={cn(
+                      "flex h-16 items-center justify-center gap-3 rounded-2xl border-2 bg-white px-7 transition-all duration-200",
+                      otpError
+                        ? "border-red-400"
+                        : otpFocused
+                          ? "border-[#2C6E49] ring-4 ring-[#2C6E49]/15"
+                          : "border-gray-200",
+                    )}
+                    aria-hidden
+                  >
                     {[0, 1].map((i) => {
                       const digit = otpCode[i] ?? ""
                       const active = otpFocused && !verifying && otpCode.length === i
                       return (
-                        <div
-                          key={i}
-                          className={cn(
-                            "relative flex h-16 w-14 items-center justify-center rounded-2xl border-2 bg-white text-3xl font-bold tabular-nums transition-all duration-200",
-                            otpError
-                              ? "border-red-400 text-red-600"
-                              : digit
-                                ? "border-[#2C6E49]/50 text-[#1f5236]"
-                                : active
-                                  ? "border-[#2C6E49] ring-4 ring-[#2C6E49]/15"
-                                  : "border-gray-200",
-                          )}
-                        >
-                          {digit ? (
-                            digit
-                          ) : active ? (
-                            // Blinking caret in the cell we're about to fill.
-                            <span className="animate-caret h-8 w-[3px] rounded-full bg-[#2C6E49]" />
-                          ) : (
-                            // Faint underline so it's obvious a digit goes here.
-                            <span className="h-[3px] w-6 rounded-full bg-gray-200" />
-                          )}
-                        </div>
+                        <Fragment key={i}>
+                          {/* short dash between the two digits */}
+                          {i === 1 && <span className="h-[3px] w-3 rounded-full bg-gray-300" />}
+                          <span
+                            className={cn(
+                              "flex w-6 items-center justify-center text-3xl font-bold tabular-nums",
+                              otpError ? "text-red-600" : "text-[#1f5236]",
+                            )}
+                          >
+                            {digit ? (
+                              digit
+                            ) : active ? (
+                              <span className="animate-caret h-8 w-[3px] rounded-full bg-[#2C6E49]" />
+                            ) : (
+                              <span className="h-[3px] w-4 rounded-full bg-gray-200" />
+                            )}
+                          </span>
+                        </Fragment>
                       )
                     })}
                   </div>
