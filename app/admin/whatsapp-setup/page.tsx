@@ -39,10 +39,7 @@ const STEPS = [
           business.facebook.com/wa/manage/phone-numbers
         </a>
       </>,
-      <>
-        В правом верхнем углу должен быть выбран{" "}
-        <strong>GravityStretchingCanggu</strong>.
-      </>,
+      <>В правом верхнем углу должно быть выбрано название вашей компании.</>,
     ],
     mock: "phones",
   },
