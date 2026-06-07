@@ -623,11 +623,20 @@ function BookingAlertCard({
           </button>
         )}
       </div>
-      <p className="text-xs text-gray-500 mb-4 max-w-md">
+      <p className="text-xs text-gray-500 mb-3 max-w-md">
         Admin&apos;s WhatsApp number that gets a copy of every booking (in
         addition to the assigned trainer). Needs WhatsApp connected for this
         studio. Leave empty to turn the admin copy off.
       </p>
+      <a
+        href="/admin/whatsapp-setup"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2C6E49] hover:text-[#1E4D34] hover:underline mb-4"
+      >
+        Как подключить WhatsApp для новой студии
+        <span aria-hidden="true">→</span>
+      </a>
 
       {editing ? (
         <div className="flex items-center gap-2">
