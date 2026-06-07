@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
           studio: {
             select: {
               id: true,
+              whatsappEnabled: true,
               whatsappPhoneNumberId: true,
               whatsappAccessToken: true,
             },
@@ -78,9 +79,17 @@ export async function GET(req: NextRequest) {
   let sent = 0
   let skippedWindow = 0
   let skippedFresh = 0
+  let skippedNoWA = 0
   let failed = 0
 
   for (const b of bookings) {
+    // Autonomous studios: only message via a studio that has its OWN WhatsApp
+    // enabled. A studio without WhatsApp gets no reminders at all (no borrowing
+    // another studio's number).
+    if (!b.slot.studio.whatsappEnabled) {
+      skippedNoWA++
+      continue
+    }
     // Class start in Bali local time → minutes from now.
     const startMs = Date.parse(`${b.slot.date}T${b.slot.startTime}:00+08:00`)
     if (!Number.isFinite(startMs)) {
@@ -187,6 +196,7 @@ export async function GET(req: NextRequest) {
     sent,
     skippedWindow,
     skippedFresh,
+    skippedNoWA,
     failed,
   })
 }

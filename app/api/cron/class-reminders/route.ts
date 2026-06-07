@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
       slot: {
         include: {
           trainer: { select: { name: true } },
-          studio: { select: { name: true, whatsappPhoneNumberId: true, whatsappAccessToken: true } },
+          studio: { select: { name: true, whatsappEnabled: true, whatsappPhoneNumberId: true, whatsappAccessToken: true } },
         },
       },
     },
@@ -81,9 +81,16 @@ export async function GET(req: NextRequest) {
 
   let sent = 0
   let skippedSameDay = 0
+  let skippedNoWA = 0
   let failed = 0
 
   for (const b of bookings) {
+    // Autonomous studios: only remind via a studio that has its OWN WhatsApp
+    // enabled — no borrowing another studio's number.
+    if (!b.slot.studio.whatsappEnabled) {
+      skippedNoWA++
+      continue
+    }
     // Skip clients who booked on (or after) the reminder day — they just got
     // the confirmation. Only remind those who booked an earlier calendar day.
     const createdBali = baliDateStr(b.createdAt)
@@ -159,6 +166,7 @@ export async function GET(req: NextRequest) {
     candidates: bookings.length,
     sent,
     skippedSameDay,
+    skippedNoWA,
     failed,
   })
 }

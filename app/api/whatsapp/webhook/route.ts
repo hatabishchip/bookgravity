@@ -85,14 +85,22 @@ type WAMessage = {
 }
 type WAContact = { wa_id: string; profile?: { name?: string } }
 
-/** Best-effort lookup of the default studio. We don't have studio mapping in
- *  the webhook payload (Meta sends only WABA id) — for single-studio deployments
- *  this is fine. Future: map WABA id → Studio. */
-async function getDefaultStudioId(): Promise<string | null> {
-  const studio =
-    (await prisma.studio.findFirst({ where: { isDefault: true }, select: { id: true } })) ||
-    (await prisma.studio.findFirst({ select: { id: true } }))
-  return studio?.id ?? null
+/** Resolve which studio owns the number a message arrived on. Each studio is
+ *  AUTONOMOUS: it has its own WhatsApp number, and we file the chat under the
+ *  studio whose `whatsappPhoneNumberId` matches Meta's `metadata.phone_number_id`.
+ *  If no studio owns the number, we return null and the message is IGNORED —
+ *  no default-studio dumping, no cross-studio leakage. */
+async function resolveStudioByPhoneNumberId(phoneNumberId: string | null) {
+  if (!phoneNumberId) return null
+  return prisma.studio.findFirst({
+    where: { whatsappPhoneNumberId: phoneNumberId },
+    select: {
+      id: true,
+      inboxLanguage: true,
+      whatsappPhoneNumberId: true,
+      whatsappAccessToken: true,
+    },
+  })
 }
 
 /** Pull message body + media-id + type into our normalized shape. */
@@ -163,6 +171,7 @@ export async function POST(request: NextRequest) {
       entry?: {
         changes?: {
           value?: {
+            metadata?: { phone_number_id?: string; display_phone_number?: string }
             contacts?: WAContact[]
             messages?: WAMessage[]
             statuses?: WAStatus[]
@@ -170,27 +179,30 @@ export async function POST(request: NextRequest) {
         }[]
       }[]
     }
-    const studioId = await getDefaultStudioId()
-    if (!studioId) {
-      console.warn("[whatsapp-webhook] no Studio in DB — skipping persistence")
-    }
-    // Studio's admin-facing language (e.g. "ru" for Canggu/Ubud). When set,
-    // every inbound message gets translated in the background and the
-    // bubble in /admin/inbox renders the translation as the main text.
-    const studioRow = studioId
-      ? await prisma.studio.findUnique({
-          where: { id: studioId },
-          select: { inboxLanguage: true, whatsappPhoneNumberId: true, whatsappAccessToken: true },
-        })
-      : null
-    const inboxLanguage = studioRow?.inboxLanguage ?? null
-    // This studio's own WhatsApp config (per-studio number; falls back to global).
-    const waConfig = getConfigFor(studioRow)
 
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value ?? {}
         const contactName = value.contacts?.[0]?.profile?.name ?? null
+
+        // Which studio owns the number this arrived on? Strict per-number
+        // routing — no default fallback. Unmatched numbers are ignored so a
+        // studio's inbox only ever shows its own clients.
+        const studioRow = await resolveStudioByPhoneNumberId(
+          value.metadata?.phone_number_id ?? null,
+        )
+        const studioId = studioRow?.id ?? null
+        // Studio's admin-facing language (e.g. "ru"). When set, inbound text is
+        // translated in the background and the inbox bubble shows the translation.
+        const inboxLanguage = studioRow?.inboxLanguage ?? null
+        // This studio's own WhatsApp config (used for trainer-forward / owner-copy).
+        const waConfig = getConfigFor(studioRow)
+        if (!studioId && (value.messages?.length ?? 0) > 0) {
+          console.warn(
+            "[whatsapp-webhook] inbound on unowned number, ignoring:",
+            value.metadata?.phone_number_id,
+          )
+        }
 
         // -- Incoming messages --
         for (const msg of value.messages ?? []) {
@@ -218,8 +230,14 @@ export async function POST(request: NextRequest) {
             // Look up booking history for this phone — if we find one, assign
             // the most recent slot's trainer.
             const phone = msg.from
+            // Only consider bookings IN THIS STUDIO — never assign a trainer
+            // from another studio to this number's conversation.
             const recentBooking = await prisma.booking.findFirst({
-              where: { clientPhone: { contains: phone.slice(-10) }, status: "CONFIRMED" },
+              where: {
+                clientPhone: { contains: phone.slice(-10) },
+                status: "CONFIRMED",
+                slot: { studioId },
+              },
               orderBy: { createdAt: "desc" },
               include: { slot: { select: { trainerId: true } } },
             })
