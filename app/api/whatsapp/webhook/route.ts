@@ -81,6 +81,9 @@ type WAMessage = {
   document?: { id: string; mime_type?: string; filename?: string; caption?: string }
   sticker?: { id: string; mime_type?: string }
   reaction?: { message_id: string; emoji?: string }
+  // Quick-reply button tap from a template (e.g. the booking confirmation's
+  // "Cancel booking" button). Arrives as type "button".
+  button?: { text?: string; payload?: string }
   timestamp: string
 }
 type WAContact = { wa_id: string; profile?: { name?: string } }
@@ -147,6 +150,15 @@ function describeIncomingMessage(msg: WAMessage): {
         body: null,
         mediaUrl: msg.sticker?.id ?? null,
         mediaMime: msg.sticker?.mime_type ?? null,
+      }
+    case "button":
+      // Template quick-reply tap → treat as a normal text message carrying the
+      // button's text, so it renders in the inbox and the cancel bot can act.
+      return {
+        type: "text",
+        body: msg.button?.text ?? msg.button?.payload ?? null,
+        mediaUrl: null,
+        mediaMime: null,
       }
     default:
       return { type: msg.type, body: null, mediaUrl: null, mediaMime: null }

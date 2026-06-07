@@ -107,7 +107,7 @@ export async function handleCancelBotMessage(opts: {
     }
     if (!canCancelBooking(booking.slot.date, booking.slot.startTime, booking.createdAt)) {
       await reply(
-        "Sorry, cancellation is no longer available — it's less than 4 hours before the class. Please contact the studio."
+        "Sorry, cancellation is no longer available — it's less than 2 hours before the class. Please contact the studio."
       )
       return
     }
@@ -143,6 +143,42 @@ export async function handleCancelBotMessage(opts: {
       .sort((a, b) => slotStartMs(a.slot.date, a.slot.startTime) - slotStartMs(b.slot.date, b.slot.startTime))
 
     if (upcoming.length === 0) return // not their ticket — let normal inbox handle it
+
+    const booking = upcoming[0]
+    await prisma.whatsAppConversation.update({
+      where: { id: opts.conversationId },
+      data: { pendingCancelBookingId: booking.id, pendingCancelAt: new Date() },
+    })
+    await reply(
+      `Do you want to cancel your booking on ${booking.slot.date} at ${booking.slot.startTime}? Reply 1 for yes, 0 to keep it.`
+    )
+    return
+  }
+
+  // --- Step 1b: the "Cancel booking" quick-reply button (no code) ---
+  // The booking confirmation's quick-reply button sends this text. With no
+  // ticket code to go on, we target the client's NEAREST upcoming booking in
+  // this studio and ask them to confirm.
+  if (/^cancel booking$/i.test(text) || /отмен/i.test(text)) {
+    const tail = phoneTail(opts.clientPhone)
+    if (tail.length < 6) return
+    const candidates = await prisma.booking.findMany({
+      where: {
+        status: "CONFIRMED",
+        clientPhone: { contains: tail },
+        slot: { studioId: opts.studioId },
+      },
+      include: { slot: true },
+    })
+    const now = Date.now()
+    const upcoming = candidates
+      .filter((b) => slotStartMs(b.slot.date, b.slot.startTime) > now)
+      .sort((a, b) => slotStartMs(a.slot.date, a.slot.startTime) - slotStartMs(b.slot.date, b.slot.startTime))
+
+    if (upcoming.length === 0) {
+      await reply("You have no upcoming booking to cancel. If this seems wrong, please contact the studio. 🙏")
+      return
+    }
 
     const booking = upcoming[0]
     await prisma.whatsAppConversation.update({

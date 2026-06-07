@@ -533,8 +533,10 @@ export async function sendClientBookingConfirmationWA(opts: {
   // v5/v6 — new layout, no name greeting: {{1}} pretty date, {{2}} start time
   // ("7:00 am"), {{3}} ticket, {{4}} location. v6 adds {{5}} = one-tap wa.me
   // cancel link prefilled with "Cancel <code>".
+  // v7 = same body as v5 (4 vars, no link) PLUS a static "Cancel booking"
+  // quick-reply button baked into the template (no send-time component needed).
   const isV6 = /v6$/.test(templateName)
-  if (/v5$/.test(templateName) || isV6) {
+  if (/v5$/.test(templateName) || isV6 || /v7$/.test(templateName)) {
     const vars = [
       opts.date,
       (opts.startTimePretty || opts.time) ?? "—",
