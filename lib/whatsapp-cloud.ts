@@ -525,9 +525,11 @@ export async function sendClientBookingConfirmationWA(opts: {
   /** The booked studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
-  // Default to the approved v6 (new layout + cancel link). Override via env.
+  // Default to the approved v7 (new layout + quick-reply "Cancel booking"
+  // button). Override via env. (Vercel's `env add` tends to store an empty
+  // value, so the code default is the reliable switch.)
   const templateName =
-    process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed_v6"
+    process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed_v7"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
 
   // v5/v6 — new layout, no name greeting: {{1}} pretty date, {{2}} start time
