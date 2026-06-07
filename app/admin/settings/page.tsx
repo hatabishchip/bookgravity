@@ -23,6 +23,19 @@ type Studio = {
   bookingAlertWhatsapp: string | null
   /** Whether WhatsApp is connected/active for this studio. */
   whatsappEnabled?: boolean
+  /** Super-admin gate for the self-service onboarding form. While false,
+   *  the form is visible but disabled. */
+  whatsappOnboardingEnabled?: boolean
+  /** Activated WhatsApp display phone (e.g. "+62 812 345 6789"). Present
+   *  once the studio finishes activation. */
+  whatsappDisplayPhone?: string | null
+  /** Phone-number-id from Meta (presence = activation done). */
+  whatsappPhoneNumberId?: string | null
+  /** In-progress onboarding state. One of: null | "code_sent" | "verifying"
+   *  | "registering" | "active" | "failed". */
+  whatsappRequestStatus?: string | null
+  whatsappRequestDisplayPhone?: string | null
+  whatsappRequestNote?: string | null
   /** Require a WhatsApp one-time code before a public booking (anti-spam). */
   requireBookingOtp?: boolean
   /** True while this admin still uses the auto-generated starter password. */
@@ -87,8 +100,12 @@ export default function SettingsPage() {
   const logoInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
 
+  const loadStudio = async () => {
+    const r = await fetch("/api/admin/studio", { cache: "no-store" })
+    if (r.ok) setStudio(await r.json())
+  }
   useEffect(() => {
-    fetch("/api/admin/studio").then((r) => r.json()).then(setStudio)
+    loadStudio()
   }, [])
 
   const update = async (
@@ -208,10 +225,9 @@ export default function SettingsPage() {
             onSave={(url) => update({ locationUrl: url })}
           />
 
-          <BookingAlertCard
-            value={studio.bookingAlertWhatsapp}
-            saving={saving === "bookingAlert"}
-            onSave={(phone) => update({ bookingAlertWhatsapp: phone })}
+          <WhatsAppActivationCard
+            studio={studio}
+            onChanged={loadStudio}
           />
 
           {/* WhatsApp code confirmation toggle — only meaningful when WhatsApp
@@ -582,98 +598,292 @@ function BookingOtpCard({
   )
 }
 
-function BookingAlertCard({
-  value,
-  saving,
-  onSave,
+// WhatsApp self-onboarding card. State machine over the studio row:
+//
+//   1. !onboardingEnabled                       → "Locked" (visible but inert)
+//   2. enabled + no request + not connected     → "Idle" (input phone + name)
+//   3. requestStatus === "code_sent"            → "Code" (input 6 digits)
+//   4. requestStatus === "verifying"            → "Spinner"
+//   5. whatsappEnabled + phoneNumberId          → "Active" (green check)
+//   6. requestStatus === "failed"               → "Error" (with retry)
+//
+// The same component handles every state so the admin sees a continuous
+// flow: enter phone → enter code → green checkmark. No PDF, no Facebook.
+function WhatsAppActivationCard({
+  studio,
+  onChanged,
 }: {
-  value: string | null
-  saving: boolean
-  onSave: (phone: string | null) => Promise<void> | void
+  studio: Studio
+  onChanged: () => Promise<void> | void
 }) {
-  const [text, setText] = useState(value ?? "")
-  const [editing, setEditing] = useState(!value)
-  useEffect(() => {
-    setText(value ?? "")
-    setEditing(!value)
-  }, [value])
+  const onboardingEnabled = !!studio.whatsappOnboardingEnabled
+  const active =
+    !!studio.whatsappEnabled && !!studio.whatsappPhoneNumberId
+  const status = studio.whatsappRequestStatus ?? null
 
-  const dirty = text.trim() !== (value ?? "").trim()
-  const save = async () => {
-    if (!dirty) { setEditing(false); return }
-    await onSave(text.trim() === "" ? null : text.trim())
-    setEditing(false)
+  const [phone, setPhone] = useState("")
+  const [displayName, setDisplayName] = useState("")
+  const [code, setCode] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  const submit = async () => {
+    setBusy(true)
+    setLocalError(null)
+    try {
+      const r = await fetch("/api/admin/whatsapp-onboarding/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: phone.trim(),
+          displayName: displayName.trim(),
+        }),
+      })
+      const j = (await r.json().catch(() => ({}))) as { error?: string }
+      if (!r.ok) {
+        setLocalError(j.error ?? `HTTP ${r.status}`)
+      } else {
+        await onChanged()
+      }
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
-  return (
-    <div className="bg-white rounded-2xl shadow-sm p-5">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2">
-          <Smartphone size={16} className="text-[#2C6E49]" />
-          <h2 className="text-base font-semibold text-gray-900">Booking alerts (WhatsApp)</h2>
-        </div>
-        {value && !editing && (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            aria-label="Edit booking alert number"
-            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50"
-          >
-            <Pencil size={16} />
-          </button>
-        )}
-      </div>
-      <p className="text-xs text-gray-500 mb-3 max-w-md">
-        Admin&apos;s WhatsApp number that gets a copy of every booking (in
-        addition to the assigned trainer). Needs WhatsApp connected for this
-        studio. Leave empty to turn the admin copy off.
-      </p>
-      <a
-        href="/admin/whatsapp-setup"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2C6E49] hover:text-[#1E4D34] hover:underline mb-4"
-      >
-        Как подключить WhatsApp для новой студии
-        <span aria-hidden="true">→</span>
-      </a>
+  const verify = async () => {
+    setBusy(true)
+    setLocalError(null)
+    try {
+      const r = await fetch("/api/admin/whatsapp-onboarding/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code.trim() }),
+      })
+      const j = (await r.json().catch(() => ({}))) as { error?: string }
+      if (!r.ok) {
+        setLocalError(j.error ?? `HTTP ${r.status}`)
+      } else {
+        setCode("")
+        await onChanged()
+      }
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
-      {editing ? (
-        <div className="flex items-center gap-2">
+  const cancel = async () => {
+    setBusy(true)
+    try {
+      await fetch("/api/admin/whatsapp-onboarding/cancel", { method: "POST" })
+      setPhone("")
+      setCode("")
+      setLocalError(null)
+      await onChanged()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ----- Render -----
+  const Header = (
+    <div className="flex items-center gap-2 mb-3">
+      <Smartphone size={16} className="text-[#2C6E49]" />
+      <h2 className="text-base font-semibold text-gray-900">WhatsApp</h2>
+      {active && (
+        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          ✓ Активен
+        </span>
+      )}
+    </div>
+  )
+
+  // Active = green block with the connected phone.
+  if (active) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm p-5">
+        {Header}
+        <p className="text-xs text-gray-500 mb-3 max-w-md">
+          WhatsApp подключён для этой студии. Клиенты получают подтверждения,
+          бронирования копируются на этот номер, инбокс работает.
+        </p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center text-lg font-bold">
+            ✓
+          </div>
+          <div className="font-mono text-sm text-gray-900">
+            {studio.whatsappDisplayPhone}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Code input phase — admin received SMS, ready to verify.
+  if (status === "code_sent" || status === "verifying") {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm p-5">
+        {Header}
+        <p className="text-xs text-gray-500 mb-4 max-w-md">
+          Введи 6 цифр из SMS, которое Meta отправила на{" "}
+          <span className="font-mono">{studio.whatsappRequestDisplayPhone}</span>.
+        </p>
+        <div className="flex items-center gap-2 mb-3">
           <input
-            type="tel"
-            inputMode="tel"
-            autoFocus={!!value}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") save() }}
-            placeholder="+62 812 3456 789"
-            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+            type="text"
+            inputMode="numeric"
+            pattern="\d{6}"
+            maxLength={6}
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onKeyDown={(e) => { if (e.key === "Enter" && code.length === 6) verify() }}
+            placeholder="123456"
+            disabled={busy || status === "verifying"}
+            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60"
           />
           <button
             type="button"
-            onClick={save}
-            disabled={saving}
-            className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
+            onClick={verify}
+            disabled={busy || code.length !== 6}
+            className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
           >
-            {saving ? "Saving…" : "Save"}
+            {busy && <Spinner />}
+            Подтвердить
           </button>
-          {value && (
-            <button
-              type="button"
-              onClick={() => { setText(value); setEditing(false) }}
-              disabled={saving}
-              aria-label="Cancel"
-              className="flex-shrink-0 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 disabled:opacity-50"
-            >
-              <X size={14} />
-            </button>
-          )}
         </div>
-      ) : (
-        <div className="text-sm text-gray-700 font-medium">{value}</div>
+        {localError && (
+          <p className="text-xs text-red-600 mb-2">{localError}</p>
+        )}
+        <button
+          type="button"
+          onClick={cancel}
+          disabled={busy}
+          className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
+        >
+          Отменить и ввести другой номер
+        </button>
+      </div>
+    )
+  }
+
+  // Locked — super-admin hasn't enabled self-onboarding yet.
+  if (!onboardingEnabled) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm p-5 opacity-75">
+        {Header}
+        <p className="text-xs text-gray-500 mb-4 max-w-md">
+          Подключение WhatsApp ещё не открыто для этой студии.
+          Свяжись с админом платформы для активации.
+        </p>
+        <div className="flex items-center gap-2">
+          <input
+            type="tel"
+            disabled
+            placeholder="+62 812 3456 789"
+            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
+          />
+          <button
+            type="button"
+            disabled
+            className="flex-shrink-0 bg-gray-200 text-gray-400 text-sm font-semibold px-4 py-2.5 rounded-xl cursor-not-allowed"
+          >
+            Активировать
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Idle — admin can submit a new phone.
+  const failed = status === "failed"
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      {Header}
+      <p className="text-xs text-gray-500 mb-4 max-w-md">
+        Введи номер, на котором будет работать WhatsApp студии. SMS-код
+        придёт на этот номер за ~30 секунд.
+      </p>
+      <div className="space-y-2 mb-3">
+        <input
+          type="tel"
+          inputMode="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="+62 812 3456 789"
+          disabled={busy}
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60"
+        />
+        <input
+          type="text"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder={`Имя в WhatsApp — например, ${studio.name}`}
+          disabled={busy}
+          maxLength={64}
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy || !phone.trim() || !displayName.trim()}
+          className="bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
+        >
+          {busy && <Spinner />}
+          Активировать
+        </button>
+        {failed && (
+          <button
+            type="button"
+            onClick={cancel}
+            disabled={busy}
+            className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
+          >
+            Сбросить
+          </button>
+        )}
+      </div>
+      {(localError || (failed && studio.whatsappRequestNote)) && (
+        <p className="text-xs text-red-600 mt-3">
+          {localError ?? studio.whatsappRequestNote}
+        </p>
       )}
+      <p className="text-[11px] text-gray-400 mt-3">
+        Номер должен быть новым (не зарегистрирован в WhatsApp на телефоне).
+        Если SIM уже используется — удали аккаунт WhatsApp на телефоне сначала.
+      </p>
     </div>
+  )
+}
+
+// Tiny inline spinner. Reused across busy states in this component.
+function Spinner() {
+  return (
+    <svg
+      className="animate-spin w-4 h-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="3"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z"
+      />
+    </svg>
   )
 }
 

@@ -49,6 +49,17 @@ const STUDIO_SELECT = {
   inboxLanguage: true,
   whatsappEnabled: true,
   requireBookingOtp: true,
+  // WhatsApp self-onboarding fields surfaced to /admin/settings so the
+  // BookingAlertCard can render the right state (disabled / form / code
+  // input / active). Token + WABA ID stay out of this select — they're
+  // super-admin only.
+  whatsappOnboardingEnabled: true,
+  whatsappPhoneNumberId: true,
+  whatsappDisplayPhone: true,
+  whatsappRequestPhoneNumberId: true,
+  whatsappRequestDisplayPhone: true,
+  whatsappRequestStatus: true,
+  whatsappRequestNote: true,
 } as const
 
 export async function GET() {

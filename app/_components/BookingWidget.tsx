@@ -269,6 +269,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // "checking…" spinner; on failure we ask the client to change the number.
   const [otpReady, setOtpReady] = useState(false)
   const otpFailedRef = useRef(false)
+  // The 2-digit code input — auto-focused (and keyboard raised) the moment it
+  // appears, so the client just types the code with zero extra taps.
+  const otpInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState("")
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const fieldRefs = {
@@ -491,6 +494,22 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     }, 2000)
     return () => { cancelled = true; clearInterval(id) }
   }, [otpSent, otpVerified, otpReady, form.clientPhone, studioParam])
+
+  // The moment the code input appears, focus it (blinking cursor) and raise the
+  // keyboard so the client just types the 2 digits. The phone field was focused
+  // a moment ago, so on iOS the still-open keyboard simply moves to this field
+  // instead of being dismissed (iOS only re-opens the keyboard from a user
+  // gesture, but moving it between fields while it's already up is allowed).
+  useEffect(() => {
+    if (!(otpSent && otpReady && !otpVerified && otpDelivery !== "failed")) return
+    const raf = requestAnimationFrame(() => {
+      const el = otpInputRef.current
+      if (!el) return
+      el.focus()
+      try { el.setSelectionRange(el.value.length, el.value.length) } catch {}
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [otpSent, otpReady, otpVerified, otpDelivery])
 
   const today = startOfDay(new Date())
 
@@ -1459,6 +1478,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                   )}
                 </p>
                 <input
+                  ref={otpInputRef}
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"

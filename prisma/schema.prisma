@@ -46,6 +46,27 @@ model Studio {
   whatsappBusinessAccountId  String?
   whatsappDisplayPhone       String?
   whatsappConnectedAt        DateTime?
+  // Activation request submitted by the studio admin via /admin/settings.
+  // The admin fills in the two values they got from Meta (Phone Number ID
+  // + display phone); the request lands in /sadmin where the super-admin
+  // generates a System User Token and approves — which copies the values
+  // into the real whatsapp* fields above and flips whatsappEnabled to true.
+  // status: "pending" | "approved" | "rejected" | null
+  whatsappRequestPhoneNumberId  String?
+  whatsappRequestDisplayPhone   String?
+  whatsappRequestStatus         String?
+  whatsappRequestedAt           DateTime?
+  whatsappRequestReviewedAt     DateTime?
+  whatsappRequestNote           String?
+  // Super-admin gates whether this studio's admin can self-onboard
+  // WhatsApp via the form in /admin/settings. Off by default — when the
+  // super-admin flips it on, the form goes live and the admin can register
+  // a number through the Cloud API end-to-end (SMS verification + 2FA).
+  whatsappOnboardingEnabled  Boolean   @default(false)
+  // 6-digit two-factor PIN used by Meta's /register endpoint. Generated
+  // server-side on first activation, persisted so future re-registers
+  // (e.g. token rotations) can reuse the same PIN without admin input.
+  whatsappTwoFactorPin       String?
   // ISO 639-1 code (e.g. "ru", "en", "id"). When set, inbound WhatsApp
   // messages get auto-translated to this language for display in the
   // inbox; outbound replies typed in this language get auto-translated

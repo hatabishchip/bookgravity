@@ -30,6 +30,9 @@ type StudioRow = {
     usesEnvFallback: boolean
     lastOutboundAt: string | null
     lastOutboundStatus: string | null
+    onboardingEnabled: boolean
+    requestStatus: string | null
+    requestPhone: string | null
   }
 }
 
@@ -420,6 +423,46 @@ function StudioCard({ studio, onConnect, onChanged }: {
               {wa.enabled ? <Eye size={12} /> : <EyeOff size={12} />}
               {wa.enabled ? "Enabled" : "Disabled"}
             </button>
+          )}
+          {/* Self-onboarding toggle — gates the activation form in the
+              studio's /admin/settings. Off by default; flipping it on
+              lets the studio admin self-register a WhatsApp number via
+              Meta Cloud API without us touching anything. */}
+          {!connected && (
+            <button
+              onClick={async () => {
+                await fetch("/api/sadmin/studios", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    id: studio.id,
+                    whatsappOnboardingEnabled: !wa.onboardingEnabled,
+                  }),
+                })
+                onChanged()
+              }}
+              title={
+                wa.onboardingEnabled
+                  ? "Disable admin self-onboarding for this studio"
+                  : "Allow admin to self-onboard WhatsApp via Settings"
+              }
+              className={cn(
+                "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border touch-manipulation",
+                wa.onboardingEnabled
+                  ? "bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100"
+                  : "bg-white text-gray-500 border-gray-300 hover:bg-gray-100",
+              )}
+            >
+              {wa.onboardingEnabled ? "Self-onboard ON" : "Self-onboard OFF"}
+            </button>
+          )}
+          {/* Surface in-progress onboarding requests so the super-admin
+              can see at a glance what the studio admin is doing. */}
+          {!connected && wa.requestStatus && (
+            <div className="text-[10px] text-gray-500">
+              Request: <span className="font-medium">{wa.requestStatus}</span>
+              {wa.requestPhone && <> · {wa.requestPhone}</>}
+            </div>
           )}
           <button
             onClick={onConnect}

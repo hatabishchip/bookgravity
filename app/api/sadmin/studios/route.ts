@@ -73,6 +73,11 @@ export async function GET() {
           usesEnvFallback,
           lastOutboundAt: lastOutbound?.createdAt ?? null,
           lastOutboundStatus: lastOutbound?.status ?? null,
+          // Self-onboarding fields — surfaced so /sadmin can flip the
+          // toggle and see in-progress requests at a glance.
+          onboardingEnabled: s.whatsappOnboardingEnabled,
+          requestStatus: s.whatsappRequestStatus,
+          requestPhone: s.whatsappRequestDisplayPhone,
         },
       }
     }),
@@ -132,6 +137,9 @@ const PatchSchema = z.object({
   id: z.string(),
   name: z.string().min(2).optional(),
   whatsappEnabled: z.boolean().optional(),
+  // Super-admin gate for the studio's self-service onboarding form. When
+  // true, the BookingAlertCard in /admin/settings goes interactive.
+  whatsappOnboardingEnabled: z.boolean().optional(),
   // WhatsApp credentials — null clears, string sets. Token is treated as a
   // secret: if null is passed both phoneNumberId + accessToken get wiped.
   whatsappPhoneNumberId: z.string().nullable().optional(),
