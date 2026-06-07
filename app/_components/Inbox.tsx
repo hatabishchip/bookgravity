@@ -345,10 +345,11 @@ function MessageBubble({
       {menuOpen && (
         <div
           className={cn(
-            "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-6",
+            "reaction-menu fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-6",
             menuClosing ? "animate-bg-fade-out" : "animate-bg-fade-in",
           )}
           onClick={() => closeMenu()}
+          onContextMenu={(e) => e.preventDefault()}
         >
           <div
             className="flex flex-col items-stretch gap-2 w-full max-w-xs"

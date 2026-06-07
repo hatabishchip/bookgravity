@@ -108,6 +108,17 @@ html, body {
   }
 }
 
+/* Reaction/action menu: it pops up UNDER the still-pressed finger, so iOS
+   would text-select the emoji or the "Copy" row it lands on. Kill selection
+   and the callout outright (all platforms, !important to beat everything) —
+   there's nothing in this menu meant to be selected. */
+.reaction-menu,
+.reaction-menu * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
 /* iOS-style petal spinner — 12 fading petals rotating around a centre. */
 @keyframes petal-fade {
   0%, 39%, 100% { opacity: 0.15; }
