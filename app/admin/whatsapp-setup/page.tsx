@@ -62,7 +62,7 @@ const STEPS = [
         <em>Gravity Stretching Bali</em>.
       </>,
       <>
-        <strong>Категория</strong> — <em>Здоровье и красота</em>.
+        <strong>Категория</strong> — <em>Профессиональные услуги</em>.
       </>,
       <><strong>Описание</strong> — можно пропустить.</>,
       <>
@@ -283,7 +283,7 @@ function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
                 В профиле показывается инфо для пользователей WhatsApp.
               </div>
               <Field label="Отображаемое имя WhatsApp Business" value="Gravity Stretching Bali" callout={2} />
-              <Field label="Категория" value="Здоровье и красота ▾" callout={3} />
+              <Field label="Категория" value="Профессиональные услуги ▾" callout={3} />
               <Field label="Описание компании · Необязательно" value="" placeholder="Расскажите о своей компании…" />
               <div className="flex justify-end gap-2 mt-4">
                 <button className="text-xs text-gray-600 px-3 py-1.5 rounded border border-gray-200">
