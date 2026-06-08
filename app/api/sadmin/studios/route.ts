@@ -48,7 +48,11 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
         select: { createdAt: true, status: true },
       })
-      const ownConfig = !!s.whatsappAccessToken && !!s.whatsappPhoneNumberId
+      // A studio is connected if it has its OWN number and a usable token —
+      // either its own, or the shared WABA token from env (self-onboarded
+      // studios have a phoneNumberId but a null token, since the system-user
+      // token is shared across the whole WABA).
+      const ownConfig = !!s.whatsappPhoneNumberId && (!!s.whatsappAccessToken || envConfigured)
       const usesEnvFallback = !ownConfig && s.isDefault && envConfigured
       const hasConfig = ownConfig || usesEnvFallback
       // Business-initiated messages (templates) sent in the last rolling 24h —

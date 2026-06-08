@@ -233,9 +233,13 @@ export async function sendInboundWhatsAppCopy(opts: {
   } | null
   /** Receive time from Meta (defaults to now). */
   receivedAt?: Date
+  /** Recipient — the STUDIO's own admin email, so each studio's WhatsApp
+   *  copies go only to that studio's admin (no cross-studio leakage). Falls
+   *  back to the global OWNER_NOTIFY_EMAIL only if a studio email isn't given. */
+  toEmail?: string | null
 }): Promise<{ ok: boolean; error?: string }> {
-  const to = process.env.OWNER_NOTIFY_EMAIL
-  if (!to) return { ok: false, error: "OWNER_NOTIFY_EMAIL not set" }
+  const to = opts.toEmail?.trim() || process.env.OWNER_NOTIFY_EMAIL
+  if (!to) return { ok: false, error: "no recipient (studio admin email + OWNER_NOTIFY_EMAIL both empty)" }
   const r = getResend()
   if (!r) return { ok: false, error: "resend_not_configured" }
 

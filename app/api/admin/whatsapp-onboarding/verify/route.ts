@@ -124,6 +124,9 @@ export async function POST(req: NextRequest) {
       whatsappDisplayPhone: studio.whatsappRequestDisplayPhone,
       whatsappBusinessAccountId: getDefaultWabaId(),
       whatsappEnabled: true,
+      // When WhatsApp goes live, default the booking confirmation (one-time
+      // code) ON so the studio gets the anti-spam confirmation out of the box.
+      requireBookingOtp: true,
       whatsappConnectedAt: new Date(),
       whatsappTwoFactorPin: pin,
       whatsappRequestStatus: "active",

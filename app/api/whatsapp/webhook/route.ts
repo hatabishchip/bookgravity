@@ -102,6 +102,14 @@ async function resolveStudioByPhoneNumberId(phoneNumberId: string | null) {
       inboxLanguage: true,
       whatsappPhoneNumberId: true,
       whatsappAccessToken: true,
+      // This studio's own admin — inbound WhatsApp email copies go ONLY here,
+      // so a studio's messages never reach another studio's admin.
+      users: {
+        where: { role: "ADMIN" },
+        select: { email: true },
+        orderBy: { id: "asc" },
+        take: 1,
+      },
     },
   })
 }
@@ -209,6 +217,8 @@ export async function POST(request: NextRequest) {
         const inboxLanguage = studioRow?.inboxLanguage ?? null
         // This studio's own WhatsApp config (used for trainer-forward / owner-copy).
         const waConfig = getConfigFor(studioRow)
+        // This studio's own admin email — inbound copies go only here.
+        const studioAdminEmail = studioRow?.users?.[0]?.email ?? null
         if (!studioId && (value.messages?.length ?? 0) > 0) {
           console.warn(
             "[whatsapp-webhook] inbound on unowned number, ignoring:",
@@ -443,6 +453,7 @@ export async function POST(request: NextRequest) {
                   body: msgBody,
                   media: mediaAttachment,
                   receivedAt,
+                  toEmail: studioAdminEmail,
                 })
                 if (!r.ok) {
                   console.warn(
