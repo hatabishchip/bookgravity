@@ -43,6 +43,15 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "targetSdkVersion": 35,
+            "compileSdkVersion": 35
+          }
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Allow Gravity Stretching to access the camera for QR check-in."
@@ -63,7 +72,8 @@
           "backgroundColor": "#2C6E49"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true
