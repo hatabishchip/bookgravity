@@ -1208,24 +1208,26 @@ export default function SchedulePage() {
                                           </button>
                                         ))}
                                       </div>
-                                      {(assignment.classType === "KIDS" || assignment.classType === "PRIVATE") && (
-                                        <>
-                                          <span className="w-px h-5 bg-gray-300/60 flex-shrink-0" aria-hidden />
-                                          <button type="button"
-                                            onClick={() => updateAssignment({ publicVisible: !assignment.publicVisible })}
-                                            title={assignment.publicVisible ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
-                                            className={cn(
-                                              "w-7 h-7 rounded flex items-center justify-center border touch-manipulation",
-                                              assignment.publicVisible
-                                                ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
-                                                : "bg-gray-50 text-gray-400 border-gray-200"
-                                            )}>
-                                            {assignment.publicVisible
-                                              ? <Eye size={14} strokeWidth={2.25} />
-                                              : <EyeOff size={14} strokeWidth={2.25} />}
-                                          </button>
-                                        </>
-                                      )}
+                                      {/* Visibility toggle for every class type (Group/Kids/Private).
+                                          Group defaults to visible; the eye lets the admin hide any
+                                          session from the public booking page while keeping it on the
+                                          schedule. */}
+                                      <>
+                                        <span className="w-px h-5 bg-gray-300/60 flex-shrink-0" aria-hidden />
+                                        <button type="button"
+                                          onClick={() => updateAssignment({ publicVisible: !assignment.publicVisible })}
+                                          title={assignment.publicVisible ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
+                                          className={cn(
+                                            "w-7 h-7 rounded flex items-center justify-center border touch-manipulation",
+                                            assignment.publicVisible
+                                              ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
+                                              : "bg-gray-50 text-gray-400 border-gray-200"
+                                          )}>
+                                          {assignment.publicVisible
+                                            ? <Eye size={14} strokeWidth={2.25} />
+                                            : <EyeOff size={14} strokeWidth={2.25} />}
+                                        </button>
+                                      </>
                                       {/* Remove session — inline at the end of the time row so it
                                           doesn't reserve a wasted vertical strip down the card. */}
                                       <button type="button"
