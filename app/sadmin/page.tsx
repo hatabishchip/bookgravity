@@ -308,6 +308,20 @@ function StudioCard({ studio, onChanged }: {
             >
               <KeyRound size={15} />
             </button>
+            {/* One-click "open this studio's admin" — only while the admin
+                still uses the starter password (so it's safe + auto-hides once
+                they set their own). Opens in a new tab. */}
+            {studioAdmin.initialPassword && (
+              <a
+                href={`/sadmin/impersonate?studio=${studio.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open this studio's admin in a new tab (signs you in as its admin)"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100"
+              >
+                <ExternalLink size={13} /> Open admin
+              </a>
+            )}
             {resetMsg && <span className="text-[11px] text-emerald-700">{resetMsg}</span>}
           </div>
         ) : (
