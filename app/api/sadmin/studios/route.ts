@@ -58,6 +58,7 @@ export async function GET() {
         country: s.country,
         city: s.city,
         isDefault: s.isDefault,
+        publicVisible: s.publicVisible,
         logoUrl: s.logoUrl ? "✓" : null, // just a presence flag
         createdAt: s.createdAt,
         counts: s._count,
@@ -146,6 +147,8 @@ const PatchSchema = z.object({
   name: z.string().min(2).optional(),
   country: z.string().length(2).optional(),
   city: z.string().min(1).optional(),
+  // Public visibility "eye": hide/show on the chooser + switcher.
+  publicVisible: z.boolean().optional(),
   whatsappEnabled: z.boolean().optional(),
   // Super-admin gate for the studio's self-service onboarding form. When
   // true, the BookingAlertCard in /admin/settings goes interactive.

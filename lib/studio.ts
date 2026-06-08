@@ -42,8 +42,12 @@ export type ChooserStudio = {
   city: string | null
 }
 
+// Public list for the apex chooser + booking-page switcher. Hidden studios
+// (publicVisible = false) are excluded here, but stay reachable directly at
+// /<slug> (that path resolves by slug, not through this list).
 export async function getAllStudios(): Promise<ChooserStudio[]> {
   return prisma.studio.findMany({
+    where: { publicVisible: true },
     select: { slug: true, name: true, isDefault: true, coverUrl: true, country: true, city: true },
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
   })

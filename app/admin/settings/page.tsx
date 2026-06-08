@@ -694,29 +694,28 @@ function WhatsAppActivationCard({
       <Smartphone size={16} className="text-[#2C6E49]" />
       <h2 className="text-base font-semibold text-gray-900">WhatsApp</h2>
       {active && (
-        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-          ✓ Активен
+        <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+          Active
         </span>
       )}
     </div>
   )
 
-  // Active = green block with the connected phone.
+  // Active = connected, shown with the connected phone (no badge circle).
   if (active) {
     return (
       <div className="bg-white rounded-2xl shadow-sm p-5">
         {Header}
         <p className="text-xs text-gray-500 mb-3 max-w-md">
-          WhatsApp подключён для этой студии. Клиенты получают подтверждения,
-          бронирования копируются на этот номер, инбокс работает.
+          WhatsApp is connected for this studio. Clients receive confirmations,
+          bookings are copied to this number, and the inbox is live.
         </p>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center text-lg font-bold">
-            ✓
-          </div>
-          <div className="font-mono text-sm text-gray-900">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-emerald-700">Active</span>
+          <span className="text-gray-300" aria-hidden>·</span>
+          <span className="font-mono text-sm text-gray-900">
             {studio.whatsappDisplayPhone}
-          </div>
+          </span>
         </div>
       </div>
     )

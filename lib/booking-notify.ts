@@ -106,7 +106,7 @@ export async function notifyBookingCreated(opts: {
             type: "template",
             body: clientMessageBody,
             templateName:
-              process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed",
+              process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed_v7",
             waMessageId: r.ok ? r.messageId : null,
             status: r.ok ? "sent" : "failed",
             errorDetail: r.ok ? null : r.error,

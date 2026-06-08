@@ -16,6 +16,7 @@ type StudioRow = {
   country: string | null
   city: string | null
   isDefault: boolean
+  publicVisible: boolean
   logoUrl: string | null
   createdAt: string
   counts: { users: number; trainers: number; timeSlots: number; whatsappConversations: number }
@@ -142,6 +143,7 @@ function StudioCard({ studio, onConnect, onChanged }: {
   const [editingName, setEditingName] = useState(false)
   const [nameVal, setNameVal] = useState(studio.name)
   const [savingName, setSavingName] = useState(false)
+  const [togglingVis, setTogglingVis] = useState(false)
   const lastOut = wa.lastOutboundAt
     ? (() => { try { return formatDistanceToNow(new Date(wa.lastOutboundAt), { addSuffix: true }) } catch { return null } })()
     : null
@@ -187,6 +189,22 @@ function StudioCard({ studio, onConnect, onChanged }: {
     } finally {
       setSavingName(false)
       setEditingName(false)
+    }
+  }
+
+  // Eye toggle: show / hide the studio on the public chooser + switcher. The
+  // booking page stays reachable at /<slug> either way.
+  const toggleVisible = async () => {
+    setTogglingVis(true)
+    try {
+      await fetch("/api/sadmin/studios", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: studio.id, publicVisible: !studio.publicVisible }),
+      })
+      onChanged()
+    } finally {
+      setTogglingVis(false)
     }
   }
 
@@ -240,6 +258,26 @@ function StudioCard({ studio, onConnect, onChanged }: {
               </>
             )}
             <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{studio.slug}</span>
+            <button
+              type="button"
+              onClick={toggleVisible}
+              disabled={togglingVis}
+              aria-label={studio.publicVisible ? "Hide from public chooser" : "Show on public chooser"}
+              title={
+                studio.publicVisible
+                  ? "Visible to clients — click to hide from the chooser (booking page still works)"
+                  : "Hidden from clients — click to show on the chooser"
+              }
+              className={cn(
+                "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium disabled:opacity-50",
+                studio.publicVisible
+                  ? "text-emerald-600 hover:bg-emerald-50"
+                  : "text-gray-400 hover:bg-gray-100",
+              )}
+            >
+              {studio.publicVisible ? <Eye size={13} /> : <EyeOff size={13} />}
+              {studio.publicVisible ? "Visible" : "Hidden"}
+            </button>
           </div>
           {/* Path-based now — every studio lives at bookgravity.com/<slug>.
               The /admin link is omitted: it's one shared dashboard for all

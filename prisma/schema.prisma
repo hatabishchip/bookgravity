@@ -17,6 +17,11 @@ model Studio {
   // the city — the "Gravity Stretching" prefix is implicit branding.
   city          String?
   isDefault     Boolean  @default(false)
+  // Super-admin "eye" toggle. When false the studio is hidden from the public
+  // chooser + the booking-page studio switcher, but the booking page itself is
+  // still reachable directly at /<slug> (so the admin can open it from their
+  // dashboard before going public). Default true = visible to clients.
+  publicVisible Boolean  @default(true)
   logoUrl       String?
   faviconUrl    String?
   // Cover photo shown on the studio chooser (apex) and as a faint backdrop on
