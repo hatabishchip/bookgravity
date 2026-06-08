@@ -19,7 +19,7 @@
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 const ANTHROPIC_MODEL = "claude-haiku-4-5"
-const GEMINI_MODEL = "gemini-2.0-flash"
+const GEMINI_MODEL = "gemini-2.5-flash"
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 const GROQ_MODEL = "llama-3.3-70b-versatile"
 
