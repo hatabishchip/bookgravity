@@ -535,7 +535,7 @@ export async function sendClientBookingConfirmationWA(opts: {
   // button). Override via env. (Vercel's `env add` tends to store an empty
   // value, so the code default is the reliable switch.)
   const templateName =
-    process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed_v7"
+    process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed_v10"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
 
   // Modern layout (v5 and up): {{1}} pretty date, {{2}} start time ("7:00 AM"),
