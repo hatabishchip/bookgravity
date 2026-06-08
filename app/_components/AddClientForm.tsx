@@ -66,8 +66,12 @@ export function AddClientForm({
   const phoneOk = validatePhone(phone).kind === "ok"
   const canSubmit = phoneOk && name.trim().length > 0 && !submitting
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault()
+  // NOTE: this component is rendered INSIDE the Schedule day-editor's <form>.
+  // Nested <form> elements are invalid HTML — the browser silently drops the
+  // inner one, so a real <form> here would make the "Add client" button submit
+  // the OUTER form (saving the slot) instead of adding the client. We therefore
+  // use a <div> and drive submit manually via the button and Enter key.
+  const submit = () => {
     if (!canSubmit) return
     onSubmit({
       clientName: name.trim(),
@@ -77,11 +81,18 @@ export function AddClientForm({
     })
   }
 
+  const onKeyDownSubmit = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      submit()
+    }
+  }
+
   const inputCls =
     "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-base bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
 
   return (
-    <form onSubmit={submit} className="mt-2 space-y-2.5 bg-gray-50 rounded-xl p-3">
+    <div className="mt-2 space-y-2.5 bg-gray-50 rounded-xl p-3">
       {/* Phone — first field, full booking-widget behaviour. */}
       <PhoneInput value={phone} onChange={setPhone} inputClassName="text-base" />
 
@@ -97,6 +108,7 @@ export function AddClientForm({
         placeholder="Client name"
         value={name}
         onChange={(e) => setName(e.target.value)}
+        onKeyDown={onKeyDownSubmit}
         className={inputCls}
       />
       <input
@@ -104,6 +116,7 @@ export function AddClientForm({
         placeholder="Email (optional)"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
+        onKeyDown={onKeyDownSubmit}
         className={inputCls}
       />
 
@@ -116,13 +129,14 @@ export function AddClientForm({
           Cancel
         </button>
         <button
-          type="submit"
+          type="button"
+          onClick={submit}
           disabled={!canSubmit}
           className="flex-1 px-3 py-2.5 rounded-lg text-sm font-semibold bg-[#2C6E49] text-white hover:bg-[#1E4D34] disabled:opacity-50"
         >
           {submitting ? "Adding…" : "Add client"}
         </button>
       </div>
-    </form>
+    </div>
   )
 }

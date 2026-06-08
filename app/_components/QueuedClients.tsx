@@ -13,10 +13,12 @@ export function QueuedClients({
   clients,
   onChange,
   capacity,
+  canAdd = true,
 }: {
   clients: NewClient[]
   onChange: (next: NewClient[]) => void
   capacity: number
+  canAdd?: boolean
 }) {
   const [adding, setAdding] = useState(false)
   const seatsLeft = capacity - clients.length
@@ -27,7 +29,7 @@ export function QueuedClients({
         <span className="text-[10px] uppercase tracking-wider text-gray-400">
           Clients ({clients.length}/{capacity})
         </span>
-        {!adding && seatsLeft > 0 && (
+        {!adding && seatsLeft > 0 && canAdd && (
           <button
             type="button"
             onClick={() => setAdding(true)}
@@ -35,6 +37,9 @@ export function QueuedClients({
           >
             <Plus size={12} /> Add client
           </button>
+        )}
+        {!adding && seatsLeft > 0 && !canAdd && (
+          <span className="text-[10px] text-gray-400">Assign a trainer first</span>
         )}
       </div>
 

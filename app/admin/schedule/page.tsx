@@ -115,10 +115,12 @@ function SlotClientList({
   slot,
   allSlots,
   onChanged,
+  canAdd = true,
 }: {
   slot: Slot
   allSlots: Slot[]
   onChanged: () => void
+  canAdd?: boolean
 }) {
   type Booking = { id: string; clientName: string; clientPhone: string; status: string; paymentStatus: string; slot: { id: string } }
   const [list, setList] = useState<Booking[] | null>(null)
@@ -212,7 +214,7 @@ function SlotClientList({
     <div className="mt-2 border-t border-gray-200 pt-2 space-y-1.5">
       <div className="flex items-center justify-between">
         <div className="text-[10px] uppercase tracking-wider text-gray-400">Clients ({list.length}/{slot.maxCapacity})</div>
-        {!adding && seatsLeft > 0 && (
+        {!adding && seatsLeft > 0 && canAdd && (
           <button
             type="button"
             onClick={() => setAdding(true)}
@@ -220,6 +222,9 @@ function SlotClientList({
           >
             <Plus size={12} /> Add client
           </button>
+        )}
+        {!adding && seatsLeft > 0 && !canAdd && (
+          <span className="text-[10px] text-gray-400">Assign a trainer first</span>
         )}
       </div>
       {list.map((b) => (
@@ -1123,6 +1128,12 @@ export default function SchedulePage() {
                                 const existingSlot = isExisting ? slots.find((s) => s.date === form.date && s.startTime === t) : null
                                 const bookingCount = existingSlot?._count.bookings ?? 0
                                 const hasBookings = bookingCount > 0
+                                // Queued (not-yet-saved) clients for a new session.
+                                const queuedCount = assignment.clients?.length ?? 0
+                                // A trainer must be assigned before clients can be added; and once
+                                // clients exist, the trainer can only be SWITCHED, never removed.
+                                const trainerSelected = !!assignment.trainerId
+                                const hasClients = isExisting ? hasBookings : queuedCount > 0
                                 return (
                                   <div key={t} className={cn(
                                     "rounded-lg text-xs border px-3 py-2.5 space-y-2",
@@ -1214,11 +1225,15 @@ export default function SchedulePage() {
                                         value={assignment.trainerId}
                                         onChange={(e) => {
                                           const next = e.target.value
+                                          // Once clients are on the class the trainer can only be
+                                          // SWITCHED to another trainer, never cleared.
+                                          if (!next && hasClients) return
                                           updateAssignment({ trainerId: next, assistantId: next ? assignment.assistantId : "" })
                                         }}
+                                        title={hasClients ? "A trainer is required while clients are booked — you can switch trainers but not remove" : "Trainer"}
                                         className="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30"
                                       >
-                                        <option value="">Unassigned</option>
+                                        {!hasClients && <option value="">Unassigned</option>}
                                         {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
                                       </select>
                                       {assignment.trainerId && (
@@ -1290,13 +1305,14 @@ export default function SchedulePage() {
                                       )
                                     })()}
                                     {isExisting && existingSlot && (
-                                      <SlotClientList slot={existingSlot} allSlots={slots} onChanged={fetchSlots} />
+                                      <SlotClientList slot={existingSlot} allSlots={slots} onChanged={fetchSlots} canAdd={trainerSelected} />
                                     )}
                                     {!isExisting && (
                                       <QueuedClients
                                         clients={assignment.clients ?? []}
                                         capacity={isPrivate ? 1 : Number(assignment.maxCapacity)}
                                         onChange={(c) => updateAssignment({ clients: c })}
+                                        canAdd={trainerSelected}
                                       />
                                     )}
                                   </div>
