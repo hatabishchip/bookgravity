@@ -806,11 +806,24 @@ function NotificationsModal({
     }
   }
 
-  const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-    <div className="flex items-center gap-2 mb-3 mt-2">
-      <span className="text-sm font-bold uppercase tracking-wider text-gray-500">{children}</span>
-    </div>
-  )
+  const recip = role === "client" ? "client" : "you"
+  // Each channel is its own card with a bold coloured header (green for
+  // WhatsApp, blue for Email) so it's obvious which channel a row belongs to.
+  const ChannelGroup = ({ channel, children }: { channel: "whatsapp" | "email"; children: React.ReactNode }) => {
+    const wa = channel === "whatsapp"
+    return (
+      <section className={cn("rounded-2xl border-2 overflow-hidden", wa ? "border-[#25D366]/40" : "border-blue-200")}>
+        <div className={cn("flex items-center gap-2.5 px-4 py-3", wa ? "bg-[#25D366]/12" : "bg-blue-50")}>
+          {wa ? <WaIcon active size={22} /> : <Mail size={20} className="text-blue-600" />}
+          <span className={cn("text-base font-bold", wa ? "text-[#0F7A3D]" : "text-blue-700")}>
+            {wa ? "WhatsApp" : "Email"}
+          </span>
+          <span className="text-sm text-gray-400">→ {recip}</span>
+        </div>
+        <div className="p-4 space-y-4 bg-white">{children}</div>
+      </section>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col">
@@ -829,35 +842,31 @@ function NotificationsModal({
         {role === "client" ? (
           <>
             {waOn && (
-              <section>
-                <SectionTitle>WhatsApp → client</SectionTitle>
-                <div className="space-y-4">
-                  <BigRow
-                    label="Booking confirmation"
-                    desc="Sent to the client on WhatsApp right after booking, with a 2-digit code to confirm (stops spam)."
-                    value={d.requireBookingOtp}
-                    onToggle={set("requireBookingOtp")}
-                    preview={"You're booked 💖\n\nJune 9 (Tuesday)\n7:00 AM class\nTicket: #352\n\n📍 Location:\nmaps.app.goo.gl/…\n\n[ Cancel booking ]"}
-                  />
-                  <BigRow
-                    label="Reminder — the day before"
-                    desc="Sent the afternoon before the class."
-                    value={d.remindTomorrow}
-                    onToggle={set("remindTomorrow")}
-                    preview={"Reminder: your group class is tomorrow at 7:00–8:30. Please arrive 10 minutes early."}
-                  />
-                  <BigRow
-                    label="Same-day check-in"
-                    desc="Sent ~2.5 hours before the class — the client's reply is forwarded to the trainer."
-                    value={d.remindToday}
-                    onToggle={set("remindToday")}
-                    preview={"Hello! 🌿 Just a gentle reminder about your class today — are you still able to join us? We'd love to see you on the mat. 🙏"}
-                  />
-                </div>
-              </section>
+              <ChannelGroup channel="whatsapp">
+                <BigRow
+                  label="Booking confirmation"
+                  desc="Sent to the client on WhatsApp right after booking, with a 2-digit code to confirm (stops spam)."
+                  value={d.requireBookingOtp}
+                  onToggle={set("requireBookingOtp")}
+                  preview={"You're booked 💖\n\nJune 9 (Tuesday)\n7:00 AM class\nTicket: #352\n\n📍 Location:\nmaps.app.goo.gl/…\n\n[ Cancel booking ]"}
+                />
+                <BigRow
+                  label="Reminder — the day before"
+                  desc="Sent the afternoon before the class."
+                  value={d.remindTomorrow}
+                  onToggle={set("remindTomorrow")}
+                  preview={"Reminder: your group class is tomorrow at 7:00–8:30. Please arrive 10 minutes early."}
+                />
+                <BigRow
+                  label="Same-day check-in"
+                  desc="Sent ~2.5 hours before the class — the client's reply is forwarded to the trainer."
+                  value={d.remindToday}
+                  onToggle={set("remindToday")}
+                  preview={"Hello! 🌿 Just a gentle reminder about your class today — are you still able to join us? We'd love to see you on the mat. 🙏"}
+                />
+              </ChannelGroup>
             )}
-            <section>
-              <SectionTitle>Email → client</SectionTitle>
+            <ChannelGroup channel="email">
               <BigRow
                 label="Booking confirmation"
                 desc={waOn
@@ -867,13 +876,12 @@ function NotificationsModal({
                 onToggle={set("emailClientBooking")}
                 preview={`Subject: Booking confirmed · ${studioName} · Jun 9, 7:00\n\nName, date, time, class and ticket — the full booking details.\nFrom: ${studioName}`}
               />
-            </section>
+            </ChannelGroup>
           </>
         ) : (
           <>
             {waOn && (
-              <section>
-                <SectionTitle>WhatsApp → admin</SectionTitle>
+              <ChannelGroup channel="whatsapp">
                 <BigRow
                   label="New booking alert"
                   desc={studio.bookingAlertWhatsapp
@@ -883,29 +891,26 @@ function NotificationsModal({
                   onToggle={set("notifyAdminWhatsapp")}
                   preview={"New booking 🎉\nGroup class · June 9, 7:00–8:30\nClient: Ni Putu\n3/8 booked"}
                 />
-              </section>
+              </ChannelGroup>
             )}
-            <section>
-              <SectionTitle>Email → admin</SectionTitle>
-              <div className="space-y-4">
+            <ChannelGroup channel="email">
+              <BigRow
+                label="Booking confirmation copy"
+                desc="A copy of every booking, emailed to you with the full client + class info."
+                value={d.emailAdminBooking}
+                onToggle={set("emailAdminBooking")}
+                preview={`Subject: Booking confirmed · ${studioName} · Jun 9, 7:00\n\nClient name, phone, email, date, time, class and ticket.\nFrom: ${studioName}`}
+              />
+              {waOn && (
                 <BigRow
-                  label="Booking confirmation copy"
-                  desc="A copy of every booking, emailed to you with the full client + class info."
-                  value={d.emailAdminBooking}
-                  onToggle={set("emailAdminBooking")}
-                  preview={`Subject: Booking confirmed · ${studioName} · Jun 9, 7:00\n\nClient name, phone, email, date, time, class and ticket.\nFrom: ${studioName}`}
+                  label="WhatsApp message copy"
+                  desc="Every WhatsApp message a client sends is also emailed to you, so you never miss one."
+                  value={d.emailAdminWaCopy}
+                  onToggle={set("emailAdminWaCopy")}
+                  preview={"📨 WhatsApp message from a client\n\n“Hi, can I move my class to tomorrow?”\nForwarded to your email."}
                 />
-                {waOn && (
-                  <BigRow
-                    label="WhatsApp message copy"
-                    desc="Every WhatsApp message a client sends is also emailed to you, so you never miss one."
-                    value={d.emailAdminWaCopy}
-                    onToggle={set("emailAdminWaCopy")}
-                    preview={"📨 WhatsApp message from a client\n\n“Hi, can I move my class to tomorrow?”\nForwarded to your email."}
-                  />
-                )}
-              </div>
-            </section>
+              )}
+            </ChannelGroup>
           </>
         )}
 
