@@ -114,9 +114,11 @@ export async function POST(req: NextRequest) {
   }
 
   // 3. Promote request fields → real whatsapp* fields. Flip enabled flag.
-  // bookingAlertWhatsapp is kept in sync so the existing booking-copy
-  // pipeline (bookings/route.ts) keeps working without changes — the
-  // activated phone IS the admin's booking-copy phone now.
+  // NOTE: we deliberately do NOT set bookingAlertWhatsapp here. That field
+  // is the admin's PERSONAL number for receiving booking copies, and Meta
+  // blocks sending a message to your own sender number — so it must differ
+  // from the just-activated business number. The admin sets it separately
+  // in Settings if they want booking copies on a personal phone.
   const updated = await prisma.studio.update({
     where: { id: studio.id },
     data: {
@@ -132,7 +134,6 @@ export async function POST(req: NextRequest) {
       whatsappRequestStatus: "active",
       whatsappRequestReviewedAt: new Date(),
       whatsappRequestNote: null,
-      bookingAlertWhatsapp: studio.whatsappRequestDisplayPhone,
     },
     select: { whatsappDisplayPhone: true },
   })

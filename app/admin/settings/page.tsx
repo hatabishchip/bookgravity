@@ -1147,12 +1147,18 @@ function WhatsAppActivationCard({
       <div className="bg-white rounded-2xl shadow-sm p-5">
         {Header}
         <p className="text-xs text-gray-500 mb-3 max-w-md">
-          WhatsApp is connected for this studio. Clients receive confirmations,
-          bookings are copied to this number, and the inbox is live.
+          WhatsApp is connected for this studio. Clients receive confirmations
+          and the inbox is live on this number:
         </p>
-        <div className="font-mono text-sm text-gray-900">
-          {studio.whatsappDisplayPhone || studio.whatsappRequestDisplayPhone || "—"}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-9 h-9 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold">
+            ✓
+          </div>
+          <div className="font-mono text-sm text-gray-900">
+            {studio.whatsappDisplayPhone || studio.whatsappRequestDisplayPhone || "—"}
+          </div>
         </div>
+        <BookingCopyNumber studio={studio} onChanged={onChanged} />
       </div>
     )
   }
@@ -1293,6 +1299,101 @@ function WhatsAppActivationCard({
         The number must be new (not registered in WhatsApp on a phone). If the
         SIM is already in use, delete its WhatsApp account on the phone first.
       </p>
+    </div>
+  )
+}
+
+// Personal phone that receives a copy of every booking, shown once WhatsApp
+// is active. MUST differ from the studio's business number — Meta blocks
+// sending a message to your own sender, so a copy to the business number
+// itself silently fails. We warn inline if the admin enters the same number.
+function BookingCopyNumber({
+  studio,
+  onChanged,
+}: {
+  studio: Studio
+  onChanged: () => Promise<void> | void
+}) {
+  const current = studio.bookingAlertWhatsapp ?? ""
+  const [text, setText] = useState(current)
+  const [editing, setEditing] = useState(!current)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    setText(studio.bookingAlertWhatsapp ?? "")
+    setEditing(!studio.bookingAlertWhatsapp)
+  }, [studio.bookingAlertWhatsapp])
+
+  const businessDigits = (studio.whatsappDisplayPhone ?? "").replace(/\D/g, "")
+  const enteredDigits = text.replace(/\D/g, "")
+  const sameAsBusiness =
+    enteredDigits.length > 0 && enteredDigits === businessDigits
+
+  const save = async (next: string | null) => {
+    setBusy(true)
+    try {
+      await fetch("/api/admin/studio", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingAlertWhatsapp: next }),
+      })
+      await onChanged()
+      setEditing(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="border-t border-gray-100 pt-4">
+      <div className="text-sm font-semibold text-gray-900 mb-1">
+        Booking copies to your personal WhatsApp
+      </div>
+      <p className="text-xs text-gray-500 mb-3 max-w-md">
+        Personal number that gets a copy of every new booking (in addition to
+        the assigned trainer). Must be different from the studio number above.
+        Leave empty to turn copies off.
+      </p>
+
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="tel"
+            inputMode="tel"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="+62 812 3456 789"
+            disabled={busy}
+            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60"
+          />
+          <button
+            type="button"
+            onClick={() => save(text.trim() === "" ? null : text.trim())}
+            disabled={busy || sameAsBusiness}
+            className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
+          >
+            {busy && <Spinner />}
+            Save
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="font-mono text-sm text-gray-900">{current}</div>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50"
+            aria-label="Edit booking copy number"
+          >
+            <Pencil size={14} />
+          </button>
+        </div>
+      )}
+      {sameAsBusiness && (
+        <p className="text-xs text-red-600 mt-2">
+          Это тот же номер, что и у студии. WhatsApp не может слать сам себе —
+          укажи личный номер.
+        </p>
+      )}
     </div>
   )
 }

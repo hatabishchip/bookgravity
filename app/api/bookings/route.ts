@@ -362,7 +362,18 @@ export async function POST(request: NextRequest) {
 
         const trainerWA = slotForWA.trainer?.whatsapp
         const trainerName = slotForWA.trainer?.name
-        const adminWA = notifyAdminWa ? (slotForWA.studio?.bookingAlertWhatsapp?.trim() || null) : null
+        // Admin booking-copy recipient: a personal number, NOT the studio's
+        // own business number (Meta blocks sending to your own sender). Must
+        // be set explicitly in Settings → WhatsApp → "Номер для копий".
+        const adminBusinessNumber = (slotForWA.studio?.whatsappDisplayPhone ?? "").replace(/\D/g, "")
+        const adminAlertRaw = slotForWA.studio?.bookingAlertWhatsapp?.trim() || null
+        const adminWA =
+          notifyAdminWa &&
+          adminAlertRaw &&
+          // Guard: never try to message the studio's own number.
+          adminAlertRaw.replace(/\D/g, "") !== adminBusinessNumber
+            ? adminAlertRaw
+            : null
         const trainerPromise = (async () => {
           // Persist the trainer-notify outcome for the DB audit trail.
           const recordStatus = async (
