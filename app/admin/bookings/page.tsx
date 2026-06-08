@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { format, addDays } from "date-fns"
 import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, CheckCircle2, Copy, Check, X } from "lucide-react"
 import { useOpenChat } from "@/lib/use-open-chat"
@@ -243,6 +243,38 @@ export default function BookingsPage() {
   }, [dateFilter])
 
   useEffect(() => { fetchBookings() }, [fetchBookings])
+
+  // Auto-refresh: surface new bookings without a manual reload. Silent (no
+  // spinner) refetch every 20s and the instant the tab regains focus/visibility.
+  // Paused while a row is being updated so a poll can't overwrite an optimistic
+  // change with stale data.
+  const refreshBookings = useCallback(async () => {
+    const url = dateFilter ? `/api/admin/bookings?date=${dateFilter}` : "/api/admin/bookings"
+    try {
+      const res = await fetch(url, { cache: "no-store" })
+      if (res.ok) setBookings(await res.json())
+    } catch {}
+  }, [dateFilter])
+
+  const updatingRef = useRef<string | null>(null)
+  useEffect(() => { updatingRef.current = updating }, [updating])
+  useEffect(() => {
+    const refresh = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+      if (updatingRef.current) return
+      refreshBookings()
+    }
+    const id = setInterval(refresh, 20000)
+    const onFocus = () => refresh()
+    const onVis = () => { if (document.visibilityState === "visible") refresh() }
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVis)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVis)
+    }
+  }, [refreshBookings])
 
   // Optimistic update — apply locally first, then sync to the server.
   // No "loading" / disabled state — the UI reacts in the same frame.

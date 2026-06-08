@@ -358,6 +358,32 @@ export default function SchedulePage() {
     })
   }, [])
 
+  // Auto-refresh: surface new bookings/slots without a manual page reload.
+  // Polls every 20s and also refetches the instant the tab regains focus or
+  // becomes visible. Pauses while the day-editor modal is open so a poll never
+  // clobbers in-progress edits (a ref avoids resetting the interval on
+  // open/close).
+  const modalOpenRef = useRef(false)
+  useEffect(() => { modalOpenRef.current = modal !== null }, [modal])
+  useEffect(() => {
+    const refresh = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+      if (modalOpenRef.current) return
+      fetchSlots()
+      fetchBlocked()
+    }
+    const id = setInterval(refresh, 20000)
+    const onFocus = () => refresh()
+    const onVis = () => { if (document.visibilityState === "visible") refresh() }
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVis)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVis)
+    }
+  }, [fetchSlots, fetchBlocked])
+
   const priceForType = (t: ClassType) => {
     if (!studioPrices) return 0
     return t === "GROUP" ? studioPrices.groupPrice : t === "KIDS" ? studioPrices.kidsPrice : studioPrices.privatePrice
