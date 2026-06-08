@@ -49,14 +49,23 @@ export async function translateAndDetect(opts: {
   // below for higher quality.)
   if (!apiKey) return translateViaGoogleFree(text, target)
 
-  // Strict prompt: model returns ONLY a JSON object. We parse the first
-  // {...} blob to tolerate the rare wrapping prose.
+  // Conversational translation prompt. This is a WhatsApp chat between a
+  // yoga/stretching studio and its clients, so we want NATURAL, fluent,
+  // polite messaging — not a stiff word-for-word gloss. The model returns
+  // ONLY a JSON object; we parse the first {...} blob to tolerate any prose.
   const prompt =
-    `You are a translation utility. Detect the language of the input, then translate it to ${target}.\n\n` +
-    `If the input is already in ${target}, return it unchanged.\n` +
-    `Preserve emoji, line breaks, names and numbers verbatim.\n` +
-    `Do NOT add any commentary or explanations.\n\n` +
-    `Respond with EXACTLY one JSON object on a single line, no markdown:\n` +
+    `You are translating WhatsApp chat messages between a stretching/yoga ` +
+    `studio and its clients. Detect the input language, then translate to ` +
+    `${target}.\n\n` +
+    `Rules:\n` +
+    `- Translate naturally and fluently the way a polite native speaker would ` +
+    `text — NOT a literal word-for-word gloss. Keep the tone friendly and warm.\n` +
+    `- Preserve emoji, line breaks, @mentions, proper names, phone numbers, ` +
+    `times, dates and prices EXACTLY as written.\n` +
+    `- Keep it concise; match the register (casual stays casual).\n` +
+    `- If the text is already in ${target}, return it unchanged.\n` +
+    `- Output NOTHING but the JSON. No notes, no explanations.\n\n` +
+    `Respond with EXACTLY one JSON object on a single line:\n` +
     `{"sourceLang":"<ISO 639-1 lowercase>","translation":"<translated text>"}\n\n` +
     `Input:\n${text}`
 
@@ -71,32 +80,39 @@ export async function translateAndDetect(opts: {
       body: JSON.stringify({
         model: process.env.TRANSLATE_MODEL || DEFAULT_MODEL,
         max_tokens: 2048,
+        // Low temperature → consistent, faithful translations.
+        temperature: 0.2,
         messages: [{ role: "user", content: prompt }],
       }),
     })
     if (!r.ok) {
       const txt = (await r.text()).slice(0, 200)
-      return { ok: false, error: `HTTP ${r.status}: ${txt}` }
+      console.warn(`[translate] Claude HTTP ${r.status}: ${txt} — falling back to Google`)
+      // Don't fail the whole translation just because Claude hiccupped
+      // (rate limit, transient 5xx) — the free endpoint still produces a
+      // usable result so the admin never sees an untranslated message.
+      return translateViaGoogleFree(text, target)
     }
     const j = (await r.json()) as {
       content?: { type: string; text?: string }[]
     }
     const raw = j.content?.find((c) => c.type === "text")?.text?.trim() ?? ""
     const m = raw.match(/\{[\s\S]*\}/)
-    if (!m) return { ok: false, error: `no_json: ${raw.slice(0, 100)}` }
+    if (!m) return translateViaGoogleFree(text, target)
     let parsed: { sourceLang?: string; translation?: string }
     try {
       parsed = JSON.parse(m[0])
-    } catch (err) {
-      return { ok: false, error: `parse: ${err instanceof Error ? err.message : String(err)}` }
+    } catch {
+      return translateViaGoogleFree(text, target)
     }
     if (typeof parsed.translation !== "string" || !parsed.translation.length) {
-      return { ok: false, error: "empty_translation" }
+      return translateViaGoogleFree(text, target)
     }
     const sourceLang = (parsed.sourceLang ?? "").toLowerCase().slice(0, 2) || "und"
     return { ok: true, translated: parsed.translation, sourceLang }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    console.warn("[translate] Claude threw — falling back to Google:", err)
+    return translateViaGoogleFree(text, target)
   }
 }
 
