@@ -48,7 +48,7 @@ export default async function StudioBookingPage({
 
   const studio = await prisma.studio.findFirst({
     where: { slug },
-    select: { id: true, name: true, slug: true, logoUrl: true, locationUrl: true, whatsappEnabled: true },
+    select: { id: true, name: true, slug: true, country: true, city: true, logoUrl: true, locationUrl: true, whatsappEnabled: true },
   })
   if (!studio) notFound()
 
@@ -93,7 +93,14 @@ export default async function StudioBookingPage({
             {/* Location switcher — shows the active studio, tap to change */}
             <div className="mt-1.5">
               <StudioSwitcher
-                studios={allStudios.map((s) => ({ slug: s.slug, name: s.name }))}
+                studios={allStudios
+                  // Only sibling studios in the SAME country — a visitor on
+                  // Bali never sees an Almaty pill.
+                  .filter((s) =>
+                    (s.country || "").toUpperCase() === (studio.country || "").toUpperCase(),
+                  )
+                  // Public label = city only (no repeated "Gravity Stretching").
+                  .map((s) => ({ slug: s.slug, name: s.city?.trim() || s.name })) }
                 activeSlug={studio.slug}
               />
             </div>

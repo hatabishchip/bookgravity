@@ -55,6 +55,8 @@ export async function GET() {
         id: s.id,
         name: s.name,
         slug: s.slug,
+        country: s.country,
+        city: s.city,
         isDefault: s.isDefault,
         logoUrl: s.logoUrl ? "✓" : null, // just a presence flag
         createdAt: s.createdAt,
@@ -88,6 +90,10 @@ export async function GET() {
 const NewStudioSchema = z.object({
   name: z.string().min(2),
   slug: z.string().regex(/^[a-z0-9-]+$/, "lowercase letters / digits / dashes only").min(2),
+  // ISO 3166-1 alpha-2 — groups the studio by country on the public chooser.
+  country: z.string().length(2),
+  // City only — the public name is "Gravity Stretching <city>".
+  city: z.string().min(1),
   adminEmail: z.string().email(),
 })
 
@@ -117,6 +123,8 @@ export async function POST(request: NextRequest) {
       data: {
         name: data.name,
         slug: data.slug,
+        country: data.country.toUpperCase(),
+        city: data.city.trim(),
         users: {
           create: { email: data.adminEmail, password: hash, role: "ADMIN", initialPassword: pin },
         },
@@ -136,6 +144,8 @@ export async function POST(request: NextRequest) {
 const PatchSchema = z.object({
   id: z.string(),
   name: z.string().min(2).optional(),
+  country: z.string().length(2).optional(),
+  city: z.string().min(1).optional(),
   whatsappEnabled: z.boolean().optional(),
   // Super-admin gate for the studio's self-service onboarding form. When
   // true, the BookingAlertCard in /admin/settings goes interactive.

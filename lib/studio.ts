@@ -33,11 +33,18 @@ export async function getStudioIdBySlug(slug: string): Promise<string | null> {
 
 // All studios, for the apex chooser screen. Default studio first so Canggu
 // leads. `id` is intentionally omitted — the chooser only needs slug/name.
-export async function getAllStudios(): Promise<
-  { slug: string; name: string; isDefault: boolean; coverUrl: string | null }[]
-> {
+export type ChooserStudio = {
+  slug: string
+  name: string
+  isDefault: boolean
+  coverUrl: string | null
+  country: string | null
+  city: string | null
+}
+
+export async function getAllStudios(): Promise<ChooserStudio[]> {
   return prisma.studio.findMany({
-    select: { slug: true, name: true, isDefault: true, coverUrl: true },
+    select: { slug: true, name: true, isDefault: true, coverUrl: true, country: true, city: true },
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
   })
 }

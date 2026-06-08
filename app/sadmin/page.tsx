@@ -7,11 +7,14 @@ import {
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
+import { COUNTRIES, flagEmoji } from "@/lib/countries"
 
 type StudioRow = {
   id: string
   name: string
   slug: string
+  country: string | null
+  city: string | null
   isDefault: boolean
   logoUrl: string | null
   createdAt: string
@@ -229,6 +232,9 @@ function StudioCard({ studio, onConnect, onChanged }: {
               </>
             ) : (
               <>
+                {studio.country && (
+                  <span className="text-base flex-shrink-0" title={studio.country} aria-hidden>{flagEmoji(studio.country)}</span>
+                )}
                 <h2 className="font-bold text-gray-900 truncate">{studio.name}</h2>
                 <button type="button" onClick={() => { setNameVal(studio.name); setEditingName(true) }} aria-label="Edit studio name" className="p-1 rounded text-gray-400 hover:text-emerald-600 hover:bg-gray-50"><Pencil size={13} /></button>
               </>
@@ -481,28 +487,55 @@ function StudioCard({ studio, onConnect, onChanged }: {
   )
 }
 
+// Transliterate a city (incl. Cyrillic) into a URL-safe slug, e.g.
+// "Алматы" → "almaty", "Canggu" → "canggu".
+const CYR_MAP: Record<string, string> = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z",
+  и: "i", й: "i", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r",
+  с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh",
+  щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
+}
+function slugifyCity(city: string): string {
+  return city
+    .toLowerCase()
+    .split("")
+    .map((ch) => CYR_MAP[ch] ?? ch)
+    .join("")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
 function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ name: "", slug: "", adminEmail: "" })
+  const [form, setForm] = useState({ country: "", city: "", slug: "", slugTouched: false, adminEmail: "" })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // After creation we show the auto-generated starter password once.
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null)
 
-  const handleSlugSuggest = (name: string) => {
+  // City drives both the public name ("Gravity Stretching <city>") and, until
+  // the slug is hand-edited, the URL slug.
+  const handleCity = (city: string) => {
     setForm((f) => ({
       ...f,
-      name,
-      slug: f.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
+      city,
+      slug: f.slugTouched ? f.slug : slugifyCity(city),
     }))
   }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true); setError(null)
+    const payload = {
+      country: form.country,
+      city: form.city.trim(),
+      name: `Gravity Stretching ${form.city.trim()}`,
+      slug: form.slug,
+      adminEmail: form.adminEmail,
+    }
     const res = await fetch("/api/sadmin/studios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     })
     const j = await res.json().catch(() => ({}))
     if (!res.ok) {
@@ -550,14 +583,32 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
   return (
     <Modal title="Create studio" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Studio name" hint="Public display name, e.g. Gravity Stretching Bali">
-          <input
+        <Field label="Country" hint="Groups the studio on the public chooser — visitors pick a country first.">
+          <select
             required
-            value={form.name}
-            onChange={(e) => handleSlugSuggest(e.target.value)}
-            placeholder="Gravity Stretching Bali"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          />
+            value={form.country}
+            onChange={(e) => setForm({ ...form, country: e.target.value })}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          >
+            <option value="" disabled>Select a country…</option>
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {flagEmoji(c.code)} {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="City" hint='Just the city. The public name becomes "Gravity Stretching <city>".'>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 flex-shrink-0">Gravity Stretching</span>
+            <input
+              required
+              value={form.city}
+              onChange={(e) => handleCity(e.target.value)}
+              placeholder="Almaty"
+              className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            />
+          </div>
         </Field>
         <Field label="Slug" hint="Used in the URL — e.g. bookgravity.com/bali. lowercase, dashes only.">
           <div className="flex items-center gap-2">
@@ -565,8 +616,8 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
             <input
               required
               value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase() })}
-              placeholder="bali"
+              onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase(), slugTouched: true })}
+              placeholder="almaty"
               pattern="[a-z0-9\-]+"
               className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
             />
