@@ -37,6 +37,7 @@ const STUDIO_SELECT = {
   id: true,
   name: true,
   slug: true,
+  country: true,
   logoUrl: true,
   faviconUrl: true,
   coverUrl: true,

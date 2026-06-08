@@ -5,6 +5,7 @@ import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, Sh
 import { useAdminTheme } from "@/lib/use-admin-theme"
 import { formatDistanceToNow, format } from "date-fns"
 import { cn } from "@/lib/utils"
+import { dialCode } from "@/lib/countries"
 
 type Studio = {
   id: string
@@ -21,6 +22,8 @@ type Studio = {
   locationUrl: string | null
   /** Admin WhatsApp number that also receives booking alerts. */
   bookingAlertWhatsapp: string | null
+  /** ISO-2 country — drives the WhatsApp phone placeholder + dial prefix. */
+  country?: string | null
   /** Whether WhatsApp is connected/active for this studio. */
   whatsappEnabled?: boolean
   /** Super-admin gate for the self-service onboarding form. While false,
@@ -620,6 +623,10 @@ function WhatsAppActivationCard({
   const active =
     !!studio.whatsappEnabled && !!studio.whatsappPhoneNumberId
   const status = studio.whatsappRequestStatus ?? null
+  // Country-aware phone example: the studio's dial code, then zeros. The admin
+  // types only digits — we keep a leading "+" so they never type it.
+  const dial = dialCode(studio.country)
+  const phonePlaceholder = dial ? `+${dial} 000 000 0000` : "+000 000 0000"
 
   const [phone, setPhone] = useState("")
   const [displayName, setDisplayName] = useState("")
@@ -727,7 +734,7 @@ function WhatsAppActivationCard({
       <div className="bg-white rounded-2xl shadow-sm p-5">
         {Header}
         <p className="text-xs text-gray-500 mb-4 max-w-md">
-          Введи 6 цифр из SMS, которое Meta отправила на{" "}
+          Enter the 6 digits from the SMS Meta sent to{" "}
           <span className="font-mono">{studio.whatsappRequestDisplayPhone}</span>.
         </p>
         <div className="flex items-center gap-2 mb-3">
@@ -751,7 +758,7 @@ function WhatsAppActivationCard({
             className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
           >
             {busy && <Spinner />}
-            Подтвердить
+            Confirm
           </button>
         </div>
         {localError && (
@@ -763,7 +770,7 @@ function WhatsAppActivationCard({
           disabled={busy}
           className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
         >
-          Отменить и ввести другой номер
+          Cancel and enter a different number
         </button>
       </div>
     )
@@ -775,14 +782,14 @@ function WhatsAppActivationCard({
       <div className="bg-white rounded-2xl shadow-sm p-5 opacity-75">
         {Header}
         <p className="text-xs text-gray-500 mb-4 max-w-md">
-          Подключение WhatsApp ещё не открыто для этой студии.
-          Свяжись с админом платформы для активации.
+          WhatsApp activation isn&apos;t open for this studio yet. Contact the
+          platform admin to enable it.
         </p>
         <div className="flex items-center gap-2">
           <input
             type="tel"
             disabled
-            placeholder="+62 812 3456 789"
+            placeholder={phonePlaceholder}
             className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
           />
           <button
@@ -790,7 +797,7 @@ function WhatsAppActivationCard({
             disabled
             className="flex-shrink-0 bg-gray-200 text-gray-400 text-sm font-semibold px-4 py-2.5 rounded-xl cursor-not-allowed"
           >
-            Активировать
+            Activate
           </button>
         </div>
       </div>
@@ -803,16 +810,17 @@ function WhatsAppActivationCard({
     <div className="bg-white rounded-2xl shadow-sm p-5">
       {Header}
       <p className="text-xs text-gray-500 mb-4 max-w-md">
-        Введи номер, на котором будет работать WhatsApp студии. SMS-код
-        придёт на этот номер за ~30 секунд.
+        Enter the number WhatsApp will run on for this studio. An SMS code
+        arrives on that number in ~30 seconds.
       </p>
       <div className="space-y-2 mb-3">
         <input
           type="tel"
-          inputMode="tel"
+          inputMode="numeric"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="+62 812 3456 789"
+          // Admin types digits only — we keep the leading "+" automatically.
+          onChange={(e) => setPhone("+" + e.target.value.replace(/\D/g, ""))}
+          placeholder={phonePlaceholder}
           disabled={busy}
           className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60"
         />
@@ -820,7 +828,7 @@ function WhatsAppActivationCard({
           type="text"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder={`Имя в WhatsApp — например, ${studio.name}`}
+          placeholder={`WhatsApp display name — e.g. ${studio.name}`}
           disabled={busy}
           maxLength={64}
           className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60"
@@ -834,7 +842,7 @@ function WhatsAppActivationCard({
           className="bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
         >
           {busy && <Spinner />}
-          Активировать
+          Activate
         </button>
         {failed && (
           <button
@@ -843,7 +851,7 @@ function WhatsAppActivationCard({
             disabled={busy}
             className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
           >
-            Сбросить
+            Reset
           </button>
         )}
       </div>
@@ -853,8 +861,8 @@ function WhatsAppActivationCard({
         </p>
       )}
       <p className="text-[11px] text-gray-400 mt-3">
-        Номер должен быть новым (не зарегистрирован в WhatsApp на телефоне).
-        Если SIM уже используется — удали аккаунт WhatsApp на телефоне сначала.
+        The number must be new (not registered in WhatsApp on a phone). If the
+        SIM is already in use, delete its WhatsApp account on the phone first.
       </p>
     </div>
   )

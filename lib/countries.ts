@@ -83,3 +83,23 @@ export function countryName(code: string | null | undefined): string {
   if (!code) return ""
   return NAME_BY_CODE[code.toUpperCase()] ?? code.toUpperCase()
 }
+
+// International dialing codes (digits only, no "+") for the countries above.
+// Used to build a country-aware phone placeholder + prefix in the admin's
+// WhatsApp activation form.
+const DIAL_BY_CODE: Record<string, string> = {
+  ID: "62", KZ: "7", RU: "7", UA: "380", TH: "66", VN: "84", MY: "60",
+  SG: "65", PH: "63", IN: "91", AE: "971", TR: "90", GE: "995", AM: "374",
+  AZ: "994", UZ: "998", KG: "996", BY: "375", PL: "48", DE: "49", FR: "33",
+  ES: "34", IT: "39", PT: "351", NL: "31", GB: "44", IE: "353", CH: "41",
+  AT: "43", CZ: "420", GR: "30", CY: "357", SE: "46", NO: "47", FI: "358",
+  DK: "45", US: "1", CA: "1", MX: "52", BR: "55", AR: "54", AU: "61",
+  NZ: "64", JP: "81", KR: "82", CN: "86", HK: "852", TW: "886", LK: "94",
+  EG: "20", MA: "212", ZA: "27", IL: "972", SA: "966", QA: "974",
+}
+
+/** Dialing code (no "+") for an ISO-2 country, or "" if unknown. */
+export function dialCode(code: string | null | undefined): string {
+  if (!code) return ""
+  return DIAL_BY_CODE[code.toUpperCase()] ?? ""
+}
