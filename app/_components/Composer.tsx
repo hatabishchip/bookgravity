@@ -540,7 +540,9 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             />
           </div>
 
-          {/* Send button: white circle with up-arrow icon, matches WhatsApp. */}
+          {/* Send button: fills with brand green the moment there's text to
+              send (clear "tap to send" affordance in both themes); stays a
+              muted grey circle while empty. */}
           <button
             onClick={send}
             tabIndex={-1}
@@ -549,8 +551,10 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             disabled={sending || !hasText}
             className={cn(
               "w-10 h-10 rounded-full flex items-center justify-center transition-colors flex-shrink-0",
-              "bg-white text-[#1F2C34] dark:bg-white dark:text-[#1F2C34]",
-              "disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-[#2A3942] dark:disabled:text-[#5C6970]",
+              // Active (has text): solid brand green, white icon — same in light + dark.
+              "bg-[#2C6E49] text-white shadow-sm enabled:hover:bg-[#225737] enabled:active:bg-[#1E4D34]",
+              // Idle (empty): muted, clearly non-actionable.
+              "disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none dark:disabled:bg-[#2A3942] dark:disabled:text-[#5C6970]",
             )}
             aria-label="Send"
           >
