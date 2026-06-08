@@ -531,12 +531,14 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               disabled={sending || !windowOpen}
               rows={1}
               className={cn(
-                "flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 disabled:text-gray-400 dark:disabled:text-[#5C6970]",
+                // Bright brand-green caret so it's obvious where the cursor is
+                // (the native caret was hard to spot, especially on mobile).
+                "flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 caret-[#2C6E49] disabled:text-gray-400 dark:disabled:text-[#5C6970]",
                 windowOpen
                   ? "text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0]"
                   : "text-gray-500 dark:text-[#8696A0] placeholder-gray-400 dark:placeholder-[#5C6970]",
               )}
-              style={{ fontSize: `${fontScale * 0.95}rem` }}
+              style={{ fontSize: `${fontScale * 0.95}rem`, caretColor: "#2C6E49" }}
             />
           </div>
 
