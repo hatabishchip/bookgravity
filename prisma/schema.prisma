@@ -53,6 +53,9 @@ model Studio {
   // goes ONLY to the studio admin (full booking info). When WhatsApp is not
   // active, the email goes to the client AND the admin. Off = no booking email.
   confirmEmail Boolean @default(true)
+  // Notifications panel — email a copy of every inbound WhatsApp message to the
+  // studio admin (on by default).
+  emailAdminWaCopy Boolean @default(true)
   // Per-studio WhatsApp Cloud API credentials. Populated by /super-admin
   // either via Embedded Signup OAuth (future) or manual entry from Meta
   // Business Suite. If null we fall back to the global env vars so the

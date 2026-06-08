@@ -101,6 +101,7 @@ async function resolveStudioByPhoneNumberId(phoneNumberId: string | null) {
       id: true,
       name: true,
       inboxLanguage: true,
+      emailAdminWaCopy: true,
       whatsappPhoneNumberId: true,
       whatsappAccessToken: true,
       // This studio's own admin — inbound WhatsApp email copies go ONLY here,
@@ -421,8 +422,9 @@ export async function POST(request: NextRequest) {
                 console.error("[whatsapp-webhook] WA forward threw:", err)
               })
 
-            // Email copy to owner — always works regardless of WhatsApp
-            // window or template status. Runs in parallel with the WA path.
+            // Email copy to the studio admin — gated by the Notifications
+            // panel toggle. Runs in parallel with the WA path.
+            if (studioRow?.emailAdminWaCopy !== false)
             void (async () => {
               try {
                 let mediaAttachment:

@@ -44,6 +44,8 @@ type Studio = {
   requireBookingOtp?: boolean
   /** "Email" channel in the Booking Confirmation section. */
   confirmEmail?: boolean
+  /** Email a copy of inbound WhatsApp messages to the admin. */
+  emailAdminWaCopy?: boolean
   /** True while this admin still uses the auto-generated starter password. */
   usingInitialPassword?: boolean
 }
@@ -115,7 +117,7 @@ export default function SettingsPage() {
   }, [])
 
   const update = async (
-    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "inboxLanguage" | "locationUrl" | "bookingAlertWhatsapp" | "requireBookingOtp" | "confirmEmail">>,
+    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "inboxLanguage" | "locationUrl" | "bookingAlertWhatsapp" | "requireBookingOtp" | "confirmEmail" | "emailAdminWaCopy">>,
   ) => {
     const which: "logo" | "favicon" | "cover" | "language" | "location" | "bookingAlert" | "otp" | "confirmEmail" =
       "faviconUrl" in data
@@ -238,16 +240,9 @@ export default function SettingsPage() {
             onChanged={loadStudio}
           />
 
-          {/* Booking Confirmation — channels for the client's confirmation. */}
-          <BookingConfirmationCard
-            whatsappEnabled={!!studio.whatsappEnabled}
-            whatsappValue={studio.requireBookingOtp !== false}
-            emailValue={studio.confirmEmail !== false}
-            savingWhatsapp={saving === "otp"}
-            savingEmail={saving === "confirmEmail"}
-            onToggleWhatsapp={(on) => update({ requireBookingOtp: on })}
-            onToggleEmail={(on) => update({ confirmEmail: on })}
-          />
+          {/* Notifications — every message that goes out, with a preview and a
+              toggle, edited behind a pencil. */}
+          <NotificationsCard studio={studio} onSaved={loadStudio} />
 
           <SessionsCard />
 
@@ -570,94 +565,210 @@ function ToggleRow({
   value,
   saving,
   onToggle,
+  preview,
 }: {
   label: string
   desc: string
   value: boolean
   saving: boolean
   onToggle: (on: boolean) => Promise<void> | void
+  /** Preview of the message this toggle controls — shown even when OFF so the
+   *  admin sees exactly what they're enabling. */
+  preview?: React.ReactNode
 }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <div className="text-sm font-medium text-gray-900">
-          {label} {saving && <span className="text-[11px] text-[#2C6E49] font-normal">Saving…</span>}
+    <div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-gray-900">
+            {label} {saving && <span className="text-[11px] text-[#2C6E49] font-normal">Saving…</span>}
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{desc}</p>
         </div>
-        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{desc}</p>
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={value}
-        disabled={saving}
-        onClick={() => onToggle(!value)}
-        className={cn(
-          "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
-          value ? "bg-[#2C6E49]" : "bg-gray-300",
-        )}
-        aria-label={`Toggle ${label}`}
-      >
-        <span
+        <button
+          type="button"
+          role="switch"
+          aria-checked={value}
+          disabled={saving}
+          onClick={() => onToggle(!value)}
           className={cn(
-            "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
-            value ? "translate-x-[22px]" : "translate-x-0.5",
+            "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+            value ? "bg-[#2C6E49]" : "bg-gray-300",
           )}
-        />
-      </button>
+          aria-label={`Toggle ${label}`}
+        >
+          <span
+            className={cn(
+              "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+              value ? "translate-x-[22px]" : "translate-x-0.5",
+            )}
+          />
+        </button>
+      </div>
+      {preview != null && (
+        <div
+          className={cn(
+            "mt-2 rounded-xl border bg-gray-50 px-3 py-2 text-[11px] whitespace-pre-wrap leading-relaxed transition-opacity",
+            value ? "border-gray-200 text-gray-600" : "border-gray-100 text-gray-400 opacity-70",
+          )}
+        >
+          {preview}
+        </div>
+      )}
     </div>
   )
 }
 
-// Booking Confirmation — how the client receives their confirmation. Two
-// channels: WhatsApp (only when the studio's WhatsApp is live) and Email.
-// When WhatsApp is live the client is confirmed via WhatsApp, so the email
-// goes only to the admin; otherwise the email goes to the client AND the admin.
-function BookingConfirmationCard({
-  whatsappEnabled,
-  whatsappValue,
-  emailValue,
-  savingWhatsapp,
-  savingEmail,
-  onToggleWhatsapp,
-  onToggleEmail,
+// Notifications — the home for every outbound message, grouped by WhatsApp +
+// Email, each with a live preview and a toggle. Editing opens a modal (pencil)
+// where the admin flips toggles and hits Save.
+function NotificationsCard({
+  studio,
+  onSaved,
 }: {
-  whatsappEnabled: boolean
-  whatsappValue: boolean
-  emailValue: boolean
-  savingWhatsapp: boolean
-  savingEmail: boolean
-  onToggleWhatsapp: (on: boolean) => Promise<void> | void
-  onToggleEmail: (on: boolean) => Promise<void> | void
+  studio: Studio
+  onSaved: () => Promise<void> | void
 }) {
+  const [open, setOpen] = useState(false)
+  const waOn = !!studio.whatsappEnabled
+  const Chip = ({ on, children }: { on: boolean; children: React.ReactNode }) => (
+    <span className={cn(
+      "inline-flex items-center gap-1 px-2 py-0.5 rounded-full border",
+      on ? "bg-[#2C6E49]/10 text-[#2C6E49] border-[#2C6E49]/20" : "bg-gray-100 text-gray-400 border-gray-200",
+    )}>
+      <span className={cn("w-1.5 h-1.5 rounded-full", on ? "bg-[#2C6E49]" : "bg-gray-300")} />
+      {children}
+    </span>
+  )
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5">
-      <h3 className="text-sm font-semibold text-gray-900">Booking Confirmation</h3>
-      <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-        {whatsappEnabled
-          ? "With WhatsApp on, the client is confirmed on WhatsApp and the email goes to you (the admin) with the full info."
-          : "The confirmation is emailed to the client and to you (the admin)."}
-      </p>
-      <div className="mt-4 space-y-4">
-        {whatsappEnabled && (
-          <ToggleRow
-            label="WhatsApp"
-            desc="Send the client a WhatsApp confirmation and require a 2-digit code (stops spam bookings)."
-            value={whatsappValue}
-            saving={savingWhatsapp}
-            onToggle={onToggleWhatsapp}
-          />
-        )}
-        <ToggleRow
-          label="Email"
-          desc={
-            whatsappEnabled
-              ? "Email the full booking info to the admin."
-              : "Email the confirmation to the client and the admin."
-          }
-          value={emailValue}
-          saving={savingEmail}
-          onToggle={onToggleEmail}
-        />
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+            Control exactly which messages go out — to clients and to you, by WhatsApp and email — each with a preview.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Edit notifications"
+          className="p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50 flex-shrink-0"
+        >
+          <Pencil size={16} />
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-medium">
+        {waOn && <Chip on={studio.requireBookingOtp !== false}>WhatsApp confirmation → client</Chip>}
+        <Chip on={studio.confirmEmail !== false}>Email confirmation</Chip>
+        {waOn && <Chip on={studio.emailAdminWaCopy !== false}>WhatsApp copy → your email</Chip>}
+      </div>
+      {open && (
+        <NotificationsModal studio={studio} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); onSaved() }} />
+      )}
+    </div>
+  )
+}
+
+function NotificationsModal({
+  studio,
+  onClose,
+  onSaved,
+}: {
+  studio: Studio
+  onClose: () => void
+  onSaved: () => Promise<void> | void
+}) {
+  const waOn = !!studio.whatsappEnabled
+  const [waConfirm, setWaConfirm] = useState(studio.requireBookingOtp !== false)
+  const [emailConfirm, setEmailConfirm] = useState(studio.confirmEmail !== false)
+  const [waCopy, setWaCopy] = useState(studio.emailAdminWaCopy !== false)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    setSaving(true); setErr(null)
+    try {
+      const res = await fetch("/api/admin/studio", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requireBookingOtp: waConfirm,
+          confirmEmail: emailConfirm,
+          emailAdminWaCopy: waCopy,
+        }),
+      })
+      if (!res.ok) { setErr(`Couldn't save (HTTP ${res.status})`); setSaving(false); return }
+      await onSaved()
+    } catch {
+      setErr("Couldn't save — try again.")
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="text-base font-bold text-gray-900">Notifications</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="p-1 rounded text-gray-400 hover:bg-gray-100"><X size={18} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+          {waOn && (
+            <section>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-3">WhatsApp</div>
+              <ToggleRow
+                label="Booking confirmation → client"
+                desc="Sent to the client on WhatsApp, with a 2-digit code to confirm (stops spam)."
+                value={waConfirm}
+                saving={false}
+                onToggle={setWaConfirm}
+                preview={"You're booked 💖\n\nJune 9 (Tuesday)\n7:00 AM class\nTicket: #352\n\n📍 Location:\nmaps.app.goo.gl/…\n\n[ Cancel booking ]"}
+              />
+            </section>
+          )}
+
+          <section>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Email</div>
+            <div className="space-y-5">
+              <ToggleRow
+                label="Booking confirmation"
+                desc={waOn
+                  ? "Emailed to you (the admin) with the full booking info. (The client gets WhatsApp instead.)"
+                  : "Emailed to the client and to you (the admin)."}
+                value={emailConfirm}
+                saving={false}
+                onToggle={setEmailConfirm}
+                preview={`Subject: Booking confirmed · ${studio.name ?? "Studio"} · Jun 9, 7:00\n\nName, date, time, class, ticket — the full booking details.\nFrom: ${studio.name ?? "your studio"}`}
+              />
+              {waOn && (
+                <ToggleRow
+                  label="WhatsApp message copy → your email"
+                  desc="Every WhatsApp message a client sends is also emailed to you, so you never miss one."
+                  value={waCopy}
+                  saving={false}
+                  onToggle={setWaCopy}
+                  preview={"📨 WhatsApp message from a client\n\n“Hi, can I move my class to tomorrow?”\nForwarded to your email."}
+                />
+              )}
+            </div>
+          </section>
+
+          {err && <p className="text-xs text-red-600">{err}</p>}
+        </div>
+
+        <div className="flex gap-2 px-5 py-4 border-t border-gray-100">
+          <button type="button" onClick={onClose} className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">
+            Cancel
+          </button>
+          <button type="button" onClick={save} disabled={saving} className="flex-1 px-3 py-2.5 rounded-xl bg-[#2C6E49] text-white text-sm font-semibold hover:bg-[#1E4D34] disabled:opacity-60">
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
       </div>
     </div>
   )
