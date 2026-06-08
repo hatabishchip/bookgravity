@@ -103,3 +103,38 @@ export function dialCode(code: string | null | undefined): string {
   if (!code) return ""
   return DIAL_BY_CODE[code.toUpperCase()] ?? ""
 }
+
+// Suggested cities per country for the create-studio form's city dropdown.
+// Not exhaustive — the form also offers an "Other" option to type any city,
+// so a new market is never blocked. Indonesia/Kazakhstan (our markets) get
+// fuller lists; others get the main cities.
+const CITIES_BY_COUNTRY: Record<string, string[]> = {
+  ID: ["Canggu", "Ubud", "Seminyak", "Kuta", "Uluwatu", "Sanur", "Denpasar", "Jakarta", "Bandung", "Surabaya", "Yogyakarta"],
+  KZ: ["Almaty", "Astana", "Shymkent", "Karaganda", "Aktobe", "Atyrau"],
+  RU: ["Moscow", "Saint Petersburg", "Novosibirsk", "Yekaterinburg", "Kazan", "Sochi"],
+  UA: ["Kyiv", "Lviv", "Odesa", "Kharkiv", "Dnipro"],
+  TH: ["Bangkok", "Phuket", "Chiang Mai", "Pattaya", "Koh Samui"],
+  VN: ["Ho Chi Minh City", "Hanoi", "Da Nang", "Nha Trang"],
+  MY: ["Kuala Lumpur", "Penang", "Johor Bahru"],
+  AE: ["Dubai", "Abu Dhabi", "Sharjah"],
+  TR: ["Istanbul", "Antalya", "Ankara", "Izmir"],
+  GE: ["Tbilisi", "Batumi", "Kutaisi"],
+  PH: ["Manila", "Cebu", "Davao"],
+  IN: ["Mumbai", "Delhi", "Bengaluru", "Goa"],
+  SG: ["Singapore"],
+  KG: ["Bishkek", "Osh"],
+  UZ: ["Tashkent", "Samarkand"],
+  AM: ["Yerevan"],
+  AZ: ["Baku"],
+  PL: ["Warsaw", "Krakow", "Wroclaw"],
+  DE: ["Berlin", "Munich", "Hamburg", "Frankfurt"],
+  GB: ["London", "Manchester", "Birmingham"],
+  US: ["New York", "Los Angeles", "Miami", "San Francisco", "Austin"],
+}
+
+/** Suggested cities for a country (may be empty — the form still allows a
+ *  custom "Other" city). */
+export function citiesFor(code: string | null | undefined): string[] {
+  if (!code) return []
+  return CITIES_BY_COUNTRY[code.toUpperCase()] ?? []
+}

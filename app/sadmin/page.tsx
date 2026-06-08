@@ -7,7 +7,7 @@ import {
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
-import { COUNTRIES, flagEmoji } from "@/lib/countries"
+import { COUNTRIES, flagEmoji, citiesFor } from "@/lib/countries"
 
 type StudioRow = {
   id: string
@@ -450,10 +450,14 @@ function slugifyCity(city: string): string {
 
 function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState({ country: "", city: "", slug: "", slugTouched: false, adminEmail: "" })
+  // True once the admin picks "Other" in the city dropdown → free-text city.
+  const [cityCustom, setCityCustom] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // After creation we show the auto-generated starter password once.
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null)
+
+  const cities = citiesFor(form.country)
 
   // City drives both the public name ("Gravity Stretching <city>") and, until
   // the slug is hand-edited, the URL slug.
@@ -463,6 +467,23 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
       city,
       slug: f.slugTouched ? f.slug : slugifyCity(city),
     }))
+  }
+
+  // Picking a country enables + resets the city dropdown.
+  const handleCountry = (country: string) => {
+    setCityCustom(false)
+    setForm((f) => ({ ...f, country, city: "", slug: f.slugTouched ? f.slug : "" }))
+  }
+
+  // City dropdown change: a real city, or "__other__" to type a custom one.
+  const handleCitySelect = (value: string) => {
+    if (value === "__other__") {
+      setCityCustom(true)
+      handleCity("")
+    } else {
+      setCityCustom(false)
+      handleCity(value)
+    }
   }
 
   const submit = async (e: React.FormEvent) => {
@@ -530,7 +551,7 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
           <select
             required
             value={form.country}
-            onChange={(e) => setForm({ ...form, country: e.target.value })}
+            onChange={(e) => handleCountry(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
           >
             <option value="" disabled>Select a country…</option>
@@ -541,17 +562,38 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
             ))}
           </select>
         </Field>
-        <Field label="City" hint='Just the city. The public name becomes "Gravity Stretching <city>".'>
+        <Field label="City" hint='Pick a country first, then choose a city. The public name becomes "Gravity Stretching <city>".'>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400 flex-shrink-0">Gravity Stretching</span>
+            {/* City is a dropdown scoped to the chosen country, with an "Other"
+                escape so a brand-new market is never blocked. Disabled until a
+                country is picked. */}
+            <select
+              required={!cityCustom}
+              disabled={!form.country}
+              value={cityCustom ? "__other__" : form.city}
+              onChange={(e) => handleCitySelect(e.target.value)}
+              className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+            >
+              <option value="" disabled>
+                {form.country ? "Select a city…" : "Pick a country first"}
+              </option>
+              {cities.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+              <option value="__other__">Other (type manually)…</option>
+            </select>
+          </div>
+          {cityCustom && (
             <input
               required
+              autoFocus
               value={form.city}
               onChange={(e) => handleCity(e.target.value)}
-              placeholder="Almaty"
-              className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              placeholder="City name"
+              className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
             />
-          </div>
+          )}
         </Field>
         <Field label="Slug" hint="Used in the URL — e.g. bookgravity.com/bali. lowercase, dashes only.">
           <div className="flex items-center gap-2">
