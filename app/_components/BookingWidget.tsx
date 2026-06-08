@@ -933,8 +933,34 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     })
     const waLink = form.clientPhone ? whatsappLink(form.clientPhone, messageText) : null
 
+    // Return to the start of the booking flow (used by the top Back button and
+    // the bottom "Book another session" button).
+    const goToStart = () => {
+      try { localStorage.removeItem("bg_active_ticket") } catch {}
+      setStep("date")
+      setSelectedDate(null)
+      setSelectedSlot(null)
+      setForm({ clientName: "", clientPhone: "+", clientEmail: "" })
+      setSelectedServices([])
+      setBooking(null)
+      setPartySize(1)
+      setOtpCode("")
+      setOtpError("")
+      fetchAvailableDates()
+    }
+
     return (
-      <div className="fixed inset-0 bg-gradient-to-br from-[#F5F4F0] via-[#EFEEE8] to-[#E8E6DD] z-50 flex items-center justify-center p-4 overflow-y-auto">
+      // items-start (not center) so a tall ticket scrolls from the top instead
+      // of having its edges clipped; my-auto still centers a short ticket.
+      <div className="fixed inset-0 bg-gradient-to-br from-[#F5F4F0] via-[#EFEEE8] to-[#E8E6DD] z-50 flex items-start justify-center p-4 overflow-y-auto">
+        {/* Always-visible Back control — pinned to the top-left so the user can
+            return to the schedule without scrolling to the bottom button. */}
+        <button
+          onClick={goToStart}
+          className="fixed top-4 left-4 z-10 inline-flex items-center gap-1 bg-white/85 backdrop-blur-sm border border-gray-200 text-gray-700 hover:bg-white px-3 py-2 rounded-full text-sm font-medium shadow-sm"
+        >
+          <ChevronLeft size={16} /> Back
+        </button>
         <div className="w-full max-w-sm my-auto">
           {/* Ticket card */}
           <div ref={ticketRef} className="bg-white rounded-3xl shadow-2xl relative overflow-hidden">
@@ -1073,19 +1099,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             )}
 
             <button
-              onClick={() => {
-                try { localStorage.removeItem("bg_active_ticket") } catch {}
-                setStep("date")
-                setSelectedDate(null)
-                setSelectedSlot(null)
-                setForm({ clientName: "", clientPhone: "+", clientEmail: "" })
-                setSelectedServices([])
-                setBooking(null)
-                setPartySize(1)
-                setOtpCode("")
-                setOtpError("")
-                fetchAvailableDates()
-              }}
+              onClick={goToStart}
               className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-3 rounded-xl text-sm font-medium transition-colors"
             >
               Book another session
