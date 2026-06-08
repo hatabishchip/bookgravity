@@ -39,8 +39,11 @@ type Studio = {
   whatsappRequestStatus?: string | null
   whatsappRequestDisplayPhone?: string | null
   whatsappRequestNote?: string | null
-  /** Require a WhatsApp one-time code before a public booking (anti-spam). */
+  /** Require a WhatsApp one-time code before a public booking (anti-spam).
+   *  Also the "WhatsApp" channel in the Booking Confirmation section. */
   requireBookingOtp?: boolean
+  /** "Email" channel in the Booking Confirmation section. */
+  confirmEmail?: boolean
   /** True while this admin still uses the auto-generated starter password. */
   usingInitialPassword?: boolean
 }
@@ -98,7 +101,7 @@ function readImageAsDataUrl(file: File, maxDim = 512, quality = 0.85): Promise<s
 
 export default function SettingsPage() {
   const [studio, setStudio] = useState<Studio | null>(null)
-  const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | "location" | "bookingAlert" | "otp" | null>(null)
+  const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | "location" | "bookingAlert" | "otp" | "confirmEmail" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
@@ -112,9 +115,9 @@ export default function SettingsPage() {
   }, [])
 
   const update = async (
-    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "inboxLanguage" | "locationUrl" | "bookingAlertWhatsapp" | "requireBookingOtp">>,
+    data: Partial<Pick<Studio, "logoUrl" | "faviconUrl" | "coverUrl" | "inboxLanguage" | "locationUrl" | "bookingAlertWhatsapp" | "requireBookingOtp" | "confirmEmail">>,
   ) => {
-    const which: "logo" | "favicon" | "cover" | "language" | "location" | "bookingAlert" | "otp" =
+    const which: "logo" | "favicon" | "cover" | "language" | "location" | "bookingAlert" | "otp" | "confirmEmail" =
       "faviconUrl" in data
         ? "favicon"
         : "coverUrl" in data
@@ -127,7 +130,9 @@ export default function SettingsPage() {
                 ? "bookingAlert"
                 : "requireBookingOtp" in data
                   ? "otp"
-                  : "logo"
+                  : "confirmEmail" in data
+                    ? "confirmEmail"
+                    : "logo"
     setSaving(which)
     setError(null)
     const res = await fetch("/api/admin/studio", {
@@ -233,15 +238,16 @@ export default function SettingsPage() {
             onChanged={loadStudio}
           />
 
-          {/* WhatsApp code confirmation toggle — only meaningful when WhatsApp
-              is connected for this studio. */}
-          {studio.whatsappEnabled && (
-            <BookingOtpCard
-              value={studio.requireBookingOtp !== false}
-              saving={saving === "otp"}
-              onToggle={(on) => update({ requireBookingOtp: on })}
-            />
-          )}
+          {/* Booking Confirmation — channels for the client's confirmation. */}
+          <BookingConfirmationCard
+            whatsappEnabled={!!studio.whatsappEnabled}
+            whatsappValue={studio.requireBookingOtp !== false}
+            emailValue={studio.confirmEmail !== false}
+            savingWhatsapp={saving === "otp"}
+            savingEmail={saving === "confirmEmail"}
+            onToggleWhatsapp={(on) => update({ requireBookingOtp: on })}
+            onToggleEmail={(on) => update({ confirmEmail: on })}
+          />
 
           <SessionsCard />
 
@@ -557,45 +563,101 @@ function LocationCard({
 }
 
 // Toggle: require a WhatsApp one-time code before a public booking (anti-spam).
-// Only rendered when WhatsApp is connected for the studio.
-function BookingOtpCard({
+// A single labelled toggle row.
+function ToggleRow({
+  label,
+  desc,
   value,
   saving,
   onToggle,
 }: {
+  label: string
+  desc: string
   value: boolean
   saving: boolean
   onToggle: (on: boolean) => Promise<void> | void
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900">WhatsApp booking confirmation</h3>
-          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-            Clients must enter a code sent to their WhatsApp before a booking is
-            created. Stops fake / spam bookings. {saving && <span className="text-[#2C6E49]">Saving…</span>}
-          </p>
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-gray-900">
+          {label} {saving && <span className="text-[11px] text-[#2C6E49] font-normal">Saving…</span>}
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={value}
-          disabled={saving}
-          onClick={() => onToggle(!value)}
+        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{desc}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        disabled={saving}
+        onClick={() => onToggle(!value)}
+        className={cn(
+          "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+          value ? "bg-[#2C6E49]" : "bg-gray-300",
+        )}
+        aria-label={`Toggle ${label}`}
+      >
+        <span
           className={cn(
-            "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
-            value ? "bg-[#2C6E49]" : "bg-gray-300",
+            "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+            value ? "translate-x-[22px]" : "translate-x-0.5",
           )}
-          aria-label="Toggle WhatsApp booking confirmation"
-        >
-          <span
-            className={cn(
-              "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
-              value ? "translate-x-[22px]" : "translate-x-0.5",
-            )}
+        />
+      </button>
+    </div>
+  )
+}
+
+// Booking Confirmation — how the client receives their confirmation. Two
+// channels: WhatsApp (only when the studio's WhatsApp is live) and Email.
+// When WhatsApp is live the client is confirmed via WhatsApp, so the email
+// goes only to the admin; otherwise the email goes to the client AND the admin.
+function BookingConfirmationCard({
+  whatsappEnabled,
+  whatsappValue,
+  emailValue,
+  savingWhatsapp,
+  savingEmail,
+  onToggleWhatsapp,
+  onToggleEmail,
+}: {
+  whatsappEnabled: boolean
+  whatsappValue: boolean
+  emailValue: boolean
+  savingWhatsapp: boolean
+  savingEmail: boolean
+  onToggleWhatsapp: (on: boolean) => Promise<void> | void
+  onToggleEmail: (on: boolean) => Promise<void> | void
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <h3 className="text-sm font-semibold text-gray-900">Booking Confirmation</h3>
+      <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+        {whatsappEnabled
+          ? "With WhatsApp on, the client is confirmed on WhatsApp and the email goes to you (the admin) with the full info."
+          : "The confirmation is emailed to the client and to you (the admin)."}
+      </p>
+      <div className="mt-4 space-y-4">
+        {whatsappEnabled && (
+          <ToggleRow
+            label="WhatsApp"
+            desc="Send the client a WhatsApp confirmation and require a 2-digit code (stops spam bookings)."
+            value={whatsappValue}
+            saving={savingWhatsapp}
+            onToggle={onToggleWhatsapp}
           />
-        </button>
+        )}
+        <ToggleRow
+          label="Email"
+          desc={
+            whatsappEnabled
+              ? "Email the full booking info to the admin."
+              : "Email the confirmation to the client and the admin."
+          }
+          value={emailValue}
+          saving={savingEmail}
+          onToggle={onToggleEmail}
+        />
       </div>
     </div>
   )

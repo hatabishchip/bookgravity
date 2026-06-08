@@ -48,6 +48,11 @@ model Studio {
   // a one-time code sent to their WhatsApp (anti-spam). On by default; admins
   // can turn it off per studio in Settings. Ignored when WhatsApp is disabled.
   requireBookingOtp Boolean @default(true)
+  // "Booking Confirmation" section, Email channel toggle (on by default).
+  // When WhatsApp is active the client is confirmed via WhatsApp, so this email
+  // goes ONLY to the studio admin (full booking info). When WhatsApp is not
+  // active, the email goes to the client AND the admin. Off = no booking email.
+  confirmEmail Boolean @default(true)
   // Per-studio WhatsApp Cloud API credentials. Populated by /super-admin
   // either via Embedded Signup OAuth (future) or manual entry from Meta
   // Business Suite. If null we fall back to the global env vars so the

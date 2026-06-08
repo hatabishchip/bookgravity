@@ -94,9 +94,24 @@ export async function POST(request: NextRequest) {
     // success, so the duplicate-confirm re-POST still passes within the window.
     const otpStudio = await prisma.studio.findUnique({
       where: { id: studioId },
-      select: { requireBookingOtp: true },
+      select: {
+        requireBookingOtp: true,
+        confirmEmail: true,
+        // Studio's own admin — the booking-info email recipient.
+        users: { where: { role: "ADMIN" }, select: { email: true }, orderBy: { id: "asc" }, take: 1 },
+      },
     })
-    if ((await isStudioWhatsAppEnabled(studioId)) && otpStudio?.requireBookingOtp !== false) {
+    // "Booking Confirmation" channels. WhatsApp toggle = requireBookingOtp;
+    // Email toggle = confirmEmail (both on by default).
+    const studioWaOn = await isStudioWhatsAppEnabled(studioId)
+    const confirmWhatsapp = otpStudio?.requireBookingOtp !== false
+    const confirmEmail = otpStudio?.confirmEmail !== false
+    // The client is confirmed via WhatsApp when the studio's WhatsApp is live
+    // AND the WhatsApp channel is on. In that case the client does NOT get an
+    // email (they get WhatsApp); the email — if on — goes only to the admin.
+    const clientOnWhatsapp = studioWaOn && confirmWhatsapp
+    const adminEmail = otpStudio?.users?.[0]?.email ?? null
+    if (studioWaOn && confirmWhatsapp) {
       const otp = await verifyBookingOtp({
         studioId,
         phone: data.clientPhone,
@@ -200,14 +215,26 @@ export async function POST(request: NextRequest) {
         })
 
         const mailPromises: Promise<unknown>[] = []
-        mailPromises.push(
-          sendClientBookingConfirmation(data.clientEmail, {
-            ...sharedData,
-            ticketCode: bookings[0].ticketCode,
-            trainerName: trainerName ?? null,
-          }),
-        )
-        let emailCount = 1 // client confirmation always sent
+        let emailCount = 0
+        const confirmData = {
+          ...sharedData,
+          ticketCode: bookings[0].ticketCode,
+          trainerName: trainerName ?? null,
+        }
+        // Booking Confirmation → Email channel. With WhatsApp covering the
+        // client, the client gets WhatsApp (no client email); the email — if on
+        // — goes to the admin with the full info. Without WhatsApp, the email
+        // goes to the client AND the admin (as before).
+        if (confirmEmail) {
+          if (!clientOnWhatsapp) {
+            mailPromises.push(sendClientBookingConfirmation(data.clientEmail, confirmData))
+            emailCount += 1
+          }
+          if (adminEmail) {
+            mailPromises.push(sendClientBookingConfirmation(adminEmail, confirmData))
+            emailCount += 1
+          }
+        }
         // Respect the trainer's email channel toggle (on by default).
         const trainerWantsEmail = slotWithTrainer.trainer?.notifyEmail !== false
         if (trainerEmail && trainerName && trainerWantsEmail) {
@@ -294,7 +321,9 @@ export async function POST(request: NextRequest) {
           `${niceDate}\nClass at ${niceStart}\nTicket: ${bookings[0].ticketCode}\n\n` +
           `Please arrive 10 minutes before the class starts.`
 
-        const clientPromise = sendClientBookingConfirmationWA({
+        // Client WhatsApp confirmation only when the WhatsApp channel is on.
+        // (When off, the client gets the email instead — handled above.)
+        const clientPromise = !confirmWhatsapp ? Promise.resolve() : sendClientBookingConfirmationWA({
           clientPhone: data.clientPhone,
           clientName: data.clientName,
           date: niceDate,
