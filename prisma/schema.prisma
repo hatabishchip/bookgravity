@@ -491,6 +491,10 @@ model WhatsAppMessage {
   translatedBody  String?
   // ISO 639-1 of `body` (detected once at persist time).
   detectedLang    String?
+  // Which engine produced translatedBody: "gem" Gemini, "gro" Groq,
+  // "cla" Claude, "dpl" DeepL, "goo" Google. Shown as a tiny label in the
+  // inbox so we can see (and debug) translation quality at a glance.
+  translatedVia   String?
   mediaUrl        String?  // we don't download media yet; store Meta media_id here for later fetching
   mediaMime       String?
   templateName    String?  // for outbound type=template

@@ -168,6 +168,7 @@ export async function POST(
   let textToSend = originalText
   let translatedBody: string | null = null
   let detectedLang: string | null = adminLang
+  let translatedVia: string | null = null
 
   // Auto-translate admin text into the client's detected language so the
   // client receives the message in whatever language they wrote in. The
@@ -178,7 +179,8 @@ export async function POST(
       textToSend = t.translated
       translatedBody = t.translated
       detectedLang = t.sourceLang || adminLang
-    } else if (!t.ok && t.error !== "ANTHROPIC_API_KEY not set") {
+      translatedVia = t.provider
+    } else if (!t.ok) {
       console.warn("[messages/POST] outbound translate failed:", t.error)
     }
   }
@@ -203,6 +205,7 @@ export async function POST(
       type: "template",
       body: originalText,
       translatedBody,
+      translatedVia,
       detectedLang,
       templateName: adminTemplate,
       waMessageId: res.ok ? res.messageId : null,
@@ -222,6 +225,7 @@ export async function POST(
     type: "text",
     body: originalText,
     translatedBody,
+    translatedVia,
     detectedLang,
     waMessageId: res.ok ? res.messageId : null,
     status: res.ok ? "sent" : "failed",

@@ -65,6 +65,9 @@ type MessageRow = {
   translatedBody: string | null
   /** ISO 639-1 of body. Used to label the "Original (EN): …" subtitle. */
   detectedLang: string | null
+  /** Provider tag (gem/gro/cla/dpl/goo) shown as a tiny label on the
+   *  translation footer so we can see which engine did the translation. */
+  translatedVia?: string | null
   mediaUrl: string | null
   mediaMime: string | null
   templateName: string | null
@@ -521,6 +524,11 @@ function MessageBubble({
               {m.detectedLang ? ` ${m.detectedLang.toUpperCase()}:` : ""}
             </span>
             {m.body}
+            {m.translatedVia && (
+              <span className="ml-1.5 opacity-50 uppercase tracking-wide text-[9px]">
+                · {m.translatedVia}
+              </span>
+            )}
           </div>
         )}
 

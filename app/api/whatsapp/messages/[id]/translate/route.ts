@@ -69,15 +69,21 @@ export async function POST(
   // If the message is already in the target language there's nothing to show —
   // store the detected lang and leave translatedBody null so the UI just notes
   // it's already in the admin's language.
-  const translatedBody = t.sourceLang === target ? null : t.translated
+  const sameLang = t.sourceLang === target
+  const translatedBody = sameLang ? null : t.translated
   await prisma.whatsAppMessage.update({
     where: { id: message.id },
-    data: { translatedBody, detectedLang: t.sourceLang },
+    data: {
+      translatedBody,
+      detectedLang: t.sourceLang,
+      translatedVia: sameLang ? null : t.provider,
+    },
   })
 
   return NextResponse.json({
     translatedBody,
     detectedLang: t.sourceLang,
-    alreadyInTarget: t.sourceLang === target,
+    translatedVia: sameLang ? null : t.provider,
+    alreadyInTarget: sameLang,
   })
 }

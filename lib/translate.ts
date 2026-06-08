@@ -25,7 +25,17 @@ const GEMINI_MODEL = "gemini-2.5-flash"
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 const GROQ_MODEL = "llama-3.3-70b-versatile"
 
-type TranslateOk = { ok: true; translated: string; sourceLang: string }
+// Short provider tag stored alongside each translation so the UI can show
+// which engine produced it: "gem" Gemini, "gro" Groq, "cla" Claude,
+// "dpl" DeepL, "goo" Google (dictionary).
+export type TranslateProvider = "cla" | "gem" | "gro" | "dpl" | "goo"
+
+type TranslateOk = {
+  ok: true
+  translated: string
+  sourceLang: string
+  provider: TranslateProvider
+}
 type TranslateErr = { ok: false; error: string }
 type Result = TranslateOk | TranslateErr
 
@@ -93,7 +103,7 @@ function buildPrompt(text: string, target: string): string {
 }
 
 /** Pull the first {...} JSON blob out of an LLM response into our shape. */
-function parseLlmJson(raw: string): Result {
+function parseLlmJson(raw: string, provider: TranslateProvider): Result {
   const m = raw.match(/\{[\s\S]*\}/)
   if (!m) return { ok: false, error: `no_json: ${raw.slice(0, 100)}` }
   let parsed: { sourceLang?: string; translation?: string }
@@ -106,7 +116,7 @@ function parseLlmJson(raw: string): Result {
     return { ok: false, error: "empty_translation" }
   }
   const sourceLang = (parsed.sourceLang ?? "").toLowerCase().slice(0, 2) || "und"
-  return { ok: true, translated: parsed.translation, sourceLang }
+  return { ok: true, translated: parsed.translation, sourceLang, provider }
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +144,7 @@ async function viaClaude(text: string, target: string): Promise<Result> {
   }
   const j = (await r.json()) as { content?: { type: string; text?: string }[] }
   const raw = j.content?.find((c) => c.type === "text")?.text?.trim() ?? ""
-  return parseLlmJson(raw)
+  return parseLlmJson(raw, "cla")
 }
 
 // ---------------------------------------------------------------------------
@@ -167,7 +177,7 @@ async function viaGemini(text: string, target: string): Promise<Result> {
   }
   const raw =
     j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim() ?? ""
-  return parseLlmJson(raw)
+  return parseLlmJson(raw, "gem")
 }
 
 // ---------------------------------------------------------------------------
@@ -205,7 +215,7 @@ async function viaGroq(text: string, target: string): Promise<Result> {
         choices?: { message?: { content?: string } }[]
       }
       const raw = j.choices?.[0]?.message?.content?.trim() ?? ""
-      return parseLlmJson(raw)
+      return parseLlmJson(raw, "gro")
     }
     const t = (await r.text()).slice(0, 200)
     lastErr = `groq HTTP ${r.status}: ${t}`
@@ -249,7 +259,7 @@ async function viaDeepL(text: string, target: string): Promise<Result> {
   if (!first?.text) return { ok: false, error: "deepl_empty" }
   const sourceLang =
     (first.detected_source_language ?? "").toLowerCase().slice(0, 2) || "und"
-  return { ok: true, translated: first.text, sourceLang }
+  return { ok: true, translated: first.text, sourceLang, provider: "dpl" }
 }
 
 function deeplTarget(twoLetter: string): string {
@@ -289,7 +299,7 @@ async function translateViaGoogleFree(
     if (!translated.trim()) return { ok: false, error: "empty_translation" }
     const detected = typeof arr?.[2] === "string" ? arr[2] : "und"
     const sourceLang = detected.toLowerCase().slice(0, 2) || "und"
-    return { ok: true, translated, sourceLang }
+    return { ok: true, translated, sourceLang, provider: "goo" }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }

@@ -167,6 +167,8 @@ export async function appendOutboundMessage(opts: {
   translatedBody?: string | null
   /** ISO 639-1 of `body`. */
   detectedLang?: string | null
+  /** Provider tag (gem/gro/cla/dpl/goo) that produced translatedBody. */
+  translatedVia?: string | null
   templateName?: string | null
   waMessageId?: string | null
   status?: string // queued|sent|delivered|read|failed
@@ -181,6 +183,7 @@ export async function appendOutboundMessage(opts: {
       body: opts.body ?? null,
       translatedBody: opts.translatedBody ?? null,
       detectedLang: opts.detectedLang ?? null,
+      translatedVia: opts.translatedVia ?? null,
       templateName: opts.templateName ?? null,
       waMessageId: opts.waMessageId ?? null,
       status: opts.status ?? "sent",

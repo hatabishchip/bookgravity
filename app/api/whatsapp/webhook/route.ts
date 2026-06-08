@@ -366,12 +366,13 @@ export async function POST(request: NextRequest) {
                     }
                     return
                   }
+                  const isSame = t.sourceLang === inboxLanguage
                   await prisma.whatsAppMessage.update({
                     where: { id: saved.id },
                     data: {
                       detectedLang: t.sourceLang,
-                      translatedBody:
-                        t.sourceLang === inboxLanguage ? null : t.translated,
+                      translatedBody: isSame ? null : t.translated,
+                      translatedVia: isSame ? null : t.provider,
                     },
                   })
                   // Remember the client's language for outbound translation.
