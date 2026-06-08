@@ -52,6 +52,11 @@ type Studio = {
   notifyAdminWhatsapp?: boolean
   /** Email a copy of inbound WhatsApp messages to the admin. */
   emailAdminWaCopy?: boolean
+  /** Google Calendar connection (display only). */
+  googleEmail?: string | null
+  googleConnectedAt?: string | null
+  /** Whether the platform Google OAuth app is configured (env present). */
+  googleConfigured?: boolean
   /** True while this admin still uses the auto-generated starter password. */
   usingInitialPassword?: boolean
 }
@@ -249,6 +254,8 @@ export default function SettingsPage() {
           {/* Notifications — every message that goes out, with a preview and a
               toggle, edited behind a pencil. */}
           <NotificationsCard studio={studio} onSaved={loadStudio} />
+
+          <GoogleCalendarCard studio={studio} onChanged={loadStudio} />
 
           <SessionsCard />
 
@@ -925,6 +932,103 @@ function NotificationsModal({
         <button type="button" onClick={save} disabled={saving} className="flex-1 px-4 py-3 rounded-xl bg-[#2C6E49] text-white text-base font-semibold hover:bg-[#1E4D34] disabled:opacity-60">
           {saving ? "Saving…" : "Save"}
         </button>
+      </div>
+    </div>
+  )
+}
+
+// Google Calendar — per-studio one-way sync of classes. Each admin connects
+// THEIR OWN Google account; studios never mix.
+function GoogleCalendarCard({
+  studio,
+  onChanged,
+}: {
+  studio: Studio
+  onChanged: () => Promise<void> | void
+}) {
+  const connected = !!studio.googleEmail || !!studio.googleConnectedAt
+  const [note, setNote] = useState<string | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+
+  // Show the OAuth result passed back as ?gcal=… (read client-side to avoid a
+  // Suspense boundary), then clean it off the URL.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("gcal")
+    if (!p) return
+    setNote(
+      p === "connected" ? "✓ Google Calendar connected."
+        : p === "noretoken" ? "Google didn't return access. In your Google account remove BookGravity, then connect again."
+        : p === "unavailable" ? "Google integration isn't configured yet."
+        : "Couldn't connect to Google — please try again.",
+    )
+    const url = new URL(window.location.href)
+    url.searchParams.delete("gcal")
+    window.history.replaceState({}, "", url.toString())
+  }, [])
+
+  const disconnect = async () => {
+    setDisconnecting(true)
+    try {
+      await fetch("/api/admin/google/calendar/disconnect", { method: "POST" })
+      await onChanged()
+      setNote(null)
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-gray-900">Google Calendar</h3>
+          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+            Sync this studio&apos;s classes into your own Google Calendar — created, edited and
+            removed automatically. It&apos;s your account, separate from other studios.
+          </p>
+        </div>
+        {connected && (
+          <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium flex-shrink-0">
+            Connected
+          </span>
+        )}
+      </div>
+
+      {note && <p className="mt-3 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{note}</p>}
+
+      <div className="mt-4">
+        {!studio.googleConfigured ? (
+          <p className="text-xs text-gray-400">
+            Google sync isn&apos;t available yet — the platform owner needs to finish the Google setup.
+          </p>
+        ) : connected ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-sm text-gray-700">
+              Connected as <span className="font-medium">{studio.googleEmail ?? "your Google account"}</span>
+            </div>
+            <button
+              type="button"
+              onClick={disconnect}
+              disabled={disconnecting}
+              className="text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+            >
+              {disconnecting ? "Disconnecting…" : "Disconnect"}
+            </button>
+          </div>
+        ) : (
+          <a
+            href="/api/admin/google/calendar/connect"
+            className="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50"
+          >
+            <svg viewBox="0 0 24 24" className="w-4 h-4" aria-hidden>
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0012 23z" />
+              <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 010-4.2V7.06H2.18a11 11 0 000 9.88l3.66-2.84z" />
+              <path fill="#EA4335" d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.44 14.97.5 12 .5A11 11 0 002.18 7.06l3.66 2.84C6.71 7.3 9.14 4.75 12 4.75z" />
+            </svg>
+            Connect Google Calendar
+          </a>
+        )}
       </div>
     </div>
   )

@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { syncSlotToGoogle, unsyncSlotFromGoogle } from "@/lib/google-calendar"
+
+// Google Calendar sync can add a few network calls per slot; give the function
+// headroom past the 10s default (no-ops instantly when not connected).
+export const maxDuration = 60
 
 const CLASS_DURATION_MIN = 120
 const MIN_GAP_MIN = 0
@@ -22,6 +27,8 @@ async function deleteSlotCascade(slotId: string) {
     await prisma.bookingService.deleteMany({ where: { bookingId: { in: ids } } })
     await prisma.booking.deleteMany({ where: { id: { in: ids } } })
   }
+  // Remove the matching Google Calendar event first (best-effort).
+  await unsyncSlotFromGoogle(slotId).catch(() => {})
   await prisma.timeSlot.delete({ where: { id: slotId } })
 }
 
@@ -144,6 +151,7 @@ export async function POST(request: NextRequest) {
       },
       include: slotInclude,
     })
+    const createdIds: string[] = [slot.id]
 
     // Schedule future weekly repeats. Each candidate week is independently
     // validated (gap check + blocked-day check + per-day cap). Any that fail
@@ -164,7 +172,7 @@ export async function POST(request: NextRequest) {
         })
         if (conflict) { skipped.push({ date: nextDate, reason: `conflicts with ${conflict.startTime}` }); continue }
 
-        await prisma.timeSlot.create({
+        const rep = await prisma.timeSlot.create({
           data: {
             ...slotData,
             date: nextDate,
@@ -174,8 +182,12 @@ export async function POST(request: NextRequest) {
             seriesId,
           },
         })
+        createdIds.push(rep.id)
       }
     }
+
+    // Push every created class to the studio's Google Calendar (if connected).
+    await Promise.allSettled(createdIds.map((id) => syncSlotToGoogle(id)))
 
     return NextResponse.json({ ...slot, _seriesSkipped: skipped }, { status: 201 })
   } catch (err) {
@@ -282,6 +294,9 @@ export async function PATCH(request: NextRequest) {
       await prisma.timeSlot.update({ where: { id: current.id }, data: { seriesId: null } })
       seriesEnded = { deleted, kept }
     }
+
+    // Reflect the edit in Google Calendar (best-effort, no-op if not connected).
+    await syncSlotToGoogle(current.id).catch(() => {})
 
     return NextResponse.json({ ...updated, _seriesEnded: seriesEnded })
   } catch (err) {

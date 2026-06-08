@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { setWhatsAppProfilePictureFromDataUrl } from "@/lib/whatsapp-cloud"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
+import { googleConfigured } from "@/lib/google-calendar"
 
 const MAX_DATA_URL_LEN = 1_500_000 // ~1MB of base64 = ~750KB of real image
 const MAX_COVER_URL_LEN = 3_500_000 // cover photos are larger (full-bleed)
@@ -78,6 +79,10 @@ const STUDIO_SELECT = {
   whatsappRequestDisplayPhone: true,
   whatsappRequestStatus: true,
   whatsappRequestNote: true,
+  // Google Calendar — connection display only (refresh token never leaves the
+  // server).
+  googleEmail: true,
+  googleConnectedAt: true,
 } as const
 
 export async function GET() {
@@ -97,7 +102,13 @@ export async function GET() {
     where: { id: ctx.userId },
     select: { initialPassword: true },
   })
-  return NextResponse.json({ ...studio, usingInitialPassword: !!me?.initialPassword })
+  return NextResponse.json({
+    ...studio,
+    usingInitialPassword: !!me?.initialPassword,
+    // Whether the platform Google OAuth app is configured (env). Drives the
+    // Settings card between "Connect" and "not available yet".
+    googleConfigured: googleConfigured(),
+  })
 }
 
 export async function PATCH(request: NextRequest) {

@@ -62,6 +62,13 @@ model Studio {
   emailAdminBooking   Boolean @default(true)  // booking confirmation email copy to the admin
   emailAdminWaCopy    Boolean @default(true)  // email a copy of every inbound WhatsApp message
   notifyAdminWhatsapp Boolean @default(true)  // WhatsApp new-booking alert to the admin number
+  // Per-studio Google Calendar sync. Each studio admin connects THEIR OWN
+  // Google account (OAuth) — entirely separate per studio. Presence of a
+  // refresh token = connected. Classes one-way sync into googleCalendarId.
+  googleRefreshToken  String?
+  googleCalendarId    String?   // target calendar id, default "primary"
+  googleEmail         String?   // connected Google account (for display)
+  googleConnectedAt   DateTime?
   // Per-studio WhatsApp Cloud API credentials. Populated by /super-admin
   // either via Embedded Signup OAuth (future) or manual entry from Meta
   // Business Suite. If null we fall back to the global env vars so the
@@ -260,6 +267,9 @@ model TimeSlot {
   // Null = standalone, one-off slot. Used by the schedule modal to offer
   // "Repeat weekly" and to "stop series" on a specific future occurrence.
   seriesId    String?
+  // Google Calendar event id (when the studio has Google sync connected), so
+  // we can update/delete the matching event.
+  googleEventId String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
