@@ -532,13 +532,14 @@ export async function sendClientBookingConfirmationWA(opts: {
     process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed_v7"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
 
-  // v5/v6 — new layout, no name greeting: {{1}} pretty date, {{2}} start time
-  // ("7:00 am"), {{3}} ticket, {{4}} location. v6 adds {{5}} = one-tap wa.me
-  // cancel link prefilled with "Cancel <code>".
-  // v7 = same body as v5 (4 vars, no link) PLUS a static "Cancel booking"
-  // quick-reply button baked into the template (no send-time component needed).
-  const isV6 = /v6$/.test(templateName)
-  if (/v5$/.test(templateName) || isV6 || /v7$/.test(templateName) || /v8$/.test(templateName)) {
+  // Modern layout (v5 and up): {{1}} pretty date, {{2}} start time ("7:00 AM"),
+  // {{3}} ticket, {{4}} location. v6 is the one exception — it adds {{5}} = a
+  // one-tap wa.me cancel link (v7+ use a native quick-reply button instead, no
+  // extra var). Parsing the trailing version number keeps this future-proof.
+  const verMatch = templateName.match(/v(\d+)$/)
+  const ver = verMatch ? Number(verMatch[1]) : 0
+  const isV6 = ver === 6
+  if (ver >= 5) {
     const vars = [
       opts.date,
       (opts.startTimePretty || opts.time) ?? "—",
