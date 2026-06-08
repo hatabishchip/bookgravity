@@ -365,30 +365,35 @@ function StudioCard({ studio, onChanged }: {
             <MessageCircle size={15} className={fullyLive ? "text-emerald-700" : "text-gray-400"} />
             <span className="text-sm font-semibold text-gray-900">WhatsApp</span>
           </div>
-          <button
-            onClick={async () => {
-              await fetch("/api/sadmin/studios", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: studio.id, whatsappOnboardingEnabled: !wa.onboardingEnabled }),
-              })
-              onChanged()
-            }}
-            title={
-              wa.onboardingEnabled
-                ? "Number-entry field is open for the studio admin — click to close"
-                : "Open the number-entry field so the studio admin can activate WhatsApp"
-            }
-            className={cn(
-              "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border touch-manipulation flex-shrink-0",
-              wa.onboardingEnabled
-                ? "bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100"
-                : "bg-white text-gray-500 border-gray-300 hover:bg-gray-100",
-            )}
-          >
-            {wa.onboardingEnabled ? <Eye size={12} /> : <EyeOff size={12} />}
-            {wa.onboardingEnabled ? "Number entry ON" : "Number entry OFF"}
-          </button>
+          {/* The number-entry toggle is only for studios that haven't activated
+              yet. Once WhatsApp is live there's nothing to toggle — we just show
+              the connected number. */}
+          {!fullyLive && (
+            <button
+              onClick={async () => {
+                await fetch("/api/sadmin/studios", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id: studio.id, whatsappOnboardingEnabled: !wa.onboardingEnabled }),
+                })
+                onChanged()
+              }}
+              title={
+                wa.onboardingEnabled
+                  ? "Number-entry field is open for the studio admin — click to close"
+                  : "Open the number-entry field so the studio admin can activate WhatsApp"
+              }
+              className={cn(
+                "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border touch-manipulation flex-shrink-0",
+                wa.onboardingEnabled
+                  ? "bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100"
+                  : "bg-white text-gray-500 border-gray-300 hover:bg-gray-100",
+              )}
+            >
+              {wa.onboardingEnabled ? <Eye size={12} /> : <EyeOff size={12} />}
+              {wa.onboardingEnabled ? "Number entry ON" : "Number entry OFF"}
+            </button>
+          )}
         </div>
 
         {fullyLive ? (

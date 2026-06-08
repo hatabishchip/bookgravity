@@ -1,26 +1,19 @@
-// booking_confirmed_v8 — owner's wording. 4 body vars + a quick-reply
-// "Cancel booking" button (same cancel flow as v7). No header line.
+// booking_confirmed_v9 — owner's trimmed wording: booking details + location
+// + a quick-reply "Cancel booking" button. No header, no footer lines.
 //   {{1}} date "June 9 (Tuesday)", {{2}} start "7:00 AM", {{3}} ticket "352",
 //   {{4}} maps link.
-//
-// Run: WHATSAPP_ACCESS_TOKEN=... npx tsx scripts/create-booking-confirmed-v8.ts
-// After APPROVED → code default flips to booking_confirmed_v8.
-
 import "dotenv/config"
 
 const WABA_ID = "1571637721189360"
 const GRAPH = "https://graph.facebook.com/v21.0"
-const NAME = "booking_confirmed_v8"
+const NAME = "booking_confirmed_v9"
 
 const BODY =
   "You're booked 💖\n\n" +
   "{{1}}\n" +
   "{{2}} class\n" +
   "Ticket: #{{3}}\n\n" +
-  "📍 Location:\n{{4}}\n\n" +
-  "Please arrive 10 minutes before the class starts.\n\n" +
-  "🔄 Free cancellation up to 2 hours before class — just tap the button below.\n\n" +
-  "See you on the mat! 🌿"
+  "📍 Location:\n{{4}}"
 
 async function main() {
   const token = process.env.WHATSAPP_ACCESS_TOKEN
@@ -37,12 +30,7 @@ async function main() {
           type: "BODY",
           text: BODY,
           example: {
-            body_text: [[
-              "June 9 (Tuesday)",
-              "7:00 AM",
-              "352",
-              "https://maps.app.goo.gl/2c15nQsdKzEBREey9",
-            ]],
+            body_text: [["June 9 (Tuesday)", "7:00 AM", "352", "https://maps.app.goo.gl/2c15nQsdKzEBREey9"]],
           },
         },
         { type: "BUTTONS", buttons: [{ type: "QUICK_REPLY", text: "Cancel booking" }] },

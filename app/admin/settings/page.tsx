@@ -717,12 +717,8 @@ function WhatsAppActivationCard({
           WhatsApp is connected for this studio. Clients receive confirmations,
           bookings are copied to this number, and the inbox is live.
         </p>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-emerald-700">Active</span>
-          <span className="text-gray-300" aria-hidden>·</span>
-          <span className="font-mono text-sm text-gray-900">
-            {studio.whatsappDisplayPhone}
-          </span>
+        <div className="font-mono text-sm text-gray-900">
+          {studio.whatsappDisplayPhone || studio.whatsappRequestDisplayPhone || "—"}
         </div>
       </div>
     )
