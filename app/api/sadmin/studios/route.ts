@@ -51,6 +51,17 @@ export async function GET() {
       const ownConfig = !!s.whatsappAccessToken && !!s.whatsappPhoneNumberId
       const usesEnvFallback = !ownConfig && s.isDefault && envConfigured
       const hasConfig = ownConfig || usesEnvFallback
+      // Business-initiated messages (templates) sent in the last rolling 24h —
+      // the metric that counts toward WhatsApp's messaging limit.
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      const templates24h = await prisma.whatsAppMessage.count({
+        where: {
+          direction: "OUTBOUND",
+          type: "template",
+          createdAt: { gte: since24h },
+          conversation: { studioId: s.id },
+        },
+      })
       return {
         id: s.id,
         name: s.name,
@@ -76,6 +87,8 @@ export async function GET() {
           usesEnvFallback,
           lastOutboundAt: lastOutbound?.createdAt ?? null,
           lastOutboundStatus: lastOutbound?.status ?? null,
+          // Business-initiated sends in the last 24h (counts toward the limit).
+          templates24h,
           // Self-onboarding fields — surfaced so /sadmin can flip the
           // toggle and see in-progress requests at a glance.
           onboardingEnabled: s.whatsappOnboardingEnabled,

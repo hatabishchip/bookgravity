@@ -34,21 +34,17 @@ type StudioRow = {
     usesEnvFallback: boolean
     lastOutboundAt: string | null
     lastOutboundStatus: string | null
+    templates24h: number
     onboardingEnabled: boolean
     requestStatus: string | null
     requestPhone: string | null
   }
 }
 
-type HealthResult =
-  | { ok: true; displayPhone?: string; verifiedName?: string; qualityRating?: string }
-  | { ok: false; error: string }
-
 export default function SuperAdminPage() {
   const [studios, setStudios] = useState<StudioRow[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
-  const [editingWA, setEditingWA] = useState<StudioRow | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -104,26 +100,22 @@ export default function SuperAdminPage() {
       ) : (
         <div className="space-y-3">
           {studios.map((s) => (
-            <StudioCard key={s.id} studio={s} onConnect={() => setEditingWA(s)} onChanged={load} />
+            <StudioCard key={s.id} studio={s} onChanged={load} />
           ))}
         </div>
       )}
 
       {creating && <NewStudioModal onClose={() => setCreating(false)} onCreated={() => { setCreating(false); load() }} />}
-      {editingWA && (
-        <WhatsAppConnectModal
-          studio={editingWA}
-          onClose={() => setEditingWA(null)}
-          onSaved={() => { setEditingWA(null); load() }}
-        />
-      )}
     </div>
   )
 }
 
-function StudioCard({ studio, onConnect, onChanged }: {
+// WhatsApp Cloud API default messaging tier: 250 business-initiated
+// conversations per rolling 24h (until Meta raises the studio's tier).
+const WA_LIMIT = 250
+
+function StudioCard({ studio, onChanged }: {
   studio: StudioRow
-  onConnect: () => void
   onChanged: () => void
 }) {
   const wa = studio.whatsapp
@@ -137,8 +129,6 @@ function StudioCard({ studio, onConnect, onChanged }: {
   const [confirmingReset, setConfirmingReset] = useState(false)
   const studioAdmin = studio.admins.find((a) => a.role === "ADMIN") ?? null
 
-  const [checking, setChecking] = useState(false)
-  const [health, setHealth] = useState<HealthResult | null>(null)
   // Studio name is edited ONLY here in super-admin (regular admins can't).
   const [editingName, setEditingName] = useState(false)
   const [nameVal, setNameVal] = useState(studio.name)
@@ -147,33 +137,6 @@ function StudioCard({ studio, onConnect, onChanged }: {
   const lastOut = wa.lastOutboundAt
     ? (() => { try { return formatDistanceToNow(new Date(wa.lastOutboundAt), { addSuffix: true }) } catch { return null } })()
     : null
-
-  const checkHealth = async () => {
-    setChecking(true)
-    setHealth(null)
-    try {
-      const res = await fetch("/api/sadmin/whatsapp-health", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studioId: studio.id }),
-      })
-      const j = await res.json().catch(() => ({}))
-      setHealth(j.health ?? { ok: false, error: "No response" })
-    } catch {
-      setHealth({ ok: false, error: "Network error" })
-    } finally {
-      setChecking(false)
-    }
-  }
-
-  const toggle = async () => {
-    await fetch("/api/sadmin/studios", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: studio.id, whatsappEnabled: !wa.enabled }),
-    })
-    onChanged()
-  }
 
   const saveName = async () => {
     const next = nameVal.trim()
@@ -390,136 +353,78 @@ function StudioCard({ studio, onConnect, onChanged }: {
         </Modal>
       )}
 
-      {/* WhatsApp connection panel */}
+      {/* WhatsApp — the super-admin only opens/closes the number-entry field
+          for the studio admin. The admin activates the number themselves in
+          their Settings; activation flips this studio live automatically. */}
       <div className={cn(
-        "mt-4 rounded-xl border p-3.5 flex items-center gap-3",
-        fullyLive
-          ? "bg-emerald-50 border-emerald-200"
-          : connected
-            ? "bg-amber-50 border-amber-200"
-            : "bg-gray-50 border-gray-200",
+        "mt-4 rounded-xl border p-3.5",
+        fullyLive ? "bg-emerald-50 border-emerald-200" : "bg-gray-50 border-gray-200",
       )}>
-        <div className={cn(
-          "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
-          fullyLive ? "bg-emerald-100" : connected ? "bg-amber-100" : "bg-gray-100",
-        )}>
-          {fullyLive ? (
-            <CheckCircle2 size={18} className="text-emerald-700" />
-          ) : connected ? (
-            <AlertCircle size={18} className="text-amber-700" />
-          ) : (
-            <MessageCircle size={18} className="text-gray-500" />
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-gray-900">
-            {fullyLive ? "WhatsApp live" : connected ? "Connected but disabled" : "WhatsApp not connected"}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <MessageCircle size={15} className={fullyLive ? "text-emerald-700" : "text-gray-400"} />
+            <span className="text-sm font-semibold text-gray-900">WhatsApp</span>
           </div>
-          <div className="text-xs text-gray-600 mt-0.5 truncate">
-            {wa.usesEnvFallback
-              ? "Using the global WhatsApp credentials (env)."
-              : connected
-                ? <>From <span className="font-mono">{wa.displayPhone ?? "—"}</span> · Phone ID <span className="font-mono">{wa.phoneNumberId}</span></>
-                : "Click Connect to wire this studio's WhatsApp Business account."}
-          </div>
-          {connected && (
-            <div className="text-[11px] text-gray-500 mt-1">
-              Last message sent: {lastOut ? <span className="font-medium text-gray-700">{lastOut}</span> : <span className="text-gray-400">never</span>}
-            </div>
-          )}
-          {connected && (
-            <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-              <button
-                onClick={checkHealth}
-                disabled={checking}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-60"
-              >
-                {checking ? "Checking…" : "Check connection"}
-              </button>
-              {health && (
-                health.ok ? (
-                  <span className="text-[11px] text-emerald-700 inline-flex items-center gap-1">
-                    <CheckCircle2 size={12} /> Working
-                    {health.verifiedName ? ` · ${health.verifiedName}` : ""}
-                    {health.qualityRating ? ` · ${health.qualityRating}` : ""}
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-red-600 inline-flex items-center gap-1">
-                    <AlertCircle size={12} /> {health.error}
-                  </span>
-                )
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-          {connected && (
-            <button
-              onClick={toggle}
-              title={wa.enabled ? "Turn WhatsApp off for clients" : "Turn WhatsApp on for clients"}
-              className={cn(
-                "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border touch-manipulation",
-                wa.enabled
-                  ? "bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                  : "bg-white text-gray-500 border-gray-300 hover:bg-gray-100",
-              )}
-            >
-              {wa.enabled ? <Eye size={12} /> : <EyeOff size={12} />}
-              {wa.enabled ? "Enabled" : "Disabled"}
-            </button>
-          )}
-          {/* Self-onboarding toggle — gates the activation form in the
-              studio's /admin/settings. Off by default; flipping it on
-              lets the studio admin self-register a WhatsApp number via
-              Meta Cloud API without us touching anything. */}
-          {!connected && (
-            <button
-              onClick={async () => {
-                await fetch("/api/sadmin/studios", {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    id: studio.id,
-                    whatsappOnboardingEnabled: !wa.onboardingEnabled,
-                  }),
-                })
-                onChanged()
-              }}
-              title={
-                wa.onboardingEnabled
-                  ? "Disable admin self-onboarding for this studio"
-                  : "Allow admin to self-onboard WhatsApp via Settings"
-              }
-              className={cn(
-                "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border touch-manipulation",
-                wa.onboardingEnabled
-                  ? "bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100"
-                  : "bg-white text-gray-500 border-gray-300 hover:bg-gray-100",
-              )}
-            >
-              {wa.onboardingEnabled ? "Self-onboard ON" : "Self-onboard OFF"}
-            </button>
-          )}
-          {/* Surface in-progress onboarding requests so the super-admin
-              can see at a glance what the studio admin is doing. */}
-          {!connected && wa.requestStatus && (
-            <div className="text-[10px] text-gray-500">
-              Request: <span className="font-medium">{wa.requestStatus}</span>
-              {wa.requestPhone && <> · {wa.requestPhone}</>}
-            </div>
-          )}
           <button
-            onClick={onConnect}
+            onClick={async () => {
+              await fetch("/api/sadmin/studios", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: studio.id, whatsappOnboardingEnabled: !wa.onboardingEnabled }),
+              })
+              onChanged()
+            }}
+            title={
+              wa.onboardingEnabled
+                ? "Number-entry field is open for the studio admin — click to close"
+                : "Open the number-entry field so the studio admin can activate WhatsApp"
+            }
             className={cn(
-              "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium",
-              connected
-                ? "text-gray-600 hover:text-emerald-700 hover:bg-emerald-50"
-                : "bg-emerald-600 text-white hover:bg-emerald-700",
+              "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border touch-manipulation flex-shrink-0",
+              wa.onboardingEnabled
+                ? "bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100"
+                : "bg-white text-gray-500 border-gray-300 hover:bg-gray-100",
             )}
           >
-            {connected ? <><Pencil size={12} /> Edit</> : <><Plus size={12} /> Connect</>}
+            {wa.onboardingEnabled ? <Eye size={12} /> : <EyeOff size={12} />}
+            {wa.onboardingEnabled ? "Number entry ON" : "Number entry OFF"}
           </button>
         </div>
+
+        {fullyLive ? (
+          <div className="mt-2.5 space-y-1">
+            <div className="flex items-center gap-1.5 text-sm">
+              <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" />
+              <span className="font-mono text-gray-900">{wa.displayPhone || "—"}</span>
+              <span className="text-emerald-700 text-xs font-medium">Active</span>
+            </div>
+            {(() => {
+              const used = wa.templates24h
+              const pct = WA_LIMIT > 0 ? used / WA_LIMIT : 0
+              const color = pct >= 1 ? "text-red-600" : pct >= 0.8 ? "text-amber-600" : "text-gray-600"
+              return (
+                <div className={cn("text-xs", color)}>
+                  Messages counting toward the limit (24h):{" "}
+                  <span className="font-semibold">{used} / {WA_LIMIT}</span>
+                </div>
+              )
+            })()}
+            <div className="text-[11px] text-gray-500">
+              Last sent: {lastOut ? <span className="font-medium text-gray-700">{lastOut}</span> : <span className="text-gray-400">never</span>}
+            </div>
+          </div>
+        ) : wa.requestStatus ? (
+          <div className="mt-2 text-xs text-gray-600">
+            Activation in progress: <span className="font-medium">{wa.requestStatus}</span>
+            {wa.requestPhone && <> · <span className="font-mono">{wa.requestPhone}</span></>}
+          </div>
+        ) : (
+          <div className="mt-2 text-xs text-gray-500">
+            {wa.onboardingEnabled
+              ? "The studio admin can now enter their number in Settings → WhatsApp."
+              : "Turn on number entry so the studio admin can activate WhatsApp."}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -678,155 +583,6 @@ function NewStudioModal({ onClose, onCreated }: { onClose: () => void; onCreated
           </button>
           <button type="submit" disabled={saving} className="flex-1 px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60">
             {saving ? "Creating…" : "Create studio"}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  )
-}
-
-function WhatsAppConnectModal({ studio, onClose, onSaved }: {
-  studio: StudioRow
-  onClose: () => void
-  onSaved: () => void
-}) {
-  const wa = studio.whatsapp
-  const [form, setForm] = useState({
-    phoneNumberId: wa.phoneNumberId ?? "",
-    accessToken: "", // never prefill secret
-    businessAccountId: wa.businessAccountId ?? "",
-    displayPhone: wa.displayPhone ?? "",
-    enableNow: wa.enabled,
-  })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const hadToken = wa.hasAccessToken
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true); setError(null)
-    const body: Record<string, unknown> = {
-      id: studio.id,
-      whatsappPhoneNumberId: form.phoneNumberId.trim() || null,
-      whatsappBusinessAccountId: form.businessAccountId.trim() || null,
-      whatsappDisplayPhone: form.displayPhone.trim() || null,
-      whatsappEnabled: form.enableNow,
-    }
-    // Only send token if admin typed a new one — empty input means "keep
-    // existing token" (we never reveal the old one in the form).
-    if (form.accessToken.trim().length > 0) {
-      body.whatsappAccessToken = form.accessToken.trim()
-    }
-    const res = await fetch("/api/sadmin/studios", {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    })
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}))
-      setError(j.error ?? `HTTP ${res.status}`)
-      setSaving(false)
-      return
-    }
-    onSaved()
-  }
-
-  const disconnect = async () => {
-    if (!confirm("Disconnect WhatsApp from this studio? The inbox will go offline for clients and trainers.")) return
-    setSaving(true)
-    await fetch("/api/sadmin/studios", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: studio.id,
-        whatsappPhoneNumberId: null,
-        whatsappAccessToken: null,
-        whatsappBusinessAccountId: null,
-        whatsappDisplayPhone: null,
-        whatsappEnabled: false,
-      }),
-    })
-    onSaved()
-  }
-
-  return (
-    <Modal title={`WhatsApp — ${studio.name}`} onClose={onClose} wide>
-      <form onSubmit={submit} className="space-y-4">
-        {/* Embedded Signup placeholder. The button is wired up to PATCH the
-            studio with manually-pasted credentials for now; the FB SDK flow
-            slots in here later (see Meta "Embedded Signup" docs). */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-900 leading-relaxed">
-          <strong>One-click Facebook flow:</strong> coming next — will require a configured Meta App.
-          For now, paste credentials manually from <a className="underline" target="_blank" rel="noopener noreferrer" href="https://business.facebook.com/wa/manage">business.facebook.com → WhatsApp Manager</a>.
-        </div>
-
-        <Field label="Phone Number ID" hint="WhatsApp Manager → API setup → Phone number ID">
-          <input
-            required
-            value={form.phoneNumberId}
-            onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })}
-            placeholder="e.g. 123456789012345"
-            className="w-full font-mono text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          />
-        </Field>
-
-        <Field
-          label="System User Access Token"
-          hint={hadToken ? "Leave blank to keep the existing token. Paste new to rotate." : "Permanent token with whatsapp_business_messaging + whatsapp_business_management scopes."}
-        >
-          <input
-            type="password"
-            value={form.accessToken}
-            onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
-            placeholder={hadToken ? `currently set: ${wa.accessTokenPreview ?? "•••••"}` : "EAAxxxxxx…"}
-            className="w-full font-mono text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="WABA ID" hint="WhatsApp Business Account ID (optional, used by webhook router)">
-            <input
-              value={form.businessAccountId}
-              onChange={(e) => setForm({ ...form, businessAccountId: e.target.value })}
-              placeholder="123456789012345"
-              className="w-full font-mono text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-            />
-          </Field>
-          <Field label="Display phone" hint="Shown to admins. E.g. +62 123 …">
-            <input
-              value={form.displayPhone}
-              onChange={(e) => setForm({ ...form, displayPhone: e.target.value })}
-              placeholder="+62 …"
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-            />
-          </Field>
-        </div>
-
-        <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-3 py-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={form.enableNow}
-            onChange={(e) => setForm({ ...form, enableNow: e.target.checked })}
-            className="w-4 h-4 mt-0.5 accent-emerald-600"
-          />
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-gray-800">Enable WhatsApp for this studio</div>
-            <div className="text-[11px] text-gray-500 mt-0.5">
-              When on, the inbox FAB shows in /admin and /trainer for this studio's users, and outbound notifications fire on bookings.
-            </div>
-          </div>
-        </label>
-
-        {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{error}</div>}
-
-        <div className="flex gap-2 pt-2">
-          {hadToken && (
-            <button type="button" onClick={disconnect} className="px-3 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50">
-              Disconnect
-            </button>
-          )}
-          <button type="button" onClick={onClose} className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">
-            Cancel
-          </button>
-          <button type="submit" disabled={saving} className="flex-1 px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60">
-            {saving ? "Saving…" : hadToken ? "Save changes" : "Connect"}
           </button>
         </div>
       </form>
