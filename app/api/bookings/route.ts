@@ -96,16 +96,19 @@ export async function POST(request: NextRequest) {
       where: { id: studioId },
       select: {
         requireBookingOtp: true,
-        confirmEmail: true,
+        emailClientBooking: true,
+        emailAdminBooking: true,
+        notifyAdminWhatsapp: true,
         // Studio's own admin — the booking-info email recipient.
         users: { where: { role: "ADMIN" }, select: { email: true }, orderBy: { id: "asc" }, take: 1 },
       },
     })
-    // "Booking Confirmation" channels. WhatsApp toggle = requireBookingOtp;
-    // Email toggle = confirmEmail (both on by default).
+    // Per-role notification toggles (all on by default).
     const studioWaOn = await isStudioWhatsAppEnabled(studioId)
     const confirmWhatsapp = otpStudio?.requireBookingOtp !== false
-    const confirmEmail = otpStudio?.confirmEmail !== false
+    const emailClient = otpStudio?.emailClientBooking !== false
+    const emailAdmin = otpStudio?.emailAdminBooking !== false
+    const notifyAdminWa = otpStudio?.notifyAdminWhatsapp !== false
     // The client is confirmed via WhatsApp when the studio's WhatsApp is live
     // AND the WhatsApp channel is on. In that case the client does NOT get an
     // email (they get WhatsApp); the email — if on — goes only to the admin.
@@ -225,15 +228,15 @@ export async function POST(request: NextRequest) {
         // client, the client gets WhatsApp (no client email); the email — if on
         // — goes to the admin with the full info. Without WhatsApp, the email
         // goes to the client AND the admin (as before).
-        if (confirmEmail) {
-          if (!clientOnWhatsapp) {
-            mailPromises.push(sendClientBookingConfirmation(data.clientEmail, confirmData))
-            emailCount += 1
-          }
-          if (adminEmail) {
-            mailPromises.push(sendClientBookingConfirmation(adminEmail, confirmData))
-            emailCount += 1
-          }
+        // Client email — only when the client isn't covered by WhatsApp.
+        if (emailClient && !clientOnWhatsapp) {
+          mailPromises.push(sendClientBookingConfirmation(data.clientEmail, confirmData))
+          emailCount += 1
+        }
+        // Admin email copy.
+        if (emailAdmin && adminEmail) {
+          mailPromises.push(sendClientBookingConfirmation(adminEmail, confirmData))
+          emailCount += 1
         }
         // Respect the trainer's email channel toggle (on by default).
         const trainerWantsEmail = slotWithTrainer.trainer?.notifyEmail !== false
@@ -359,7 +362,7 @@ export async function POST(request: NextRequest) {
 
         const trainerWA = slotForWA.trainer?.whatsapp
         const trainerName = slotForWA.trainer?.name
-        const adminWA = slotForWA.studio?.bookingAlertWhatsapp?.trim() || null
+        const adminWA = notifyAdminWa ? (slotForWA.studio?.bookingAlertWhatsapp?.trim() || null) : null
         const trainerPromise = (async () => {
           // Persist the trainer-notify outcome for the DB audit trail.
           const recordStatus = async (

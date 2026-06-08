@@ -35,6 +35,12 @@ const StudioUpdateSchema = z.object({
   confirmEmail: z.boolean().optional(),
   // Email a copy of inbound WhatsApp messages to the admin.
   emailAdminWaCopy: z.boolean().optional(),
+  // Per-role Notifications toggles.
+  emailClientBooking: z.boolean().optional(),
+  emailAdminBooking: z.boolean().optional(),
+  remindTomorrow: z.boolean().optional(),
+  remindToday: z.boolean().optional(),
+  notifyAdminWhatsapp: z.boolean().optional(),
 })
 
 const STUDIO_SELECT = {
@@ -56,6 +62,11 @@ const STUDIO_SELECT = {
   requireBookingOtp: true,
   confirmEmail: true,
   emailAdminWaCopy: true,
+  emailClientBooking: true,
+  emailAdminBooking: true,
+  remindTomorrow: true,
+  remindToday: true,
+  notifyAdminWhatsapp: true,
   // WhatsApp self-onboarding fields surfaced to /admin/settings so the
   // BookingAlertCard can render the right state (disabled / form / code
   // input / active). Token + WABA ID stay out of this select — they're

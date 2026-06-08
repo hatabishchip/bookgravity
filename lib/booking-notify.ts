@@ -48,7 +48,7 @@ export async function notifyBookingCreated(opts: {
       where: { id: opts.slotId },
       include: {
         trainer: { select: { name: true, whatsapp: true, notifyWhatsapp: true } },
-        studio: { select: { locationUrl: true, whatsappPhoneNumberId: true, whatsappAccessToken: true, whatsappDisplayPhone: true, bookingAlertWhatsapp: true } },
+        studio: { select: { locationUrl: true, whatsappPhoneNumberId: true, whatsappAccessToken: true, whatsappDisplayPhone: true, bookingAlertWhatsapp: true, notifyAdminWhatsapp: true } },
       },
     })
     if (!slotForWA) return
@@ -120,7 +120,9 @@ export async function notifyBookingCreated(opts: {
 
     const trainerWA = slotForWA.trainer?.whatsapp
     const trainerName = slotForWA.trainer?.name
-    const adminWA = opts.skipAdminAlert ? null : (slotForWA.studio?.bookingAlertWhatsapp?.trim() || null)
+    const adminWA = (opts.skipAdminAlert || slotForWA.studio?.notifyAdminWhatsapp === false)
+      ? null
+      : (slotForWA.studio?.bookingAlertWhatsapp?.trim() || null)
     const trainerPromise = (async () => {
       const recordStatus = async (
         status: "sent" | "failed" | "skipped",

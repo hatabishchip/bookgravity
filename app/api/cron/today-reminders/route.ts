@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
             select: {
               id: true,
               whatsappEnabled: true,
+              remindToday: true,
               whatsappPhoneNumberId: true,
               whatsappAccessToken: true,
             },
@@ -84,9 +85,8 @@ export async function GET(req: NextRequest) {
 
   for (const b of bookings) {
     // Autonomous studios: only message via a studio that has its OWN WhatsApp
-    // enabled. A studio without WhatsApp gets no reminders at all (no borrowing
-    // another studio's number).
-    if (!b.slot.studio.whatsappEnabled) {
+    // enabled. Also respect the Notifications toggle for this check-in.
+    if (!b.slot.studio.whatsappEnabled || b.slot.studio.remindToday === false) {
       skippedNoWA++
       continue
     }

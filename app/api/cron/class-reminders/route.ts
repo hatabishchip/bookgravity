@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
       slot: {
         include: {
           trainer: { select: { name: true } },
-          studio: { select: { name: true, whatsappEnabled: true, whatsappPhoneNumberId: true, whatsappAccessToken: true } },
+          studio: { select: { name: true, whatsappEnabled: true, remindTomorrow: true, whatsappPhoneNumberId: true, whatsappAccessToken: true } },
         },
       },
     },
@@ -86,8 +86,9 @@ export async function GET(req: NextRequest) {
 
   for (const b of bookings) {
     // Autonomous studios: only remind via a studio that has its OWN WhatsApp
-    // enabled — no borrowing another studio's number.
-    if (!b.slot.studio.whatsappEnabled) {
+    // enabled — no borrowing another studio's number. Also respect the
+    // Notifications toggle for this reminder.
+    if (!b.slot.studio.whatsappEnabled || b.slot.studio.remindTomorrow === false) {
       skippedNoWA++
       continue
     }
