@@ -72,12 +72,23 @@ export default function SuperAdminPage() {
             {studios.length} studio{studios.length === 1 ? "" : "s"} • manage WhatsApp connections + create new
           </p>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700"
-        >
-          <Plus size={16} /> New Studio
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Switch into the Canggu studio admin. The super-admin account is
+              pinned to Canggu, so /admin already resolves to it — no
+              impersonation, no session swap; return via the browser as before. */}
+          <a
+            href="/admin"
+            className="inline-flex items-center gap-2 border border-emerald-300 bg-white text-emerald-700 px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-50"
+          >
+            <Building2 size={16} /> Canggu admin
+          </a>
+          <button
+            onClick={() => setCreating(true)}
+            className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700"
+          >
+            <Plus size={16} /> New Studio
+          </button>
+        </div>
       </div>
 
       {error && (
