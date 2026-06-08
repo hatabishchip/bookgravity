@@ -487,7 +487,10 @@ export default function SchedulePage() {
         seriesId: null,  // server will assign one if repeatWeekly is true
         trainer: tr ? { id: tr.id, name: tr.name, color: tr.color } : null,
         assistant: as ? { id: as.id, name: as.name, color: as.color } : null,
-        _count: { bookings: a.clients?.length ?? 0 },
+        // Show the seats that WILL be taken immediately — a queued client can
+        // cover several people (partySize), so sum party sizes rather than
+        // counting rows. The background booking calls then converge to the same.
+        _count: { bookings: a.clients?.reduce((n, c) => n + (c.partySize || 1), 0) ?? 0 },
       })
       createSpecs.push({
         startTime,
@@ -1038,7 +1041,21 @@ export default function SchedulePage() {
               <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
 
-            <form onSubmit={handleSave} className="flex-1 flex flex-col overflow-hidden min-w-0">
+            <form
+              onSubmit={handleSave}
+              onKeyDown={(e) => {
+                // Block implicit Enter-submit from any field (phone, name,
+                // trainer select, time input). Otherwise pressing Enter after
+                // typing a client's phone would save the slot BEFORE the queued
+                // client is added — the class persists but the client is lost.
+                // The only way to save is the explicit Save button.
+                const el = e.target as HTMLElement
+                if (e.key === "Enter" && el.tagName !== "TEXTAREA") {
+                  e.preventDefault()
+                }
+              }}
+              className="flex-1 flex flex-col overflow-hidden min-w-0"
+            >
               <div className="px-6 py-4 space-y-4 overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
                 {formError && (
                   <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2.5 rounded-xl flex items-start gap-2">
