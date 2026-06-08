@@ -21,13 +21,16 @@ export function QueuedClients({
   canAdd?: boolean
 }) {
   const [adding, setAdding] = useState(false)
-  const seatsLeft = capacity - clients.length
+  // Each queued client can cover several people (partySize), so seats used is
+  // the SUM of party sizes, not the number of rows.
+  const usedSeats = clients.reduce((s, c) => s + (c.partySize || 1), 0)
+  const seatsLeft = capacity - usedSeats
 
   return (
     <div className="mt-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] uppercase tracking-wider text-gray-400">
-          Clients ({clients.length}/{capacity})
+          Clients ({usedSeats}/{capacity})
         </span>
         {!adding && seatsLeft > 0 && canAdd && (
           <button
@@ -46,7 +49,12 @@ export function QueuedClients({
       {clients.map((c, i) => (
         <div key={i} className="flex items-center gap-2 rounded-md bg-gray-50 px-2.5 py-1.5">
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-gray-800 truncate">{c.clientName}</div>
+            <div className="text-xs font-semibold text-gray-800 truncate">
+              {c.clientName}
+              {(c.partySize || 1) > 1 && (
+                <span className="ml-1 text-[10px] font-bold text-[#2C6E49]">×{c.partySize}</span>
+              )}
+            </div>
             <div className="text-[11px] text-gray-500 truncate">{c.clientPhone}</div>
           </div>
           <button
@@ -62,6 +70,7 @@ export function QueuedClients({
 
       {adding && (
         <AddClientForm
+          maxParty={seatsLeft}
           onSubmit={(c) => {
             onChange([...clients, c])
             setAdding(false)

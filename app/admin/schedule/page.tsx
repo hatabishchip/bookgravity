@@ -174,10 +174,18 @@ function SlotClientList({
 
   const handleAdd = (c: NewClient) => {
     setAdding(false)
-    const tempId = `tmp-${Date.now()}`
-    setList((prev) => [...(prev ?? []), {
-      id: tempId, clientName: c.clientName, clientPhone: c.clientPhone, status: "CONFIRMED", paymentStatus: "UNPAID", slot: { id: slot.id },
-    }])
+    const party = Math.max(1, Math.min(seatsLeft, c.partySize || 1))
+    setList((prev) => [
+      ...(prev ?? []),
+      ...Array.from({ length: party }, (_, i) => ({
+        id: `tmp-${Date.now()}-${i}`,
+        clientName: party > 1 ? `${c.clientName} (${i + 1}/${party})` : c.clientName,
+        clientPhone: c.clientPhone,
+        status: "CONFIRMED",
+        paymentStatus: "UNPAID",
+        slot: { id: slot.id },
+      })),
+    ])
     fetch("/api/admin/bookings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -187,7 +195,7 @@ function SlotClientList({
         clientPhone: c.clientPhone,
         clientEmail: c.clientEmail || undefined,
         clientTelegram: c.clientTelegram || undefined,
-        partySize: 1,
+        partySize: party,
       }),
     }).then(async (res) => {
       if (!res.ok) {
@@ -239,7 +247,7 @@ function SlotClientList({
           paid={b.paymentStatus === "PAID"}
         />
       ))}
-      {adding && <AddClientForm onSubmit={handleAdd} onCancel={() => setAdding(false)} />}
+      {adding && <AddClientForm onSubmit={handleAdd} onCancel={() => setAdding(false)} maxParty={seatsLeft} />}
     </div>
   )
 }
@@ -574,7 +582,7 @@ export default function SchedulePage() {
                   clientPhone: c.clientPhone,
                   clientEmail: c.clientEmail || undefined,
                   clientTelegram: c.clientTelegram || undefined,
-                  partySize: 1,
+                  partySize: c.partySize || 1,
                 }),
               })
               if (!br.ok) {

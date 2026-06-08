@@ -17,21 +17,27 @@ export type NewClient = {
   clientPhone: string
   clientEmail: string
   clientTelegram: string
+  partySize: number
 }
 
 export function AddClientForm({
   onSubmit,
   onCancel,
   submitting,
+  maxParty = 6,
 }: {
   onSubmit: (c: NewClient) => void
   onCancel: () => void
   submitting?: boolean
+  // Largest party that still fits the class (remaining seats, capped at 6).
+  maxParty?: number
 }) {
   // Pre-seed with the studios' country code so the "+" and flag show at once.
   const [phone, setPhone] = useState("+62 ")
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const partyMax = Math.max(1, Math.min(6, maxParty))
+  const [partySize, setPartySize] = useState(1)
   const [lookup, setLookup] = useState<"idle" | "loading" | "found" | "new">("idle")
   const lastLookedUp = useRef("")
 
@@ -78,6 +84,7 @@ export function AddClientForm({
       clientPhone: phone,
       clientEmail: email.trim(),
       clientTelegram: "",
+      partySize: Math.max(1, Math.min(partyMax, partySize)),
     })
   }
 
@@ -119,6 +126,31 @@ export function AddClientForm({
         onKeyDown={onKeyDownSubmit}
         className={inputCls}
       />
+
+      {/* How many people this single booking covers (1–6), capped by the seats
+          left on the class. Mirrors the public booking widget. */}
+      {partyMax > 1 && (
+        <div>
+          <div className="text-[11px] font-medium text-gray-500 mb-1">People</div>
+          <div className="flex gap-1.5">
+            {Array.from({ length: partyMax }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setPartySize(n)}
+                className={
+                  "flex-1 h-9 rounded-lg text-sm font-semibold border transition-colors " +
+                  (partySize === n
+                    ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40")
+                }
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2 pt-0.5">
         <button

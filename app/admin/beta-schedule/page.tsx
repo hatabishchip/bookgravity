@@ -581,7 +581,7 @@ function SlotEditor({
       clientPhone: c.clientPhone,
       clientEmail: c.clientEmail || undefined,
       clientTelegram: c.clientTelegram || undefined,
-      partySize: 1,
+      partySize: c.partySize || 1,
     }
     // Optimistic — close the form, add a placeholder row, sync in background
     const tempId = `tmp-${Date.now()}`
@@ -1005,7 +1005,7 @@ function SlotCreator({
                 clientPhone: c.clientPhone,
                 clientEmail: c.clientEmail || undefined,
                 clientTelegram: c.clientTelegram || undefined,
-                partySize: 1,
+                partySize: c.partySize || 1,
               }),
             }).catch(() => null)
           }
