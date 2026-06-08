@@ -12,6 +12,16 @@ function getResend() {
 // Studio context is conveyed via the email subject and body, not the sender.
 const FROM = process.env.MAIL_FROM ?? "BookGravity <noreply@bookgravity.com>"
 
+// The verified sending address (the part inside <…> of FROM). We keep the
+// address fixed (Resend-verified domain) and only vary the DISPLAY NAME per
+// studio, so the recipient sees "Gravity Stretching Canggu" / "… Ubud" rather
+// than a generic brand — making it obvious which studio the email is from.
+const MAIL_ADDRESS = (FROM.match(/<([^>]+)>/)?.[1] ?? FROM).trim()
+function fromForStudio(studioName?: string | null): string {
+  const name = studioName?.trim()
+  return name ? `${name} <${MAIL_ADDRESS}>` : FROM
+}
+
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!))
 }
@@ -134,7 +144,7 @@ export async function sendClientBookingConfirmation(
     </div>
   `
   try {
-    const res = await r.emails.send({ from: FROM, to: clientEmail, subject, html })
+    const res = await r.emails.send({ from: fromForStudio(data.studioName), to: clientEmail, subject, html })
     if (res.error) {
       console.error("[mailer] client confirmation failed:", res.error)
     } else {
@@ -173,7 +183,7 @@ export async function sendTrainerBookingNotification(
     </div>
   `
   try {
-    const res = await r.emails.send({ from: FROM, to: trainerEmail, subject, html })
+    const res = await r.emails.send({ from: fromForStudio(data.studioName), to: trainerEmail, subject, html })
     if (res.error) {
       console.error("[mailer] trainer notification failed:", res.error, "→", trainerEmail)
     } else {
@@ -237,6 +247,8 @@ export async function sendInboundWhatsAppCopy(opts: {
    *  copies go only to that studio's admin (no cross-studio leakage). Falls
    *  back to the global OWNER_NOTIFY_EMAIL only if a studio email isn't given. */
   toEmail?: string | null
+  /** Studio name for the email's sender display ("Gravity Stretching Ubud"). */
+  studioName?: string | null
 }): Promise<{ ok: boolean; error?: string }> {
   const to = opts.toEmail?.trim() || process.env.OWNER_NOTIFY_EMAIL
   if (!to) return { ok: false, error: "no recipient (studio admin email + OWNER_NOTIFY_EMAIL both empty)" }
@@ -276,7 +288,7 @@ export async function sendInboundWhatsAppCopy(opts: {
 
   try {
     const res = await r.emails.send({
-      from: FROM,
+      from: fromForStudio(opts.studioName),
       to,
       subject,
       html,

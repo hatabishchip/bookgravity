@@ -114,7 +114,7 @@ export async function handleCancelBotMessage(opts: {
     await prisma.booking.update({ where: { id: booking.id }, data: { status: "CANCELLED" } })
     // Give the class back to the membership if it was paid from one.
     if (booking.membershipId) await restoreMembershipClass(booking.membershipId)
-    await reply("Your booking has been cancelled. ✅")
+    await reply("Booking canceled 😔\n\nHope to see you another time 💫")
     return
   }
 
@@ -176,7 +176,7 @@ export async function handleCancelBotMessage(opts: {
       .sort((a, b) => slotStartMs(a.slot.date, a.slot.startTime) - slotStartMs(b.slot.date, b.slot.startTime))
 
     if (upcoming.length === 0) {
-      await reply("You have no upcoming booking to cancel. If this seems wrong, please contact the studio. 🙏")
+      await reply("Booking canceled 😔\n\nHope to see you another time 💫")
       return
     }
 

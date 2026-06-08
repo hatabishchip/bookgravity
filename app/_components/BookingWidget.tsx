@@ -275,6 +275,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // Whether the (transparent) code input is focused — drives the blinking
   // caret on the active segmented cell.
   const [otpFocused, setOtpFocused] = useState(false)
+  // Seconds until "Resend code" re-activates. Starts at 59 each time we send a
+  // code; the button is greyed + counts down until it hits 0.
+  const [resendIn, setResendIn] = useState(0)
   // Wrapper around the code field — centered in view + the page frozen while
   // the code is pending, so the client never has to scroll to find it.
   const otpScrollRef = useRef<HTMLDivElement>(null)
@@ -344,8 +347,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         return
       }
       if ((res.ok && data.sent) || res.status === 429) {
-        // Sent (or a fresh code already exists) → show the code field.
+        // Sent (or a fresh code already exists) → show the code field and
+        // start the 59s resend cooldown.
         setOtpSent(true)
+        setResendIn(59)
         return
       }
       // Synchronous failure — Meta refused the number outright (bad format /
@@ -536,6 +541,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       document.body.style.overflow = ""
     }
   }, [step, otpSent, otpReady, otpVerified])
+
+  // Tick the resend cooldown down to 0, one second at a time.
+  useEffect(() => {
+    if (resendIn <= 0) return
+    const t = setTimeout(() => setResendIn((s) => (s > 0 ? s - 1 : 0)), 1000)
+    return () => clearTimeout(t)
+  }, [resendIn])
 
   const today = startOfDay(new Date())
 
@@ -1587,10 +1599,19 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 <button
                   type="button"
                   onClick={() => sendOtp(form.clientPhone)}
-                  disabled={otpSending}
-                  className="text-xs text-[#2C6E49] font-medium hover:underline disabled:opacity-50"
+                  disabled={otpSending || resendIn > 0}
+                  className={cn(
+                    "text-xs font-medium",
+                    resendIn > 0 || otpSending
+                      ? "text-gray-400 cursor-not-allowed"
+                      : "text-[#2C6E49] hover:underline",
+                  )}
                 >
-                  {otpSending ? "Sending…" : "Resend code"}
+                  {otpSending
+                    ? "Sending…"
+                    : resendIn > 0
+                      ? `Resend code in 0:${String(resendIn).padStart(2, "0")}`
+                      : "Resend code"}
                 </button>
               </div>
             )}

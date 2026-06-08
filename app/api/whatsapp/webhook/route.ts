@@ -99,6 +99,7 @@ async function resolveStudioByPhoneNumberId(phoneNumberId: string | null) {
     where: { whatsappPhoneNumberId: phoneNumberId },
     select: {
       id: true,
+      name: true,
       inboxLanguage: true,
       whatsappPhoneNumberId: true,
       whatsappAccessToken: true,
@@ -454,6 +455,7 @@ export async function POST(request: NextRequest) {
                   media: mediaAttachment,
                   receivedAt,
                   toEmail: studioAdminEmail,
+                  studioName: studioRow?.name ?? null,
                 })
                 if (!r.ok) {
                   console.warn(
