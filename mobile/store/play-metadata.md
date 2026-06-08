@@ -6,7 +6,7 @@ Paste into Play Console → your app → Main store listing / App content.
 
 ## App name (30 chars max)
 
-Gravity Stretching
+GravityStretching
 
 ## Short description (80 chars max)
 
