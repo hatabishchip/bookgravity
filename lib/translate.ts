@@ -8,6 +8,8 @@
 //   1. ANTHROPIC_API_KEY → Claude Haiku        (paid, best quality)
 //   2. GEMINI_API_KEY     → Google Gemini Flash (free tier, real LLM) ⭐
 //   3. GROQ_API_KEY       → Groq Llama/Qwen     (free tier, real LLM)
+//        — may be a comma-separated list of keys; rotates on 429 to
+//          multiply the free daily quota.
 //   4. DEEPL_API_KEY      → DeepL               (free 500k chars/mo)
 //   5. (nothing set)      → Google gtx endpoint (free, dictionary-grade)
 //
@@ -170,32 +172,47 @@ async function viaGemini(text: string, target: string): Promise<Result> {
 
 // ---------------------------------------------------------------------------
 // Provider: Groq (free tier, OpenAI-compatible, Llama/Qwen)
+//
+// GROQ_API_KEY may hold MULTIPLE comma-separated keys. We try them in order
+// and rotate to the next one on a rate-limit (429) or transient 5xx, which
+// effectively multiplies the free daily quota by the number of keys.
 // ---------------------------------------------------------------------------
 async function viaGroq(text: string, target: string): Promise<Result> {
-  const apiKey = process.env.GROQ_API_KEY!
-  const r = await fetch(GROQ_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: process.env.TRANSLATE_MODEL_GROQ || GROQ_MODEL,
-      temperature: 0.2,
-      max_tokens: 2048,
-      response_format: { type: "json_object" },
-      messages: [{ role: "user", content: buildPrompt(text, target) }],
-    }),
-  })
-  if (!r.ok) {
+  const keys = (process.env.GROQ_API_KEY || "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean)
+  if (keys.length === 0) return { ok: false, error: "groq_no_key" }
+
+  let lastErr = "groq_unknown"
+  for (const apiKey of keys) {
+    const r = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.TRANSLATE_MODEL_GROQ || GROQ_MODEL,
+        temperature: 0.2,
+        max_tokens: 2048,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: buildPrompt(text, target) }],
+      }),
+    })
+    if (r.ok) {
+      const j = (await r.json()) as {
+        choices?: { message?: { content?: string } }[]
+      }
+      const raw = j.choices?.[0]?.message?.content?.trim() ?? ""
+      return parseLlmJson(raw)
+    }
     const t = (await r.text()).slice(0, 200)
-    return { ok: false, error: `groq HTTP ${r.status}: ${t}` }
+    lastErr = `groq HTTP ${r.status}: ${t}`
+    // Rotate to the next key only when it's worth retrying (quota / transient).
+    if (r.status !== 429 && r.status < 500) break
   }
-  const j = (await r.json()) as {
-    choices?: { message?: { content?: string } }[]
-  }
-  const raw = j.choices?.[0]?.message?.content?.trim() ?? ""
-  return parseLlmJson(raw)
+  return { ok: false, error: lastErr }
 }
 
 // ---------------------------------------------------------------------------
