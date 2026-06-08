@@ -15,8 +15,25 @@ export async function generateMetadata(): Promise<Metadata> {
     "Gravity Stretching - studios worldwide. " +
     "See the live schedule, book a class in a few taps, and save your QR ticket."
   return {
-    title: "Gravity Stretching",
+    // Resolves relative URLs (OG images, canonical) to absolute. Without it,
+    // Google/social can't build absolute preview-image or canonical URLs.
+    metadataBase: new URL("https://bookgravity.com"),
+    title: {
+      default: "Gravity Stretching — book a stretching class",
+      template: "%s · Gravity Stretching",
+    },
     description,
+    alternates: { canonical: "/" },
+    keywords: [
+      "gravity stretching",
+      "stretching studio",
+      "stretching class",
+      "stretching Bali",
+      "stretching Canggu",
+      "stretching Ubud",
+      "book stretching class",
+      "flexibility class",
+    ],
     icons: {
       // Brand mark (figure in a white circle, no location word).
       icon: "/brand-favicon.png",
@@ -27,9 +44,9 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       type: "website",
       siteName: "Gravity Stretching",
-      title: "Gravity Stretching",
+      title: "Gravity Stretching — book a stretching class",
       description,
-      url: "https://www.bookgravity.com",
+      url: "https://bookgravity.com",
       images: [{ url: "/og-cover.png", width: 1200, height: 630, alt: "Gravity Stretching" }],
     },
     twitter: {

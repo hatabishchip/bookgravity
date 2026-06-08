@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { getAllStudios, STUDIO_COOKIE } from "@/lib/studio"
 import StudioChooser, { COUNTRY_COOKIE } from "./_components/StudioChooser"
+import JsonLd from "./_components/JsonLd"
 
 // Apex landing (bookgravity.com). A single clean URL for every Instagram bio.
 //   • Returning visitor (gs_studio cookie set) → straight to their studio.
@@ -31,11 +32,30 @@ export default async function HomePage() {
     (hdrs.get("x-vercel-ip-country") || "").toUpperCase() || null
   const rememberedCountry = cookieStore.get(COUNTRY_COOKIE)?.value || null
 
+  const orgLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Gravity Stretching",
+    url: "https://bookgravity.com",
+    logo: "https://bookgravity.com/icon-default.png",
+    description:
+      "Gravity Stretching studios — see the live class schedule and book a stretching session online.",
+  }
+  const siteLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Gravity Stretching",
+    url: "https://bookgravity.com",
+  }
+
   return (
-    <StudioChooser
-      studios={studios}
-      detectedCountry={detectedCountry}
-      rememberedCountry={rememberedCountry}
-    />
+    <>
+      <JsonLd data={[orgLd, siteLd]} />
+      <StudioChooser
+        studios={studios}
+        detectedCountry={detectedCountry}
+        rememberedCountry={rememberedCountry}
+      />
+    </>
   )
 }

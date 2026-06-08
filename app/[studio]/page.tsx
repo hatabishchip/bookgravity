@@ -8,6 +8,8 @@ import BookingWidget from "../_components/BookingWidget"
 import StudioSwitcher from "../_components/StudioSwitcher"
 import StudioCookieSync from "../_components/StudioCookieSync"
 import SiteFooter from "../_components/SiteFooter"
+import JsonLd from "../_components/JsonLd"
+import { countryName } from "@/lib/countries"
 
 // Per-studio booking page: bookgravity.com/canggu, /ubud, etc. The studio is
 // the path segment — no subdomains. Unknown slugs 404 (static routes like
@@ -25,12 +27,26 @@ export async function generateMetadata({
   const { studio: slug } = await params
   const studio = await prisma.studio.findFirst({
     where: { slug },
-    select: { name: true, slug: true },
+    select: { name: true, slug: true, city: true, country: true, coverUrl: true },
   })
   if (!studio) return {}
+  const place = [studio.city].filter(Boolean).join("")
+  const title = place ? `Stretching classes in ${place} — ${studio.name}` : `${studio.name} — Booking`
+  const description = place
+    ? `Book a stretching class at ${studio.name} in ${place}. See the live schedule and reserve your spot in a few taps.`
+    : `Book a stretching class at ${studio.name}. See the live schedule and reserve your spot in a few taps.`
   return {
-    title: `${studio.name} — Booking`,
-    description: "Book your group stretching session",
+    title,
+    description,
+    alternates: { canonical: `/${studio.slug}` },
+    openGraph: {
+      type: "website",
+      siteName: "Gravity Stretching",
+      title,
+      description,
+      url: `https://bookgravity.com/${studio.slug}`,
+      images: [{ url: studio.coverUrl || "/og-cover.png", alt: studio.name }],
+    },
     // ?s=<slug> makes the per-studio icon resolve correctly on this path.
     icons: {
       icon: `/api/favicon?s=${studio.slug}`,
@@ -48,7 +64,7 @@ export default async function StudioBookingPage({
 
   const studio = await prisma.studio.findFirst({
     where: { slug },
-    select: { id: true, name: true, slug: true, country: true, city: true, logoUrl: true, locationUrl: true, whatsappEnabled: true },
+    select: { id: true, name: true, slug: true, country: true, city: true, logoUrl: true, coverUrl: true, locationUrl: true, whatsappEnabled: true },
   })
   if (!studio) notFound()
 
@@ -77,8 +93,31 @@ export default async function StudioBookingPage({
     badgeLabel = trainer?.name?.trim() || "Trainer"
   }
 
+  // Local-business structured data so this studio can show up in Google's
+  // local results / map pack for "stretching <city>" queries.
+  const businessLd = {
+    "@context": "https://schema.org",
+    "@type": ["HealthClub", "SportsActivityLocation"],
+    name: studio.name,
+    url: `https://bookgravity.com/${studio.slug}`,
+    image: studio.coverUrl || studio.logoUrl || "https://bookgravity.com/og-cover.png",
+    ...(studio.locationUrl ? { hasMap: studio.locationUrl } : {}),
+    ...(studio.city || studio.country
+      ? {
+          address: {
+            "@type": "PostalAddress",
+            ...(studio.city ? { addressLocality: studio.city } : {}),
+            ...(studio.country ? { addressCountry: countryName(studio.country) } : {}),
+          },
+        }
+      : {}),
+    ...(studio.city ? { areaServed: studio.city } : {}),
+    sport: "Stretching",
+  }
+
   return (
     <div className="min-h-screen bg-[#F5F4F0]">
+      <JsonLd data={businessLd} />
       {/* Remember this studio so the apex redirects here next time */}
       <StudioCookieSync slug={studio.slug} />
 
