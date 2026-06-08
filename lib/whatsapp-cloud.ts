@@ -538,7 +538,7 @@ export async function sendClientBookingConfirmationWA(opts: {
   // v7 = same body as v5 (4 vars, no link) PLUS a static "Cancel booking"
   // quick-reply button baked into the template (no send-time component needed).
   const isV6 = /v6$/.test(templateName)
-  if (/v5$/.test(templateName) || isV6 || /v7$/.test(templateName)) {
+  if (/v5$/.test(templateName) || isV6 || /v7$/.test(templateName) || /v8$/.test(templateName)) {
     const vars = [
       opts.date,
       (opts.startTimePretty || opts.time) ?? "—",

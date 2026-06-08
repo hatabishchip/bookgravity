@@ -263,14 +263,14 @@ export async function POST(request: NextRequest) {
       if (slotForWA) {
         const prettyDate = slotForWA.date // YYYY-MM-DD; trainer template formats it
         const prettyTime = `${slotForWA.startTime}–${slotForWA.endTime}`
-        // Client-facing formatting: "June 6, Friday" + "7:00 am".
+        // Client-facing formatting: "June 9 (Tuesday)" + "7:00 AM".
         const niceDate = (() => {
-          try { return format(parseISO(slotForWA.date), "MMMM d, EEEE") } catch { return slotForWA.date }
+          try { return format(parseISO(slotForWA.date), "MMMM d (EEEE)") } catch { return slotForWA.date }
         })()
         const niceStart = (() => {
           const [h, m] = slotForWA.startTime.split(":").map(Number)
           if (Number.isNaN(h)) return slotForWA.startTime
-          return `${h % 12 || 12}:${String(m || 0).padStart(2, "0")} ${h >= 12 ? "pm" : "am"}`
+          return `${h % 12 || 12}:${String(m || 0).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`
         })()
 
         // 1) Ensure a Conversation exists for this client and is assigned to
