@@ -12,7 +12,7 @@ stay in lockstep.
 
 ## App name (30 chars max)
 
-Gravity Stretching
+GravityStretching
 
 ## Subtitle (30 chars max)
 
