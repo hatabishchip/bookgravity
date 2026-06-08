@@ -20,6 +20,12 @@ import {
   splitCountryAndNumber,
 } from "@/lib/whatsapp-onboarding"
 
+// Adding a number to the WABA + requesting the SMS code are two sequential
+// Meta calls that can take several seconds each — well past the 10s Hobby
+// default that caused the 504. Give them room.
+export const maxDuration = 60
+export const dynamic = "force-dynamic"
+
 const Schema = z.object({
   phone: z.string().trim().min(7).max(32),
   displayName: z.string().trim().min(2).max(64),
@@ -44,13 +50,13 @@ export async function POST(req: NextRequest) {
   }
   if (!studio.whatsappOnboardingEnabled) {
     return NextResponse.json(
-      { error: "Активация WhatsApp ещё не разрешена для этой студии." },
+      { error: "WhatsApp activation isn't enabled for this studio yet." },
       { status: 403 },
     )
   }
   if (studio.whatsappEnabled && studio.whatsappPhoneNumberId) {
     return NextResponse.json(
-      { error: "WhatsApp уже активен для этой студии." },
+      { error: "WhatsApp is already active for this studio." },
       { status: 409 },
     )
   }
@@ -66,7 +72,7 @@ export async function POST(req: NextRequest) {
   const split = splitCountryAndNumber(parsed.data.phone)
   if (!split) {
     return NextResponse.json(
-      { error: "Не удалось разобрать номер. Пиши с кодом страны, например +62 812 3456 789." },
+      { error: "Couldn't parse the number. Include the country code, e.g. +62 812 3456 789." },
       { status: 400 },
     )
   }

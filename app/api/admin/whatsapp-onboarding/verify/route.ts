@@ -21,8 +21,13 @@ import {
   getDefaultWabaId,
 } from "@/lib/whatsapp-onboarding"
 
+// verify_code + register are two sequential Meta calls; give them room past
+// the 10s Hobby default.
+export const maxDuration = 60
+export const dynamic = "force-dynamic"
+
 const Schema = z.object({
-  code: z.string().trim().regex(/^\d{6}$/, "Введи 6 цифр"),
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the 6 digits"),
 })
 
 export async function POST(req: NextRequest) {
@@ -45,7 +50,7 @@ export async function POST(req: NextRequest) {
   }
   if (!studio.whatsappOnboardingEnabled) {
     return NextResponse.json(
-      { error: "Активация WhatsApp ещё не разрешена для этой студии." },
+      { error: "WhatsApp activation isn't enabled for this studio yet." },
       { status: 403 },
     )
   }
@@ -54,7 +59,7 @@ export async function POST(req: NextRequest) {
     studio.whatsappRequestStatus !== "code_sent"
   ) {
     return NextResponse.json(
-      { error: "Нет активной заявки. Введи номер сначала." },
+      { error: "No active request. Enter the number first." },
       { status: 409 },
     )
   }

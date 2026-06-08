@@ -128,6 +128,16 @@ export async function addPhoneToWaba(opts: {
       error?: { message?: string; code?: number; error_user_msg?: string }
     }
     if (!res.ok || !json.id) {
+      // The number may already be on this WABA from an earlier attempt that
+      // timed out (504) after Meta added it but before we saved the id. Look
+      // it up and reuse it so a retry is idempotent instead of failing with
+      // "already added".
+      const existing = await findPhoneNumberId({
+        countryCode: opts.countryCode,
+        phoneNumber: opts.phoneNumber,
+        wabaId,
+      })
+      if (existing) return { ok: true, phoneNumberId: existing }
       return {
         ok: false,
         error:
@@ -142,6 +152,34 @@ export async function addPhoneToWaba(opts: {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
+}
+
+/** Find an existing phone on the WABA matching cc+number → its phone_number_id,
+ *  or null. Used to recover from a timed-out add (the number is already there). */
+async function findPhoneNumberId(opts: {
+  countryCode: string
+  phoneNumber: string
+  wabaId: string
+}): Promise<string | null> {
+  const token = getToken()
+  if (!token) return null
+  const want = (opts.countryCode + opts.phoneNumber).replace(/\D/g, "")
+  try {
+    const url = `${GRAPH_BASE}/${API_VERSION}/${opts.wabaId}/phone_numbers?fields=id,display_phone_number&limit=100`
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    const json = (await res.json().catch(() => ({}))) as {
+      data?: { id: string; display_phone_number?: string }[]
+    }
+    for (const p of json.data ?? []) {
+      const got = (p.display_phone_number ?? "").replace(/\D/g, "")
+      if (got && (got === want || got.endsWith(want) || want.endsWith(got))) {
+        return p.id
+      }
+    }
+  } catch {
+    // ignore — fall back to the original error
+  }
+  return null
 }
 
 /**
