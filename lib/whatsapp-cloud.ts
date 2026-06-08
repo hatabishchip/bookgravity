@@ -52,14 +52,20 @@ export function getConfigFor(studio: {
   whatsappPhoneNumberId: string | null
   whatsappAccessToken: string | null
 } | null | undefined): CloudConfig | null {
-  if (studio?.whatsappPhoneNumberId && studio.whatsappAccessToken) {
-    return {
-      phoneNumberId: studio.whatsappPhoneNumberId,
-      accessToken: studio.whatsappAccessToken,
-      apiVersion: process.env.WHATSAPP_API_VERSION || "v21.0",
+  const global = getConfig()
+  const apiVersion = process.env.WHATSAPP_API_VERSION || "v21.0"
+  // Prefer the studio's OWN number. Pair it with the studio's own token if it
+  // has one, otherwise the shared WABA token from env — every number on the
+  // same WhatsApp Business Account uses the same system-user token, so a studio
+  // that self-onboarded a number (its phoneNumberId is set but token is null)
+  // must still send FROM ITS OWN number, not fall back to the default studio's.
+  if (studio?.whatsappPhoneNumberId) {
+    const accessToken = studio.whatsappAccessToken || global?.accessToken
+    if (accessToken) {
+      return { phoneNumberId: studio.whatsappPhoneNumberId, accessToken, apiVersion }
     }
   }
-  return getConfig()
+  return global
 }
 
 export type WhatsAppHealth =
