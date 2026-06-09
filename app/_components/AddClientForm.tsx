@@ -99,7 +99,15 @@ export function AddClientForm({
     "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-base bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
 
   return (
-    <div className="mt-2 space-y-2.5 bg-gray-50 rounded-xl p-3">
+    // data-add-client-form="open" lets the surrounding day-modal detect an
+    // unsubmitted client form when the admin presses the big Save button — so
+    // the modal can auto-submit the form first instead of silently discarding
+    // the half-typed client.
+    <div
+      data-add-client-form="open"
+      data-add-client-ready={canSubmit ? "true" : "false"}
+      className="mt-2 space-y-2.5 bg-gray-50 rounded-xl p-3"
+    >
       {/* Phone — first field, full booking-widget behaviour. */}
       <PhoneInput value={phone} onChange={setPhone} inputClassName="text-base" />
 
@@ -162,6 +170,7 @@ export function AddClientForm({
         </button>
         <button
           type="button"
+          data-add-client-submit
           onClick={submit}
           disabled={!canSubmit}
           className="flex-1 px-3 py-2.5 rounded-lg text-sm font-semibold bg-[#2C6E49] text-white hover:bg-[#1E4D34] disabled:opacity-50"

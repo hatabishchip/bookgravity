@@ -427,6 +427,33 @@ export default function SchedulePage() {
     e.preventDefault()
     setFormError("")
 
+    // UX guard: if the admin opened "+ Add client" on any slot but pressed the
+    // big Save without clicking "Add client" first, half-typed clients would
+    // silently get discarded (the most common confusion in this modal). If a
+    // form is ready, auto-click its Add client button so we don't lose the
+    // client; if not ready, surface the inline error and bail.
+    if (typeof document !== "undefined") {
+      const openForms = Array.from(
+        document.querySelectorAll<HTMLDivElement>('[data-add-client-form="open"]')
+      )
+      if (openForms.length > 0) {
+        const notReady = openForms.find((f) => f.dataset.addClientReady !== "true")
+        if (notReady) {
+          setFormError("Finish or cancel the open Add-client form before saving.")
+          // Scroll the offending form into view so the admin can find it.
+          notReady.scrollIntoView({ behavior: "smooth", block: "center" })
+          return
+        }
+        // Auto-submit each ready Add-client form. The button's onClick fires
+        // the fetch in the background and clears `adding`, mirroring the case
+        // where the admin had clicked Add client themselves.
+        for (const f of openForms) {
+          const btn = f.querySelector<HTMLButtonElement>("[data-add-client-submit]")
+          btn?.click()
+        }
+      }
+    }
+
     type Req = { url: string; method: "POST" | "PATCH" | "DELETE"; body?: unknown }
     const payloads: Req[] = []
     // New sessions are created via their own awaited routine (not the batch)
