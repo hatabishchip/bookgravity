@@ -427,6 +427,11 @@ export async function sendWhatsAppTemplate(opts: {
   templateName: string
   languageCode: string // e.g. "en", "en_US", "id"
   variables?: string[]
+  /** Payload to attach to the template's first quick-reply button. Meta
+   *  delivers this string back to us in `msg.button.payload` when the user
+   *  taps the button, letting us tie the tap to an exact record (e.g. a
+   *  specific booking) instead of guessing from text. */
+  buttonPayload?: string
   config?: CloudConfig | null
 }): Promise<SendResult> {
   const cfg = opts.config ?? getConfig()
@@ -437,14 +442,21 @@ export async function sendWhatsAppTemplate(opts: {
   const to = normalizePhone(opts.toPhone)
   if (!to) return { ok: false, error: "empty_phone" }
 
-  const components = opts.variables?.length
-    ? [
-        {
-          type: "body",
-          parameters: opts.variables.map((v) => ({ type: "text", text: v })),
-        },
-      ]
-    : undefined
+  const components: Array<Record<string, unknown>> = []
+  if (opts.variables?.length) {
+    components.push({
+      type: "body",
+      parameters: opts.variables.map((v) => ({ type: "text", text: v })),
+    })
+  }
+  if (opts.buttonPayload) {
+    components.push({
+      type: "button",
+      sub_type: "quick_reply",
+      index: 0,
+      parameters: [{ type: "payload", payload: opts.buttonPayload }],
+    })
+  }
 
   return postMessage(cfg, {
     messaging_product: "whatsapp",
@@ -454,7 +466,7 @@ export async function sendWhatsAppTemplate(opts: {
     template: {
       name: opts.templateName,
       language: { code: opts.languageCode },
-      ...(components ? { components } : {}),
+      ...(components.length ? { components } : {}),
     },
   })
 }
@@ -565,6 +577,11 @@ export async function sendClientBookingConfirmationWA(opts: {
       templateName,
       languageCode: lang,
       variables: vars,
+      // Bind the template's quick-reply "Cancel booking" button to THIS exact
+      // booking via its ticket code. When the client taps the button, Meta
+      // delivers this payload back to us so the cancel bot cancels the right
+      // booking immediately — no "type your code" follow-up needed.
+      buttonPayload: `CANCEL:${opts.ticketCode}`,
       config: getConfigFor(opts.studioWA),
     })
   }

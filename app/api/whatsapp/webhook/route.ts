@@ -162,11 +162,13 @@ function describeIncomingMessage(msg: WAMessage): {
         mediaMime: msg.sticker?.mime_type ?? null,
       }
     case "button":
-      // Template quick-reply tap → treat as a normal text message carrying the
-      // button's text, so it renders in the inbox and the cancel bot can act.
+      // Template quick-reply tap → deliver the button's PAYLOAD when we set one
+      // (e.g. "CANCEL:933" → the cancel bot can target the exact booking),
+      // falling back to the visible text ("Cancel booking") so the inbox still
+      // renders something meaningful.
       return {
         type: "text",
-        body: msg.button?.text ?? msg.button?.payload ?? null,
+        body: msg.button?.payload ?? msg.button?.text ?? null,
         mediaUrl: null,
         mediaMime: null,
       }
