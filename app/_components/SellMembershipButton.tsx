@@ -128,12 +128,18 @@ export default function SellMembershipButton({
       <button
         type="button"
         onClick={() => { reset(); setOpen(true) }}
+        // Compact on narrow screens (icon-only, square) so the trainer header
+        // never wraps to two lines; full label on ≥sm where there's room.
+        aria-label="Sell membership"
+        title="Sell membership"
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-lg bg-[#2C6E49] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1E4D34]",
+          "inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#2C6E49] text-white font-semibold hover:bg-[#1E4D34] whitespace-nowrap shrink-0",
+          "h-9 w-9 text-base sm:h-auto sm:w-auto sm:px-3 sm:py-2 sm:text-sm",
           className
         )}
       >
-        <span className="text-base leading-none">＋</span> Sell membership
+        <span className="leading-none">＋</span>
+        <span className="hidden sm:inline">Sell membership</span>
       </button>
 
       {open && (

@@ -435,88 +435,108 @@ export default function TrainerSchedulePage() {
       <div className="flex items-center justify-between gap-3 mb-3 lg:mb-4">
         <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Schedule</h1>
         <div className="flex items-center gap-3">
-          {/* New-bookings bell — badge counts clients who registered for the
-              trainer's upcoming classes since they last looked. Updates live
-              via the 20s schedule poll. */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setBellOpen((o) => !o)}
-              aria-label="New bookings"
-              className={cn(
-                "relative w-10 h-10 flex items-center justify-center rounded-xl border touch-manipulation transition-colors",
-                newTotal > 0
-                  ? "border-[#2C6E49]/30 bg-[#2C6E49]/10 text-[#2C6E49] hover:bg-[#2C6E49]/15"
-                  : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
-              )}
-            >
-              <Bell size={20} strokeWidth={2.25} />
-              {newTotal > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm">
-                  {newTotal > 99 ? "99+" : newTotal}
-                </span>
-              )}
-            </button>
-            {bellOpen && (
-              <>
-                {/* Click-away backdrop */}
-                <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-lg border border-gray-100 z-50 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-gray-800">New bookings</span>
-                    {newTotal > 0 && (
-                      <button
-                        type="button"
-                        onClick={markAllSeen}
-                        className="text-xs text-[#2C6E49] font-medium hover:underline"
-                      >
-                        Mark all read
-                      </button>
-                    )}
-                  </div>
-                  {newItems.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-sm text-gray-400">
-                      No new bookings
-                    </div>
-                  ) : (
-                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
-                      {newItems.map(({ slot, delta }) => (
-                        <button
-                          key={slot.id}
-                          type="button"
-                          onClick={() => handleSlotClick(slot)}
-                          className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between gap-2 touch-manipulation"
-                        >
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium text-gray-900">
-                              {format(new Date(slot.date + "T00:00:00"), "EEE, MMM d")}
-                            </div>
-                            <div className="text-xs text-gray-500">{formatTime(slot.startTime)}</div>
-                          </div>
-                          <span className="flex-shrink-0 text-xs font-bold text-white bg-[#2C6E49] rounded-full px-2 py-1">
-                            +{delta}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
           <SellMembershipButton />
           {salary && (
-            <Link
-              href="/trainer/salary"
-              className="hidden lg:block text-right leading-tight hover:opacity-80"
-              title="Earnings this month — tap for breakdown"
-            >
-              <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">This month</div>
-              <div className="text-sm font-semibold text-gray-700">Rp {formatIDR(salary.total)}</div>
-            </Link>
+            <div className="flex items-center gap-1.5">
+              <Link
+                href="/trainer/salary"
+                className="text-right leading-tight hover:opacity-80"
+                title="Earnings this month — tap for breakdown"
+              >
+                <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">This month</div>
+                <div className="text-sm font-semibold text-gray-700">Rp {formatIDR(salary.total)}</div>
+              </Link>
+              {/* Tiny notification bell next to the salary block. Badge counts
+                  clients who registered since the trainer last looked. The
+                  popover modal is centered on screen (not pinned to the bell)
+                  so it doesn't run off the top edge on small screens. */}
+              <button
+                type="button"
+                onClick={() => setBellOpen(true)}
+                aria-label="New bookings"
+                title="New bookings"
+                className={cn(
+                  "relative w-7 h-7 flex items-center justify-center rounded-full touch-manipulation transition-colors shrink-0",
+                  newTotal > 0
+                    ? "text-[#2C6E49] hover:bg-[#2C6E49]/10"
+                    : "text-gray-400 hover:bg-gray-100"
+                )}
+              >
+                <Bell size={16} strokeWidth={2.25} />
+                {newTotal > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm leading-none">
+                    {newTotal > 9 ? "9+" : newTotal}
+                  </span>
+                )}
+              </button>
+            </div>
           )}
         </div>
       </div>
+
+      {/* New-bookings modal — centered on screen, not anchored to the bell.
+          Mirrors SellMembershipButton's pattern (full-screen on mobile, centered
+          card on ≥sm). Closes on backdrop click / × button. */}
+      {bellOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-white sm:bg-black/40 sm:flex sm:items-center sm:justify-center sm:p-4"
+          onClick={() => setBellOpen(false)}
+        >
+          <div
+            className="bg-white shadow-xl flex flex-col absolute inset-0 sm:static sm:inset-auto sm:w-full sm:max-w-sm sm:max-h-[80vh] sm:rounded-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 flex-shrink-0 border-b border-gray-100">
+              <h3 className="text-base font-semibold text-gray-900">New bookings</h3>
+              <div className="flex items-center gap-3">
+                {newTotal > 0 && (
+                  <button
+                    type="button"
+                    onClick={markAllSeen}
+                    className="text-xs text-[#2C6E49] font-medium hover:underline"
+                  >
+                    Mark all read
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setBellOpen(false)}
+                  aria-label="Close"
+                  className="text-gray-400 text-xl leading-none p-1"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            {newItems.length === 0 ? (
+              <div className="px-4 py-12 text-center text-sm text-gray-400">
+                No new bookings
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+                {newItems.map(({ slot, delta }) => (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    onClick={() => handleSlotClick(slot)}
+                    className="w-full text-left px-5 py-3 hover:bg-gray-50 flex items-center justify-between gap-2 touch-manipulation"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900">
+                        {format(new Date(slot.date + "T00:00:00"), "EEE, MMM d")}
+                      </div>
+                      <div className="text-xs text-gray-500">{formatTime(slot.startTime)}</div>
+                    </div>
+                    <span className="flex-shrink-0 text-xs font-bold text-white bg-[#2C6E49] rounded-full px-2 py-1">
+                      +{delta}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* View switcher */}
       <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5 mb-3">
