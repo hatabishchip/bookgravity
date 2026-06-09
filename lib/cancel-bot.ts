@@ -111,9 +111,19 @@ export async function handleCancelBotMessage(opts: {
       )
       return
     }
-    await prisma.booking.update({ where: { id: booking.id }, data: { status: "CANCELLED" } })
+    const updated = await prisma.booking.update({
+      where: { id: booking.id },
+      data: { status: "CANCELLED" },
+      select: { id: true, status: true, slot: { select: { date: true, startTime: true } } },
+    })
     // Give the class back to the membership if it was paid from one.
     if (booking.membershipId) await restoreMembershipClass(booking.membershipId)
+    console.log("[cancel-bot] cancelled", {
+      bookingId: updated.id,
+      newStatus: updated.status,
+      slot: `${updated.slot.date} ${updated.slot.startTime}`,
+      phone: opts.clientPhone,
+    })
     await reply("Booking canceled 😔\n\nHope to see you another time 💫")
     return
   }
@@ -176,7 +186,13 @@ export async function handleCancelBotMessage(opts: {
       .sort((a, b) => slotStartMs(a.slot.date, a.slot.startTime) - slotStartMs(b.slot.date, b.slot.startTime))
 
     if (upcoming.length === 0) {
-      await reply("Booking canceled 😔\n\nHope to see you another time 💫")
+      // Honest reply: there's nothing active to cancel under this number. The
+      // previous "Booking canceled 😔" here was a hard bug — it told clients
+      // their booking was gone while the booking was still CONFIRMED on the
+      // class, so the trainer kept seeing the client.
+      await reply(
+        "We couldn't find an active booking on this number. If you already cancelled, you're good — otherwise please reply with your 3-digit ticket code."
+      )
       return
     }
 
