@@ -138,15 +138,15 @@ export async function handleCancelBotMessage(opts: {
   if (code) {
     const tail = phoneTail(opts.clientPhone)
     if (tail.length < 6) return
-    const candidates = await prisma.booking.findMany({
-      where: {
-        ticketCode: code,
-        status: "CONFIRMED",
-        clientPhone: { contains: tail },
-        slot: { studioId: opts.studioId },
-      },
+    // Bookings store phones AS THE CLIENT TYPED THEM (with spaces / dashes),
+    // so we can't SQL-match a contiguous digit substring against the formatted
+    // string — `{ contains: '546405' }` misses "+62 821-4554-6405". Pull this
+    // ticket-code's CONFIRMED candidates and compare by last-10-digits in JS.
+    const all = await prisma.booking.findMany({
+      where: { ticketCode: code, status: "CONFIRMED", slot: { studioId: opts.studioId } },
       include: { slot: true },
     })
+    const candidates = all.filter((b) => phoneTail(b.clientPhone) === tail)
     const now = Date.now()
     const upcoming = candidates
       .filter((b) => slotStartMs(b.slot.date, b.slot.startTime) > now)
@@ -172,14 +172,12 @@ export async function handleCancelBotMessage(opts: {
   if (/^cancel booking$/i.test(text) || /отмен/i.test(text)) {
     const tail = phoneTail(opts.clientPhone)
     if (tail.length < 6) return
-    const candidates = await prisma.booking.findMany({
-      where: {
-        status: "CONFIRMED",
-        clientPhone: { contains: tail },
-        slot: { studioId: opts.studioId },
-      },
+    // See the ticket-code branch above — same reason we filter in JS, not SQL.
+    const all = await prisma.booking.findMany({
+      where: { status: "CONFIRMED", slot: { studioId: opts.studioId } },
       include: { slot: true },
     })
+    const candidates = all.filter((b) => phoneTail(b.clientPhone) === tail)
     const now = Date.now()
     const upcoming = candidates
       .filter((b) => slotStartMs(b.slot.date, b.slot.startTime) > now)
