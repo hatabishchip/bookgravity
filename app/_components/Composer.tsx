@@ -1,50 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Keyboard, Loader2, Send, Smile, MessageSquareText, X } from "lucide-react"
+import { Keyboard, Loader2, Send, Smile } from "lucide-react"
 import { cn } from "@/lib/utils"
 import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
 import StickerPicker from "@/app/_components/StickerPicker"
-
-// ---------------------------------------------------------------------------
-// Quick reply templates (English). These are Meta-APPROVED WhatsApp message
-// templates, so picking one sends it via the template path — which works even
-// when the 24h customer-service window is closed (the client hasn't written in
-// 24h). The 7 "reschedule to today" variants all map onto the single approved
-// `reschedule_today` template via its {{1}} time variable.
-// ---------------------------------------------------------------------------
-const TEMPLATE_TIMES = ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00"]
-
-type TemplateDef = {
-  label: string
-  /** Human-readable text shown in the popover + stored as the chat bubble. */
-  text: string
-  /** Approved Meta template name. */
-  templateName: string
-  /** Positional values for the template's {{1}}, {{2}}, … variables. */
-  variables?: string[]
-}
-
-// The two fixed quick replies. "Reschedule at <time>" is rendered separately
-// as one entry that expands the TEMPLATE_TIMES chips (so the menu isn't
-// cluttered with 7 rows), and the 👋 wave is the first entry.
-const MESSAGE_TEMPLATES: TemplateDef[] = [
-  {
-    label: "Today's class — still coming?",
-    text: "Hello! 🌿 Just a gentle reminder about your class today — are you still able to join us? We'd love to see you on the mat. 🙏",
-    templateName: "class_today_confirm",
-  },
-  {
-    label: "Reschedule to another day",
-    text: "Hello! Would it be convenient to reschedule you to another day? Today's group didn't reach more than 2 people.",
-    templateName: "reschedule_other_day",
-  },
-  {
-    label: "Booking canceled",
-    text: "Done 😊 Your booking has been canceled. We'd love to welcome you back on any day that's convenient for you!",
-    templateName: "booking_canceled",
-  },
-]
 
 // ---------------------------------------------------------------------------
 // Inbox composer (pill input + virtual keyboard).
@@ -100,7 +60,6 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
   // Bottom panel mode — either the typing keyboard or the sticker picker.
   const [bottomPanel, setBottomPanel] = useState<"keyboard" | "stickers">("keyboard")
   // Quick-reply templates popover.
-  const [showTemplates, setShowTemplates] = useState(false)
   // Desktop = wide viewport with a real pointer → use the real OS keyboard, no
   // on-screen VirtualKeyboard. The emoji picker becomes a toggled panel.
   const [desktop, setDesktop] = useState(false)
@@ -244,24 +203,6 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     }
   }, [onSend, sending, updateHeight])
 
-  // Quick-reply template: drop the chosen text into the input so the admin can
-  // review/edit, then close the popover and re-focus the field.
-  const applyTemplate = useCallback(
-    (text: string) => {
-      const t = textareaRef.current
-      if (!t) return
-      t.value = text
-      updateHeight()
-      syncHasText()
-      setShowTemplates(false)
-      try {
-        t.setSelectionRange(text.length, text.length)
-      } catch {}
-      t.focus({ preventScroll: true })
-    },
-    [updateHeight, syncHasText],
-  )
-
   // Initial focus + keep caret blinking when focus is lost to body.
   useEffect(() => {
     const t = textareaRef.current
@@ -269,117 +210,12 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     t.focus()
   }, [])
 
-  // One quick-reply row. Picking it sends the approved template straight away
-  // (works outside the 24h window); falls back to filling the input as free
-  // text when no template sender is wired.
-  const renderTplButton = (tpl: TemplateDef) => (
-    <button
-      key={tpl.label}
-      type="button"
-      onClick={() => {
-        if (onSendTemplate) {
-          void onSendTemplate({
-            templateName: tpl.templateName,
-            languageCode: "en",
-            variables: tpl.variables,
-            display: tpl.text,
-          })
-          setShowTemplates(false)
-        } else {
-          applyTemplate(tpl.text)
-        }
-      }}
-      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-[#2A3942] active:bg-gray-100 dark:active:bg-[#33444E] transition-colors"
-    >
-      <div className="text-xs font-semibold text-[#2C6E49] dark:text-[#69B58F]">{tpl.label}</div>
-      <div className="text-sm text-gray-600 dark:text-[#C8D0D4] mt-0.5 line-clamp-2">{tpl.text}</div>
-    </button>
-  )
-  const tplByName = (name: string) => MESSAGE_TEMPLATES.find((t) => t.templateName === name)
-
   return (
     <>
       <div
         className="px-2 pt-2 bg-[#ECE5DD] dark:bg-[#0B141A] relative"
         style={{ paddingBottom: 6 }}
       >
-        {/* Quick-reply templates popover — anchored above the composer row. */}
-        {showTemplates && (
-          <>
-            <div
-              className="fixed inset-0 z-30"
-              onClick={() => setShowTemplates(false)}
-            />
-            <div className="absolute bottom-full left-2 right-2 mb-2 z-40 max-h-72 overflow-y-auto rounded-2xl bg-white dark:bg-[#1F2C34] shadow-xl border border-gray-200 dark:border-[#2A3942] overscroll-contain">
-              <div className="sticky top-0 flex items-center justify-between px-4 py-2.5 bg-white dark:bg-[#1F2C34] border-b border-gray-100 dark:border-[#2A3942]">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-[#8696A0]">
-                  Templates
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowTemplates(false)}
-                  className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-white"
-                  aria-label="Close templates"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="py-1">
-                {/* 👋 wave — first entry (admin only; trainers have a standalone
-                    👋 button next to this menu). Re-opens a cold chat. */}
-                {role === "ADMIN" && onWave && (
-                  <button
-                    type="button"
-                    disabled={waveDisabled}
-                    onClick={() => { if (!waveDisabled) { onWave(); setShowTemplates(false) } }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-[#2A3942] active:bg-gray-100 dark:active:bg-[#33444E] transition-colors disabled:opacity-40"
-                  >
-                    <div className="text-xs font-semibold text-[#2C6E49] dark:text-[#69B58F]">Wave</div>
-                    <div className="text-2xl leading-none mt-0.5">👋</div>
-                  </button>
-                )}
-
-                {/* Fixed order (requested): 1) today's class — still coming,
-                    2) reschedule to another day, 3) reschedule at <time>,
-                    then booking-canceled last. */}
-                {(() => { const t = tplByName("class_today_confirm"); return t ? renderTplButton(t) : null })()}
-                {(() => { const t = tplByName("reschedule_other_day"); return t ? renderTplButton(t) : null })()}
-
-                {/* Reschedule at <time> — one entry; tap a time chip to send. */}
-                <div className="px-4 py-2.5 border-t border-gray-100 dark:border-[#2A3942]">
-                  <div className="text-xs font-semibold text-[#2C6E49] dark:text-[#69B58F]">Reschedule at…</div>
-                  <div className="text-sm text-gray-600 dark:text-[#C8D0D4] mt-0.5">Hello! Would it be convenient to reschedule at …?</div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {TEMPLATE_TIMES.map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => {
-                          if (onSendTemplate) {
-                            void onSendTemplate({
-                              templateName: "reschedule_time",
-                              languageCode: "en",
-                              variables: [t],
-                              display: `Hello! Would it be convenient to reschedule at ${t}?`,
-                            })
-                            setShowTemplates(false)
-                          } else {
-                            applyTemplate(`Hello! Would it be convenient to reschedule at ${t}?`)
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#2C6E49]/10 text-[#2C6E49] dark:bg-[#2C6E49]/20 dark:text-[#69B58F] hover:bg-[#2C6E49]/15 touch-manipulation"
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {(() => { const t = tplByName("booking_canceled"); return t ? renderTplButton(t) : null })()}
-              </div>
-            </div>
-          </>
-        )}
         <div className="flex gap-2 items-end">
           {/* "+" attachment button — opens the native picker. We deliberately
               fire on `click` (not pointerdown) because the file input dialog
@@ -446,9 +282,11 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             </>
           )}
 
-          {/* Trainer-only standalone 👋 button. Admins send the wave from the
-              first entry of the templates menu instead. Rate-limited 12h. */}
-          {role === "TRAINER" && onWave && (
+          {/* Standalone 👋 wave — shown to BOTH admin and trainer. It sends an
+              approved `wave` template, so it works even when the 24h window is
+              closed (a cold chat). Rate-limited to once per 12h. This is the
+              only quick-send in the composer — the templates menu was removed. */}
+          {onWave && (
             <button
               type="button"
               tabIndex={-1}
@@ -460,25 +298,6 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               title={waveDisabled ? "You can send a wave once every 12 hours" : "Send a wave 👋"}
             >
               👋
-            </button>
-          )}
-
-          {/* Quick-reply templates toggle — available to admin AND trainer. */}
-          {onSendTemplate && (
-            <button
-              type="button"
-              tabIndex={-1}
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={() => setShowTemplates((v) => !v)}
-              className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:opacity-60",
-                showTemplates
-                  ? "text-[#2C6E49] dark:text-[#69B58F]"
-                  : "text-gray-600 dark:text-[#8696A0]",
-              )}
-              aria-label="Message templates"
-            >
-              <MessageSquareText size={21} />
             </button>
           )}
 
