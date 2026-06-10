@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { format, startOfMonth, getDaysInMonth, getDay, isBefore, startOfDay, parseISO } from "date-fns"
 import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle, Loader2 } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
+import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { cn } from "@/lib/utils"
 import { clientEndTime12 } from "@/lib/class-time"
 
@@ -1436,7 +1437,17 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       to the field (not far below), turning green with a ✓ when
                       the number is complete. */}
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-gray-700">Phone *</label>
+                    {/* WhatsApp studios confirm the booking via a WhatsApp code,
+                        so the label makes explicit the number must be on WA. */}
+                    <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                      {studio?.whatsappEnabled ? (
+                        <>
+                          Phone with <WhatsAppIcon size={15} /> WhatsApp *
+                        </>
+                      ) : (
+                        "Phone *"
+                      )}
+                    </label>
                     {country && (
                       <span className={cn("text-xs font-medium flex items-center gap-1", done ? "text-brand" : "text-amber-600")}>
                         {country.flag} {country.name}{done && " ✓"}
