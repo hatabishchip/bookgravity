@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/Input"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { format, parseISO } from "date-fns"
+import { clientClassRange } from "@/lib/dates"
 import type { PublicSlot } from "@shared/types"
 
 type SlotDetail = PublicSlot & { date: string; classType?: "GROUP" | "KIDS" | "PRIVATE" }
@@ -101,7 +102,7 @@ export default function BookScreen() {
               {format(parseISO(slot.date), "EEEE, MMMM d")}
             </Text>
             <Text variant="callout" tone="primary" style={{ marginTop: 4 }}>
-              {slot.startTime} – {slot.endTime}
+              {clientClassRange(slot.startTime)}
             </Text>
           </View>
         ) : (

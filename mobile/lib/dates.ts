@@ -29,6 +29,25 @@ export function monthGridDays(d: Date): Date[] {
   return days
 }
 
+// Client-facing class duration: a slot is stored as a 2-hour block, but the
+// extra 30 minutes is the trainer's payment/prep buffer. Clients are ALWAYS
+// told the class is 1.5 hours. Mirror of web lib/class-time.ts.
+export const CLIENT_CLASS_MINUTES = 90
+
+/** Client-facing end time "HH:MM" (start + 90min). */
+export function clientEndTime(startTime: string): string {
+  const [h, m] = (startTime || "").split(":").map(Number)
+  const total = (h || 0) * 60 + (m || 0) + CLIENT_CLASS_MINUTES
+  const eh = Math.floor(total / 60) % 24
+  const em = total % 60
+  return `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`
+}
+
+/** Client-facing class range "11:00 – 12:30". */
+export function clientClassRange(startTime: string): string {
+  return `${startTime} – ${clientEndTime(startTime)}`
+}
+
 export {
   addMonths, format, getDay, getDaysInMonth, isAfter, isBefore, isSameDay,
   isToday, parseISO, startOfMonth, startOfWeek,

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { sendClassReminderWA } from "@/lib/whatsapp-cloud"
 import { appendOutboundMessage, upsertConversation } from "@/lib/whatsapp-conversation"
 import { phoneTail } from "@/lib/membership"
+import { clientClassRange } from "@/lib/class-time"
 
 export const dynamic = "force-dynamic"
 // Sending several reminders sequentially can exceed the default 10s.
@@ -101,7 +102,8 @@ export async function GET(req: NextRequest) {
     }
 
     const trainerName = b.slot.trainer?.name?.trim() || "the Gravity Stretching team"
-    const time = `${b.slot.startTime}–${b.slot.endTime}`
+    // Client-facing time = 1.5h (real slot is 2h with trainer buffer).
+    const time = clientClassRange(b.slot.startTime)
 
     const res = await sendClassReminderWA({
       clientPhone: b.clientPhone,

@@ -15,6 +15,7 @@ import {
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { verifyBookingOtp } from "@/lib/otp"
+import { clientClassRange } from "@/lib/class-time"
 import { z } from "zod"
 
 const BookingSchema = z.object({
@@ -292,7 +293,11 @@ export async function POST(request: NextRequest) {
       })
       if (slotForWA) {
         const prettyDate = slotForWA.date // YYYY-MM-DD; trainer template formats it
+        // Trainer-facing time = real 2h slot (their working block incl. buffer).
         const prettyTime = `${slotForWA.startTime}–${slotForWA.endTime}`
+        // Client-facing time = 1.5h (we always tell clients the class is 90min;
+        // the extra 30min is the trainer's payment/prep buffer).
+        const clientTime = clientClassRange(slotForWA.startTime)
         // Client-facing formatting: "June 9 (Tuesday)" + "7:00 AM".
         const niceDate = (() => {
           try { return format(parseISO(slotForWA.date), "MMMM d (EEEE)") } catch { return slotForWA.date }
@@ -330,7 +335,7 @@ export async function POST(request: NextRequest) {
           clientPhone: data.clientPhone,
           clientName: data.clientName,
           date: niceDate,
-          time: prettyTime,
+          time: clientTime,
           startTimePretty: niceStart,
           ticketCode: bookings[0].ticketCode,
           locationUrl: slotForWA.studio?.locationUrl,

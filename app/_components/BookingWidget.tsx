@@ -5,6 +5,7 @@ import { format, startOfMonth, getDaysInMonth, getDay, isBefore, startOfDay, par
 import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle, Loader2 } from "lucide-react"
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { cn } from "@/lib/utils"
+import { clientEndTime12 } from "@/lib/class-time"
 
 // Deterministic barcode bars derived from a numeric code.
 // Returns an array of widths (in px) and gap booleans to render a Code-128-style look.
@@ -217,15 +218,10 @@ function formatIDR(amount: number) {
   return `${Math.round(amount / 1000)}k IDR`
 }
 
-// Client-facing end time: 90 minutes after start (real slot is 120 with buffer)
-function clientEndTime(startTime: string) {
-  const [h, m] = startTime.split(":").map(Number)
-  const total = h * 60 + m + 90
-  const eh = Math.floor(total / 60) % 24
-  const em = total % 60
-  const ampm = eh >= 12 ? "PM" : "AM"
-  return `${eh % 12 || 12}:${String(em).padStart(2, "0")} ${ampm}`
-}
+// Client-facing end time (12h) lives in lib/class-time.ts now — single source
+// of truth for the "real slot is 2h, client sees 1.5h" rule. Aliased so the
+// existing JSX (clientEndTime(...)) keeps working unchanged.
+const clientEndTime = clientEndTime12
 
 export default function BookingWidget({ services, studio, studioSlug }: {
   services: Service[]

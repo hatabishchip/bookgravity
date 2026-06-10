@@ -1,4 +1,5 @@
 import { Resend } from "resend"
+import { clientEndTime24 } from "@/lib/class-time"
 
 // Lazily instantiate so missing env keys don't crash imports.
 function getResend() {
@@ -129,7 +130,7 @@ export async function sendClientBookingConfirmation(
         </div>
         <table style="border-collapse:collapse;width:100%;font-size:14px">
           <tr><td style="padding:4px 0;color:#888;width:90px">Date</td><td style="padding:4px 0;font-weight:600">${escapeHtml(prettyDate(data.date))}</td></tr>
-          <tr><td style="padding:4px 0;color:#888">Time</td><td style="padding:4px 0;font-weight:600">${escapeHtml(data.startTime)}–${escapeHtml(data.endTime)}</td></tr>
+          <tr><td style="padding:4px 0;color:#888">Time</td><td style="padding:4px 0;font-weight:600">${escapeHtml(data.startTime)}–${escapeHtml(clientEndTime24(data.startTime))}</td></tr>
           ${data.trainerName ? `<tr><td style="padding:4px 0;color:#888">Trainer</td><td style="padding:4px 0;font-weight:600">${escapeHtml(data.trainerName)}</td></tr>` : ""}
           <tr><td style="padding:4px 0;color:#888">Studio</td><td style="padding:4px 0;font-weight:600">${escapeHtml(data.studioName)}</td></tr>
         </table>

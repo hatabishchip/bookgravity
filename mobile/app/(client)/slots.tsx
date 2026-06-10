@@ -8,6 +8,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
 import { useDateSlots } from "@/hooks/useSlots"
 import { format, parseISO } from "date-fns"
+import { clientEndTime } from "@/lib/dates"
 import type { PublicSlot } from "@shared/types"
 
 // Lazy-route screen pushed from the calendar. URL param is yyyy-MM-dd.
@@ -88,7 +89,7 @@ function SlotRow({ slot, onPress }: { slot: PublicSlot; onPress: () => void }) {
     >
       <View style={styles.slotLeft}>
         <Text variant="title3" tone="primary">{slot.startTime}</Text>
-        <Text variant="footnote" tone="muted">→ {slot.endTime}</Text>
+        <Text variant="footnote" tone="muted">→ {clientEndTime(slot.startTime)}</Text>
       </View>
       <View style={{ flex: 1, gap: 4 }}>
         <View style={[styles.typePill, { backgroundColor: typeBg }]}>

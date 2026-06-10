@@ -6,6 +6,7 @@ import { ChevronLeft, Share2 } from "lucide-react-native"
 import QRCode from "react-native-qrcode-svg"
 import { format, parseISO } from "date-fns"
 import { spacing, radius } from "@/lib/theme"
+import { clientClassRange } from "@/lib/dates"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
 import { useMyBookings } from "@/hooks/useMyBookings"
@@ -77,7 +78,7 @@ export default function TicketScreen() {
         {/* Booking detail card */}
         <View style={[styles.detail, { backgroundColor: theme.bg.card, borderColor: theme.border.subtle }]}>
           <Row label="Date" value={format(parseISO(booking.slot.date), "EEEE, MMMM d, yyyy")} theme={theme} />
-          <Row label="Time" value={`${booking.slot.startTime} – ${booking.slot.endTime}`} theme={theme} />
+          <Row label="Time" value={clientClassRange(booking.slot.startTime)} theme={theme} />
           <Row label="Class" value={(booking.slot.classType ?? "GROUP")[0] + (booking.slot.classType ?? "GROUP").slice(1).toLowerCase()} theme={theme} />
           {booking.slot.trainer && (
             <Row label="Trainer" value={booking.slot.trainer.name} theme={theme} />
