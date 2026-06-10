@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle, Lo
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { cn } from "@/lib/utils"
-import { clientEndTime12 } from "@/lib/class-time"
+import { clientEndTime12, clientEndTime24 } from "@/lib/class-time"
 
 // Deterministic barcode bars derived from a numeric code.
 // Returns an array of widths (in px) and gap booleans to render a Code-128-style look.
@@ -1083,6 +1083,30 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
           {/* Actions */}
           <div className="mt-4 space-y-2">
+            {/* Add to calendar — Google Calendar template URL with the
+                client-facing 90-min range, local "floating" time (clients book
+                in the studio's own timezone). */}
+            {(() => {
+              const d = booking.slot.date.replace(/-/g, "")
+              const t = (hhmm: string) => hhmm.replace(":", "") + "00"
+              const calUrl =
+                "https://calendar.google.com/calendar/render?action=TEMPLATE" +
+                `&text=${encodeURIComponent(`Stretching class — ${studio?.name || "Gravity Stretching"}`)}` +
+                `&dates=${d}T${t(booking.slot.startTime)}/${d}T${t(clientEndTime24(booking.slot.startTime))}` +
+                `&details=${encodeURIComponent(`Ticket ${booking.ticketCode}. Arrive 10 minutes early. Booked at bookgravity.com/${studioSlug}`)}` +
+                (studio?.locationUrl ? `&location=${encodeURIComponent(studio.locationUrl)}` : "")
+              return (
+                <a
+                  href={calUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 hover:border-brand text-gray-700 py-3 rounded-xl text-sm font-medium transition-colors"
+                >
+                  <Clock size={15} className="text-brand" />
+                  Add to calendar
+                </a>
+              )
+            })()}
             {/* "Send to WhatsApp" only for studios WITHOUT WhatsApp — those WITH
                 it already auto-send the ticket to the client's WhatsApp. */}
             {waLink && !studio?.whatsappEnabled && (
@@ -1539,7 +1563,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             {otpSent && !otpReady && !otpVerified && otpDelivery !== "failed" && (
               <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
                 <Loader2 size={16} className="animate-spin text-brand" />
-                Sending a code to your WhatsApp…
+                Sending a code to your WhatsApp… usually takes a few seconds.
               </div>
             )}
 
@@ -1802,6 +1826,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             >
               {submitting ? "Booking…" : "Continue"}
             </button>
+            {/* Cancellation policy, stated up-front — matches canCancelBooking:
+                ≥2h before class (or within 30 min of booking). Builds trust at
+                the exact moment of commitment. */}
+            <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+              Booking is free — you pay at the studio. Free cancellation up to 2 hours before
+              class{studio?.whatsappEnabled ? " via the Cancel button in your WhatsApp confirmation" : ""}.
+            </p>
             </div>)}
           </form>
         </div>
