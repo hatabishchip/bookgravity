@@ -4,6 +4,10 @@ import { useState, useEffect } from "react"
 import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { Button } from "@/app/_components/ui/Button"
+import { Input } from "@/app/_components/ui/Input"
+import { Card } from "@/app/_components/ui/Card"
+import { Alert } from "@/app/_components/ui/Alert"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -91,61 +95,47 @@ export default function LoginPage() {
           <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-8">
+        <Card className="p-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-6">Sign in</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">Email or username</label>
-              <input
-                id="login-email"
-                name="email"
-                type="text"
-                required
-                autoFocus
-                autoComplete="username"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-              />
-            </div>
-            <div>
-              <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input
-                id="login-password"
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-              />
-            </div>
+            <Input
+              id="login-email"
+              name="email"
+              label="Email or username"
+              type="text"
+              required
+              autoFocus
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <Input
+              id="login-password"
+              name="password"
+              label="Password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
-                {error}
-              </div>
-            )}
+            {error && <Alert>{error}</Alert>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors"
-            >
+            <Button type="submit" disabled={loading} fullWidth>
               {loading ? "Signing in..." : "Sign In"}
-            </button>
+            </Button>
             <div className="text-center">
               <Link href="/auth/forgot-password" className="text-sm text-gray-400 hover:text-brand">
                 Forgot password?
               </Link>
             </div>
           </form>
-        </div>
+        </Card>
       </div>
     </div>
   )

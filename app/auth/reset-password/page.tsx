@@ -3,6 +3,9 @@
 import { useState, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
+import { Button } from "@/app/_components/ui/Button"
+import { Input } from "@/app/_components/ui/Input"
+import { Card } from "@/app/_components/ui/Card"
 
 function ResetForm() {
   const params = useSearchParams()
@@ -48,31 +51,25 @@ function ResetForm() {
     </div>
   ) : (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <input
+      <Input
         type="password"
         required
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="New password"
         minLength={4}
-        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
       />
-      <input
+      <Input
         type="password"
         required
         value={confirm}
         onChange={(e) => setConfirm(e.target.value)}
         placeholder="Confirm new password"
-        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
       />
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full bg-brand text-white py-3 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60"
-      >
+      <Button type="submit" disabled={loading} fullWidth>
         {loading ? "Saving..." : "Set new password"}
-      </button>
+      </Button>
     </form>
   )
 }
@@ -80,13 +77,13 @@ function ResetForm() {
 export default function ResetPasswordPage() {
   return (
     <div className="h-[100svh] bg-gray-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="bg-white rounded-2xl shadow-sm p-8 w-full max-w-sm">
+      <Card className="p-8 w-full max-w-sm">
         <h1 className="text-xl font-bold text-gray-900 mb-1">Set new password</h1>
         <p className="text-sm text-gray-500 mb-6">Choose a new password for your account</p>
         <Suspense>
           <ResetForm />
         </Suspense>
-      </div>
+      </Card>
     </div>
   )
 }
