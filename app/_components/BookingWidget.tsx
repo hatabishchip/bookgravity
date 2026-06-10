@@ -1473,11 +1473,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       // Real text is transparent while we draw the masked overlay
                       // (so typed digits + amber _ placeholders show inside the
                       // field); the caret stays visible via caret-color.
-                      // Big digits: the number nearly fills the field's height so
-                      // it's easy to read & check on a phone. The overlay below
-                      // MUST use the same font size/padding to stay aligned.
+                      // Dial-pad-style digits: 20px semibold reads as confident
+                      // and solid (24px at regular weight looked spindly). The
+                      // overlay below MUST mirror size/weight/padding to align.
                       className={cn(
-                        "w-full border rounded-xl px-4 py-2.5 text-2xl tracking-tight tabular-nums focus:outline-none focus:ring-2 transition-colors caret-brand",
+                        "w-full border rounded-xl px-4 py-3 text-xl font-semibold tabular-nums focus:outline-none focus:ring-2 transition-colors caret-brand",
                         display && form.clientPhone ? "text-transparent" : "text-gray-900",
                         rightPad && "pr-11",
                         hasError
@@ -1487,7 +1487,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     />
                     {display && form.clientPhone && (
                       <div className={cn(
-                        "absolute inset-0 px-4 py-2.5 text-2xl tracking-tight tabular-nums flex items-center pointer-events-none whitespace-pre",
+                        "absolute inset-0 px-4 py-3 text-xl font-semibold tabular-nums flex items-center pointer-events-none whitespace-pre",
                         rightPad && "pr-11",
                       )}>
                         <span className="text-gray-900">{display.typed}</span>
