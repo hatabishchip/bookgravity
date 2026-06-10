@@ -495,6 +495,14 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             <textarea
               ref={textareaRef}
               defaultValue=""
+              // Tapping/clicking the input dismisses the emoji/sticker panel
+              // so the user can type. We use pointerDown (a real user gesture)
+              // rather than focus, which also fires programmatically after each
+              // emoji insert — that would close the picker after one pick.
+              onPointerDown={() => {
+                if (desktop) setEmojiOpen(false)
+                else setBottomPanel("keyboard")
+              }}
               onInput={() => {
                 updateHeight()
                 syncHasText()

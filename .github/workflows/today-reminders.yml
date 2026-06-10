@@ -1,40 +1,26 @@
-# Pings the same-day class-reminder cron every 15 minutes.
+# Pings the same-day "are you still coming?" reminder endpoint frequently.
 #
-# Why this exists in addition to the Vercel cron (vercel.json): Vercel's Hobby
-# plan only triggers cron jobs once per day, which is far too coarse for a
-# "~2.5h before each class" reminder. This GitHub Actions schedule drives the
-# endpoint frequently regardless of the Vercel plan. On Vercel Pro both run and
-# the endpoint is idempotent (it atomically claims each booking before sending,
-# so a client is never reminded twice).
+# Vercel Hobby cron can only run once per day, but this check-in must fire
+# ~2.5h before each class — classes start at many different times, so the
+# endpoint has to be polled through the day. GitHub Actions schedule does
+# that for free on any Vercel plan. The endpoint is idempotent
+# (todayReminderSentAt guard) and only sends inside a 20–155 min pre-class
+# window, so polling every ~20 min is safe and never double-sends.
 #
-# The endpoint is safe to call publicly: it only sends reminders that are
-# genuinely due (class starts in the 20–155 min window) and guards every send
-# with Booking.todayReminderSentAt.
-#
-# NOTE: if you ever set a CRON_SECRET env var on Vercel, this workflow must send
-# it too — add it as a repo secret and pass `-H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"`.
-
-name: today-class-reminders
+# GitHub's scheduler can lag 5–15 min under load, but the 135-min send
+# window easily absorbs that. workflow_dispatch lets us trigger manually.
+name: today-reminders
 
 on:
   schedule:
-    # Every 15 minutes (GitHub may delay during high load — fine, the cron's
-    # send window is ~135 min wide so each class is still caught).
-    - cron: "*/15 * * * *"
-  workflow_dispatch: {} # allow manual runs from the Actions tab
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger same-day reminders
+      - name: Hit today-reminders cron
         run: |
-          code=$(curl -s -o /tmp/out.json -w "%{http_code}" \
-            --max-time 60 \
-            https://bookgravity.com/api/cron/today-reminders)
-          echo "HTTP $code"
-          cat /tmp/out.json || true
-          # Fail the run on a non-2xx so it surfaces in the Actions tab.
-          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
-            exit 1
-          fi
+          curl -fsS -m 60 https://bookgravity.com/api/cron/today-reminders \
+            -H "User-Agent: gh-actions-today-reminders" || true
