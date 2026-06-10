@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { afterStaffCancellation } from "@/lib/booking-cancel"
+import { notifyBookingCreated } from "@/lib/booking-notify"
 import { z } from "zod"
+
+// Notifications can add a few WhatsApp round-trips beyond the 10s default.
+export const maxDuration = 30
 
 const UpdateSchema = z.object({
   paymentType: z.enum(["ONLINE", "OFFLINE", "PENDING"]).optional(),
@@ -45,6 +50,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       services: { include: { service: true } },
     },
   })
+
+  // Cancellation side-effects: an admin cancel must behave like the client's
+  // own WhatsApp cancel — return the membership class and tell the client.
+  if (data.status === "CANCELLED" && existing.status !== "CANCELLED") {
+    await afterStaffCancellation({
+      id: booking.id,
+      clientName: booking.clientName,
+      clientPhone: booking.clientPhone,
+      membershipId: booking.membershipId,
+      slot: { studioId: ctx.studioId },
+    })
+  }
+
+  // Reschedule side-effects: moving to a different class re-sends the booking
+  // confirmation (new date/time/trainer) to the client and pings the NEW
+  // trainer — otherwise both keep acting on the stale schedule.
+  if (data.slotId && data.slotId !== existing.slotId && booking.status === "CONFIRMED") {
+    await notifyBookingCreated({
+      studioId: ctx.studioId,
+      slotId: data.slotId,
+      clientName: booking.clientName,
+      clientPhone: booking.clientPhone,
+      leadBookingId: booking.id,
+      ticketCode: booking.ticketCode,
+      skipAdminAlert: true,
+    })
+  }
 
   return NextResponse.json(booking)
 }

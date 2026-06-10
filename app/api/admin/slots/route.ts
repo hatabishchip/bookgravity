@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { syncSlotToGoogle, unsyncSlotFromGoogle } from "@/lib/google-calendar"
+import { restoreMembershipsForBookings } from "@/lib/booking-cancel"
 
 // Google Calendar sync can add a few network calls per slot; give the function
 // headroom past the 10s default (no-ops instantly when not connected).
@@ -20,8 +21,12 @@ const MAX_SLOTS_PER_DAY = 7
 async function deleteSlotCascade(slotId: string) {
   const bookings = await prisma.booking.findMany({
     where: { slotId },
-    select: { id: true },
+    select: { id: true, status: true, membershipId: true },
   })
+  // A membership-paid booking still CONFIRMED at delete time would silently
+  // eat the client's class — give it back before the rows vanish. (CANCELLED
+  // ones were already restored when they were cancelled.)
+  await restoreMembershipsForBookings(bookings.filter((b) => b.status === "CONFIRMED"))
   const ids = bookings.map((b) => b.id)
   if (ids.length) {
     await prisma.bookingService.deleteMany({ where: { bookingId: { in: ids } } })
