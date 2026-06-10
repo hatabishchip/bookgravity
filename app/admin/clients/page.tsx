@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
-import { Search, CalendarPlus, X, Loader2, Check, AlertCircle, Phone, Mail } from "lucide-react"
+import { Search, CalendarPlus, X, Loader2, Check, AlertCircle, Phone, Mail, Ticket, BadgeCheck, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type Client = {
@@ -26,6 +26,34 @@ type Slot = {
   _count: { bookings: number }
 }
 
+type HistoryBooking = {
+  id: string
+  date: string
+  startTime: string
+  endTime: string
+  classType: string
+  trainerName: string | null
+  status: string
+  paymentType: string
+  paymentStatus: string
+  checkedIn: boolean
+  ticketCode: string
+  bookedAt: string
+  cancelledAt: string | null
+  services: string[]
+  viaMembership: boolean
+}
+
+type HistoryMembership = {
+  id: string
+  totalClasses: number
+  remainingClasses: number
+  paymentType: string
+  soldByName: string | null
+  note: string | null
+  soldAt: string
+}
+
 const formatTime = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number)
   const period = h >= 12 ? "PM" : "AM"
@@ -41,6 +69,185 @@ function plusDaysStr(days: number) {
   const d = new Date()
   d.setDate(d.getDate() + days)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+// ---------------------------------------------------------------------------
+// History modal: the client's full dossier — every booking ever (incl.
+// cancelled, with when it was cancelled), how each class was paid, and all
+// membership batches with remaining balances.
+// ---------------------------------------------------------------------------
+const PAYMENT_LABELS: Record<string, string> = {
+  CASH: "Cash",
+  EDC: "Card (EDC)",
+  QR: "QR",
+  TRANSFER: "Transfer",
+  MEMBERSHIP: "Membership",
+  PENDING: "Pending",
+}
+
+function HistoryModal({ client, onClose, onBook }: {
+  client: Client
+  onClose: () => void
+  onBook: () => void
+}) {
+  const [data, setData] = useState<{ bookings: HistoryBooking[]; memberships: HistoryMembership[] } | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/admin/clients/history?phone=${encodeURIComponent(client.phone)}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { bookings: [], memberships: [] }))
+      .then(setData)
+      .catch(() => setData({ bookings: [], memberships: [] }))
+  }, [client.phone])
+
+  const membershipBalance = (data?.memberships ?? []).reduce((sum, m) => sum + m.remainingClasses, 0)
+
+  return (
+    <div className="fixed inset-0 z-50 bg-white sm:bg-black/40 sm:flex sm:items-center sm:justify-center overflow-y-auto">
+      <div className="sm:bg-white sm:rounded-2xl sm:shadow-xl sm:max-w-lg sm:w-full sm:max-h-[85vh] sm:overflow-y-auto bg-white min-h-full sm:min-h-0">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between gap-3 z-10">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-gray-900 truncate">{client.name || "—"}</h2>
+            <div className="mt-0.5 flex items-center gap-3 flex-wrap text-xs text-gray-500">
+              <a href={`tel:${client.phone.replace(/[^\d+]/g, "")}`} className="inline-flex items-center gap-1 hover:text-brand">
+                <Phone size={12} /> {client.phone}
+              </a>
+              {client.email && (
+                <a href={`mailto:${client.email}`} className="inline-flex items-center gap-1 hover:text-brand truncate max-w-[200px]">
+                  <Mail size={12} /> {client.email}
+                </a>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => { onClose(); onBook() }}
+              className="inline-flex items-center gap-1.5 bg-brand hover:bg-brand-dark text-white text-xs font-semibold px-3 py-2 rounded-xl touch-manipulation"
+            >
+              <CalendarPlus size={13} /> Book
+            </button>
+            <button onClick={onClose} aria-label="Close" className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="px-5 py-4 space-y-5">
+          {data === null ? (
+            <div className="flex items-center gap-2 text-sm text-gray-400 py-8 justify-center">
+              <Loader2 size={16} className="animate-spin" /> Loading history…
+            </div>
+          ) : (
+            <>
+              {/* Memberships */}
+              <section>
+                <div className="flex items-center justify-between mb-1.5">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Memberships</h3>
+                  {membershipBalance > 0 && (
+                    <span className="text-xs font-bold text-brand bg-brand/10 px-2 py-0.5 rounded-full">
+                      {membershipBalance} class{membershipBalance === 1 ? "" : "es"} left
+                    </span>
+                  )}
+                </div>
+                {data.memberships.length === 0 ? (
+                  <div className="text-xs text-gray-400 border border-dashed border-gray-200 rounded-xl px-3 py-3 text-center">
+                    No memberships bought.
+                  </div>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {data.memberships.map((m) => (
+                      <li key={m.id} className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5">
+                        <Ticket size={16} className={m.remainingClasses > 0 ? "text-brand" : "text-gray-300"} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-gray-900">
+                            {m.remainingClasses}/{m.totalClasses} classes left
+                          </div>
+                          <div className="text-[11px] text-gray-400">
+                            Bought {format(parseISO(m.soldAt), "MMM d, yyyy")}
+                            {" · "}{PAYMENT_LABELS[m.paymentType] ?? m.paymentType}
+                            {m.soldByName && ` · sold by ${m.soldByName}`}
+                            {m.note && ` · ${m.note}`}
+                          </div>
+                        </div>
+                        {m.remainingClasses === 0 && (
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">used up</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              {/* Booking history */}
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+                  History ({data.bookings.length})
+                </h3>
+                {data.bookings.length === 0 ? (
+                  <div className="text-xs text-gray-400 border border-dashed border-gray-200 rounded-xl px-3 py-3 text-center">
+                    No bookings yet.
+                  </div>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {data.bookings.map((b) => {
+                      const cancelled = b.status === "CANCELLED"
+                      return (
+                        <li
+                          key={b.id}
+                          className={cn(
+                            "rounded-xl border px-3 py-2.5",
+                            cancelled ? "border-gray-100 bg-gray-50" : "border-gray-200",
+                          )}
+                        >
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={cn("text-sm font-semibold", cancelled ? "text-gray-400 line-through" : "text-gray-900")}>
+                              {format(parseISO(b.date + "T00:00:00"), "MMM d, yyyy")} · {formatTime(b.startTime)}
+                            </span>
+                            {cancelled ? (
+                              <span className="text-[10px] uppercase tracking-wider font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
+                                cancelled
+                              </span>
+                            ) : b.checkedIn ? (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-wider font-bold text-brand bg-brand/10 px-1.5 py-0.5 rounded">
+                                <BadgeCheck size={11} /> visited
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-gray-400">
+                            {b.classType === "GROUP" ? "Group" : b.classType === "KIDS" ? "Kids" : "Private"}
+                            {b.trainerName && ` · ${b.trainerName}`}
+                            {" · ticket "}{b.ticketCode}
+                            {b.services.length > 0 && ` · ${b.services.join(", ")}`}
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 flex-wrap text-[11px]">
+                            {/* Payment line: how (or whether) this class was paid. */}
+                            {cancelled ? (
+                              b.cancelledAt && (
+                                <span className="inline-flex items-center gap-1 text-gray-400">
+                                  <Clock size={11} /> cancelled {format(parseISO(b.cancelledAt), "MMM d, HH:mm")}
+                                </span>
+                              )
+                            ) : b.viaMembership || b.paymentType === "MEMBERSHIP" ? (
+                              <span className="font-semibold text-brand">Paid · membership</span>
+                            ) : b.paymentStatus === "PAID" ? (
+                              <span className="font-semibold text-brand">
+                                Paid · {PAYMENT_LABELS[b.paymentType] ?? b.paymentType}
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-amber-600">Not paid</span>
+                            )}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </section>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +448,7 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[] | null>(null)
   const [query, setQuery] = useState("")
   const [bookFor, setBookFor] = useState<Client | null>(null)
+  const [historyFor, setHistoryFor] = useState<Client | null>(null)
 
   const load = useCallback(() => {
     fetch("/api/admin/clients", { cache: "no-store" })
@@ -303,7 +511,11 @@ export default function ClientsPage() {
           {filtered.map((c) => (
             <div
               key={c.phone + c.name}
-              className="bg-white rounded-2xl shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap sm:flex-nowrap"
+              role="button"
+              tabIndex={0}
+              onClick={() => setHistoryFor(c)}
+              onKeyDown={(e) => { if (e.key === "Enter") setHistoryFor(c) }}
+              className="bg-white rounded-2xl shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap sm:flex-nowrap cursor-pointer hover:shadow transition-shadow"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -315,11 +527,11 @@ export default function ClientsPage() {
                   )}
                 </div>
                 <div className="mt-0.5 flex items-center gap-3 flex-wrap text-xs text-gray-500">
-                  <a href={`tel:${c.phone.replace(/[^\d+]/g, "")}`} className="inline-flex items-center gap-1 hover:text-brand">
+                  <a href={`tel:${c.phone.replace(/[^\d+]/g, "")}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 hover:text-brand">
                     <Phone size={12} /> {c.phone}
                   </a>
                   {c.email && (
-                    <a href={`mailto:${c.email}`} className="inline-flex items-center gap-1 hover:text-brand truncate max-w-[220px]">
+                    <a href={`mailto:${c.email}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 hover:text-brand truncate max-w-[220px]">
                       <Mail size={12} /> {c.email}
                     </a>
                   )}
@@ -331,7 +543,7 @@ export default function ClientsPage() {
                 </div>
               </div>
               <button
-                onClick={() => setBookFor(c)}
+                onClick={(e) => { e.stopPropagation(); setBookFor(c) }}
                 className="inline-flex items-center gap-1.5 bg-brand hover:bg-brand-dark text-white text-xs font-semibold px-3.5 py-2.5 rounded-xl touch-manipulation shrink-0"
               >
                 <CalendarPlus size={14} /> Book
@@ -341,6 +553,13 @@ export default function ClientsPage() {
         </div>
       )}
 
+      {historyFor && (
+        <HistoryModal
+          client={historyFor}
+          onClose={() => setHistoryFor(null)}
+          onBook={() => setBookFor(historyFor)}
+        />
+      )}
       {bookFor && <BookModal client={bookFor} onClose={() => setBookFor(null)} onBooked={load} />}
     </div>
   )
