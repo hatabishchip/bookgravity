@@ -11,10 +11,10 @@ export const metadata: Metadata = {
 // the basics: how to book, how to cancel, how to sign in to the app.
 export default function SupportPage() {
   return (
-    <main className="min-h-screen bg-[#F5F4F0]">
+    <main className="min-h-screen bg-sand">
       <header className="bg-white border-b border-gray-100">
         <div className="max-w-3xl mx-auto px-4 py-5 flex items-center justify-between">
-          <Link href="/" className="text-[#2C6E49] font-bold text-lg">
+          <Link href="/" className="text-brand font-bold text-lg">
             Gravity Stretching
           </Link>
           <Link href="/" className="text-sm text-gray-500 hover:text-gray-800">
@@ -24,26 +24,26 @@ export default function SupportPage() {
       </header>
 
       <article className="max-w-3xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold text-[#1E4D34] mb-2">Support</h1>
+        <h1 className="text-3xl font-bold text-brand-dark mb-2">Support</h1>
         <p className="text-gray-600 mb-8">
           Need a hand? Most things can be sorted in a few taps — but if you
           get stuck, we&apos;re here.
         </p>
 
         <section className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-[#1E4D34] mb-3">
+          <h2 className="text-xl font-semibold text-brand-dark mb-3">
             Contact us
           </h2>
           <ul className="space-y-2 text-gray-700">
             <li>
               Email:{" "}
-              <a className="text-[#2C6E49] font-medium" href="mailto:admin@bookgravity.com">
+              <a className="text-brand font-medium" href="mailto:admin@bookgravity.com">
                 admin@bookgravity.com
               </a>
             </li>
             <li>
               WhatsApp Canggu:{" "}
-              <a className="text-[#2C6E49] font-medium" href="https://wa.me/6281234567890">
+              <a className="text-brand font-medium" href="https://wa.me/6281234567890">
                 +62 812 3456 7890
               </a>
             </li>
@@ -54,7 +54,7 @@ export default function SupportPage() {
         </section>
 
         <section className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-[#1E4D34] mb-3">FAQ</h2>
+          <h2 className="text-xl font-semibold text-brand-dark mb-3">FAQ</h2>
 
           <h3 className="font-semibold mt-4">How do I book a class?</h3>
           <p className="text-gray-700">
@@ -93,9 +93,9 @@ export default function SupportPage() {
         </section>
 
         <section className="bg-white rounded-2xl border border-gray-100 p-6">
-          <h2 className="text-xl font-semibold text-[#1E4D34] mb-3">Legal</h2>
+          <h2 className="text-xl font-semibold text-brand-dark mb-3">Legal</h2>
           <p>
-            <Link href="/privacy" className="text-[#2C6E49] font-medium">
+            <Link href="/privacy" className="text-brand font-medium">
               Privacy Policy
             </Link>
           </p>

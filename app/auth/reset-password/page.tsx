@@ -37,7 +37,7 @@ function ResetForm() {
   if (!token) return (
     <div className="text-center">
       <p className="text-sm text-red-500 mb-4">Invalid reset link</p>
-      <Link href="/auth/forgot-password" className="text-sm text-[#2C6E49] hover:underline">Request a new one</Link>
+      <Link href="/auth/forgot-password" className="text-sm text-brand hover:underline">Request a new one</Link>
     </div>
   )
 
@@ -55,7 +55,7 @@ function ResetForm() {
         onChange={(e) => setPassword(e.target.value)}
         placeholder="New password"
         minLength={4}
-        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
       />
       <input
         type="password"
@@ -63,13 +63,13 @@ function ResetForm() {
         value={confirm}
         onChange={(e) => setConfirm(e.target.value)}
         placeholder="Confirm new password"
-        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
       />
       {error && <p className="text-xs text-red-500">{error}</p>}
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-[#2C6E49] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+        className="w-full bg-brand text-white py-3 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60"
       >
         {loading ? "Saving..." : "Set new password"}
       </button>

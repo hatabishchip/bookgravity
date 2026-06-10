@@ -133,7 +133,7 @@ export default function SellMembershipButton({
         aria-label="Sell membership"
         title="Sell membership"
         className={cn(
-          "inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#2C6E49] text-white font-semibold hover:bg-[#1E4D34] whitespace-nowrap shrink-0",
+          "inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand text-white font-semibold hover:bg-brand-dark whitespace-nowrap shrink-0",
           "h-9 w-9 text-base sm:h-auto sm:w-auto sm:px-3 sm:py-2 sm:text-sm",
           className
         )}
@@ -163,9 +163,9 @@ export default function SellMembershipButton({
             {done == null ? (
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
                 {/* Price banner — so admin & trainer always see what 5 classes cost. */}
-                <div className="rounded-xl bg-[#2C6E49]/[0.08] border border-[#2C6E49]/20 px-4 py-3 flex items-center justify-between">
+                <div className="rounded-xl bg-brand/[0.08] border border-brand/20 px-4 py-3 flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">{MEMBERSHIP_CLASSES} classes</span>
-                  <span className="text-lg font-bold text-[#2C6E49]">{PRICE_LABEL}</span>
+                  <span className="text-lg font-bold text-brand">{PRICE_LABEL}</span>
                 </div>
 
                 {/* Phone — large, monospaced-feel digits for readability. */}
@@ -198,7 +198,7 @@ export default function SellMembershipButton({
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Client name"
                   className={cn(
-                    "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]",
+                    "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand",
                     nameEnabled
                       ? "border-gray-300 text-gray-900"
                       : "border-gray-200 bg-gray-50 text-gray-400 placeholder:text-gray-300"
@@ -221,7 +221,7 @@ export default function SellMembershipButton({
                       className={cn(
                         "py-2 rounded-lg text-sm font-semibold border",
                         payment === pm.value
-                          ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                          ? "bg-brand text-white border-brand"
                           : "bg-white text-gray-600 border-gray-200"
                       )}
                     >
@@ -236,7 +236,7 @@ export default function SellMembershipButton({
                   type="button"
                   disabled={!phoneOk || !name.trim() || submitting}
                   onClick={submit}
-                  className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
+                  className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
                 >
                   {submitting ? "Saving…" : `Sell · ${PRICE_LABEL}`}
                 </button>
@@ -249,7 +249,7 @@ export default function SellMembershipButton({
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="w-full max-w-xs bg-[#2C6E49] hover:bg-[#1E4D34] text-white font-semibold py-3 rounded-xl"
+                  className="w-full max-w-xs bg-brand hover:bg-brand-dark text-white font-semibold py-3 rounded-xl"
                 >
                   Done
                 </button>

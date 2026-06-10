@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { assertCronAuth } from "@/lib/cron-auth"
 import { sendClassTodayConfirmWA } from "@/lib/whatsapp-cloud"
 import { appendOutboundMessage, upsertConversation } from "@/lib/whatsapp-conversation"
 import { phoneTail } from "@/lib/membership"
@@ -40,13 +41,8 @@ function baliDateStr(d: Date): string {
 }
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  if (secret) {
-    const auth = req.headers.get("authorization")
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-  }
+  const denied = assertCronAuth(req)
+  if (denied) return denied
 
   const now = new Date()
   const todayBali = baliDateStr(now)

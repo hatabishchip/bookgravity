@@ -116,7 +116,7 @@ export default async function StudioBookingPage({
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F4F0]">
+    <div className="min-h-screen bg-sand">
       <JsonLd data={businessLd} />
       {/* Remember this studio so the apex redirects here next time */}
       <StudioCookieSync slug={studio.slug} />
@@ -126,7 +126,7 @@ export default async function StudioBookingPage({
           <div className="min-w-0 flex-1">
             {/* Brand only — the studio (Canggu/Ubud) is conveyed by the
                 switcher pills below, so we don't repeat it in the title. */}
-            <h1 className="text-base sm:text-xl font-bold text-[#2C6E49] tracking-tight truncate">
+            <h1 className="text-base sm:text-xl font-bold text-brand tracking-tight truncate">
               Gravity Stretching
             </h1>
             {/* Location switcher — shows the active studio, tap to change */}
@@ -151,7 +151,7 @@ export default async function StudioBookingPage({
               <Link
                 href={dashboardHref}
                 aria-label={`Open dashboard (${badgeLabel})`}
-                className="inline-flex items-center gap-1.5 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-medium px-3 py-1.5 hover:bg-[#2C6E49]/20 max-w-[200px]"
+                className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 text-brand text-xs font-medium px-3 py-1.5 hover:bg-brand/20 max-w-[200px]"
               >
                 <span className="truncate">{badgeLabel}</span>
                 <span aria-hidden className="flex-shrink-0">›</span>
@@ -160,7 +160,7 @@ export default async function StudioBookingPage({
               <Link
                 href="/login"
                 aria-label="Staff sign in"
-                className="text-gray-300 hover:text-[#2C6E49] text-xs"
+                className="text-gray-300 hover:text-brand text-xs"
               >
                 Sign in
               </Link>

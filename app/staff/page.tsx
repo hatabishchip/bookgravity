@@ -92,7 +92,7 @@ export default function StaffSchedulePage() {
                 key={d}
                 className={
                   "rounded-2xl border bg-white px-4 py-3 " +
-                  (isToday ? "border-[#2C6E49]/30 shadow-sm" : "border-gray-100")
+                  (isToday ? "border-brand/30 shadow-sm" : "border-gray-100")
                 }
               >
                 <header className="flex items-baseline justify-between gap-2 mb-2">
@@ -100,7 +100,7 @@ export default function StaffSchedulePage() {
                     <div className="text-base font-semibold text-gray-900">
                       {format(date, "EEEE")}
                       {isToday && (
-                        <span className="ml-2 text-[10px] uppercase tracking-wider font-bold text-[#2C6E49] bg-[#2C6E49]/10 px-1.5 py-0.5 rounded">
+                        <span className="ml-2 text-[10px] uppercase tracking-wider font-bold text-brand bg-brand/10 px-1.5 py-0.5 rounded">
                           Today
                         </span>
                       )}
@@ -126,13 +126,13 @@ export default function StaffSchedulePage() {
                     {list.map((s) => (
                       <li
                         key={s.id}
-                        className="flex items-center gap-3 rounded-xl border border-[#2C6E49]/20 bg-[#2C6E49]/[0.07] px-3 py-2.5"
+                        className="flex items-center gap-3 rounded-xl border border-brand/20 bg-brand/[0.07] px-3 py-2.5"
                       >
-                        <Clock size={16} className="text-[#2C6E49] shrink-0" strokeWidth={2.25} />
+                        <Clock size={16} className="text-brand shrink-0" strokeWidth={2.25} />
                         <div className="text-sm font-semibold text-gray-900 tabular-nums">
                           {formatTime(s.startTime)} – {formatTime(s.endTime)}
                         </div>
-                        <div className="ml-auto text-[10px] uppercase tracking-wider text-[#2C6E49]/70 font-semibold">
+                        <div className="ml-auto text-[10px] uppercase tracking-wider text-brand/70 font-semibold">
                           Room in use
                         </div>
                       </li>

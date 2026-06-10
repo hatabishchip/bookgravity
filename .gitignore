@@ -40,7 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# /app/generated/prisma
+# Stale generated Prisma clients (old generator outputs; real client lives in
+# node_modules via prisma-client-js). Never commit these.
+/app/generated
+/prisma-client
 dev.db
 dev.db-shm
 dev.db-wal

@@ -34,7 +34,7 @@ const STEPS = [
           href={FB_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[#2C6E49] font-mono font-medium hover:underline"
+          className="text-brand font-mono font-medium hover:underline"
         >
           business.facebook.com/wa/manage/phone-numbers
         </a>
@@ -99,7 +99,7 @@ const STEPS = [
       </>,
       <>
         Номер появится в списке со статусом{" "}
-        <strong className="text-[#2C6E49]">«Подключено»</strong>.
+        <strong className="text-brand">«Подключено»</strong>.
       </>,
     ],
     mock: "code",
@@ -127,7 +127,7 @@ export default function WhatsAppSetupPage() {
         {/* Header */}
         <header className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-[#2C6E49] leading-tight">
+            <h1 className="text-3xl sm:text-4xl font-bold text-brand leading-tight">
               Активация WhatsApp
             </h1>
             <p className="text-gray-500 mt-2">
@@ -139,7 +139,7 @@ export default function WhatsAppSetupPage() {
             href={FB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#2C6E49] hover:bg-[#1E4D34] text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
           >
             Открыть Facebook
             <ExternalLink size={16} />
@@ -154,7 +154,7 @@ export default function WhatsAppSetupPage() {
               className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
             >
               <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#2C6E49] text-white font-bold text-lg flex items-center justify-center">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-brand text-white font-bold text-lg flex items-center justify-center">
                   {s.n}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -164,7 +164,7 @@ export default function WhatsAppSetupPage() {
                   <ul className="space-y-2 text-gray-700 leading-relaxed">
                     {s.lines.map((line, i) => (
                       <li key={i} className="flex items-start gap-2">
-                        <span className="text-[#2C6E49] mt-1.5 flex-shrink-0">
+                        <span className="text-brand mt-1.5 flex-shrink-0">
                           •
                         </span>
                         <span className="min-w-0">{line}</span>
@@ -181,7 +181,7 @@ export default function WhatsAppSetupPage() {
         {/* Hand-off template */}
         <section className="mt-10 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-2 flex items-center gap-2">
-            <Copy size={20} className="text-[#2C6E49]" />
+            <Copy size={20} className="text-brand" />
             Шаблон для отправки
           </h2>
           <p className="text-sm text-gray-500 mb-4">
@@ -197,7 +197,7 @@ Display phone:   +62 ___________`}
 
         {/* Footer */}
         <footer className="mt-10 text-center text-sm text-gray-400">
-          <Link href="/admin/settings" className="text-[#2C6E49] hover:underline">
+          <Link href="/admin/settings" className="text-brand hover:underline">
             ← Назад в Settings
           </Link>
         </footer>
@@ -227,7 +227,7 @@ function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
                 Инструменты управления
               </div>
               <div className="text-gray-400 pl-2">Статистика</div>
-              <div className="pl-2 px-2 py-1 rounded bg-emerald-50 text-[#2C6E49] font-semibold -mx-2">
+              <div className="pl-2 px-2 py-1 rounded bg-emerald-50 text-brand font-semibold -mx-2">
                 Номера телефонов
               </div>
             </aside>
@@ -256,7 +256,7 @@ function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
                   </div>
                   <div className="text-gray-700">GravityStretchingCanggu</div>
                   <div>
-                    <span className="bg-emerald-50 text-[#2C6E49] px-2 py-0.5 rounded text-[10px] font-semibold border border-emerald-200">
+                    <span className="bg-emerald-50 text-brand px-2 py-0.5 rounded text-[10px] font-semibold border border-emerald-200">
                       Подключено
                     </span>
                   </div>

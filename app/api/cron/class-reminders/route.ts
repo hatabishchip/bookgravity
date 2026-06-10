@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { assertCronAuth } from "@/lib/cron-auth"
 import { sendClassReminderWA } from "@/lib/whatsapp-cloud"
 import { appendOutboundMessage, upsertConversation } from "@/lib/whatsapp-conversation"
 import { phoneTail } from "@/lib/membership"
@@ -46,17 +47,8 @@ function addDaysStr(ymd: string, n: number): string {
 }
 
 export async function GET(req: NextRequest) {
-  // Auth: Vercel Cron injects "Authorization: Bearer <CRON_SECRET>" when the
-  // CRON_SECRET env is set. If it's set we require it; if not, we allow (so the
-  // job works before the secret is configured) but Vercel's own cron header is
-  // still a soft signal.
-  const secret = process.env.CRON_SECRET
-  if (secret) {
-    const auth = req.headers.get("authorization")
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-  }
+  const denied = assertCronAuth(req)
+  if (denied) return denied
 
   const now = new Date()
   const todayBali = baliDateStr(now)

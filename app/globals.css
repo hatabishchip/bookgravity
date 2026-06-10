@@ -12,6 +12,9 @@
   --color-brand-dark: #1E4D34;
   --color-accent: #C8956C;
   --color-bg: #F5F4F0;
+  /* Page/canvas sand tone. Same value as --color-bg; named `sand` so the
+     utility reads as `bg-sand` rather than the confusing `bg-bg`. */
+  --color-sand: #F5F4F0;
 }
 
 /* ===========================================================================

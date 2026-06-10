@@ -38,7 +38,7 @@ function Impersonating() {
   }, [studioId])
 
   return (
-    <div className="min-h-[100svh] flex items-center justify-center bg-[#F5F4F0] px-6 text-center">
+    <div className="min-h-[100svh] flex items-center justify-center bg-sand px-6 text-center">
       {error ? (
         <div className="max-w-sm">
           <p className="text-sm font-semibold text-red-600">Couldn&apos;t open the studio admin</p>
@@ -46,7 +46,7 @@ function Impersonating() {
         </div>
       ) : (
         <div className="flex items-center gap-2 text-gray-500 text-sm">
-          <span className="w-4 h-4 border-2 border-gray-300 border-t-[#2C6E49] rounded-full animate-spin" />
+          <span className="w-4 h-4 border-2 border-gray-300 border-t-brand rounded-full animate-spin" />
           Opening the studio admin…
         </div>
       )}

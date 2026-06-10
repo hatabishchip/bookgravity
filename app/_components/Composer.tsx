@@ -271,7 +271,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                 disabled={!onAttach}
                 className={cn(
                   "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 active:opacity-60",
-                  desktop && emojiOpen ? "text-[#2C6E49] dark:text-[#69B58F]" : "text-gray-600 dark:text-[#8696A0]",
+                  desktop && emojiOpen ? "text-brand dark:text-[#69B58F]" : "text-gray-600 dark:text-[#8696A0]",
                 )}
                 aria-label="Emoji"
               >
@@ -360,7 +360,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               className={cn(
                 // Bright brand-green caret so it's obvious where the cursor is
                 // (the native caret was hard to spot, especially on mobile).
-                "flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 caret-[#2C6E49] disabled:text-gray-400 dark:disabled:text-[#5C6970]",
+                "flex-1 resize-none overflow-y-auto leading-snug bg-transparent border-0 outline-none focus:outline-none focus:ring-0 py-1.5 caret-brand disabled:text-gray-400 dark:disabled:text-[#5C6970]",
                 windowOpen
                   ? "text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0]"
                   : "text-gray-500 dark:text-[#8696A0] placeholder-gray-400 dark:placeholder-[#5C6970]",
@@ -381,7 +381,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             className={cn(
               "w-10 h-10 rounded-full flex items-center justify-center transition-colors flex-shrink-0",
               // Active (has text): solid brand green, white icon — same in light + dark.
-              "bg-[#2C6E49] text-white shadow-sm enabled:hover:bg-[#225737] enabled:active:bg-[#1E4D34]",
+              "bg-brand text-white shadow-sm enabled:hover:bg-[#225737] enabled:active:bg-brand-dark",
               // Idle (empty): muted, clearly non-actionable.
               "disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none dark:disabled:bg-[#2A3942] dark:disabled:text-[#5C6970]",
             )}

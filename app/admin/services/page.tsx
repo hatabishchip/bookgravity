@@ -123,7 +123,7 @@ export default function ServicesPage() {
         {services.filter((s) => s.active).length < 3 && (
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 bg-[#2C6E49] text-white px-3 lg:px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#1E4D34] transition-colors flex-shrink-0"
+            className="flex items-center gap-2 bg-brand text-white px-3 lg:px-4 py-2 rounded-xl text-sm font-medium hover:bg-brand-dark transition-colors flex-shrink-0"
           >
             <Plus size={16} />
             <span className="hidden sm:inline">Add Service</span>
@@ -156,10 +156,10 @@ export default function ServicesPage() {
             <div
               className={cn(
                 "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
-                service.active ? "bg-[#2C6E49]/10" : "bg-gray-200",
+                service.active ? "bg-brand/10" : "bg-gray-200",
               )}
             >
-              <Package size={18} className={service.active ? "text-[#2C6E49]" : "text-gray-400"} />
+              <Package size={18} className={service.active ? "text-brand" : "text-gray-400"} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -176,7 +176,7 @@ export default function ServicesPage() {
                 <Pencil size={10} /> tap to edit
               </div>
             </div>
-            <div className={cn("text-lg font-bold flex-shrink-0", service.active ? "text-[#2C6E49]" : "text-gray-400")}>
+            <div className={cn("text-lg font-bold flex-shrink-0", service.active ? "text-brand" : "text-gray-400")}>
               {priceToK(service.price)}k
             </div>
 
@@ -189,7 +189,7 @@ export default function ServicesPage() {
               className={cn(
                 "p-2 rounded-lg transition-colors flex-shrink-0 border",
                 service.active
-                  ? "bg-white text-[#2C6E49] border-[#2C6E49]/30 hover:bg-[#2C6E49]/10"
+                  ? "bg-white text-brand border-brand/30 hover:bg-brand/10"
                   : "bg-white text-gray-400 border-gray-200 hover:bg-gray-100",
               )}
             >
@@ -237,7 +237,7 @@ export default function ServicesPage() {
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                   placeholder="e.g. Mat Rental"
                 />
               </div>
@@ -251,7 +251,7 @@ export default function ServicesPage() {
                     step="1"
                     value={form.priceK}
                     onChange={(e) => setForm({ ...form, priceK: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                     placeholder="50"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-400 pointer-events-none">k</span>
@@ -265,7 +265,7 @@ export default function ServicesPage() {
                 <button type="button" onClick={closeModal} className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl text-sm font-medium hover:bg-gray-50">
                   Cancel
                 </button>
-                <button type="submit" disabled={saving} className="flex-1 bg-[#2C6E49] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
+                <button type="submit" disabled={saving} className="flex-1 bg-brand text-white py-3 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
                   {saving ? "Saving..." : editing ? "Save Changes" : "Add Service"}
                 </button>
               </div>
@@ -351,8 +351,8 @@ function MainServicesCard() {
             const isEditing = editing === kind
             return (
               <div key={kind} className="w-full bg-white rounded-2xl p-4 lg:p-5 shadow-sm flex items-center gap-3 lg:gap-4">
-                <div className="w-10 h-10 bg-[#2C6E49]/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Package size={18} className="text-[#2C6E49]" />
+                <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Package size={18} className="text-brand" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-gray-800 truncate">{label}</div>
@@ -363,7 +363,7 @@ function MainServicesCard() {
                     <PriceInput
                       value={draftValue}
                       onChange={setDraftValue}
-                      className="w-28 sm:w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                      className="w-28 sm:w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                     />
                     <button
                       type="button"
@@ -377,21 +377,21 @@ function MainServicesCard() {
                       type="button"
                       onClick={() => save(field)}
                       disabled={saving || draftValue === value}
-                      className="px-3 py-2 rounded-lg bg-[#2C6E49] text-white text-xs font-medium hover:bg-[#1E4D34] disabled:opacity-50"
+                      className="px-3 py-2 rounded-lg bg-brand text-white text-xs font-medium hover:bg-brand-dark disabled:opacity-50"
                     >
                       {saving ? "…" : "Save"}
                     </button>
                   </div>
                 ) : (
                   <>
-                    <div className="text-lg font-bold text-[#2C6E49] flex-shrink-0">
+                    <div className="text-lg font-bold text-brand flex-shrink-0">
                       {formatPriceShort(value)}
                     </div>
                     <button
                       type="button"
                       onClick={() => startEdit(kind, value)}
                       title="Edit price"
-                      className="p-2 hover:bg-[#2C6E49]/5 rounded-lg text-gray-400 hover:text-[#2C6E49] flex-shrink-0"
+                      className="p-2 hover:bg-brand/5 rounded-lg text-gray-400 hover:text-brand flex-shrink-0"
                     >
                       <Pencil size={14} />
                     </button>

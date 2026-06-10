@@ -34,12 +34,12 @@ export default function ForgotPasswordPage() {
 
         {sent ? (
           <div className="text-center">
-            <div className="w-12 h-12 bg-[#2C6E49]/10 rounded-full flex items-center justify-center mx-auto mb-3">
+            <div className="w-12 h-12 bg-brand/10 rounded-full flex items-center justify-center mx-auto mb-3">
               <span className="text-2xl">✉️</span>
             </div>
             <p className="text-sm text-gray-700 font-medium mb-1">Check your email</p>
             <p className="text-sm text-gray-400 mb-4">A reset link has been sent to <strong>{email}</strong></p>
-            <Link href="/login" className="text-sm text-[#2C6E49] hover:underline">Back to sign in</Link>
+            <Link href="/login" className="text-sm text-brand hover:underline">Back to sign in</Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -49,13 +49,13 @@ export default function ForgotPasswordPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
             />
             {error && <p className="text-xs text-red-500">{error}</p>}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#2C6E49] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+              className="w-full bg-brand text-white py-3 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60"
             >
               {loading ? "Sending..." : "Send reset link"}
             </button>

@@ -299,7 +299,7 @@ export default function TrainerSchedule({
         {/* Legend */}
         <div className="px-4 sm:px-6 pt-3 sm:pt-4 pb-2 hidden md:flex items-center gap-5 text-xs text-gray-500 flex-wrap">
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm bg-[#2C6E49] flex items-center justify-center">
+            <span className="w-3 h-3 rounded-sm bg-brand flex items-center justify-center">
               <Check size={8} className="text-white" strokeWidth={3} />
             </span>
             Assigned — click to remove
@@ -309,7 +309,7 @@ export default function TrainerSchedule({
             Not assigned — click to assign
           </span>
           <span className="flex items-center gap-1.5">
-            <Plus size={11} className="text-[#2C6E49]" />
+            <Plus size={11} className="text-brand" />
             Click empty day to add new session
           </span>
         </div>
@@ -475,7 +475,7 @@ export default function TrainerSchedule({
               <div>
                 <h2 className="text-lg font-semibold text-gray-800">Add Session</h2>
                 <p className="text-sm text-gray-400 mt-0.5">
-                  {format(new Date(createForm.date + "T00:00:00"), "EEEE, MMMM d")} · <span className="text-[#2C6E49] font-medium">{trainer.name}</span>
+                  {format(new Date(createForm.date + "T00:00:00"), "EEEE, MMMM d")} · <span className="text-brand font-medium">{trainer.name}</span>
                 </p>
               </div>
               <button onClick={() => setCreateModal(null)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -509,10 +509,10 @@ export default function TrainerSchedule({
                           }}
                           className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium",
                             taken
-                              ? "bg-[#2C6E49] text-white border-[#2C6E49] cursor-default"
+                              ? "bg-brand text-white border-brand cursor-default"
                               : selected
-                                ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                                : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                                ? "bg-brand text-white border-brand"
+                                : "bg-white text-gray-600 border-gray-200 hover:border-brand/40"
                           )}>
                           {formatTime(t)}
                         </button>
@@ -526,7 +526,7 @@ export default function TrainerSchedule({
                     type="time"
                     value={createForm.customTime}
                     onChange={(e) => setCreateForm({ ...createForm, customTime: e.target.value })}
-                    className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                   />
                   <button
                     type="button"
@@ -535,7 +535,7 @@ export default function TrainerSchedule({
                       const next = sortTimes([...createForm.startTimes, createForm.customTime])
                       setCreateForm({ ...createForm, startTimes: next })
                     }}
-                    className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#2C6E49]/40 transition-colors"
+                    className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:border-brand/40 transition-colors"
                   >
                     + Add
                   </button>
@@ -546,10 +546,10 @@ export default function TrainerSchedule({
                     <div className="text-xs text-gray-500 mb-1.5">Selected ({createForm.startTimes.length}):</div>
                     <div className="flex flex-wrap gap-1.5">
                       {createForm.startTimes.map((t) => (
-                        <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#2C6E49]/10 text-[#2C6E49] text-xs font-medium">
+                        <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand/10 text-brand text-xs font-medium">
                           {formatTime(t)} – {formatTime(computeEndTime(t))}
                           <button type="button" onClick={() => setCreateForm({ ...createForm, startTimes: createForm.startTimes.filter((x) => x !== t) })}
-                            className="text-[#2C6E49]/60 hover:text-red-500 ml-0.5 text-base leading-none">×</button>
+                            className="text-brand/60 hover:text-red-500 ml-0.5 text-base leading-none">×</button>
                         </span>
                       ))}
                     </div>
@@ -564,7 +564,7 @@ export default function TrainerSchedule({
                     required
                     value={createForm.maxCapacity}
                     onChange={(e) => setCreateForm({ ...createForm, maxCapacity: Number(e.target.value) })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] bg-white"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand bg-white"
                   >
                     {[1, 2, 3, 4, 5, 6].map((n) => (
                       <option key={n} value={n}>{n}</option>
@@ -577,7 +577,7 @@ export default function TrainerSchedule({
                     type="number" min="0" step="1000" required
                     value={createForm.price}
                     onChange={(e) => setCreateForm({ ...createForm, price: Number(e.target.value) })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                   />
                 </div>
               </div>
@@ -608,7 +608,7 @@ export default function TrainerSchedule({
                               <span className="text-xs text-gray-500 tabular-nums">{s._count.bookings}/{s.maxCapacity}</span>
                               <span className={cn(
                                 "px-1.5 py-0.5 rounded-full text-[10px] font-medium",
-                                mine ? "bg-[#2C6E49]/10 text-[#2C6E49]" : s.trainer ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
+                                mine ? "bg-brand/10 text-brand" : s.trainer ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
                               )}>
                                 {s.trainer ? s.trainer.name : "Unassigned"}
                               </span>
@@ -626,7 +626,7 @@ export default function TrainerSchedule({
                 <button type="button" onClick={() => setCreateModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">
                   Cancel
                 </button>
-                <button type="submit" disabled={creating} className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
+                <button type="submit" disabled={creating} className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
                   {creating ? "Creating..." : "Create Session"}
                 </button>
               </div>

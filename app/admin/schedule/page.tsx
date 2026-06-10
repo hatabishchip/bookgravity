@@ -226,7 +226,7 @@ function SlotClientList({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#2C6E49] hover:underline"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand hover:underline"
           >
             <Plus size={12} /> Add client
           </button>
@@ -790,7 +790,7 @@ export default function SchedulePage() {
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={openCopyModal}
-              className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 px-3 lg:px-4 py-2 rounded-xl text-xs lg:text-sm font-medium hover:border-[#2C6E49]/40 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 px-3 lg:px-4 py-2 rounded-xl text-xs lg:text-sm font-medium hover:border-brand/40 hover:bg-gray-50 transition-colors"
               title="Copy this week's schedule to next week"
             >
               <Copy size={15} /> <span className="hidden sm:inline">Copy week</span>
@@ -885,7 +885,7 @@ export default function SchedulePage() {
                 "rounded-2xl shadow-sm group relative",
                 cellPad, cellMinH,
                 blocked ? "bg-gray-100 cursor-not-allowed" : "bg-white cursor-pointer",
-                !blocked && isSelected ? "ring-2 ring-[#2C6E49]" : !blocked && "hover:ring-1 hover:ring-[#2C6E49]/30",
+                !blocked && isSelected ? "ring-2 ring-brand" : !blocked && "hover:ring-1 hover:ring-brand/30",
                 isOutsideMonth && "opacity-40",
               )}
             >
@@ -895,7 +895,7 @@ export default function SchedulePage() {
                   <div>
                     <div className={cn(
                       "text-lg font-bold leading-tight",
-                      isToday && !blocked ? "text-[#2C6E49]" : blocked ? "text-gray-400" : "text-gray-900"
+                      isToday && !blocked ? "text-brand" : blocked ? "text-gray-400" : "text-gray-900"
                     )}>
                       {format(day, "EEEE")}
                     </div>
@@ -904,7 +904,7 @@ export default function SchedulePage() {
                     </div>
                   </div>
                   {isToday && !blocked && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider bg-[#2C6E49] text-white px-2 py-1 rounded-full">Today</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-brand text-white px-2 py-1 rounded-full">Today</span>
                   )}
                 </div>
               ) : (
@@ -913,7 +913,7 @@ export default function SchedulePage() {
                   {format(day, "EEE")}
                 </div>
                 <div className={cn("font-bold mx-auto flex items-center justify-center rounded-full text-lg w-8 h-8 mt-0.5",
-                  isToday && !blocked ? "bg-[#2C6E49] text-white" : blocked ? "text-gray-400" : "text-gray-800"
+                  isToday && !blocked ? "bg-brand text-white" : blocked ? "text-gray-400" : "text-gray-800"
                 )}>
                   {format(day, "d")}
                 </div>
@@ -1145,10 +1145,10 @@ export default function SchedulePage() {
                           }}
                           className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium",
                             selected
-                              ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                              ? "bg-brand text-white border-brand"
                               : disabled
                                 ? "bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed line-through"
-                                : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                                : "bg-white text-gray-600 border-gray-200 hover:border-brand/40"
                           )}>
                           {formatTime(t)}
                         </button>
@@ -1158,7 +1158,7 @@ export default function SchedulePage() {
                   <div className="flex gap-2">
                     <input type="time" value={form.customTime}
                       onChange={(e) => setForm({ ...form, customTime: e.target.value })}
-                      className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                      className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                     />
                     <button type="button"
                       onClick={() => {
@@ -1177,7 +1177,7 @@ export default function SchedulePage() {
                         setForm({ ...form, startTimes: sortTimes([...form.startTimes, form.customTime]), assignments: newA })
                         setFormError("")
                       }}
-                      className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#2C6E49]/40 transition-colors"
+                      className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:border-brand/40 transition-colors"
                     >
                       + Add
                     </button>
@@ -1215,12 +1215,12 @@ export default function SchedulePage() {
                                 return (
                                   <div key={t} className={cn(
                                     "rounded-lg text-xs border px-3 py-2.5 space-y-2",
-                                    isExisting ? "bg-gray-50 border-gray-200" : "bg-[#2C6E49]/5 border-[#2C6E49]/15"
+                                    isExisting ? "bg-gray-50 border-gray-200" : "bg-brand/5 border-brand/15"
                                   )}>
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className={cn(
                                         "font-medium whitespace-nowrap",
-                                        isExisting ? "text-gray-700" : "text-[#2C6E49]"
+                                        isExisting ? "text-gray-700" : "text-brand"
                                       )}>
                                         {formatTime(t)} – {formatTime(computeEndTime(t))}
                                       </span>
@@ -1254,7 +1254,7 @@ export default function SchedulePage() {
                                             className={cn(
                                               "w-7 h-7 rounded text-[11px] font-bold leading-none flex items-center justify-center border touch-manipulation",
                                               assignment.classType === c.value
-                                                ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                                                ? "bg-brand text-white border-brand"
                                                 : "bg-white text-gray-500 border-gray-200"
                                             )}>
                                             {c.value[0]}
@@ -1273,7 +1273,7 @@ export default function SchedulePage() {
                                           className={cn(
                                             "w-7 h-7 rounded flex items-center justify-center border touch-manipulation",
                                             assignment.publicVisible
-                                              ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
+                                              ? "bg-white text-brand border-brand/40"
                                               : "bg-gray-50 text-gray-400 border-gray-200"
                                           )}>
                                           {assignment.publicVisible
@@ -1297,7 +1297,7 @@ export default function SchedulePage() {
                                         className={cn(
                                           "w-6 h-6 rounded-md flex items-center justify-center text-lg leading-none touch-manipulation flex-shrink-0",
                                           hasBookings ? "text-gray-300 cursor-not-allowed" :
-                                            isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-[#2C6E49]/60 hover:text-rose-600 hover:bg-rose-50"
+                                            isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-brand/60 hover:text-rose-600 hover:bg-rose-50"
                                         )}>×</button>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -1311,7 +1311,7 @@ export default function SchedulePage() {
                                           updateAssignment({ trainerId: next, assistantId: next ? assignment.assistantId : "" })
                                         }}
                                         title={hasClients ? "A trainer is required while clients are booked — you can switch trainers but not remove" : "Trainer"}
-                                        className="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30"
+                                        className="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand/30"
                                       >
                                         {!hasClients && <option value="">Unassigned</option>}
                                         {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
@@ -1320,7 +1320,7 @@ export default function SchedulePage() {
                                         <select
                                           value={assignment.assistantId}
                                           onChange={(e) => updateAssignment({ assistantId: e.target.value })}
-                                          className="flex-1 min-w-0 text-xs border border-dashed border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 text-gray-500"
+                                          className="flex-1 min-w-0 text-xs border border-dashed border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand/30 text-gray-500"
                                           title="Assistant"
                                         >
                                           <option value="">+ Asst</option>
@@ -1333,7 +1333,7 @@ export default function SchedulePage() {
                                         disabled={isPrivate}
                                         onChange={(e) => updateAssignment({ maxCapacity: Number(e.target.value) })}
                                         title={isPrivate ? "Private session is always 1 person" : "Capacity"}
-                                        className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 disabled:opacity-60 disabled:bg-gray-50 flex-shrink-0"
+                                        className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand/30 disabled:opacity-60 disabled:bg-gray-50 flex-shrink-0"
                                       >
                                         {[1, 2, 3, 4, 5, 6].map((n) => (
                                           <option key={n} value={n}>👤 {n}</option>
@@ -1356,18 +1356,18 @@ export default function SchedulePage() {
                                         <label className={cn(
                                           "flex items-start gap-2 cursor-pointer select-none rounded-md px-2 py-1.5 transition-colors",
                                           assignment.repeatWeekly
-                                            ? "bg-[#2C6E49]/5 hover:bg-[#2C6E49]/10"
+                                            ? "bg-brand/5 hover:bg-brand/10"
                                             : "bg-gray-50 hover:bg-gray-100"
                                         )}>
                                           <input type="checkbox"
                                             checked={assignment.repeatWeekly}
                                             onChange={(e) => updateAssignment({ repeatWeekly: e.target.checked })}
-                                            className="w-4 h-4 mt-0.5 accent-[#2C6E49] flex-shrink-0"
+                                            className="w-4 h-4 mt-0.5 accent-brand flex-shrink-0"
                                           />
                                           <div className="min-w-0 flex-1 leading-tight">
                                             <div className={cn(
                                               "text-[11px] font-medium",
-                                              assignment.repeatWeekly ? "text-[#2C6E49]" : "text-gray-600"
+                                              assignment.repeatWeekly ? "text-brand" : "text-gray-600"
                                             )}>
                                               Repeat every {weekday}
                                             </div>
@@ -1424,7 +1424,7 @@ export default function SchedulePage() {
 
               <div className="px-6 py-4 flex gap-3 flex-shrink-0 border-t border-gray-100">
                 <button type="button" onClick={closeModal} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-                <button type="submit" className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34]">
+                <button type="submit" className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark">
                   {(() => {
                     const existing = slots.filter((s) => s.date === form.date)
                     const existingByTime = new Map(existing.map((s) => [s.startTime, s] as const))
@@ -1494,8 +1494,8 @@ export default function SchedulePage() {
                         className={cn(
                           "flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors disabled:opacity-50",
                           copyModal.weeksAhead === n
-                            ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                            : "bg-white text-gray-700 border-gray-200 hover:border-[#2C6E49]/40"
+                            ? "bg-brand text-white border-brand"
+                            : "bg-white text-gray-700 border-gray-200 hover:border-brand/40"
                         )}
                       >
                         {n} {n === 1 ? "week" : "weeks"}
@@ -1513,9 +1513,9 @@ export default function SchedulePage() {
                 ) : (
                   <>
                     {/* Summary */}
-                    <div className="mb-3 p-3 rounded-xl bg-[#2C6E49]/5 border border-[#2C6E49]/10">
+                    <div className="mb-3 p-3 rounded-xl bg-brand/5 border border-brand/10">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold text-[#2C6E49]">{totalToCopy}</span>
+                        <span className="text-2xl font-bold text-brand">{totalToCopy}</span>
                         <span className="text-sm text-gray-700">
                           session{totalToCopy !== 1 ? "s" : ""} will be created across {copyModal.weeksAhead} week{copyModal.weeksAhead !== 1 ? "s" : ""}
                         </span>
@@ -1536,7 +1536,7 @@ export default function SchedulePage() {
                               Week {plan.weekIndex} · {format(plan.targetStart, "MMM d")} – {format(addDays(plan.targetStart, 6), "MMM d")}
                             </div>
                             <div className="text-xs text-gray-500">
-                              <span className="text-[#2C6E49] font-medium">+{plan.toCopy.length}</span>
+                              <span className="text-brand font-medium">+{plan.toCopy.length}</span>
                               {plan.skipped > 0 && <span className="ml-2 text-amber-600">−{plan.skipped} skipped</span>}
                             </div>
                           </div>
@@ -1579,7 +1579,7 @@ export default function SchedulePage() {
                 <button
                   onClick={runCopy}
                   disabled={copyModal.loading || copyModal.running || totalToCopy === 0}
-                  className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+                  className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60"
                 >
                   {copyModal.running ? "Copying…" : totalToCopy > 0 ? `Copy ${totalToCopy} sessions` : "Nothing to copy"}
                 </button>

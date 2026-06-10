@@ -244,7 +244,7 @@ export default function SalaryPage() {
                   <button
                     onClick={() => { setPayModal(t); setPayAmount(String(t.balance > 0 ? t.balance : "")) }}
                     disabled={t.balance <= 0}
-                    className="px-3 py-2 bg-[#2C6E49] text-white text-xs font-medium rounded-lg hover:bg-[#1E4D34] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    className="px-3 py-2 bg-brand text-white text-xs font-medium rounded-lg hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                   >
                     Pay out
                   </button>
@@ -272,7 +272,7 @@ export default function SalaryPage() {
                           {p.kind === "accrual" ? (
                             <span className="text-amber-600 font-medium">+{formatIDR(p.amount)} accrued</span>
                           ) : (
-                            <span className="text-[#2C6E49] font-medium">{formatIDR(p.amount)} paid</span>
+                            <span className="text-brand font-medium">{formatIDR(p.amount)} paid</span>
                           )}
                           <span className="text-gray-300">·</span>
                           <span className="text-gray-400">{format(new Date(p.createdAt), "d MMM")}</span>
@@ -304,7 +304,7 @@ export default function SalaryPage() {
           </div>
           <button
             onClick={() => setShowExpenseForm(true)}
-            className="flex items-center gap-1.5 bg-[#2C6E49] text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-[#1E4D34] transition-colors flex-shrink-0"
+            className="flex items-center gap-1.5 bg-brand text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-brand-dark transition-colors flex-shrink-0"
           >
             <Plus size={14} />
             <span className="hidden sm:inline">Add Expense</span>
@@ -360,7 +360,7 @@ export default function SalaryPage() {
             <div className="bg-gray-50 rounded-xl px-4 py-3 mb-4 text-sm space-y-1.5">
               <div className="flex justify-between gap-3"><span className="text-gray-500">Commission ({payModal.commissionRate}%)</span><span className="font-medium">+{formatIDR(payModal.commission)}</span></div>
               <div className="flex justify-between gap-3"><span className="text-gray-500">Already paid</span><span className="font-medium text-green-600">−{formatIDR(payModal.paid)}</span></div>
-              <div className="flex justify-between gap-3 border-t border-gray-200 pt-1.5 mt-1"><span className="font-medium text-gray-700">Balance due</span><span className="font-bold text-[#2C6E49]">{formatIDR(payModal.balance)}</span></div>
+              <div className="flex justify-between gap-3 border-t border-gray-200 pt-1.5 mt-1"><span className="font-medium text-gray-700">Balance due</span><span className="font-bold text-brand">{formatIDR(payModal.balance)}</span></div>
             </div>
 
             <form onSubmit={handlePay} className="space-y-3">
@@ -373,7 +373,7 @@ export default function SalaryPage() {
                   step="1000"
                   value={payAmount}
                   onChange={(e) => setPayAmount(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                   placeholder="Enter amount"
                 />
               </div>
@@ -383,13 +383,13 @@ export default function SalaryPage() {
                   type="text"
                   value={payNote}
                   onChange={(e) => setPayNote(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                   placeholder="e.g. Cash, transfer #123"
                 />
               </div>
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setPayModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={paying} className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
+                <button type="submit" disabled={paying} className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
                   {paying ? "Saving..." : "Confirm Payment"}
                 </button>
               </div>
@@ -420,7 +420,7 @@ export default function SalaryPage() {
                     step="1000"
                     value={expForm.amount}
                     onChange={(e) => setExpForm({ ...expForm, amount: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                     placeholder="0"
                   />
                 </div>
@@ -431,7 +431,7 @@ export default function SalaryPage() {
                     required
                     value={expForm.date}
                     onChange={(e) => { setExpForm({ ...expForm, date: e.target.value }); (e.target as HTMLInputElement).blur() }}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                   />
                 </div>
               </div>
@@ -440,7 +440,7 @@ export default function SalaryPage() {
                 <select
                   value={expForm.category}
                   onChange={(e) => setExpForm({ ...expForm, category: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                 >
                   {EXPENSE_CATEGORIES.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -453,13 +453,13 @@ export default function SalaryPage() {
                   type="text"
                   value={expForm.description}
                   onChange={(e) => setExpForm({ ...expForm, description: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                   placeholder="e.g. Monthly studio rent"
                 />
               </div>
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setShowExpenseForm(false)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={savingExp} className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
+                <button type="submit" disabled={savingExp} className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
                   {savingExp ? "Saving..." : "Add Expense"}
                 </button>
               </div>
@@ -484,7 +484,7 @@ function Stat({
 }) {
   const colors = {
     default: "text-gray-800",
-    brand: "text-[#2C6E49]",
+    brand: "text-brand",
     amber: "text-amber-600",
     red: "text-red-500",
     muted: "text-gray-400",

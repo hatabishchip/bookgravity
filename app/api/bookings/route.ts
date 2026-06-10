@@ -34,17 +34,33 @@ const BookingSchema = z.object({
   otpCode: z.string().optional(),
 })
 
-async function generateUniqueCode(slotId: string): Promise<string> {
+// Thrown inside the booking transaction when a concurrent request filled the
+// last seats between our first capacity check and the atomic re-check. Caught
+// at the end of POST and turned into a 409 (same shape as the early check).
+class CapacityError extends Error {
+  constructor(public seatsLeft: number, public requested: number) {
+    super(`Only ${seatsLeft} spot(s) left, you requested ${requested}`)
+  }
+}
+
+// Generate `count` distinct 3-digit ticket codes for a slot, none colliding
+// with existing confirmed bookings. Codes are picked up-front (before the
+// create transaction) so codes within one party can't collide with each other
+// even though the in-flight rows aren't yet committed/visible to a read.
+async function generateUniqueCodes(slotId: string, count: number): Promise<string[]> {
   const existing = await prisma.booking.findMany({
     where: { slotId, status: "CONFIRMED" },
     select: { ticketCode: true },
   })
   const used = new Set(existing.map((b) => b.ticketCode))
-  let code: string
-  do {
-    code = String(Math.floor(100 + Math.random() * 900))
-  } while (used.has(code))
-  return code
+  const codes: string[] = []
+  while (codes.length < count) {
+    const code = String(Math.floor(100 + Math.random() * 900))
+    if (used.has(code)) continue
+    used.add(code)
+    codes.push(code)
+  }
+  return codes
 }
 
 export async function POST(request: NextRequest) {
@@ -156,29 +172,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create N bookings (one per person), all sharing the same lead's name+phone
+    // Create N bookings (one per person), all sharing the same lead's name+phone.
+    // The whole thing runs in a transaction that RE-CHECKS capacity against a
+    // fresh count inside the same atomic unit — without this, two concurrent
+    // requests could both pass the earlier check and overbook the class. Ticket
+    // codes are pre-generated so they stay distinct within the party.
+    const ticketCodes = await generateUniqueCodes(data.slotId, data.partySize)
     type BookingRow = Awaited<ReturnType<typeof prisma.booking.create>>
-    const bookings: BookingRow[] = []
-    for (let i = 0; i < data.partySize; i++) {
-      const ticketCode = await generateUniqueCode(data.slotId)
-      const b = await prisma.booking.create({
-        data: {
-          slotId: data.slotId,
-          clientName: data.partySize > 1 ? `${data.clientName} (${i + 1}/${data.partySize})` : data.clientName,
-          clientEmail: data.clientEmail,
-          clientPhone: data.clientPhone,
-          ticketCode,
-          services: data.serviceIds?.length
-            ? { create: data.serviceIds.map((sid) => ({ serviceId: sid })) }
-            : undefined,
-        },
-        include: {
-          slot: { include: { trainer: { select: { name: true } } } },
-          services: { include: { service: true } },
+    const bookings: BookingRow[] = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.timeSlot.findUnique({
+        where: { id: data.slotId },
+        select: {
+          maxCapacity: true,
+          _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
         },
       })
-      bookings.push(b)
-    }
+      if (!fresh) throw new CapacityError(0, data.partySize)
+      const freshSeatsLeft = fresh.maxCapacity - fresh._count.bookings
+      if (freshSeatsLeft < data.partySize) {
+        throw new CapacityError(freshSeatsLeft, data.partySize)
+      }
+      const rows: BookingRow[] = []
+      for (let i = 0; i < data.partySize; i++) {
+        const b = await tx.booking.create({
+          data: {
+            slotId: data.slotId,
+            clientName: data.partySize > 1 ? `${data.clientName} (${i + 1}/${data.partySize})` : data.clientName,
+            clientEmail: data.clientEmail,
+            clientPhone: data.clientPhone,
+            ticketCode: ticketCodes[i],
+            services: data.serviceIds?.length
+              ? { create: data.serviceIds.map((sid) => ({ serviceId: sid })) }
+              : undefined,
+          },
+          include: {
+            slot: { include: { trainer: { select: { name: true } } } },
+            services: { include: { service: true } },
+          },
+        })
+        rows.push(b)
+      }
+      return rows
+    })
 
     // Send confirmation emails to the client AND notify the assigned trainer.
     // Awaiting both so the serverless function doesn't terminate before the
@@ -464,6 +499,9 @@ export async function POST(request: NextRequest) {
     // Return the lead booking (first one)
     return NextResponse.json(bookings[0], { status: 201 })
   } catch (err) {
+    if (err instanceof CapacityError) {
+      return NextResponse.json({ error: err.message }, { status: 409 })
+    }
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues.map((e: { message: string }) => e.message).join("; ") }, { status: 400 })
     }

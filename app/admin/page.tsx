@@ -50,7 +50,7 @@ export default async function AdminDashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-8">
         {[
-          { label: "Today's Bookings", value: todayTotal, icon: Calendar, color: "text-[#2C6E49]", bg: "bg-[#2C6E49]/10" },
+          { label: "Today's Bookings", value: todayTotal, icon: Calendar, color: "text-brand", bg: "bg-brand/10" },
           { label: "Total Bookings", value: totalBookings, icon: BookOpen, color: "text-blue-600", bg: "bg-blue-50" },
           { label: "Trainers", value: trainers, icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
           { label: "Sessions Today", value: todaySlots.length, icon: TrendingUp, color: "text-orange-600", bg: "bg-orange-50" },
@@ -70,7 +70,7 @@ export default async function AdminDashboard() {
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-800">Today&apos;s Schedule</h2>
-            <Link href="/admin/schedule" className="text-sm text-[#2C6E49] hover:underline">Manage →</Link>
+            <Link href="/admin/schedule" className="text-sm text-brand hover:underline">Manage →</Link>
           </div>
           {todaySlots.length === 0 ? (
             <p className="text-gray-400 text-sm py-4 text-center">No sessions today</p>
@@ -85,7 +85,7 @@ export default async function AdminDashboard() {
                     <div className="text-xs text-gray-400 mt-0.5">{slot.trainer?.name ?? "—"}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-semibold text-[#2C6E49]">
+                    <div className="text-sm font-semibold text-brand">
                       {slot._count.bookings}/{slot.maxCapacity}
                     </div>
                     <div className="text-xs text-gray-400">booked</div>
@@ -100,7 +100,7 @@ export default async function AdminDashboard() {
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-800">Upcoming Sessions</h2>
-            <Link href="/admin/bookings" className="text-sm text-[#2C6E49] hover:underline">All →</Link>
+            <Link href="/admin/bookings" className="text-sm text-brand hover:underline">All →</Link>
           </div>
           {upcomingSlots.length === 0 ? (
             <p className="text-gray-400 text-sm py-4 text-center">No upcoming sessions</p>
@@ -114,7 +114,7 @@ export default async function AdminDashboard() {
                     </div>
                     <div className="text-xs text-gray-400 mt-0.5">{slot.trainer?.name ?? "—"}</div>
                   </div>
-                  <div className="text-sm font-semibold text-[#2C6E49]">
+                  <div className="text-sm font-semibold text-brand">
                     {slot._count.bookings}/{slot.maxCapacity}
                   </div>
                 </div>

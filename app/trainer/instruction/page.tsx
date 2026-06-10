@@ -155,7 +155,7 @@ export default function TrainerInstructionPage() {
               )}
               <div className="p-4 sm:p-5">
                 <div className="flex items-start gap-3">
-                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#2C6E49] text-white text-sm font-bold flex items-center justify-center">
+                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-brand text-white text-sm font-bold flex items-center justify-center">
                     {step.num}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -174,7 +174,7 @@ export default function TrainerInstructionPage() {
                       <ul className="mt-2 space-y-1.5">
                         {c.bullets.map((b, i) => (
                           <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
-                            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#2C6E49] flex-shrink-0" />
+                            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand flex-shrink-0" />
                             <span>{b}</span>
                           </li>
                         ))}

@@ -41,13 +41,13 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     /Failed to fetch|NetworkError|Load failed|ERR_INTERNET_DISCONNECTED/i.test(error?.message ?? "")
 
   return (
-    <div className="min-h-screen bg-[#F5F4F0] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-sand flex items-center justify-center px-4">
       <div className="max-w-sm w-full bg-white rounded-2xl shadow-sm p-8 text-center">
-        <div className="w-16 h-16 rounded-full bg-[#2C6E49]/10 flex items-center justify-center mx-auto mb-5">
+        <div className="w-16 h-16 rounded-full bg-brand/10 flex items-center justify-center mx-auto mb-5">
           {looksOffline ? (
-            <WifiOff size={28} className="text-[#2C6E49]" />
+            <WifiOff size={28} className="text-brand" />
           ) : (
-            <RefreshCw size={28} className="text-[#2C6E49]" />
+            <RefreshCw size={28} className="text-brand" />
           )}
         </div>
 
@@ -64,7 +64,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         <button
           onClick={handleRetry}
           disabled={busy}
-          className="w-full flex items-center justify-center gap-2 bg-[#2C6E49] hover:bg-[#1E4D34] active:bg-[#16391f] disabled:opacity-90 text-white font-semibold py-3 rounded-xl transition-colors min-h-[48px]"
+          className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark active:bg-[#16391f] disabled:opacity-90 text-white font-semibold py-3 rounded-xl transition-colors min-h-[48px]"
         >
           {busy ? (
             <>

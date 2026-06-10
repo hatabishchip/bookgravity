@@ -258,7 +258,7 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
         onClick={() => { setInitialChatId(null); setOpen(true) }}
         className={cn(
           "fixed right-5 lg:right-6 z-40",
-          "w-14 h-14 rounded-full bg-[#2C6E49] hover:bg-[#1E4D34] text-white shadow-lg",
+          "w-14 h-14 rounded-full bg-brand hover:bg-brand-dark text-white shadow-lg",
           "flex items-center justify-center transition-transform active:scale-95",
           "ring-4 ring-white/80",
         )}

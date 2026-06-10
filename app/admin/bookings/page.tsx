@@ -69,7 +69,7 @@ function CopyButton({ value }: { value: string }) {
         })
       }}
       title="Copy"
-      className="p-1.5 text-gray-400 hover:text-[#2C6E49] hover:bg-[#2C6E49]/5 rounded-md transition-colors"
+      className="p-1.5 text-gray-400 hover:text-brand hover:bg-brand/5 rounded-md transition-colors"
     >
       {copied ? <Check size={14} /> : <Copy size={14} />}
     </button>
@@ -98,7 +98,7 @@ function BookingDetails({
   }
 
   return (
-    <div className="px-4 lg:px-6 py-4 bg-[#2C6E49]/[0.03] border-t border-[#2C6E49]/15 space-y-3">
+    <div className="px-4 lg:px-6 py-4 bg-brand/[0.03] border-t border-brand/15 space-y-3">
       {/* Date & time already live in the row header — here we only keep the
           secondary bits (trainer + booked-on) as quiet, de-emphasised text. */}
       <div className="flex items-center gap-x-4 gap-y-0.5 flex-wrap text-xs text-gray-400">
@@ -112,7 +112,7 @@ function BookingDetails({
         <div className="bg-white rounded-xl p-3 border border-gray-100 space-y-2">
           <div className="flex items-center gap-2 group">
             <Phone size={14} className="text-gray-400 flex-shrink-0" />
-            <a href={`tel:${booking.clientPhone}`} className="text-sm text-gray-800 hover:text-[#2C6E49] flex-1 truncate">
+            <a href={`tel:${booking.clientPhone}`} className="text-sm text-gray-800 hover:text-brand flex-1 truncate">
               {booking.clientPhone}
             </a>
             <CopyButton value={booking.clientPhone} />
@@ -127,7 +127,7 @@ function BookingDetails({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); openChat(booking.clientPhone, booking.clientName) }}
-            className="mt-0.5 w-full flex items-center justify-center gap-2 text-sm font-medium bg-[#2C6E49]/10 hover:bg-[#2C6E49]/20 text-[#2C6E49] border border-[#2C6E49]/25 px-3 py-2 rounded-lg transition-colors"
+            className="mt-0.5 w-full flex items-center justify-center gap-2 text-sm font-medium bg-brand/10 hover:bg-brand/20 text-brand border border-brand/25 px-3 py-2 rounded-lg transition-colors"
           >
             <MessageCircle size={14} /> Открыть чат
           </button>
@@ -136,8 +136,8 @@ function BookingDetails({
         {/* Payment — no "Mark as paid with" label, it's self-evident */}
         <div className="bg-white rounded-xl p-3 border border-gray-100">
           {booking.paymentStatus === "PAID" ? (
-            <div className="flex items-center justify-between gap-2 bg-[#2C6E49]/5 border border-[#2C6E49]/20 rounded-lg px-3 py-2">
-              <span className="flex items-center gap-1.5 text-sm font-medium text-[#2C6E49]">
+            <div className="flex items-center justify-between gap-2 bg-brand/5 border border-brand/20 rounded-lg px-3 py-2">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-brand">
                 <CheckCircle2 size={14} />
                 Paid · {PAYMENT_LABEL[booking.paymentType] ?? booking.paymentType}
               </span>
@@ -145,7 +145,7 @@ function BookingDetails({
                 type="button"
                 disabled={isUpdating}
                 onClick={() => onUpdate({ paymentType: "PENDING", paymentStatus: "UNPAID" })}
-                className="text-[11px] text-[#2C6E49]/70 hover:text-[#2C6E49] underline disabled:opacity-50"
+                className="text-[11px] text-brand/70 hover:text-brand underline disabled:opacity-50"
               >
                 Undo
               </button>
@@ -160,7 +160,7 @@ function BookingDetails({
                   onClick={() => onUpdate({ paymentType: pm.value, paymentStatus: "PAID" })}
                   className={cn(
                     "px-2 py-2 rounded-lg text-xs font-medium border text-center truncate touch-manipulation",
-                    "bg-white text-gray-500 border-gray-200 hover:border-[#2C6E49]/40 hover:text-[#2C6E49]"
+                    "bg-white text-gray-500 border-gray-200 hover:border-brand/40 hover:text-brand"
                   )}
                 >
                   {pm.label}
@@ -175,10 +175,10 @@ function BookingDetails({
       {booking.services.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           {booking.services.map((s, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 text-xs bg-[#2C6E49]/5 text-[#2C6E49] px-2.5 py-1 rounded-lg font-medium">
+            <span key={i} className="inline-flex items-center gap-1.5 text-xs bg-brand/5 text-brand px-2.5 py-1 rounded-lg font-medium">
               {s.service.name}
-              <span className="text-[#2C6E49]/60">·</span>
-              <span className="text-[#2C6E49]/80">{Math.round(s.service.price / 1000)}k</span>
+              <span className="text-brand/60">·</span>
+              <span className="text-brand/80">{Math.round(s.service.price / 1000)}k</span>
             </span>
           ))}
         </div>
@@ -195,7 +195,7 @@ function BookingDetails({
           onClick={(e) => e.stopPropagation()}
           disabled={isUpdating}
           placeholder="Notes"
-          className="w-full bg-white border border-gray-100 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-50"
+          className="w-full bg-white border border-gray-100 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-50"
         />
         {noteSaved && <Check size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-600" />}
       </div>
@@ -357,7 +357,7 @@ export default function BookingsPage() {
             placeholder="Search name, phone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+            className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
           />
         </div>
         <div className="relative">
@@ -366,7 +366,7 @@ export default function BookingsPage() {
             type="date"
             value={dateFilter}
             onChange={(e) => { setDateFilter(e.target.value); setRange("all") }}
-            className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] bg-white"
+            className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand bg-white"
           />
         </div>
         {dateFilter && (
@@ -384,8 +384,8 @@ export default function BookingsPage() {
             className={cn(
               "px-3 py-1.5 rounded-lg text-sm font-medium border",
               range === r.value && !dateFilter
-                ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                ? "bg-brand text-white border-brand"
+                : "bg-white text-gray-600 border-gray-200 hover:border-brand/40"
             )}
           >
             {r.label}
@@ -422,13 +422,13 @@ export default function BookingsPage() {
                     // don't melt into the dark background (the light-mode
                     // divide-gray-50 separators are invisible on dark).
                     "dark:border dark:border-white/15 dark:rounded-xl dark:bg-white/[0.03] dark:mx-2 dark:my-2",
-                    isExpanded && "relative z-10 my-2 mx-2 lg:mx-3 rounded-xl ring-1 ring-[#2C6E49]/25 shadow-sm overflow-hidden bg-white dark:bg-white/[0.05] dark:border-[#4cae7a]/50"
+                    isExpanded && "relative z-10 my-2 mx-2 lg:mx-3 rounded-xl ring-1 ring-brand/25 shadow-sm overflow-hidden bg-white dark:bg-white/[0.05] dark:border-[#4cae7a]/50"
                   )}
                 >
                   <div
                     className={cn(
                       "grid [grid-template-columns:1.5fr_1.5fr_1fr_30px] lg:[grid-template-columns:2fr_2fr_1fr_1fr_1fr_40px] gap-3 lg:gap-4 px-4 lg:px-6 py-4 items-center cursor-pointer transition-colors",
-                      isExpanded ? "bg-[#2C6E49]/5" : "hover:bg-gray-50"
+                      isExpanded ? "bg-brand/5" : "hover:bg-gray-50"
                     )}
                     onClick={() => setExpandedId(isExpanded ? null : b.id)}
                   >

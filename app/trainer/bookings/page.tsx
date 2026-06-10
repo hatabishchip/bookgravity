@@ -133,13 +133,13 @@ export default function TrainerBookingsPage() {
                 <div
                   key={b.id}
                   className={cn(
-                    isExpanded && "relative z-10 my-2 mx-2 lg:mx-3 rounded-xl ring-1 ring-[#2C6E49]/25 shadow-sm overflow-hidden bg-white"
+                    isExpanded && "relative z-10 my-2 mx-2 lg:mx-3 rounded-xl ring-1 ring-brand/25 shadow-sm overflow-hidden bg-white"
                   )}
                 >
                   <div
                     className={cn(
                       "px-4 lg:px-6 py-4 cursor-pointer flex items-center justify-between gap-3 transition-colors",
-                      isExpanded ? "bg-[#2C6E49]/5" : "hover:bg-gray-50"
+                      isExpanded ? "bg-brand/5" : "hover:bg-gray-50"
                     )}
                     onClick={() => setExpandedId(isExpanded ? null : b.id)}
                   >
@@ -206,7 +206,7 @@ function BookingDetails({
   const canUseMembership = (booking.membershipRemaining ?? 0) > 0 || isMembership
 
   return (
-    <div className="px-4 lg:px-6 py-5 bg-[#2C6E49]/[0.03] border-t border-[#2C6E49]/15 space-y-4">
+    <div className="px-4 lg:px-6 py-5 bg-brand/[0.03] border-t border-brand/15 space-y-4">
       {/* Top meta row */}
       <div className="grid grid-cols-3 gap-2">
         <MetaCell icon={<Calendar size={13} />} label="Date" value={format(new Date(booking.slot.date), "EEE, MMM d")} />
@@ -217,13 +217,13 @@ function BookingDetails({
       {/* Payment */}
       <div className="bg-white rounded-xl p-4 border border-gray-100">
         <div className="flex items-center gap-1.5 mb-3">
-          <CreditCard size={14} className="text-[#2C6E49]" />
+          <CreditCard size={14} className="text-brand" />
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</h3>
         </div>
 
         {booking.paymentStatus === "PAID" ? (
-          <div className="flex items-center justify-between gap-2 bg-[#2C6E49]/5 border border-[#2C6E49]/20 rounded-lg px-3 py-2">
-            <span className="flex items-center gap-1.5 text-sm font-medium text-[#2C6E49]">
+          <div className="flex items-center justify-between gap-2 bg-brand/5 border border-brand/20 rounded-lg px-3 py-2">
+            <span className="flex items-center gap-1.5 text-sm font-medium text-brand">
               <CheckCircle2 size={14} />
               Paid · {isMembership ? `Membership${typeof booking.membershipRemaining === "number" ? ` (${booking.membershipRemaining} left)` : ""}` : (PAYMENT_LABEL[booking.paymentType] ?? booking.paymentType)}
             </span>
@@ -231,7 +231,7 @@ function BookingDetails({
               type="button"
               disabled={isUpdating}
               onClick={() => onUpdate({ paymentType: "PENDING", paymentStatus: "UNPAID" })}
-              className="text-[11px] text-[#2C6E49]/70 hover:text-[#2C6E49] underline disabled:opacity-50"
+              className="text-[11px] text-brand/70 hover:text-brand underline disabled:opacity-50"
             >
               Undo
             </button>
@@ -244,7 +244,7 @@ function BookingDetails({
                 type="button"
                 disabled={isUpdating}
                 onClick={() => onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })}
-                className="w-full mb-1.5 px-2 py-2 rounded-lg text-xs font-semibold border text-center touch-manipulation bg-white text-gray-700 border-gray-200 hover:border-[#2C6E49]/40 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                className="w-full mb-1.5 px-2 py-2 rounded-lg text-xs font-semibold border text-center touch-manipulation bg-white text-gray-700 border-gray-200 hover:border-brand/40 flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 🎟️ Membership ({booking.membershipRemaining ?? 0} left)
               </button>
@@ -258,7 +258,7 @@ function BookingDetails({
                   onClick={() => onUpdate({ paymentType: pm.value, paymentStatus: "PAID" })}
                   className={cn(
                     "px-2 py-2 rounded-lg text-xs font-medium border text-center truncate touch-manipulation",
-                    "bg-white text-gray-500 border-gray-200 hover:border-[#2C6E49]/40 hover:text-[#2C6E49]"
+                    "bg-white text-gray-500 border-gray-200 hover:border-brand/40 hover:text-brand"
                   )}
                 >
                   {pm.label}
@@ -275,7 +275,7 @@ function BookingDetails({
       {booking.services.length > 0 && (
         <div className="bg-white rounded-xl p-4 border border-gray-100">
           <div className="flex items-center gap-1.5 mb-3">
-            <Sparkles size={14} className="text-[#2C6E49]" />
+            <Sparkles size={14} className="text-brand" />
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Services</h3>
           </div>
           {isMembership ? (
@@ -284,7 +284,7 @@ function BookingDetails({
                 <div key={s.service.id}>
                   <div className="flex items-center justify-between text-sm mb-1">
                     <span className="font-medium text-gray-800">{s.service.name}</span>
-                    <span className="text-[#2C6E49] font-semibold">{Math.round(s.service.price / 1000)}k</span>
+                    <span className="text-brand font-semibold">{Math.round(s.service.price / 1000)}k</span>
                   </div>
                   <div className="flex gap-1">
                     {PAYMENT_METHODS.map((pm) => {
@@ -296,7 +296,7 @@ function BookingDetails({
                           onClick={() => onServicePayment(s.service.id, pm.value)}
                           className={cn(
                             "flex-1 py-1 rounded-md text-[11px] font-semibold border touch-manipulation",
-                            active ? "bg-[#2C6E49] text-white border-[#2C6E49]" : "bg-white text-gray-500 border-gray-200"
+                            active ? "bg-brand text-white border-brand" : "bg-white text-gray-500 border-gray-200"
                           )}
                         >
                           {pm.label}
@@ -310,10 +310,10 @@ function BookingDetails({
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {booking.services.map((s) => (
-                <span key={s.service.id} className="inline-flex items-center gap-1.5 text-xs bg-[#2C6E49]/5 text-[#2C6E49] px-2.5 py-1 rounded-lg font-medium">
+                <span key={s.service.id} className="inline-flex items-center gap-1.5 text-xs bg-brand/5 text-brand px-2.5 py-1 rounded-lg font-medium">
                   {s.service.name}
-                  <span className="text-[#2C6E49]/60">·</span>
-                  <span className="text-[#2C6E49]/80">{Math.round(s.service.price / 1000)}k</span>
+                  <span className="text-brand/60">·</span>
+                  <span className="text-brand/80">{Math.round(s.service.price / 1000)}k</span>
                 </span>
               ))}
             </div>
@@ -325,7 +325,7 @@ function BookingDetails({
       {booking.notes && booking.notes.trim().length > 0 && (
         <div className="bg-white rounded-xl p-4 border border-gray-100">
           <div className="flex items-center gap-1.5 mb-2">
-            <StickyNote size={14} className="text-[#2C6E49]" />
+            <StickyNote size={14} className="text-brand" />
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Note</h3>
           </div>
           <p className="text-sm text-gray-700 whitespace-pre-wrap">{booking.notes}</p>
@@ -339,7 +339,7 @@ function BookingDetails({
         <button
           type="button"
           onClick={onDone}
-          className="w-full py-3 rounded-xl bg-[#2C6E49] text-white text-sm font-semibold hover:bg-[#1E4D34] touch-manipulation flex items-center justify-center gap-2"
+          className="w-full py-3 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark touch-manipulation flex items-center justify-center gap-2"
         >
           ✓ Done — collapse
         </button>

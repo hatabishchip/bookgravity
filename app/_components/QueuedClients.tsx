@@ -36,7 +36,7 @@ export function QueuedClients({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#2C6E49] hover:underline"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand hover:underline"
           >
             <Plus size={12} /> Add client
           </button>
@@ -52,7 +52,7 @@ export function QueuedClients({
             <div className="text-xs font-semibold text-gray-800 truncate">
               {c.clientName}
               {(c.partySize || 1) > 1 && (
-                <span className="ml-1 text-[10px] font-bold text-[#2C6E49]">×{c.partySize}</span>
+                <span className="ml-1 text-[10px] font-bold text-brand">×{c.partySize}</span>
               )}
             </div>
             <div className="text-[11px] text-gray-500 truncate">{c.clientPhone}</div>

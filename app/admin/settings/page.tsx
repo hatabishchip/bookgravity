@@ -327,7 +327,7 @@ function AssetCard({
             type="button"
             onClick={() => setEditing(true)}
             aria-label={`Edit ${title.toLowerCase()}`}
-            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50"
+            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50"
           >
             <Pencil size={16} />
           </button>
@@ -350,7 +350,7 @@ function AssetCard({
               type="button"
               onClick={onPick}
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand text-white text-sm font-medium hover:bg-brand-dark disabled:opacity-60"
             >
               <Upload size={14} />
               {saving ? "Saving…" : value ? `Replace ${title.toLowerCase()}` : `Upload ${title.toLowerCase()}`}
@@ -393,7 +393,7 @@ function AppearanceCard() {
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <div className="flex items-center gap-2 mb-3">
-        <Moon size={16} className="text-[#2C6E49]" />
+        <Moon size={16} className="text-brand" />
         <h2 className="text-base font-semibold text-gray-900">Appearance</h2>
       </div>
       <p className="text-xs text-gray-500 mb-4 max-w-md">
@@ -412,7 +412,7 @@ function AppearanceCard() {
               className={cn(
                 "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                 active
-                  ? "bg-[#2C6E49] text-white shadow-sm"
+                  ? "bg-brand text-white shadow-sm"
                   : "text-gray-600 hover:text-gray-900",
               )}
               aria-pressed={active}
@@ -448,7 +448,7 @@ function InboxLanguageCard({
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <div className="flex items-center gap-2 mb-3">
-        <Languages size={16} className="text-[#2C6E49]" />
+        <Languages size={16} className="text-brand" />
         <h2 className="text-base font-semibold text-gray-900">Inbox language</h2>
       </div>
       <p className="text-xs text-gray-500 mb-4 max-w-md">
@@ -463,7 +463,7 @@ function InboxLanguageCard({
           value={value ?? ""}
           onChange={(e) => handle(e.target.value === "" ? null : e.target.value)}
           disabled={saving}
-          className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60 min-w-[260px]"
+          className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-60 min-w-[260px]"
         >
           {LANG_OPTIONS.map((o) => (
             <option key={o.value ?? "off"} value={o.value ?? ""}>
@@ -473,7 +473,7 @@ function InboxLanguageCard({
         </select>
         {saving && <span className="text-xs text-gray-400">Saving…</span>}
         {done && !saving && (
-          <span className="text-xs text-[#2C6E49] font-medium">Saved ✓</span>
+          <span className="text-xs text-brand font-medium">Saved ✓</span>
         )}
       </div>
     </div>
@@ -509,7 +509,7 @@ function LocationCard({
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <MapPin size={16} className="text-[#2C6E49]" />
+          <MapPin size={16} className="text-brand" />
           <h2 className="text-base font-semibold text-gray-900">Studio location</h2>
         </div>
         {value && !editing && (
@@ -517,7 +517,7 @@ function LocationCard({
             type="button"
             onClick={() => setEditing(true)}
             aria-label="Edit studio location"
-            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50"
+            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50"
           >
             <Pencil size={16} />
           </button>
@@ -539,13 +539,13 @@ function LocationCard({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") save() }}
             placeholder="https://maps.app.goo.gl/…"
-            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
           />
           <button
             type="button"
             onClick={save}
             disabled={saving}
-            className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
+            className="flex-shrink-0 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -562,7 +562,7 @@ function LocationCard({
           )}
         </div>
       ) : (
-        <a href={value ?? "#"} target="_blank" rel="noreferrer" className="text-sm text-[#2C6E49] underline underline-offset-2 break-all">
+        <a href={value ?? "#"} target="_blank" rel="noreferrer" className="text-sm text-brand underline underline-offset-2 break-all">
           {value} ↗
         </a>
       )}
@@ -594,7 +594,7 @@ function ToggleRow({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="text-sm font-medium text-gray-900">
-            {label} {saving && <span className="text-[11px] text-[#2C6E49] font-normal">Saving…</span>}
+            {label} {saving && <span className="text-[11px] text-brand font-normal">Saving…</span>}
           </div>
           <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{desc}</p>
         </div>
@@ -606,7 +606,7 @@ function ToggleRow({
           onClick={() => onToggle(!value)}
           className={cn(
             "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
-            value ? "bg-[#2C6E49]" : "bg-gray-300",
+            value ? "bg-brand" : "bg-gray-300",
           )}
           aria-label={`Toggle ${label}`}
         >
@@ -653,7 +653,7 @@ function ChannelIcons({ wa, email }: { wa: boolean; email: boolean }) {
   return (
     <span className="inline-flex items-center gap-2.5" aria-hidden>
       <WaIcon active={wa} />
-      <Mail size={19} className={email ? "text-[#2C6E49]" : "text-gray-300"} />
+      <Mail size={19} className={email ? "text-brand" : "text-gray-300"} />
     </span>
   )
 }
@@ -679,7 +679,7 @@ function NotifRoleRow({
         type="button"
         onClick={onEdit}
         aria-label={`Edit ${label} notifications`}
-        className="p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50 flex-shrink-0"
+        className="p-2 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50 flex-shrink-0"
       >
         <Pencil size={16} />
       </button>
@@ -715,7 +715,7 @@ function BigRow({
           onClick={() => onToggle(!value)}
           className={cn(
             "relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors",
-            value ? "bg-[#2C6E49]" : "bg-gray-300",
+            value ? "bg-brand" : "bg-gray-300",
           )}
           aria-label={`Toggle ${label}`}
         >
@@ -929,7 +929,7 @@ function NotificationsModal({
         <button type="button" onClick={onClose} className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-base font-medium hover:bg-gray-50">
           Cancel
         </button>
-        <button type="button" onClick={save} disabled={saving} className="flex-1 px-4 py-3 rounded-xl bg-[#2C6E49] text-white text-base font-semibold hover:bg-[#1E4D34] disabled:opacity-60">
+        <button type="button" onClick={save} disabled={saving} className="flex-1 px-4 py-3 rounded-xl bg-brand text-white text-base font-semibold hover:bg-brand-dark disabled:opacity-60">
           {saving ? "Saving…" : "Save"}
         </button>
       </div>
@@ -1131,7 +1131,7 @@ function WhatsAppActivationCard({
   // ----- Render -----
   const Header = (
     <div className="flex items-center gap-2 mb-3">
-      <Smartphone size={16} className="text-[#2C6E49]" />
+      <Smartphone size={16} className="text-brand" />
       <h2 className="text-base font-semibold text-gray-900">WhatsApp</h2>
       {active && (
         <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
@@ -1184,13 +1184,13 @@ function WhatsAppActivationCard({
             onKeyDown={(e) => { if (e.key === "Enter" && code.length === 6) verify() }}
             placeholder="123456"
             disabled={busy || status === "verifying"}
-            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60"
+            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-60"
           />
           <button
             type="button"
             onClick={verify}
             disabled={busy || code.length !== 6}
-            className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
+            className="flex-shrink-0 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
           >
             {busy && <Spinner />}
             Confirm
@@ -1257,7 +1257,7 @@ function WhatsAppActivationCard({
           onChange={(e) => setPhone("+" + e.target.value.replace(/\D/g, ""))}
           placeholder={phonePlaceholder}
           disabled={busy}
-          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60"
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-60"
         />
         <input
           type="text"
@@ -1266,7 +1266,7 @@ function WhatsAppActivationCard({
           placeholder={`WhatsApp display name — e.g. ${studio.name}`}
           disabled={busy}
           maxLength={64}
-          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60"
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-60"
         />
       </div>
       <div className="flex items-center gap-2">
@@ -1274,7 +1274,7 @@ function WhatsAppActivationCard({
           type="button"
           onClick={submit}
           disabled={busy || !phone.trim() || !displayName.trim()}
-          className="bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
+          className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
         >
           {busy && <Spinner />}
           Activate
@@ -1363,13 +1363,13 @@ function BookingCopyNumber({
             onChange={(e) => setText(e.target.value)}
             placeholder="+62 812 3456 789"
             disabled={busy}
-            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-60"
+            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-60"
           />
           <button
             type="button"
             onClick={() => save(text.trim() === "" ? null : text.trim())}
             disabled={busy || sameAsBusiness}
-            className="flex-shrink-0 bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
+            className="flex-shrink-0 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
           >
             {busy && <Spinner />}
             Save
@@ -1381,7 +1381,7 @@ function BookingCopyNumber({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50"
             aria-label="Edit booking copy number"
           >
             <Pencil size={14} />
@@ -1501,7 +1501,7 @@ function SessionsCard() {
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <div className="flex items-center gap-2 mb-1">
-        <ShieldCheck size={16} className="text-[#2C6E49]" />
+        <ShieldCheck size={16} className="text-brand" />
         <h2 className="text-base font-semibold text-gray-900">Active sign-ins</h2>
       </div>
       <p className="text-xs text-gray-500 mb-4 max-w-md">
@@ -1525,7 +1525,7 @@ function SessionsCard() {
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <div className="min-w-0">
                     <span className="text-sm font-semibold text-gray-900">{u.name ?? u.email}</span>
-                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-[#2C6E49] bg-[#2C6E49]/10 px-1.5 py-0.5 rounded">
+                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-brand bg-brand/10 px-1.5 py-0.5 rounded">
                       {roleLabel(u.role)}
                     </span>
                   </div>
@@ -1584,7 +1584,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <KeyRound size={16} className="text-[#2C6E49]" />
+          <KeyRound size={16} className="text-brand" />
           <h2 className="text-base font-semibold text-gray-900">Change password</h2>
         </div>
         {!editing && (
@@ -1592,7 +1592,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
             type="button"
             onClick={() => setEditing(true)}
             aria-label="Change password"
-            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-gray-50"
+            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50"
           >
             <Pencil size={16} />
           </button>
@@ -1604,7 +1604,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
           : "Update the password used to sign into this admin account."}
       </p>
 
-      {done && !editing && <p className="text-xs text-[#2C6E49] font-medium">Password updated ✓</p>}
+      {done && !editing && <p className="text-xs text-brand font-medium">Password updated ✓</p>}
 
       {!editing ? null : (
       <form onSubmit={handleSubmit} className="space-y-3 max-w-md">
@@ -1614,7 +1614,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
           placeholder="Current password"
           value={form.current}
           onChange={(e) => setForm({ ...form, current: e.target.value })}
-          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input
@@ -1624,7 +1624,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
             minLength={4}
             value={form.next}
             onChange={(e) => setForm({ ...form, next: e.target.value })}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
           />
           <input
             type="password"
@@ -1632,7 +1632,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
             placeholder="Confirm new password"
             value={form.confirm}
             onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
           />
         </div>
         {error && <p className="text-xs text-red-500">{error}</p>}
@@ -1640,7 +1640,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand text-white text-sm font-medium hover:bg-brand-dark disabled:opacity-60"
           >
             {loading ? "Saving…" : "Update password"}
           </button>

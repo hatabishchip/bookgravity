@@ -69,16 +69,16 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         <form onSubmit={handleSubmit} className="space-y-3">
           <input type="password" required placeholder="Current password" value={form.current}
             onChange={(e) => setForm({ ...form, current: e.target.value })}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
           <input type="password" required placeholder="New password" minLength={4} value={form.next}
             onChange={(e) => setForm({ ...form, next: e.target.value })}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
           <input type="password" required placeholder="Confirm new password" value={form.confirm}
             onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]" />
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button type="submit" disabled={loading}
-            className="w-full bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
+            className="w-full bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
             {loading ? "Saving..." : "Update Password"}
           </button>
         </form>
@@ -102,7 +102,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
     <>
       <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h1 className="font-bold text-[#2C6E49] text-lg leading-tight">
+          <h1 className="font-bold text-brand text-lg leading-tight">
             {studio?.name || "Gravity Stretching"}
           </h1>
           <p className="text-xs text-gray-400 mt-1">Trainer Portal</p>
@@ -122,7 +122,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           return (
             <Link key={href} href={href}
               className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-                active ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50"
+                active ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"
               )}>
               <Icon size={18} />
               {label}
@@ -189,7 +189,7 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
         <Menu size={20} />
       </button>
       <div className="flex-1 min-w-0">
-        <div className="font-bold text-[#2C6E49] text-sm truncate">
+        <div className="font-bold text-brand text-sm truncate">
           {studio?.name || "Gravity Stretching"}
         </div>
         <div className="text-xs text-gray-400">{activeLabel}</div>
@@ -209,7 +209,7 @@ export default function TrainerLayout({ children }: { children: React.ReactNode 
 
   return (
     <SessionProvider>
-      <div className="flex min-h-screen bg-[#F5F4F0]">
+      <div className="flex min-h-screen bg-sand">
         <aside
           className={cn(
             "fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-100 flex flex-col transition-transform duration-200",

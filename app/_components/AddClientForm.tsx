@@ -96,7 +96,7 @@ export function AddClientForm({
   }
 
   const inputCls =
-    "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-base bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+    "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-base bg-white focus:outline-none focus:ring-2 focus:ring-brand/30"
 
   return (
     // data-add-client-form="open" lets the surrounding day-modal detect an
@@ -112,7 +112,7 @@ export function AddClientForm({
       <PhoneInput value={phone} onChange={setPhone} inputClassName="text-base" />
 
       {lookup === "found" ? (
-        <p className="text-xs font-medium text-[#2C6E49] -mt-1">Existing client — details filled ✓</p>
+        <p className="text-xs font-medium text-brand -mt-1">Existing client — details filled ✓</p>
       ) : lookup === "loading" ? (
         <p className="text-xs text-gray-400 -mt-1">Looking up…</p>
       ) : null}
@@ -149,8 +149,8 @@ export function AddClientForm({
                 className={
                   "flex-1 h-9 rounded-lg text-sm font-semibold border transition-colors " +
                   (partySize === n
-                    ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40")
+                    ? "bg-brand text-white border-brand"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-brand/40")
                 }
               >
                 {n}
@@ -173,7 +173,7 @@ export function AddClientForm({
           data-add-client-submit
           onClick={submit}
           disabled={!canSubmit}
-          className="flex-1 px-3 py-2.5 rounded-lg text-sm font-semibold bg-[#2C6E49] text-white hover:bg-[#1E4D34] disabled:opacity-50"
+          className="flex-1 px-3 py-2.5 rounded-lg text-sm font-semibold bg-brand text-white hover:bg-brand-dark disabled:opacity-50"
         >
           {submitting ? "Adding…" : "Add client"}
         </button>

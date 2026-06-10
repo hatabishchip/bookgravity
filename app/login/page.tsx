@@ -77,17 +77,17 @@ export default function LoginPage() {
 
   if (checking) {
     return (
-      <div className="h-[100svh] bg-[#F5F4F0] flex items-center justify-center px-4">
+      <div className="h-[100svh] bg-sand flex items-center justify-center px-4">
         <div className="text-sm text-gray-400">Loading…</div>
       </div>
     )
   }
 
   return (
-    <div className="h-[100svh] bg-[#F5F4F0] flex items-center justify-center px-4 overflow-hidden">
+    <div className="h-[100svh] bg-sand flex items-center justify-center px-4 overflow-hidden">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-[#2C6E49]">Gravity Stretching</h1>
+          <h1 className="text-2xl font-bold text-brand">Gravity Stretching</h1>
           <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
         </div>
 
@@ -109,7 +109,7 @@ export default function LoginPage() {
                 spellCheck={false}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
               />
             </div>
             <div>
@@ -122,7 +122,7 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
               />
             </div>
 
@@ -135,12 +135,12 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors"
+              className="w-full bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors"
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
             <div className="text-center">
-              <Link href="/auth/forgot-password" className="text-sm text-gray-400 hover:text-[#2C6E49]">
+              <Link href="/auth/forgot-password" className="text-sm text-gray-400 hover:text-brand">
                 Forgot password?
               </Link>
             </div>

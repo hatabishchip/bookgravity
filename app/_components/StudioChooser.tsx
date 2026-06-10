@@ -107,9 +107,9 @@ export default function StudioChooser({
     : studios
 
   return (
-    <div className="min-h-[100svh] bg-gradient-to-b from-[#F5F4F0] to-[#E8E6DD] flex flex-col">
+    <div className="min-h-[100svh] bg-gradient-to-b from-sand to-[#E8E6DD] flex flex-col">
       <header className="pt-10 pb-6 px-4 text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#2C6E49] tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-bold text-brand tracking-tight">
           Gravity Stretching
         </h1>
         <p className="text-gray-500 text-sm mt-2">
@@ -127,7 +127,7 @@ export default function StudioChooser({
                 type="button"
                 onClick={() => pickCountry(c.code)}
                 aria-label={`${countryName(c.code)} studios`}
-                className="group flex items-center gap-4 rounded-2xl bg-white ring-1 ring-black/5 shadow-sm px-5 py-4 text-left transition-all hover:shadow-md hover:ring-[#2C6E49]/30 active:scale-[0.99] focus:outline-none focus:ring-4 focus:ring-[#2C6E49]/30"
+                className="group flex items-center gap-4 rounded-2xl bg-white ring-1 ring-black/5 shadow-sm px-5 py-4 text-left transition-all hover:shadow-md hover:ring-brand/30 active:scale-[0.99] focus:outline-none focus:ring-4 focus:ring-brand/30"
               >
                 <span className="text-4xl leading-none" aria-hidden>{flagEmoji(c.code)}</span>
                 <span className="min-w-0 flex-1">
@@ -136,7 +136,7 @@ export default function StudioChooser({
                     {c.count} {c.count === 1 ? "studio" : "studios"}
                   </span>
                 </span>
-                <ArrowRight size={18} className="text-gray-300 group-hover:text-[#2C6E49] transition-colors flex-shrink-0" />
+                <ArrowRight size={18} className="text-gray-300 group-hover:text-brand transition-colors flex-shrink-0" />
               </button>
             ))}
           </div>
@@ -148,7 +148,7 @@ export default function StudioChooser({
                 <button
                   type="button"
                   onClick={backToCountries}
-                  className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#2C6E49]"
+                  className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-brand"
                 >
                   <ChevronLeft size={16} /> Countries
                 </button>
@@ -161,7 +161,7 @@ export default function StudioChooser({
             )}
 
             {autoNote && selected && (
-              <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-[#2C6E49]/5 border border-[#2C6E49]/15 px-4 py-2.5 text-sm text-[#2C6E49]">
+              <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-brand/5 border border-brand/15 px-4 py-2.5 text-sm text-brand">
                 <MapPin size={15} className="flex-shrink-0" />
                 <span>
                   Looks like you&apos;re in {flagEmoji(selected)} {countryName(selected)}.
@@ -183,7 +183,7 @@ export default function StudioChooser({
                     onClick={() => pickStudio(s.slug)}
                     disabled={!!going}
                     aria-label={`Open ${label} studio`}
-                    className="group relative aspect-[4/5] sm:aspect-[3/4] rounded-3xl overflow-hidden shadow-lg ring-1 ring-black/5 bg-[#2C6E49] focus:outline-none focus:ring-4 focus:ring-[#2C6E49]/40 transition-all hover:shadow-2xl active:scale-[0.98] disabled:opacity-80"
+                    className="group relative aspect-[4/5] sm:aspect-[3/4] rounded-3xl overflow-hidden shadow-lg ring-1 ring-black/5 bg-brand focus:outline-none focus:ring-4 focus:ring-brand/40 transition-all hover:shadow-2xl active:scale-[0.98] disabled:opacity-80"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -202,9 +202,9 @@ export default function StudioChooser({
                           {label}
                         </div>
                       </div>
-                      <div className="w-9 h-9 rounded-full bg-white/90 text-[#2C6E49] flex items-center justify-center flex-shrink-0 shadow-md group-hover:bg-white transition-colors">
+                      <div className="w-9 h-9 rounded-full bg-white/90 text-brand flex items-center justify-center flex-shrink-0 shadow-md group-hover:bg-white transition-colors">
                         {loading ? (
-                          <span className="w-4 h-4 border-2 border-[#2C6E49]/30 border-t-[#2C6E49] rounded-full animate-spin" />
+                          <span className="w-4 h-4 border-2 border-brand/30 border-t-brand rounded-full animate-spin" />
                         ) : (
                           <ArrowRight size={18} />
                         )}

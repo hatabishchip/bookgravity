@@ -551,7 +551,7 @@ function MessageBubble({
               type="button"
               onClick={() => onTranslate(m.id)}
               disabled={translating}
-              className="mt-1 inline-flex items-center gap-1 text-[11px] text-[#2C6E49] hover:underline disabled:opacity-50"
+              className="mt-1 inline-flex items-center gap-1 text-[11px] text-brand hover:underline disabled:opacity-50"
             >
               🌐 {translating ? "Translating…" : "Translate"}
             </button>
@@ -1282,7 +1282,7 @@ export default function Inbox({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Поиск по имени"
-              className="w-full bg-gray-100 dark:bg-[#202C33] rounded-lg pl-9 pr-3 py-2 text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0] focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+              className="w-full bg-gray-100 dark:bg-[#202C33] rounded-lg pl-9 pr-3 py-2 text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-[#8696A0] focus:outline-none focus:ring-2 focus:ring-brand/30"
             />
           </div>
         </div>
@@ -1304,7 +1304,7 @@ export default function Inbox({
                 className={cn(
                   "px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors",
                   active
-                    ? "bg-[#2C6E49] text-white"
+                    ? "bg-brand text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#202C33] dark:text-[#8696A0] dark:hover:bg-[#2A3942]",
                 )}
               >
@@ -1447,7 +1447,7 @@ export default function Inbox({
 
   // ---------- Chat column ----------
   const chatColumn = !selectedId ? (
-    <div className="hidden lg:flex flex-1 items-center justify-center text-gray-400 dark:text-[#8696A0] text-sm bg-[#F5F4F0] dark:bg-[#0B141A]">
+    <div className="hidden lg:flex flex-1 items-center justify-center text-gray-400 dark:text-[#8696A0] text-sm bg-sand dark:bg-[#0B141A]">
       <div className="text-center">
         <MessageSquare size={48} className="mx-auto opacity-20 mb-3" />
         <div>Select a conversation on the left</div>

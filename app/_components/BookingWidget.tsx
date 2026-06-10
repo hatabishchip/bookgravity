@@ -842,7 +842,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             // straight to the time step, and going back shouldn't leave it
             // filled. Days just show their availability dot.
             const dotColor = hasSlot
-              ? "bg-[#2C6E49]"
+              ? "bg-brand"
               : hasInfo
                 ? "bg-amber-400"
                 : isFull && !isPast
@@ -859,7 +859,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 className={cn(
                   "aspect-square rounded-full text-sm font-medium flex flex-col items-center justify-center gap-1 leading-none",
                   hasSlot
-                    ? "text-gray-900 hover:bg-[#2C6E49]/10 cursor-pointer"
+                    ? "text-gray-900 hover:bg-brand/10 cursor-pointer"
                     : hasInfo
                       ? "text-gray-700 hover:bg-amber-400/10 cursor-pointer"
                       : isFull && !isPast
@@ -948,7 +948,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     return (
       // items-start (not center) so a tall ticket scrolls from the top instead
       // of having its edges clipped; my-auto still centers a short ticket.
-      <div className="fixed inset-0 bg-gradient-to-br from-[#F5F4F0] via-[#EFEEE8] to-[#E8E6DD] z-50 flex items-start justify-center p-4 overflow-y-auto">
+      <div className="fixed inset-0 bg-gradient-to-br from-sand via-[#EFEEE8] to-[#E8E6DD] z-50 flex items-start justify-center p-4 overflow-y-auto">
         {/* Always-visible Back control — pinned to the top-left so the user can
             return to the schedule without scrolling to the bottom button. */}
         <button
@@ -961,7 +961,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           {/* Ticket card */}
           <div ref={ticketRef} className="bg-white rounded-3xl shadow-2xl relative overflow-hidden">
             {/* Top accent bar */}
-            <div className="h-1.5 bg-gradient-to-r from-[#2C6E49] via-[#3a8a5d] to-[#2C6E49]"></div>
+            <div className="h-1.5 bg-gradient-to-r from-brand via-[#3a8a5d] to-brand"></div>
 
             {/* Header with logo */}
             <div className="px-6 pt-6 pb-5 text-center">
@@ -973,7 +973,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               </div>
 
               {/* Confirmed badge */}
-              <div className="inline-flex items-center gap-1.5 bg-[#2C6E49]/10 text-[#2C6E49] px-3 py-1 rounded-full mb-3">
+              <div className="inline-flex items-center gap-1.5 bg-brand/10 text-brand px-3 py-1 rounded-full mb-3">
                 <CheckCircle size={13} />
                 <span className="text-[11px] font-bold uppercase tracking-wider">Booking confirmed</span>
               </div>
@@ -998,8 +998,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
             {/* Perforated divider */}
             <div className="relative">
-              <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#F5F4F0] rounded-full"></div>
-              <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#F5F4F0] rounded-full"></div>
+              <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-sand rounded-full"></div>
+              <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-sand rounded-full"></div>
               <div className="mx-6 border-t-2 border-dashed border-gray-200"></div>
             </div>
 
@@ -1067,7 +1067,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
             {/* Brand footer */}
             <div className="bg-[#F8F7F3] px-6 py-4 text-center border-t border-gray-100">
-              <div className="text-base font-bold text-[#2C6E49] tracking-tight">{studio?.name || "Gravity Stretching"}</div>
+              <div className="text-base font-bold text-brand tracking-tight">{studio?.name || "Gravity Stretching"}</div>
             </div>
           </div>
 
@@ -1136,7 +1136,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                   aria-label={`Step ${i + 1}`}
                   className={cn(
                     "h-1.5 rounded-full transition-all",
-                    isCurrent ? "w-6 bg-[#2C6E49]" : isCompleted ? "w-1.5 bg-[#2C6E49]" : "w-1.5 bg-gray-300",
+                    isCurrent ? "w-6 bg-brand" : isCompleted ? "w-1.5 bg-brand" : "w-1.5 bg-gray-300",
                     clickable ? "cursor-pointer hover:opacity-80" : "cursor-default"
                   )}
                 />
@@ -1153,28 +1153,28 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               count changes: (1) class + price header, (2) party-size stepper.
               The two rows never compete for horizontal space, and the count has
               a fixed width, so the card stays put on every phone width. */}
-          <div className="bg-[#2C6E49]/[0.07] border border-[#2C6E49]/15 rounded-2xl mb-4 overflow-hidden">
+          <div className="bg-brand/[0.07] border border-brand/15 rounded-2xl mb-4 overflow-hidden">
             {/* Header: class label + details (left), price (right) */}
             <div className="px-4 py-3 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-[#2C6E49] leading-none">Group class</div>
+                <div className="text-[13px] font-semibold text-brand leading-none">Group class</div>
                 <div className="text-[11px] text-gray-500 mt-1.5 leading-none">Up to 6 people · 1.5 hours</div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="text-2xl font-bold text-[#2C6E49] leading-none tabular-nums">300k</div>
+                <div className="text-2xl font-bold text-brand leading-none tabular-nums">300k</div>
                 <div className="text-[10px] text-gray-500 mt-1.5 uppercase tracking-wide leading-none">IDR / person</div>
               </div>
             </div>
 
             {/* Stepper row on its own line, divided from the header */}
-            <div className="px-4 py-2.5 border-t border-[#2C6E49]/12 flex items-center justify-between gap-3">
+            <div className="px-4 py-2.5 border-t border-brand/12 flex items-center justify-between gap-3">
               <span className="text-sm font-medium text-gray-600">How many people?</span>
               <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-full p-1 shadow-sm">
                 <button
                   type="button"
                   onClick={() => setPartySize(Math.max(1, partySize - 1))}
                   disabled={partySize <= 1}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-xl text-[#2C6E49] hover:bg-[#2C6E49]/10 active:bg-[#2C6E49]/15 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-xl text-brand hover:bg-brand/10 active:bg-brand/15 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
                   aria-label="Decrease people"
                 >
                   −
@@ -1184,7 +1184,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                   type="button"
                   onClick={() => setPartySize(Math.min(6, partySize + 1))}
                   disabled={partySize >= 6}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-xl text-[#2C6E49] hover:bg-[#2C6E49]/10 active:bg-[#2C6E49]/15 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-xl text-brand hover:bg-brand/10 active:bg-brand/15 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
                   aria-label="Increase people"
                 >
                   +
@@ -1237,7 +1237,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               {slotsLoaded ? (
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 text-xs">
                   <div className="flex items-center gap-1.5 text-gray-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#2C6E49]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand" />
                     <span>Available</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-gray-600">
@@ -1314,7 +1314,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                         className={cn(
                           "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left relative",
                           canBook
-                            ? "border-gray-100 hover:border-[#2C6E49] hover:bg-[#2C6E49]/5 cursor-pointer"
+                            ? "border-gray-100 hover:border-brand hover:bg-brand/5 cursor-pointer"
                             : withinCutoff
                               ? "border-gray-200 bg-gray-50 cursor-not-allowed"
                               : isFull
@@ -1325,9 +1325,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                         <div className="flex items-center gap-3">
                           <div className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
-                            canBook ? "bg-[#2C6E49]/10" : withinCutoff ? "bg-gray-200" : isFull ? "bg-gray-200" : "bg-amber-100"
+                            canBook ? "bg-brand/10" : withinCutoff ? "bg-gray-200" : isFull ? "bg-gray-200" : "bg-amber-100"
                           )}>
-                            <Clock size={18} className={canBook ? "text-[#2C6E49]" : withinCutoff ? "text-gray-400" : isFull ? "text-gray-400" : "text-amber-600"} />
+                            <Clock size={18} className={canBook ? "text-brand" : withinCutoff ? "text-gray-400" : isFull ? "text-gray-400" : "text-amber-600"} />
                           </div>
                           <div className="min-w-0">
                             <div className={cn("font-semibold flex items-center gap-2 flex-wrap", isFull ? "text-gray-400" : withinCutoff ? "text-gray-500" : "text-gray-800")}>
@@ -1342,7 +1342,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                                     ? "bg-amber-100 text-amber-700"
                                     : slot.classType === "PRIVATE"
                                       ? "bg-purple-100 text-purple-700"
-                                      : "bg-[#2C6E49]/10 text-[#2C6E49]"
+                                      : "bg-brand/10 text-brand"
                                 return (
                                   <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded-full no-underline", color)}>
                                     {label}
@@ -1367,21 +1367,21 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                           {withinCutoff ? (
                             <span className={cn(
                               "inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide leading-none",
-                              slot.started ? "bg-[#2C6E49] text-white" : "bg-gray-300 text-gray-600",
+                              slot.started ? "bg-brand text-white" : "bg-gray-300 text-gray-600",
                             )}>{slot.started ? "Live" : "Closed"}</span>
                           ) : isFull ? (
                             <span className="inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide leading-none bg-rose-500 text-white">Sold out</span>
                           ) : !enoughForParty ? (
                             <span className="inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide leading-none bg-amber-500 text-white">{`Only ${spotsLeft} left`}</span>
                           ) : (
-                            <div className="flex items-center gap-1 text-sm font-medium text-[#2C6E49]">
+                            <div className="flex items-center gap-1 text-sm font-medium text-brand">
                               <Users size={14} />
                               {spotsLeft} / {slot.maxCapacity} spots
                             </div>
                           )}
                           <div className={cn(
                             "text-[11px] mt-0.5",
-                            canBook ? "text-[#2C6E49]/70" : withinCutoff ? "text-gray-400" : isFull ? "text-rose-500 font-semibold" : "text-amber-600/70"
+                            canBook ? "text-brand/70" : withinCutoff ? "text-gray-400" : isFull ? "text-rose-500 font-semibold" : "text-amber-600/70"
                           )}>
                             {withinCutoff ? "Within 2h of start" : isFull ? `${slot.bookedCount}/${slot.maxCapacity} booked` : canBook ? "Available" : `${spotsLeft} free`}
                           </div>
@@ -1403,7 +1403,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             <ChevronLeft size={16} /> Back
           </button>
 
-          <div className="bg-[#2C6E49]/5 rounded-xl p-4 mb-6">
+          <div className="bg-brand/5 rounded-xl p-4 mb-6">
             <div className="font-semibold text-gray-800">
               {selectedDate && format(parseISO(selectedDate), "EEEE, MMMM d")}
             </div>
@@ -1438,7 +1438,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-sm font-medium text-gray-700">Phone *</label>
                     {country && (
-                      <span className={cn("text-xs font-medium flex items-center gap-1", done ? "text-[#2C6E49]" : "text-amber-600")}>
+                      <span className={cn("text-xs font-medium flex items-center gap-1", done ? "text-brand" : "text-amber-600")}>
                         {country.flag} {country.name}{done && " ✓"}
                       </span>
                     )}
@@ -1463,12 +1463,12 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       // (so typed digits + amber _ placeholders show inside the
                       // field); the caret stays visible via caret-color.
                       className={cn(
-                        "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 transition-colors caret-[#2C6E49]",
+                        "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 transition-colors caret-brand",
                         display && form.clientPhone ? "text-transparent" : "text-gray-900",
                         rightPad && "pr-11",
                         hasError
                           ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
-                          : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                          : "border-gray-200 focus:ring-brand/30 focus:border-brand"
                       )}
                     />
                     {display && form.clientPhone && (
@@ -1483,7 +1483,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     {/* Sending the WhatsApp code — a spinner at the field's edge so
                         the client knows something is happening in the 1–2s wait. */}
                     {(otpSending || (otpSent && !otpReady && !otpVerified && otpDelivery !== "failed")) && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#2C6E49] pointer-events-none" aria-label="Checking WhatsApp">
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-brand pointer-events-none" aria-label="Checking WhatsApp">
                         <Loader2 size={20} className="animate-spin" />
                       </div>
                     )}
@@ -1524,7 +1524,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 the number is on WhatsApp. */}
             {otpSent && !otpReady && !otpVerified && otpDelivery !== "failed" && (
               <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
-                <Loader2 size={16} className="animate-spin text-[#2C6E49]" />
+                <Loader2 size={16} className="animate-spin text-brand" />
                 Sending a code to your WhatsApp…
               </div>
             )}
@@ -1550,7 +1550,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     otpError
                       ? "border-red-400"
                       : otpFocused
-                        ? "border-[#2C6E49] ring-4 ring-[#2C6E49]/15"
+                        ? "border-brand ring-4 ring-brand/15"
                         : "border-gray-300",
                   )}
                   onClick={() => otpInputRef.current?.focus()}
@@ -1595,9 +1595,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                               otpError
                                 ? "bg-red-400"
                                 : active
-                                  ? "animate-caret bg-[#2C6E49]"
+                                  ? "animate-caret bg-brand"
                                   : digit
-                                    ? "bg-[#2C6E49]/60"
+                                    ? "bg-brand/60"
                                     : "bg-gray-200",
                             )}
                           />
@@ -1614,7 +1614,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     "text-xs font-medium",
                     resendIn > 0 || otpSending
                       ? "text-gray-400 cursor-not-allowed"
-                      : "text-[#2C6E49] hover:underline",
+                      : "text-brand hover:underline",
                   )}
                 >
                   {otpSending
@@ -1626,7 +1626,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               </div>
             )}
             {otpVerified && (
-              <div className="rounded-xl border border-[#2C6E49]/30 bg-[#2C6E49]/5 px-4 py-2.5 text-sm font-medium text-[#2C6E49] flex items-center gap-2">
+              <div className="rounded-xl border border-brand/30 bg-brand/5 px-4 py-2.5 text-sm font-medium text-brand flex items-center gap-2">
                 <span>✓</span> Number verified
               </div>
             )}
@@ -1640,10 +1640,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 here; a trainer deducts it at the studio. Shown once the code is
                 verified and the client has an active pass at this studio. */}
             {membershipLeft > 0 && (
-              <div className="rounded-xl border border-[#2C6E49]/30 bg-[#2C6E49]/5 px-4 py-3 text-sm text-[#2C6E49]">
+              <div className="rounded-xl border border-brand/30 bg-brand/5 px-4 py-3 text-sm text-brand">
                 🎟️ You have <span className="font-semibold">{membershipLeft}</span>{" "}
                 {membershipLeft === 1 ? "class" : "classes"} left on your membership.{" "}
-                <span className="text-[#2C6E49]/70">Your trainer will check you in at the studio.</span>
+                <span className="text-brand/70">Your trainer will check you in at the studio.</span>
               </div>
             )}
 
@@ -1659,7 +1659,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                   )}>
                     Email *
                     {lookupState === "loading" && <span className="text-xs text-gray-400 ml-2">looking up…</span>}
-                    {lookupState === "found" && form.clientEmail && <span className="text-xs text-[#2C6E49] ml-2">welcome back ✓</span>}
+                    {lookupState === "found" && form.clientEmail && <span className="text-xs text-brand ml-2">welcome back ✓</span>}
                   </label>
                   <input
                     ref={fieldRefs.clientEmail}
@@ -1674,7 +1674,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
                       fieldErrors.clientEmail
                         ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
-                        : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                        : "border-gray-200 focus:ring-brand/30 focus:border-brand"
                     )}
                   />
                   {fieldErrors.clientEmail ? (
@@ -1711,7 +1711,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
                       fieldErrors.clientName
                         ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
-                        : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                        : "border-gray-200 focus:ring-brand/30 focus:border-brand"
                     )}
                   />
                   {fieldErrors.clientName && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientName}</p>}
@@ -1736,7 +1736,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                               setSelectedServices(selectedServices.filter((id) => id !== svc.id))
                             }
                           }}
-                          className="rounded accent-[#2C6E49]"
+                          className="rounded accent-brand"
                         />
                         <span className="text-sm text-gray-700">{svc.name}</span>
                       </div>
@@ -1784,7 +1784,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               type="submit"
               disabled={submitting || !otpVerified}
               title={!otpVerified ? "Verify your WhatsApp code first" : undefined}
-              className="w-full bg-[#2C6E49] hover:bg-[#1E4D34] disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors"
+              className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors"
             >
               {submitting ? "Booking…" : "Continue"}
             </button>
@@ -1823,7 +1823,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 type="button"
                 onClick={() => { setDupWarn(null); submitBooking(true) }}
                 disabled={submitting}
-                className="flex-1 bg-[#2C6E49] text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-[#1E4D34] disabled:opacity-60"
+                className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-dark disabled:opacity-60"
               >
                 {submitting ? "Booking…" : "Yes, continue"}
               </button>

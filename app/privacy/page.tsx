@@ -13,10 +13,10 @@ export const metadata: Metadata = {
 // onboarding doesn't have to repeat it.
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen bg-[#F5F4F0]">
+    <main className="min-h-screen bg-sand">
       <header className="bg-white border-b border-gray-100">
         <div className="max-w-3xl mx-auto px-4 py-5 flex items-center justify-between">
-          <Link href="/" className="text-[#2C6E49] font-bold text-lg">
+          <Link href="/" className="text-brand font-bold text-lg">
             Gravity Stretching
           </Link>
           <Link href="/" className="text-sm text-gray-500 hover:text-gray-800">
@@ -26,7 +26,7 @@ export default function PrivacyPage() {
       </header>
 
       <article className="max-w-3xl mx-auto px-4 py-10 prose prose-neutral">
-        <h1 className="text-3xl font-bold text-[#1E4D34] mb-2">Privacy Policy</h1>
+        <h1 className="text-3xl font-bold text-brand-dark mb-2">Privacy Policy</h1>
         <p className="text-sm text-gray-500 mb-8">Last updated: 2 June 2026</p>
 
         <p>

@@ -9,7 +9,7 @@ export default function SiteFooter() {
   return (
     <footer className="mt-10 border-t border-black/5 bg-white/60">
       <div className="max-w-4xl mx-auto px-4 py-8 text-sm text-gray-500">
-        <div className="font-semibold text-[#2C6E49]">Gravity Stretching</div>
+        <div className="font-semibold text-brand">Gravity Stretching</div>
         <p className="mt-2 leading-relaxed">
           Operated by <strong>PT Gravity Stretching Canggu</strong>
           <br />
@@ -18,22 +18,22 @@ export default function SiteFooter() {
           Badung, Bali 80365, Indonesia
         </p>
         <p className="mt-2 leading-relaxed">
-          <a className="hover:text-[#2C6E49]" href="mailto:admin@bookgravity.com">
+          <a className="hover:text-brand" href="mailto:admin@bookgravity.com">
             admin@bookgravity.com
           </a>
           {" · "}
-          <a className="hover:text-[#2C6E49]" href="tel:+6282131304681">
+          <a className="hover:text-brand" href="tel:+6282131304681">
             +62 821 3130 468
           </a>
         </p>
         <nav className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
-          <Link className="hover:text-[#2C6E49]" href="/privacy">
+          <Link className="hover:text-brand" href="/privacy">
             Privacy Policy
           </Link>
-          <Link className="hover:text-[#2C6E49]" href="/support">
+          <Link className="hover:text-brand" href="/support">
             Support
           </Link>
-          <a className="hover:text-[#2C6E49]" href="/login">
+          <a className="hover:text-brand" href="/login">
             Staff sign in
           </a>
         </nav>

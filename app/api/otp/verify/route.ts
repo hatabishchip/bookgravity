@@ -37,14 +37,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Verified (or OTP not required) → privacy-safe lookup of last-used details.
+    // Scope to THIS studio (via slot.studioId): the same phone may have booked
+    // at another studio, and one studio must never surface a name/email the
+    // client only ever gave to a different studio.
     const [nameBooking, emailBooking] = await Promise.all([
       prisma.booking.findFirst({
-        where: { clientPhone: phone },
+        where: { clientPhone: phone, slot: { studioId } },
         orderBy: { createdAt: "desc" },
         select: { clientName: true },
       }),
       prisma.booking.findFirst({
-        where: { clientPhone: phone, clientEmail: { not: "" } },
+        where: { clientPhone: phone, clientEmail: { not: "" }, slot: { studioId } },
         orderBy: { createdAt: "desc" },
         select: { clientEmail: true },
       }),

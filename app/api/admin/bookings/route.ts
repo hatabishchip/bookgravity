@@ -43,17 +43,28 @@ const BookingSchema = z.object({
   partySize: z.number().int().min(1).max(6).default(1),
 })
 
-async function generateUniqueCode(slotId: string): Promise<string> {
+// Thrown inside the create transaction when a concurrent booking filled the
+// last seats since our first capacity check. Caught below → 409.
+class CapacityError extends Error {
+  constructor(public seatsLeft: number, public requested: number) {
+    super(`Only ${seatsLeft} spot(s) left, you requested ${requested}`)
+  }
+}
+
+async function generateUniqueCodes(slotId: string, count: number): Promise<string[]> {
   const existing = await prisma.booking.findMany({
     where: { slotId, status: "CONFIRMED" },
     select: { ticketCode: true },
   })
   const used = new Set(existing.map((b) => b.ticketCode))
-  let code: string
-  do {
-    code = String(Math.floor(100 + Math.random() * 900))
-  } while (used.has(code))
-  return code
+  const codes: string[] = []
+  while (codes.length < count) {
+    const code = String(Math.floor(100 + Math.random() * 900))
+    if (used.has(code)) continue
+    used.add(code)
+    codes.push(code)
+  }
+  return codes
 }
 
 export async function POST(request: NextRequest) {
@@ -89,27 +100,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Only ${seatsLeft} spot(s) left, you requested ${data.partySize}` }, { status: 409 })
   }
 
-  const bookings = []
-  for (let i = 0; i < data.partySize; i++) {
-    const ticketCode = await generateUniqueCode(data.slotId)
-    const b = await prisma.booking.create({
-      data: {
-        slotId: data.slotId,
-        clientName: data.partySize > 1 ? `${data.clientName} (${i + 1}/${data.partySize})` : data.clientName,
-        clientEmail: data.clientEmail || "",
-        clientPhone: data.clientPhone,
-        clientTelegram: data.clientTelegram || null,
-        ticketCode,
-        services: data.serviceIds?.length
-          ? { create: data.serviceIds.map((sid) => ({ serviceId: sid })) }
-          : undefined,
-      },
-      include: {
-        slot: { include: { trainer: { select: { name: true } } } },
-        services: { include: { service: true } },
-      },
+  // Re-check capacity against a fresh count INSIDE the transaction so two
+  // concurrent admin/public bookings can't both pass the check above and
+  // overbook the class. Ticket codes pre-generated to stay distinct.
+  const ticketCodes = await generateUniqueCodes(data.slotId, data.partySize)
+  type AdminBookingRow = Awaited<ReturnType<typeof prisma.booking.create>>
+  let bookings: AdminBookingRow[]
+  try {
+    bookings = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.timeSlot.findUnique({
+        where: { id: data.slotId },
+        select: {
+          maxCapacity: true,
+          _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
+        },
+      })
+      if (!fresh) throw new CapacityError(0, data.partySize)
+      const freshSeatsLeft = fresh.maxCapacity - fresh._count.bookings
+      if (freshSeatsLeft < data.partySize) throw new CapacityError(freshSeatsLeft, data.partySize)
+      const rows: AdminBookingRow[] = []
+      for (let i = 0; i < data.partySize; i++) {
+        const b = await tx.booking.create({
+          data: {
+            slotId: data.slotId,
+            clientName: data.partySize > 1 ? `${data.clientName} (${i + 1}/${data.partySize})` : data.clientName,
+            clientEmail: data.clientEmail || "",
+            clientPhone: data.clientPhone,
+            clientTelegram: data.clientTelegram || null,
+            ticketCode: ticketCodes[i],
+            services: data.serviceIds?.length
+              ? { create: data.serviceIds.map((sid) => ({ serviceId: sid })) }
+              : undefined,
+          },
+          include: {
+            slot: { include: { trainer: { select: { name: true } } } },
+            services: { include: { service: true } },
+          },
+        })
+        rows.push(b)
+      }
+      return rows
     })
-    bookings.push(b)
+  } catch (err) {
+    if (err instanceof CapacityError) {
+      return NextResponse.json({ error: err.message }, { status: 409 })
+    }
+    throw err
   }
 
   // Mirror the public booking flow: open/refresh the WhatsApp conversation,

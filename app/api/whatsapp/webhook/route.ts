@@ -186,8 +186,14 @@ export async function POST(request: NextRequest) {
       console.warn("[whatsapp-webhook] bad signature")
       return NextResponse.json({ error: "bad_signature" }, { status: 401 })
     }
+  } else if (process.env.NODE_ENV === "production") {
+    // Fail closed in production: without the app secret we cannot verify that a
+    // payload genuinely came from Meta, so an attacker could forge inbound
+    // messages (e.g. trigger the cancel bot). Refuse rather than trust it.
+    console.error("[whatsapp-webhook] WHATSAPP_APP_SECRET not set in production — rejecting unsigned payload")
+    return NextResponse.json({ error: "webhook not configured" }, { status: 503 })
   } else {
-    console.warn("[whatsapp-webhook] WHATSAPP_APP_SECRET not set — accepting unsigned payload")
+    console.warn("[whatsapp-webhook] WHATSAPP_APP_SECRET not set — accepting unsigned payload (dev only)")
   }
 
   try {

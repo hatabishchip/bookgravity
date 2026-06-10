@@ -34,7 +34,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
     <>
       <div className="p-5 border-b border-gray-100 dark:border-white/10 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h1 className="font-bold text-[#2C6E49] dark:text-[#69b58f] text-lg leading-tight">
+          <h1 className="font-bold text-brand dark:text-[#69b58f] text-lg leading-tight">
             {studio?.name || "Gravity Stretching"}
           </h1>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Admin Panel</p>
@@ -54,7 +54,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           return (
             <Link key={href} href={href}
               className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
-                active ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
+                active ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
               )}>
               <Icon size={18} />
               <span className="flex-1">{label}</span>
@@ -82,7 +82,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
         </Link>
         <Link href="/admin/settings"
           className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
-            settingsActive ? "bg-[#2C6E49] text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
+            settingsActive ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
           )}>
           <Settings size={18} />
           Settings
@@ -116,7 +116,7 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
         <Menu size={20} />
       </button>
       <div className="flex-1 min-w-0">
-        <div className="font-bold text-[#2C6E49] dark:text-[#69b58f] text-sm truncate">
+        <div className="font-bold text-brand dark:text-[#69b58f] text-sm truncate">
           {studio?.name || "Gravity Stretching"}
         </div>
         <div className="text-xs text-gray-400 dark:text-gray-500">{activeLabel}</div>
@@ -149,7 +149,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <SessionProvider>
-      <div className="flex min-h-screen bg-[#F5F4F0] dark:bg-[#0c0f14]">
+      <div className="flex min-h-screen bg-sand dark:bg-[#0c0f14]">
         <aside
           className={cn(
             "fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-100 flex flex-col transition-transform duration-200",

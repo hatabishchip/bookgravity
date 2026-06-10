@@ -85,7 +85,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning className={`${geist.variable} h-full overflow-x-hidden`}>
-      <body className="min-h-full bg-[#F5F4F0] dark:bg-[#0c0f14] font-sans antialiased overflow-x-hidden">
+      <body className="min-h-full bg-sand dark:bg-[#0c0f14] font-sans antialiased overflow-x-hidden">
         {/* Anti-FOUC: the admin dark theme is stored in localStorage and applied
             client-side. Without this, a dark-mode admin sees a white flash on
             every refresh (light first paint → JS flips to dark). This runs

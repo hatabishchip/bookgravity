@@ -77,7 +77,7 @@ export default function TrainerSalaryPage() {
             {salary?.monthLabel ?? format(anchor, "MMMM yyyy")}
           </div>
           {!canGoForward && (
-            <div className="text-[10px] text-[#2C6E49] font-medium mt-0.5">Current month</div>
+            <div className="text-[10px] text-brand font-medium mt-0.5">Current month</div>
           )}
         </div>
         <button
@@ -98,7 +98,7 @@ export default function TrainerSalaryPage() {
       ) : (
         <div className="space-y-3">
           {/* Total card */}
-          <div className="bg-gradient-to-br from-[#2C6E49] to-[#1E4D34] text-white rounded-2xl shadow-sm p-6">
+          <div className="bg-gradient-to-br from-brand to-brand-dark text-white rounded-2xl shadow-sm p-6">
             <div className="flex items-center gap-2 mb-2 opacity-80">
               <Banknote size={16} />
               <span className="text-xs uppercase tracking-wider font-semibold">Total</span>

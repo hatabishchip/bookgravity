@@ -458,7 +458,7 @@ export default function TrainerSchedulePage() {
                 className={cn(
                   "relative w-7 h-7 flex items-center justify-center rounded-full touch-manipulation transition-colors shrink-0",
                   newTotal > 0
-                    ? "text-[#2C6E49] hover:bg-[#2C6E49]/10"
+                    ? "text-brand hover:bg-brand/10"
                     : "text-gray-400 hover:bg-gray-100"
                 )}
               >
@@ -493,7 +493,7 @@ export default function TrainerSchedulePage() {
                   <button
                     type="button"
                     onClick={markAllSeen}
-                    className="text-xs text-[#2C6E49] font-medium hover:underline"
+                    className="text-xs text-brand font-medium hover:underline"
                   >
                     Mark all read
                   </button>
@@ -527,7 +527,7 @@ export default function TrainerSchedulePage() {
                       </div>
                       <div className="text-xs text-gray-500">{formatTime(slot.startTime)}</div>
                     </div>
-                    <span className="flex-shrink-0 text-xs font-bold text-white bg-[#2C6E49] rounded-full px-2 py-1">
+                    <span className="flex-shrink-0 text-xs font-bold text-white bg-brand rounded-full px-2 py-1">
                       +{delta}
                     </span>
                   </button>
@@ -627,7 +627,7 @@ export default function TrainerSchedulePage() {
                       <div>
                         <div className={cn(
                           "text-lg font-bold leading-tight",
-                          isToday ? "text-[#2C6E49]" : "text-gray-900"
+                          isToday ? "text-brand" : "text-gray-900"
                         )}>
                           {format(day, "EEEE")}
                         </div>
@@ -636,7 +636,7 @@ export default function TrainerSchedulePage() {
                         </div>
                       </div>
                       {isToday && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-[#2C6E49] text-white px-2 py-1 rounded-full">Today</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-brand text-white px-2 py-1 rounded-full">Today</span>
                       )}
                     </div>
                   ) : (
@@ -646,12 +646,12 @@ export default function TrainerSchedulePage() {
                       </div>
                       <div className={cn(
                         "font-bold text-lg mt-0.5",
-                        isToday ? "text-[#2C6E49]" : "text-gray-800"
+                        isToday ? "text-brand" : "text-gray-800"
                       )}>
                         {format(day, "d")}
                       </div>
                       {isToday && (
-                        <span className="block mx-auto mt-1 text-[9px] font-bold uppercase tracking-wider bg-[#2C6E49] text-white px-1.5 py-0.5 rounded-full w-fit">
+                        <span className="block mx-auto mt-1 text-[9px] font-bold uppercase tracking-wider bg-brand text-white px-1.5 py-0.5 rounded-full w-fit">
                           Today
                         </span>
                       )}
@@ -715,24 +715,24 @@ export default function TrainerSchedulePage() {
                           // Class with a booked client → bright (vivid) green.
                           // Class with no bookings yet → pale green.
                           hasBookings
-                            ? "bg-[#2C6E49] border-[#2C6E49] text-white"
-                            : "bg-[#2C6E49]/8 border-[#2C6E49]/25 hover:border-[#2C6E49]/50",
+                            ? "bg-brand border-brand text-white"
+                            : "bg-brand/8 border-brand/25 hover:border-brand/50",
                           // The currently-open slot gets a ring (keeps the
                           // booked/empty colour meaningful even when selected).
-                          isSelected && "ring-2 ring-[#2C6E49] ring-offset-1"
+                          isSelected && "ring-2 ring-brand ring-offset-1"
                         )}
                       >
                         <div className={cn(
                           "font-semibold",
                           view === "2weeks" ? "text-base" : "text-xs",
-                          hasBookings ? "text-white" : "text-[#2C6E49]"
+                          hasBookings ? "text-white" : "text-brand"
                         )}>
                           {formatTime(slot.startTime)}
                         </div>
                         <div className={cn(
                           "flex items-center gap-1",
                           view === "2weeks" ? "text-sm" : "text-xs mt-0.5",
-                          hasBookings ? "text-white/80" : "text-[#2C6E49]/70"
+                          hasBookings ? "text-white/80" : "text-brand/70"
                         )}>
                           <Users size={view === "2weeks" ? 14 : 10} />
                           {slot._count?.bookings ?? 0}/{slot.maxCapacity ?? 0}
@@ -754,7 +754,7 @@ export default function TrainerSchedulePage() {
             className={cn(
               // Mobile: full-screen modal — overscroll-none stops the whole sheet
               // from rubber-banding as a unit when finger lands on a card
-              "fixed inset-0 z-50 bg-[#F5F4F0] flex flex-col overscroll-none",
+              "fixed inset-0 z-50 bg-sand flex flex-col overscroll-none",
               // Desktop: side panel, scoped within the parent flex
               "lg:static lg:z-auto lg:inset-auto lg:w-80 lg:bg-white lg:rounded-2xl lg:shadow-sm lg:flex-shrink-0 lg:h-fit lg:p-5 lg:overscroll-auto"
             )}
@@ -778,7 +778,7 @@ export default function TrainerSchedulePage() {
                   return allPaid ? (
                     <button
                       onClick={() => { setForcedSlotId(null); setSelectedSlot(null) }}
-                      className="px-4 py-2 rounded-xl bg-[#2C6E49] text-white text-sm font-semibold hover:bg-[#1E4D34] touch-manipulation"
+                      className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark touch-manipulation"
                     >
                       Done
                     </button>
@@ -836,19 +836,19 @@ export default function TrainerSchedulePage() {
 
                   if (collapsed) {
                     return (
-                      <div key={b.id} className="rounded-xl px-4 py-3 border-2 border-[#2C6E49]/25 bg-[#2C6E49]/5 shadow-sm flex items-center justify-between gap-2">
+                      <div key={b.id} className="rounded-xl px-4 py-3 border-2 border-brand/25 bg-brand/5 shadow-sm flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-6 h-6 rounded-full bg-[#2C6E49]/15 text-[#2C6E49] text-xs font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                          <span className="w-6 h-6 rounded-full bg-brand/15 text-brand text-xs font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
                           <span className="font-semibold text-gray-900 truncate">{b.clientName}</span>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-xs font-semibold text-[#2C6E49] whitespace-nowrap">✓ Paid · {paymentLabel}</span>
+                          <span className="text-xs font-semibold text-brand whitespace-nowrap">✓ Paid · {paymentLabel}</span>
                           <button
                             type="button"
                             onClick={() => openChat(b.clientPhone, b.clientName)}
                             title="Написать клиенту"
                             aria-label="Написать клиенту"
-                            className="p-1.5 rounded-lg text-[#2C6E49] hover:bg-[#2C6E49]/10 touch-manipulation"
+                            className="p-1.5 rounded-lg text-brand hover:bg-brand/10 touch-manipulation"
                           >
                             <MessageSquare size={16} strokeWidth={2.25} />
                           </button>
@@ -856,7 +856,7 @@ export default function TrainerSchedulePage() {
                             <button
                               type="button"
                               onClick={() => setCollapsedIds((prev) => { const n = new Set(prev); n.delete(b.id); return n })}
-                              className="p-1.5 -mr-1 rounded-lg text-gray-400 hover:text-[#2C6E49] hover:bg-[#2C6E49]/10 touch-manipulation"
+                              className="p-1.5 -mr-1 rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 touch-manipulation"
                               aria-label="Edit payment"
                               title="Edit — available for 30 minutes after payment"
                             >
@@ -883,7 +883,7 @@ export default function TrainerSchedulePage() {
                             onClick={() => openChat(b.clientPhone, b.clientName)}
                             title="Написать клиенту"
                             aria-label="Написать клиенту"
-                            className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#2C6E49]/10 text-[#2C6E49] hover:bg-[#2C6E49]/15 active:scale-95 transition touch-manipulation"
+                            className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand/10 text-brand hover:bg-brand/15 active:scale-95 transition touch-manipulation"
                           >
                             <MessageSquare size={17} strokeWidth={2.25} />
                           </button>
@@ -909,8 +909,8 @@ export default function TrainerSchedulePage() {
                               className={cn(
                                 "w-full py-2.5 rounded-lg text-sm font-semibold border touch-manipulation flex items-center justify-center gap-2",
                                 b.paymentType === "MEMBERSHIP"
-                                  ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                                  : "bg-white text-gray-700 border-gray-200 hover:border-[#2C6E49]/40"
+                                  ? "bg-brand text-white border-brand"
+                                  : "bg-white text-gray-700 border-gray-200 hover:border-brand/40"
                               )}
                             >
                               {b.paymentType === "MEMBERSHIP" && syncingIds.has(b.id) ? (
@@ -937,8 +937,8 @@ export default function TrainerSchedulePage() {
                                   className={cn(
                                     "py-2.5 rounded-lg text-sm font-semibold border touch-manipulation flex items-center justify-center",
                                     isActive
-                                      ? "bg-[#2C6E49] text-white border-[#2C6E49]"
-                                      : "bg-white text-gray-600 border-gray-200 hover:border-[#2C6E49]/40"
+                                      ? "bg-brand text-white border-brand"
+                                      : "bg-white text-gray-600 border-gray-200 hover:border-brand/40"
                                   )}
                                 >
                                   {isActive && syncingIds.has(b.id)
@@ -950,7 +950,7 @@ export default function TrainerSchedulePage() {
                           </div>
                         </div>
                         {isPaid && (
-                          <div className="mt-1.5 text-xs text-[#2C6E49] font-medium">✓ Paid · {paymentLabel}</div>
+                          <div className="mt-1.5 text-xs text-brand font-medium">✓ Paid · {paymentLabel}</div>
                         )}
                       </div>
 
@@ -975,13 +975,13 @@ export default function TrainerSchedulePage() {
                                     className={cn(
                                       "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 border text-left touch-manipulation",
                                       hasService
-                                        ? "bg-[#2C6E49]/5 border-[#2C6E49]/20"
+                                        ? "bg-brand/5 border-brand/20"
                                         : "bg-white border-gray-200"
                                     )}
                                   >
                                     <span className={cn(
                                       "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
-                                      hasService ? "bg-[#2C6E49] border-[#2C6E49]" : "bg-white border-gray-300"
+                                      hasService ? "bg-brand border-brand" : "bg-white border-gray-300"
                                     )}>
                                       {hasService && (
                                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -992,7 +992,7 @@ export default function TrainerSchedulePage() {
                                     <span className={cn("text-sm flex-1 font-medium", hasService ? "text-gray-900" : "text-gray-700")}>
                                       {svc.name}
                                     </span>
-                                    <span className={cn("text-sm font-semibold", hasService ? "text-[#2C6E49]" : "text-gray-400")}>
+                                    <span className={cn("text-sm font-semibold", hasService ? "text-brand" : "text-gray-400")}>
                                       +{formatIDR(svc.price)}
                                     </span>
                                   </button>
@@ -1010,7 +1010,7 @@ export default function TrainerSchedulePage() {
                                               className={cn(
                                                 "flex-1 py-1 rounded-md text-[11px] font-semibold border touch-manipulation",
                                                 active
-                                                  ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                                                  ? "bg-brand text-white border-brand"
                                                   : "bg-white text-gray-500 border-gray-200"
                                               )}
                                             >
@@ -1054,7 +1054,7 @@ export default function TrainerSchedulePage() {
                               updateBooking(b.id, { notes: e.target.value })
                             }
                           }}
-                          className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49] disabled:opacity-50"
+                          className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-50"
                           placeholder="Add note..."
                         />
                       </div>
@@ -1066,7 +1066,7 @@ export default function TrainerSchedulePage() {
                         <button
                           type="button"
                           onClick={() => setCollapsedIds((prev) => new Set(prev).add(b.id))}
-                          className="mt-4 w-full py-3 rounded-xl bg-[#2C6E49] text-white text-sm font-semibold hover:bg-[#1E4D34] touch-manipulation flex items-center justify-center gap-2"
+                          className="mt-4 w-full py-3 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark touch-manipulation flex items-center justify-center gap-2"
                         >
                           ✓ Done — collapse
                         </button>

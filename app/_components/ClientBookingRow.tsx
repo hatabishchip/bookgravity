@@ -51,7 +51,7 @@ export function ClientBookingRow({
                   setMoving(false)
                 }
               }}
-              className="appearance-none text-xs font-medium border border-[#2C6E49]/40 text-[#2C6E49] rounded-lg pl-2.5 pr-7 py-2 max-w-[160px] bg-[#2C6E49]/5 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+              className="appearance-none text-xs font-medium border border-brand/40 text-brand rounded-lg pl-2.5 pr-7 py-2 max-w-[160px] bg-brand/5 focus:outline-none focus:ring-2 focus:ring-brand/30"
             >
               <option value="" disabled>
                 Move to…
@@ -64,7 +64,7 @@ export function ClientBookingRow({
             </select>
             <Check
               size={13}
-              className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#2C6E49]"
+              className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-brand"
             />
           </div>
           <button
@@ -85,7 +85,7 @@ export function ClientBookingRow({
               onClick={onOpenChat}
               title="Открыть чат"
               aria-label="Открыть чат"
-              className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#2C6E49]/10 text-[#2C6E49] hover:bg-[#2C6E49]/15 active:scale-95 transition flex-shrink-0"
+              className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand/10 text-brand hover:bg-brand/15 active:scale-95 transition flex-shrink-0"
             >
               <MessageSquare size={16} strokeWidth={2.25} />
             </button>
@@ -101,7 +101,7 @@ export function ClientBookingRow({
               "flex items-center justify-center w-8 h-8 rounded-lg transition active:scale-95 flex-shrink-0",
               targets.length === 0
                 ? "bg-gray-50 text-gray-300 cursor-not-allowed"
-                : "bg-[#2C6E49]/10 text-[#2C6E49] hover:bg-[#2C6E49]/15",
+                : "bg-brand/10 text-brand hover:bg-brand/15",
             )}
           >
             <ArrowRightLeft size={15} strokeWidth={2.25} />

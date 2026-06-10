@@ -274,6 +274,11 @@ model TimeSlot {
   updatedAt   DateTime  @updatedAt
 
   @@index([seriesId])
+  // Calendar fetches are always "this studio, this date range" — the single
+  // hottest query in the app. Without this it's a full table scan per load.
+  @@index([studioId, date])
+  // Trainer schedule view filters by trainer.
+  @@index([trainerId])
 }
 
 model Booking {
@@ -316,6 +321,14 @@ model Booking {
   todayReminderSentAt DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
+
+  // Counting confirmed attendees on a slot (capacity checks, client lists) is
+  // run constantly — composite covers the `where slotId + status` pattern.
+  @@index([slotId, status])
+  // Client lookups by phone (membership balance, OTP autofill, cancel bot).
+  @@index([clientPhone])
+  // Restoring a class when a membership-paid booking is cancelled.
+  @@index([membershipId])
 }
 
 model AdditionalService {

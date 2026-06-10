@@ -214,7 +214,7 @@ export default function BetaSchedulePage() {
             setMonthAnchor(startOfMonth(today))
             setSelectedDate(today)
           }}
-          className="text-sm font-medium text-gray-600 hover:text-[#2C6E49] px-3 py-1.5 rounded-lg hover:bg-gray-50 touch-manipulation"
+          className="text-sm font-medium text-gray-600 hover:text-brand px-3 py-1.5 rounded-lg hover:bg-gray-50 touch-manipulation"
         >
           Today
         </button>
@@ -263,9 +263,9 @@ export default function BetaSchedulePage() {
                   "flex items-center justify-center rounded-full text-sm sm:text-base font-medium",
                   "w-8 h-8 sm:w-9 sm:h-9",
                   isToday
-                    ? "bg-[#2C6E49] text-white font-semibold"
+                    ? "bg-brand text-white font-semibold"
                     : isSelected
-                      ? "bg-[#2C6E49]/12 text-[#2C6E49] font-semibold"
+                      ? "bg-brand/12 text-brand font-semibold"
                       : isOtherMonth
                         ? "text-gray-300"
                         : "text-gray-800",
@@ -302,7 +302,7 @@ export default function BetaSchedulePage() {
                 className={cn(
                   "flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap touch-manipulation",
                   isActive
-                    ? "bg-[#2C6E49]/12 text-[#2C6E49]"
+                    ? "bg-brand/12 text-brand"
                     : "bg-white border border-gray-200 text-gray-600"
                 )}
               >
@@ -323,8 +323,8 @@ export default function BetaSchedulePage() {
             <div className={cn(
               "mt-1 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full text-base sm:text-lg font-semibold",
               isSameDay(selectedDate, today)
-                ? "bg-[#2C6E49] text-white"
-                : "bg-[#2C6E49]/12 text-[#2C6E49]"
+                ? "bg-brand text-white"
+                : "bg-brand/12 text-brand"
             )}>
               {selectedDate.getDate()}
             </div>
@@ -389,7 +389,7 @@ export default function BetaSchedulePage() {
                 <button
                   type="button"
                   onClick={() => setCreatingForDate(selectedDateStr)}
-                  className="w-full flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium text-[#2C6E49] bg-[#2C6E49]/5 border border-dashed border-[#2C6E49]/30 hover:bg-[#2C6E49]/10 touch-manipulation"
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium text-brand bg-brand/5 border border-dashed border-brand/30 hover:bg-brand/10 touch-manipulation"
                 >
                   <Plus size={16} />
                   Add session
@@ -640,14 +640,14 @@ function SlotEditor({
                   return (
                     <button key={c.value} type="button" onClick={() => handleClassTypeChange(c.value)}
                       className={cn("rounded-lg border px-3 py-2 text-left touch-manipulation",
-                        classType === c.value ? "border-[#2C6E49] bg-[#2C6E49]/5" : "border-gray-200 bg-white"
+                        classType === c.value ? "border-brand bg-brand/5" : "border-gray-200 bg-white"
                       )}>
-                      <div className={cn("text-xs font-semibold", classType === c.value ? "text-[#2C6E49]" : "text-gray-700")}>
+                      <div className={cn("text-xs font-semibold", classType === c.value ? "text-brand" : "text-gray-700")}>
                         {c.label}
                       </div>
                       <div className="text-[10px] text-gray-400 mt-0.5">{c.sub}</div>
                       {studioPrices && (
-                        <div className={cn("text-[11px] font-bold mt-1", classType === c.value ? "text-[#2C6E49]" : "text-gray-600")}>
+                        <div className={cn("text-[11px] font-bold mt-1", classType === c.value ? "text-brand" : "text-gray-600")}>
                           {formatPriceShort(p)} IDR
                         </div>
                       )}
@@ -661,7 +661,7 @@ function SlotEditor({
               <label className="block text-xs font-medium text-gray-500 mb-1.5">Trainer & capacity</label>
               <div className="flex gap-2">
                 <select value={trainerId} onChange={(e) => { setTrainerId(e.target.value); if (!e.target.value) setAssistantId("") }}
-                  className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30">
+                  className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30">
                   <option value="">Unassigned</option>
                   {trainers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
@@ -670,7 +670,7 @@ function SlotEditor({
                   disabled={classType === "PRIVATE"}
                   onChange={(e) => setMaxCapacity(Number(e.target.value))}
                   title={classType === "PRIVATE" ? "Private session is always 1 person" : "Capacity"}
-                  className="w-[88px] border border-gray-200 rounded-xl px-2 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 disabled:opacity-60 disabled:bg-gray-50"
+                  className="w-[88px] border border-gray-200 rounded-xl px-2 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-60 disabled:bg-gray-50"
                 >
                   {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>👤 {n}</option>)}
                 </select>
@@ -681,7 +681,7 @@ function SlotEditor({
               <label className="block text-xs font-medium text-gray-500 mb-1.5">Assistant <span className="text-gray-400">(optional)</span></label>
               <select value={assistantId} disabled={!trainerId}
                 onChange={(e) => setAssistantId(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 disabled:opacity-50">
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-50">
                 <option value="">None</option>
                 {trainers.filter((t) => t.id !== trainerId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -698,7 +698,7 @@ function SlotEditor({
                   className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center border flex-shrink-0",
                     publicVisible
-                      ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
+                      ? "bg-white text-brand border-brand/40"
                       : "bg-gray-50 text-gray-400 border-gray-200"
                   )}
                 >
@@ -724,19 +724,19 @@ function SlotEditor({
                 <label className={cn(
                   "flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer touch-manipulation",
                   repeatWeekly
-                    ? "bg-[#2C6E49]/5 border-[#2C6E49]/20"
+                    ? "bg-brand/5 border-brand/20"
                     : "bg-gray-50 border-gray-200"
                 )}>
                   <input
                     type="checkbox"
                     checked={repeatWeekly}
                     onChange={(e) => setRepeatWeekly(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 accent-[#2C6E49]"
+                    className="w-4 h-4 mt-0.5 accent-brand"
                   />
                   <div className="min-w-0">
                     <div className={cn(
                       "text-sm font-medium",
-                      repeatWeekly ? "text-[#2C6E49]" : "text-gray-700"
+                      repeatWeekly ? "text-brand" : "text-gray-700"
                     )}>
                       Repeat every {weekday}
                     </div>
@@ -761,7 +761,7 @@ function SlotEditor({
               </div>
               {!adding && bookings.length < maxCapacity && (
                 <button type="button" onClick={() => setAdding(true)}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-[#2C6E49] hover:underline">
+                  className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
                   <Plus size={12} /> Add client
                 </button>
               )}
@@ -813,7 +813,7 @@ function SlotEditor({
             Close
           </button>
           <button type="button" onClick={handleSave} disabled={saving}
-            className="flex-1 px-3 py-2.5 rounded-xl bg-[#2C6E49] text-white text-sm font-semibold hover:bg-[#1E4D34] disabled:opacity-60">
+            className="flex-1 px-3 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-60">
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
@@ -1089,7 +1089,7 @@ function SlotCreator({
                     onClick={() => toggleTime(t)}
                     className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium touch-manipulation",
                       selected
-                        ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                        ? "bg-brand text-white border-brand"
                         : disabled
                           ? "bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed line-through"
                           : "bg-white text-gray-600 border-gray-200"
@@ -1102,7 +1102,7 @@ function SlotCreator({
             <div className="flex gap-2">
               <input type="time" value={customTime}
                 onChange={(e) => setCustomTime(e.target.value)}
-                className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+                className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
               <button type="button"
                 onClick={() => {
@@ -1146,7 +1146,7 @@ function SlotCreator({
                         return (
                           <div key={t} className={cn(
                             "relative rounded-lg text-xs border pl-3 pr-10 py-2.5 space-y-2",
-                            isExisting ? "bg-gray-50 border-gray-200" : "bg-[#2C6E49]/5 border-[#2C6E49]/15"
+                            isExisting ? "bg-gray-50 border-gray-200" : "bg-brand/5 border-brand/15"
                           )}>
                             <button type="button"
                               disabled={hasBookings}
@@ -1158,11 +1158,11 @@ function SlotCreator({
                               className={cn(
                                 "absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center text-lg leading-none touch-manipulation",
                                 hasBookings ? "text-gray-300 cursor-not-allowed" :
-                                  isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-[#2C6E49]/60 hover:text-rose-600 hover:bg-rose-50"
+                                  isExisting ? "text-gray-400 hover:text-rose-600 hover:bg-rose-50" : "text-brand/60 hover:text-rose-600 hover:bg-rose-50"
                               )}>×</button>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={cn("font-medium whitespace-nowrap",
-                                isExisting ? "text-gray-700" : "text-[#2C6E49]"
+                                isExisting ? "text-gray-700" : "text-brand"
                               )}>
                                 {formatTime(t)}–{formatTime(computeEndTime(t))}
                               </span>
@@ -1198,7 +1198,7 @@ function SlotCreator({
                                       className={cn(
                                         "w-7 h-7 rounded text-[11px] font-bold leading-none flex items-center justify-center border touch-manipulation",
                                         a.classType === c.value
-                                          ? "bg-[#2C6E49] text-white border-[#2C6E49]"
+                                          ? "bg-brand text-white border-brand"
                                           : "bg-white text-gray-500 border-gray-200"
                                       )}>
                                       {c.value[0]}
@@ -1215,7 +1215,7 @@ function SlotCreator({
                                     className={cn(
                                       "w-7 h-7 rounded flex items-center justify-center border touch-manipulation",
                                       a.publicVisible
-                                        ? "bg-white text-[#2C6E49] border-[#2C6E49]/40"
+                                        ? "bg-white text-brand border-brand/40"
                                         : "bg-gray-50 text-gray-400 border-gray-200"
                                     )}>
                                     {a.publicVisible
@@ -1229,7 +1229,7 @@ function SlotCreator({
                               <select
                                 value={a.trainerId}
                                 onChange={(e) => updateAssignment(t, { trainerId: e.target.value, assistantId: e.target.value ? a.assistantId : "" })}
-                                className="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30"
+                                className="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand/30"
                               >
                                 <option value="">Unassigned</option>
                                 {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
@@ -1238,7 +1238,7 @@ function SlotCreator({
                                 <select
                                   value={a.assistantId}
                                   onChange={(e) => updateAssignment(t, { assistantId: e.target.value })}
-                                  className="flex-1 min-w-0 text-xs border border-dashed border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 text-gray-500"
+                                  className="flex-1 min-w-0 text-xs border border-dashed border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand/30 text-gray-500"
                                   title="Assistant"
                                 >
                                   <option value="">+ Asst</option>
@@ -1254,7 +1254,7 @@ function SlotCreator({
                                     disabled={isPrivate}
                                     onChange={(e) => updateAssignment(t, { maxCapacity: Number(e.target.value) })}
                                     title={isPrivate ? "Private session is always 1 person" : "Capacity"}
-                                    className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#2C6E49]/30 disabled:opacity-60 disabled:bg-gray-50 flex-shrink-0"
+                                    className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand/30 disabled:opacity-60 disabled:bg-gray-50 flex-shrink-0"
                                   >
                                     {[1, 2, 3, 4, 5, 6].map((n) => (
                                       <option key={n} value={n}>👤 {n}</option>
@@ -1279,18 +1279,18 @@ function SlotCreator({
                                 <label className={cn(
                                   "flex items-start gap-2 cursor-pointer select-none rounded-md px-2 py-1.5 transition-colors",
                                   a.repeatWeekly
-                                    ? "bg-[#2C6E49]/5 hover:bg-[#2C6E49]/10"
+                                    ? "bg-brand/5 hover:bg-brand/10"
                                     : "bg-gray-50 hover:bg-gray-100"
                                 )}>
                                   <input type="checkbox"
                                     checked={a.repeatWeekly}
                                     onChange={(e) => updateAssignment(t, { repeatWeekly: e.target.checked })}
-                                    className="w-4 h-4 mt-0.5 accent-[#2C6E49] flex-shrink-0"
+                                    className="w-4 h-4 mt-0.5 accent-brand flex-shrink-0"
                                   />
                                   <div className="min-w-0 flex-1 leading-tight">
                                     <div className={cn(
                                       "text-[11px] font-medium",
-                                      a.repeatWeekly ? "text-[#2C6E49]" : "text-gray-600"
+                                      a.repeatWeekly ? "text-brand" : "text-gray-600"
                                     )}>
                                       Repeat every {weekday}
                                     </div>
@@ -1345,7 +1345,7 @@ function SlotCreator({
             Cancel
           </button>
           <button type="button" onClick={handleSave} disabled={saving || !hasChanges}
-            className="flex-1 px-3 py-2.5 rounded-xl bg-[#2C6E49] text-white text-sm font-semibold hover:bg-[#1E4D34] disabled:opacity-60">
+            className="flex-1 px-3 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-60">
             {saveLabel}
           </button>
         </div>

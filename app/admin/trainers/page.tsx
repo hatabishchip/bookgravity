@@ -244,7 +244,7 @@ export default function TrainersPage() {
         <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Trainers</h1>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-[#2C6E49] text-white px-3 lg:px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#1E4D34] transition-colors flex-shrink-0"
+          className="flex items-center gap-2 bg-brand text-white px-3 lg:px-4 py-2 rounded-xl text-sm font-medium hover:bg-brand-dark transition-colors flex-shrink-0"
         >
           <Plus size={16} /> <span className="hidden sm:inline">Add Trainer</span><span className="sm:hidden">Add</span>
         </button>
@@ -281,7 +281,7 @@ export default function TrainersPage() {
                           if (e.key === "Enter") saveEdit()
                           else if (e.key === "Escape") cancelEdit()
                         }}
-                        className="w-full font-semibold text-gray-900 border border-[#2C6E49]/30 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+                        className="w-full font-semibold text-gray-900 border border-brand/30 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-brand/30"
                       />
                     </div>
                     <div>
@@ -294,7 +294,7 @@ export default function TrainersPage() {
                           if (e.key === "Enter") saveEdit()
                           else if (e.key === "Escape") cancelEdit()
                         }}
-                        className="w-full text-sm text-gray-700 border border-[#2C6E49]/30 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30"
+                        className="w-full text-sm text-gray-700 border border-brand/30 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-brand/30"
                       />
                     </div>
                     <div>
@@ -317,7 +317,7 @@ export default function TrainersPage() {
                           className="w-full flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm"
                         >
                           <span className="flex items-center gap-2 text-gray-700"><Mail size={15} /> Email</span>
-                          <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0", draft.notifyEmail ? "bg-[#2C6E49]" : "bg-gray-300")}>
+                          <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0", draft.notifyEmail ? "bg-brand" : "bg-gray-300")}>
                             <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", draft.notifyEmail ? "left-[18px]" : "left-0.5")} />
                           </span>
                         </button>
@@ -330,7 +330,7 @@ export default function TrainersPage() {
                             className="w-full flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm"
                           >
                             <span className="flex items-center gap-2 text-gray-700"><WhatsAppIcon size={15} /> WhatsApp</span>
-                            <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0", draft.notifyWhatsapp ? "bg-[#2C6E49]" : "bg-gray-300")}>
+                            <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0", draft.notifyWhatsapp ? "bg-brand" : "bg-gray-300")}>
                               <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", draft.notifyWhatsapp ? "left-[18px]" : "left-0.5")} />
                             </span>
                           </button>
@@ -349,7 +349,7 @@ export default function TrainersPage() {
                     <div className="flex items-center gap-1.5 pt-1">
                       <button
                         onClick={saveEdit}
-                        className="text-xs px-3 py-1.5 bg-[#2C6E49] text-white rounded-lg hover:bg-[#1E4D34] flex items-center gap-1 font-medium"
+                        className="text-xs px-3 py-1.5 bg-brand text-white rounded-lg hover:bg-brand-dark flex items-center gap-1 font-medium"
                       >
                         <Check size={12} /> Save
                       </button>
@@ -433,7 +433,7 @@ export default function TrainersPage() {
                   <button
                     onClick={() => startEdit(trainer)}
                     aria-label="Edit trainer"
-                    className="p-1.5 hover:bg-[#2C6E49]/10 rounded-lg text-gray-400 hover:text-[#2C6E49] transition-colors"
+                    className="p-1.5 hover:bg-brand/10 rounded-lg text-gray-400 hover:text-brand transition-colors"
                   >
                     <Pencil size={15} />
                   </button>
@@ -488,7 +488,7 @@ export default function TrainersPage() {
 
             {created ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-[#2C6E49]">
+                <div className="flex items-center gap-2 text-brand">
                   <Check size={18} />
                   <span className="text-sm font-medium">{created.name} added. Share these to sign in:</span>
                 </div>
@@ -499,7 +499,7 @@ export default function TrainersPage() {
                   </div>
                   <div>
                     <div className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Starter password</div>
-                    <div className="text-2xl font-bold font-mono tracking-[0.3em] text-[#2C6E49]">{created.password}</div>
+                    <div className="text-2xl font-bold font-mono tracking-[0.3em] text-brand">{created.password}</div>
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
@@ -508,7 +508,7 @@ export default function TrainersPage() {
                 </p>
                 <button
                   onClick={() => { setShowForm(false); setCreated(null) }}
-                  className="w-full bg-[#2C6E49] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#1E4D34]"
+                  className="w-full bg-brand text-white py-3 rounded-xl text-sm font-medium hover:bg-brand-dark"
                 >
                   Done
                 </button>
@@ -519,7 +519,7 @@ export default function TrainersPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                   <input required type="text" value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                     placeholder="Trainer name"
                   />
                 </div>
@@ -527,7 +527,7 @@ export default function TrainersPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email (for login)</label>
                   <input required type="email" value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                     placeholder="trainer@gravity.com"
                   />
                   <p className="text-xs text-gray-400 mt-1">A 4-digit password is generated automatically — you&apos;ll see it after creating.</p>
@@ -549,7 +549,7 @@ export default function TrainersPage() {
                   <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl text-sm font-medium hover:bg-gray-50">
                     Cancel
                   </button>
-                  <button type="submit" disabled={saving} className="flex-1 bg-[#2C6E49] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#1E4D34] disabled:opacity-60">
+                  <button type="submit" disabled={saving} className="flex-1 bg-brand text-white py-3 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
                     {saving ? "Creating..." : "Create Trainer"}
                   </button>
                 </div>

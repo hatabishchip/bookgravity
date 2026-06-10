@@ -123,8 +123,8 @@ export default function PhoneInput({
           isUnknown
             ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
             : isValid
-              ? "border-[#2C6E49] bg-[#2C6E49]/5 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]"
-              : "border-gray-200 focus:ring-[#2C6E49]/30 focus:border-[#2C6E49]",
+              ? "border-brand bg-brand/5 focus:ring-brand/30 focus:border-brand"
+              : "border-gray-200 focus:ring-brand/30 focus:border-brand",
           disabled && "bg-gray-50 text-gray-400",
           inputClassName,
         )}
@@ -139,7 +139,7 @@ export default function PhoneInput({
           {validation.country.flag} {validation.country.name} · {validation.have} / {validation.country.min} digits
         </p>
       ) : validation.kind === "ok" ? (
-        <p className="text-xs text-[#2C6E49] mt-1">
+        <p className="text-xs text-brand mt-1">
           {validation.country.flag} {validation.country.name} ✓
         </p>
       ) : country ? null : (

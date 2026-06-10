@@ -49,8 +49,8 @@ export default function StudioSwitcher({
 
   return (
     <div className="inline-flex items-center gap-1.5">
-      <MapPin size={14} className="text-[#2C6E49]/60 flex-shrink-0" aria-hidden />
-      <div className="inline-flex items-center rounded-full bg-[#2C6E49]/8 p-0.5">
+      <MapPin size={14} className="text-brand/60 flex-shrink-0" aria-hidden />
+      <div className="inline-flex items-center rounded-full bg-brand/8 p-0.5">
         {studios.map((s) => {
           // Optimistic: the tapped pill reads active immediately, before the
           // server page for that studio has finished rendering.
@@ -65,8 +65,8 @@ export default function StudioSwitcher({
               className={cn(
                 "inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors leading-none",
                 active
-                  ? "bg-[#2C6E49] text-white shadow-sm"
-                  : "text-[#2C6E49]/70 hover:text-[#2C6E49] hover:bg-white/60",
+                  ? "bg-brand text-white shadow-sm"
+                  : "text-brand/70 hover:text-brand hover:bg-white/60",
               )}
             >
               {loading && <Loader2 size={11} className="animate-spin" />}
