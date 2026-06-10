@@ -3,7 +3,7 @@ import { headers } from "next/headers"
 import { verifyToken } from "@/lib/native-jwt"
 import type { Session } from "next-auth"
 
-export type UserRole = "ADMIN" | "TRAINER" | "SUPER_ADMIN"
+export type UserRole = "ADMIN" | "TRAINER" | "SUPER_ADMIN" | "STAFF"
 
 export type SessionContext = {
   userId: string
@@ -62,6 +62,19 @@ export async function requireTrainer(): Promise<SessionContext | null> {
   const session = await auth()
   if (!session || session.user.role !== "TRAINER") return null
   return { userId: session.user.id, studioId: session.user.studioId, role: "TRAINER" }
+}
+
+// Cleaning/support staff: read-only access to the studio's class schedule so
+// they know when they can clean (no client lists, no editing). SUPER_ADMIN is
+// allowed through too, so the owner can preview the staff view.
+export async function requireStaff(): Promise<SessionContext | null> {
+  const bearer = await tryBearer()
+  if (bearer) return bearer.role === "STAFF" || bearer.role === "SUPER_ADMIN" ? bearer : null
+  const session = await auth()
+  if (!session) return null
+  if (session.user.role !== "STAFF" && session.user.role !== "SUPER_ADMIN") return null
+  const studioId = await studioForSession(session)
+  return { userId: session.user.id, studioId, role: session.user.role as UserRole }
 }
 
 export async function requireSuperAdmin(): Promise<SessionContext | null> {

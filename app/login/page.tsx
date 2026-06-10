@@ -24,6 +24,7 @@ export default function LoginPage() {
         const role = s?.user?.role
         if (role === "ADMIN" || role === "SUPER_ADMIN") router.replace("/admin")
         else if (role === "TRAINER") router.replace("/trainer")
+        else if (role === "STAFF") router.replace("/staff")
         else setChecking(false)
       })
       .catch(() => { if (!cancelled) setChecking(false) })
@@ -58,6 +59,8 @@ export default function LoginPage() {
         router.push("/admin")
       } else if (role === "TRAINER") {
         router.push("/trainer")
+      } else if (role === "STAFF") {
+        router.push("/staff")
       } else {
         router.push("/")
       }

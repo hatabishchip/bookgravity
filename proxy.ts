@@ -35,8 +35,16 @@ export const proxy = auth((req) => {
     }
     return
   }
+
+  if (pathname.startsWith("/staff")) {
+    // Cleaning/support staff dashboard. STAFF only (SUPER_ADMIN can preview).
+    if (role !== "STAFF" && role !== "SUPER_ADMIN") {
+      return NextResponse.redirect(new URL("/login", req.url))
+    }
+    return
+  }
 })
 
 export const config = {
-  matcher: ["/admin/:path*", "/trainer/:path*", "/sadmin/:path*"],
+  matcher: ["/admin/:path*", "/trainer/:path*", "/sadmin/:path*", "/staff/:path*"],
 }
