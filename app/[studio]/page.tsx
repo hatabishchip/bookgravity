@@ -9,6 +9,7 @@ import StudioSwitcher from "../_components/StudioSwitcher"
 import StudioCookieSync from "../_components/StudioCookieSync"
 import SiteFooter from "../_components/SiteFooter"
 import JsonLd from "../_components/JsonLd"
+import StudioInfo from "./StudioInfo"
 import { countryName } from "@/lib/countries"
 
 // Per-studio booking page: bookgravity.com/canggu, /ubud, etc. The studio is
@@ -68,14 +69,27 @@ export default async function StudioBookingPage({
   })
   if (!studio) notFound()
 
-  const [services, allStudios, session] = await Promise.all([
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const [services, allStudios, session, upcomingSlots] = await Promise.all([
     prisma.additionalService.findMany({
       where: { active: true, studioId: studio.id },
       orderBy: { name: "asc" },
     }),
     getAllStudios(),
     auth(),
+    // Real upcoming prices feed the content block + schema, so the page never
+    // advertises a number the calendar doesn't actually offer.
+    prisma.timeSlot.findMany({
+      where: { studioId: studio.id, publicVisible: true, date: { gte: todayStr }, price: { gt: 0 } },
+      select: { classType: true, price: true },
+    }),
   ])
+
+  const minPrice = (type: string) => {
+    const prices = upcomingSlots.filter((s) => s.classType === type).map((s) => s.price)
+    return prices.length ? Math.min(...prices) : undefined
+  }
+  const pricing = { group: minPrice("GROUP"), private: minPrice("PRIVATE"), kids: minPrice("KIDS") }
 
   const role = session?.user?.role
   // SUPER_ADMIN (platform owner) acts as an admin everywhere — proxy.ts lets
@@ -112,6 +126,15 @@ export default async function StudioBookingPage({
         }
       : {}),
     ...(studio.city ? { areaServed: studio.city } : {}),
+    // Real price range from upcoming public classes (when known) so Google can
+    // show price hints in local results.
+    ...(pricing.group
+      ? {
+          priceRange: `${pricing.group}${pricing.private ? `-${pricing.private}` : ""} ${
+            (studio.country || "").toUpperCase() === "KZ" ? "KZT" : "IDR"
+          }`,
+        }
+      : {}),
     sport: "Stretching",
   }
 
@@ -125,10 +148,12 @@ export default async function StudioBookingPage({
         <div className="max-w-4xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             {/* Brand only — the studio (Canggu/Ubud) is conveyed by the
-                switcher pills below, so we don't repeat it in the title. */}
-            <h1 className="text-base sm:text-xl font-bold text-brand tracking-tight truncate">
+                switcher pills below, so we don't repeat it in the title.
+                Not an h1: the page's h1 ("Stretching classes in <city>")
+                lives in the content block below the widget. */}
+            <div className="text-base sm:text-xl font-bold text-brand tracking-tight truncate">
               Gravity Stretching
-            </h1>
+            </div>
             {/* Location switcher — shows the active studio, tap to change */}
             <div className="mt-1.5">
               <StudioSwitcher
@@ -172,6 +197,16 @@ export default async function StudioBookingPage({
       <div className="max-w-4xl mx-auto px-4 py-6">
         <BookingWidget services={services} studio={studio} studioSlug={studio.slug} />
       </div>
+
+      {/* Crawlable substance: about, pricing, FAQ (+FAQPage/Breadcrumb JSON-LD),
+          location and cross-studio links. The widget alone is invisible to SEO. */}
+      <StudioInfo
+        studio={studio}
+        pricing={pricing}
+        siblings={allStudios
+          .filter((s) => s.slug !== studio.slug)
+          .map((s) => ({ slug: s.slug, city: s.city, name: s.name }))}
+      />
 
       <SiteFooter />
     </div>

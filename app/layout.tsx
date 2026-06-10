@@ -26,13 +26,16 @@ export async function generateMetadata(): Promise<Metadata> {
     alternates: { canonical: "/" },
     keywords: [
       "gravity stretching",
+      "assisted stretching",
       "stretching studio",
       "stretching class",
       "stretching Bali",
       "stretching Canggu",
       "stretching Ubud",
+      "stretching Almaty",
+      "растяжка алматы",
       "book stretching class",
-      "flexibility class",
+      "flexibility training",
     ],
     icons: {
       // Brand mark (figure in a white circle, no location word).

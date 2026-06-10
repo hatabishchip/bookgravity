@@ -188,7 +188,7 @@ export default function StudioChooser({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={s.coverUrl || `/studios/${s.slug}.jpg`}
-                      alt={label}
+                      alt={`Assisted stretching class at Gravity Stretching ${label} studio`}
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
                       className="absolute inset-0 w-full h-full object-cover brightness-105 transition-transform duration-500 group-hover:scale-105"
                     />

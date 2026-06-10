@@ -1,0 +1,213 @@
+import Link from "next/link"
+import { MapPin, Users, Clock, Sparkles } from "lucide-react"
+import JsonLd from "../_components/JsonLd"
+
+// Server-rendered SEO/content block under the booking widget. This is the
+// page's crawlable substance — the widget itself is interactive UI that
+// search engines can't read meaningfully. Copy targets "stretching classes
+// in <city>" and the long-tail questions around it.
+
+export type StudioInfoData = {
+  name: string
+  slug: string
+  city: string | null
+  country: string | null
+  locationUrl: string | null
+}
+
+export type ClassPricing = {
+  /** Min price of upcoming public GROUP slots, 0/undefined → hide price. */
+  group?: number
+  private?: number
+  kids?: number
+}
+
+export type SiblingStudio = { slug: string; city: string | null; name: string }
+
+function formatPrice(price: number, country: string | null): string {
+  const c = (country || "").toUpperCase()
+  if (c === "ID") {
+    if (price >= 1_000_000) return `${(price / 1_000_000).toFixed(1).replace(/\.0$/, "")}M IDR`
+    return `${Math.round(price / 1000)}k IDR`
+  }
+  if (c === "KZ") return `${price.toLocaleString("en-US")} ₸`
+  return price.toLocaleString("en-US")
+}
+
+function buildFaq(city: string, pricing: ClassPricing, country: string | null) {
+  const faq: { q: string; a: string }[] = [
+    {
+      q: "How long is a stretching class?",
+      a: "Each class is 90 minutes: a guided warm-up, assisted stretching with the trainer, and a calm cool-down.",
+    },
+    {
+      q: "Do I need any experience or flexibility to join?",
+      a: "No. Classes suit complete beginners and athletes alike — the trainer adjusts every stretch to your current range, so you work at your own depth.",
+    },
+    {
+      q: "What should I wear or bring?",
+      a: "Comfortable clothes you can move in. Mats and all equipment are provided at the studio — just bring yourself and some water.",
+    },
+    {
+      q: "How many people are in a group class?",
+      a: "Groups are small — up to 6 people — so the trainer can give everyone hands-on attention. Private 1-on-1 sessions are also available.",
+    },
+    {
+      q: "Can I cancel or reschedule my booking?",
+      a: "Yes — cancellation is free up to 2 hours before the class. Just tap the Cancel button in your WhatsApp booking confirmation, or message the studio.",
+    },
+    {
+      q: "How do I pay?",
+      a: "You pay at the studio — cash, card, QR or transfer. Regulars save with a 5-class membership; ask your trainer about it after class.",
+    },
+  ]
+  if (pricing.group) {
+    faq.splice(3, 0, {
+      q: `How much does a stretching class in ${city} cost?`,
+      a: `Group classes start from ${formatPrice(pricing.group, country)} per person.${
+        pricing.private ? ` Private 1-on-1 sessions start from ${formatPrice(pricing.private, country)}.` : ""
+      } You book your spot online for free and pay at the studio.`,
+    })
+  }
+  return faq
+}
+
+export default function StudioInfo({
+  studio,
+  pricing,
+  siblings,
+}: {
+  studio: StudioInfoData
+  pricing: ClassPricing
+  siblings: SiblingStudio[]
+}) {
+  const city = studio.city?.trim() || studio.name
+  const faq = buildFaq(city, pricing, studio.country)
+
+  const faqLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faq.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  }
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Gravity Stretching", item: "https://bookgravity.com" },
+      { "@type": "ListItem", position: 2, name: `Stretching classes in ${city}`, item: `https://bookgravity.com/${studio.slug}` },
+    ],
+  }
+
+  const classTypes = [
+    {
+      icon: Users,
+      title: "Group class",
+      desc: `Up to 6 people, 90 minutes of assisted stretching with a trainer${
+        pricing.group ? ` — from ${formatPrice(pricing.group, studio.country)} per person` : ""
+      }.`,
+    },
+    {
+      icon: Sparkles,
+      title: "Private 1-on-1",
+      desc: `A full session focused entirely on your body and goals${
+        pricing.private ? ` — from ${formatPrice(pricing.private, studio.country)}` : ""
+      }. Ideal for deep progress or specific issues.`,
+    },
+    {
+      icon: Clock,
+      title: "Kids class",
+      desc: "Gentle, playful flexibility training for children, led by trainers experienced with young bodies.",
+    },
+  ]
+
+  return (
+    <section className="max-w-4xl mx-auto px-4 pb-10">
+      <JsonLd data={faqLd} />
+      <JsonLd data={breadcrumbLd} />
+
+      <div className="space-y-6 mt-2">
+        {/* Intro — carries the page's single h1 (keyword + city); the header
+            above the widget shows the brand as a plain div. */}
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <h1 className="text-lg font-bold text-gray-900">Stretching classes in {city}</h1>
+          <p className="mt-2 text-sm leading-relaxed text-gray-600">
+            {studio.name} is an assisted-stretching studio in {city}
+            {studio.country === "ID" ? ", Bali" : ""}. A trainer works with your body through every
+            stretch — deeper than you&apos;d ever get on your own, and safer too. Sessions improve
+            flexibility, posture and recovery, release tight hips and backs, and simply feel
+            fantastic. Book your spot online in a few taps — no payment needed to reserve.
+          </p>
+        </div>
+
+        {/* Class types */}
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <h2 className="text-lg font-bold text-gray-900">Classes &amp; pricing</h2>
+          <ul className="mt-3 grid sm:grid-cols-3 gap-4">
+            {classTypes.map(({ icon: Icon, title, desc }) => (
+              <li key={title} className="rounded-xl border border-gray-100 p-4">
+                <Icon size={18} className="text-brand" aria-hidden />
+                <h3 className="mt-2 text-sm font-semibold text-gray-900">{title}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-gray-500">{desc}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-gray-400">
+            Booking online is free — you pay at the studio (cash, card, QR or transfer). Free
+            cancellation up to 2 hours before class.
+          </p>
+        </div>
+
+        {/* FAQ */}
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <h2 className="text-lg font-bold text-gray-900">Frequently asked questions</h2>
+          <dl className="mt-3 divide-y divide-gray-100">
+            {faq.map((f) => (
+              <div key={f.q} className="py-3">
+                <dt className="text-sm font-semibold text-gray-900">{f.q}</dt>
+                <dd className="mt-1 text-sm leading-relaxed text-gray-600">{f.a}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        {/* Location + cross-links */}
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <h2 className="text-lg font-bold text-gray-900">Find us in {city}</h2>
+          {studio.locationUrl ? (
+            <a
+              href={studio.locationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+            >
+              <MapPin size={15} aria-hidden /> Open the studio in Google Maps
+            </a>
+          ) : (
+            <p className="mt-2 text-sm text-gray-600">
+              Message us on WhatsApp after booking and we&apos;ll send you a pin with directions.
+            </p>
+          )}
+
+          {siblings.length > 0 && (
+            <>
+              <h3 className="mt-5 text-sm font-semibold text-gray-900">Our other studios</h3>
+              <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                {siblings.map((s) => (
+                  <li key={s.slug}>
+                    <Link href={`/${s.slug}`} className="text-sm text-brand hover:underline">
+                      Stretching classes in {s.city?.trim() || s.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
