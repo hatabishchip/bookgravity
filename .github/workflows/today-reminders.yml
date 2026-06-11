@@ -7,8 +7,18 @@
 # (todayReminderSentAt guard) and only sends inside a 20–155 min pre-class
 # window, so polling every ~20 min is safe and never double-sends.
 #
-# GitHub's scheduler can lag 5–15 min under load, but the 135-min send
-# window easily absorbs that. workflow_dispatch lets us trigger manually.
+# GitHub's scheduler can lag 5–15 min under load (in practice runs can land
+# every 1.5–5 HOURS, not every 20 min — see incident 2026-06-11), so */20
+# is a request, not a guarantee. The send window absorbs some lag but NOT
+# multi-hour gaps; morning classes (7:00–9:00 Bali) are the most exposed.
+# workflow_dispatch lets us trigger manually.
+#
+# AUTH (incident 2026-06-11): the endpoint REQUIRES "Authorization: Bearer
+# $CRON_SECRET" and fails closed (503) when the secret is missing on the
+# server. This curl previously sent no auth header AND masked failures with
+# `|| true`, so reminders silently never sent while the workflow stayed
+# green. The secret lives in repo Actions secrets AND Vercel production env
+# — keep them in sync. No `|| true`: a failing ping must turn the run red.
 name: today-reminders
 
 on:
@@ -23,4 +33,5 @@ jobs:
       - name: Hit today-reminders cron
         run: |
           curl -fsS -m 60 https://bookgravity.com/api/cron/today-reminders \
-            -H "User-Agent: gh-actions-today-reminders" || true
+            -H "User-Agent: gh-actions-today-reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
