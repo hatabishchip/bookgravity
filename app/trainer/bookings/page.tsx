@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { format } from "date-fns"
-import { CheckCircle2, Calendar, Clock, CreditCard, StickyNote, Sparkles, ChevronDown } from "lucide-react"
+import { CheckCircle2, Calendar, Clock, CreditCard, StickyNote, Sparkles, ChevronDown, CalendarClock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
@@ -15,6 +15,7 @@ type Booking = {
   paymentStatus: string
   notes?: string
   createdAt: string
+  slotId?: string
   slot: { date: string; startTime: string; endTime: string }
   services: { service: { id: string; name: string; price: number }; paymentType?: string | null }[]
   // Membership balance for this client at the studio (from the API).
@@ -84,12 +85,17 @@ export default function TrainerBookingsPage() {
           paymentStatus: saved.paymentStatus ?? b.paymentStatus,
           membershipId: saved.membershipId ?? null,
           membershipRemaining: typeof saved.membershipRemaining === "number" ? saved.membershipRemaining : b.membershipRemaining,
+          // Reschedule: pull the new class back so date/time update in place.
+          slotId: saved.slotId ?? b.slotId,
+          slot: saved.slot ?? b.slot,
         } : b)))
-      } else {
-        fetchBookings()
+        return true
       }
+      fetchBookings()
+      return false
     } catch {
       fetchBookings()
+      return false
     } finally {
       setUpdating(null)
     }
@@ -181,6 +187,158 @@ export default function TrainerBookingsPage() {
   )
 }
 
+type RescheduleOption = {
+  id: string
+  date: string
+  startTime: string
+  endTime: string
+  trainerName: string | null
+  mine: boolean
+  spotsLeft: number
+}
+
+function ReschedulePicker({
+  booking, isUpdating, onUpdate,
+}: {
+  booking: Booking
+  isUpdating: boolean
+  onUpdate: (data: Record<string, string>) => Promise<boolean | void> | boolean | void
+}) {
+  const [open, setOpen] = useState(false)
+  const [options, setOptions] = useState<RescheduleOption[] | null>(null)
+  const [picked, setPicked] = useState<RescheduleOption | null>(null)
+  const [moving, setMoving] = useState(false)
+  const [movedTo, setMovedTo] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const toggle = async () => {
+    const next = !open
+    setOpen(next)
+    setError(null)
+    if (next && options === null) {
+      try {
+        const res = await fetch("/api/trainer/reschedule-options")
+        const all: RescheduleOption[] = await res.json()
+        setOptions(all.filter((o) => o.id !== booking.slotId))
+      } catch {
+        setOptions([])
+      }
+    }
+  }
+
+  const confirmMove = async () => {
+    if (!picked) return
+    setMoving(true)
+    setError(null)
+    const ok = await onUpdate({ slotId: picked.id })
+    setMoving(false)
+    if (ok === false) {
+      setError("Couldn't move the booking — the class may be full. Try another one.")
+      return
+    }
+    setMovedTo(`${format(new Date(picked.date), "EEE, MMM d")} · ${formatTime(picked.startTime)}`)
+    setOpen(false)
+    setPicked(null)
+    setOptions(null) // refetch next time — capacities changed
+  }
+
+  // Group options by date so days read as sections, not one long list.
+  const byDate = (options ?? []).reduce<Record<string, RescheduleOption[]>>((acc, o) => {
+    ;(acc[o.date] ??= []).push(o)
+    return acc
+  }, {})
+
+  return (
+    <div className="bg-white rounded-xl p-4 border border-gray-100">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <CalendarClock size={14} className="text-brand" />
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reschedule</h3>
+        </div>
+        <button
+          type="button"
+          disabled={isUpdating || moving}
+          onClick={toggle}
+          className="text-xs font-medium text-brand hover:text-brand-dark underline disabled:opacity-50 touch-manipulation"
+        >
+          {open ? "Close" : "Move to another class"}
+        </button>
+      </div>
+
+      {movedTo && !open && (
+        <div className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand bg-brand/5 border border-brand/20 rounded-lg px-3 py-2">
+          <CheckCircle2 size={14} /> Moved to {movedTo}. The client got a new confirmation.
+        </div>
+      )}
+
+      {open && (
+        <div className="mt-3">
+          {options === null ? (
+            <div className="text-sm text-gray-400 py-2">Loading classes…</div>
+          ) : options.length === 0 ? (
+            <div className="text-sm text-gray-400 py-2">No upcoming classes with free spots.</div>
+          ) : (
+            <div className="max-h-64 overflow-y-auto space-y-3 pr-1">
+              {Object.entries(byDate).map(([date, opts]) => (
+                <div key={date}>
+                  <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                    {format(new Date(date), "EEEE, MMM d")}
+                  </div>
+                  <div className="space-y-1">
+                    {opts.map((o) => {
+                      const active = picked?.id === o.id
+                      return (
+                        <button
+                          key={o.id}
+                          type="button"
+                          onClick={() => setPicked(active ? null : o)}
+                          className={cn(
+                            "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left text-sm touch-manipulation",
+                            active
+                              ? "bg-brand text-white border-brand"
+                              : "bg-white text-gray-700 border-gray-200 hover:border-brand/40"
+                          )}
+                        >
+                          <span className="font-medium">
+                            {formatTime(o.startTime)}
+                            {o.trainerName && (
+                              <span className={cn("font-normal", active ? "text-white/80" : "text-gray-400")}>
+                                {" "}· {o.mine ? "my class" : o.trainerName}
+                              </span>
+                            )}
+                          </span>
+                          <span className={cn("text-xs", active ? "text-white/80" : "text-gray-400")}>
+                            {o.spotsLeft} left
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
+
+          {picked && (
+            <button
+              type="button"
+              disabled={moving}
+              onClick={confirmMove}
+              className="w-full mt-3 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-60 touch-manipulation"
+            >
+              {moving
+                ? "Moving…"
+                : `Confirm: move to ${format(new Date(picked.date), "MMM d")}, ${formatTime(picked.startTime)}`}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function MetaCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="px-3 py-2 rounded-lg bg-white/60 border border-gray-100">
@@ -198,7 +356,7 @@ function BookingDetails({
 }: {
   booking: Booking
   isUpdating: boolean
-  onUpdate: (data: Record<string, string>) => Promise<void> | void
+  onUpdate: (data: Record<string, string>) => Promise<boolean | void> | boolean | void
   onServicePayment: (serviceId: string, method: string) => Promise<void> | void
   onDone: () => void
 }) {
@@ -331,6 +489,11 @@ function BookingDetails({
           <p className="text-sm text-gray-700 whitespace-pre-wrap">{booking.notes}</p>
         </div>
       )}
+
+      {/* Reschedule — move the client to another upcoming class. The client
+          gets a fresh confirmation and the receiving trainer a new-booking
+          ping (server side), so a cross-trainer move never lands silently. */}
+      <ReschedulePicker booking={booking} isUpdating={isUpdating} onUpdate={onUpdate} />
 
       {/* Once payment is set (general method or, on a membership, each service
           method), a clear green "Done" button collapses this booking back to
