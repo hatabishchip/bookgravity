@@ -65,6 +65,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
     })
     if (!target) return NextResponse.json({ error: "Target class not found" }, { status: 400 })
+    if (!target.trainerId) {
+      return NextResponse.json({ error: "Target class has no trainer assigned" }, { status: 400 })
+    }
     if (target.date < baliDateStr(new Date())) {
       return NextResponse.json({ error: "Target class is in the past" }, { status: 400 })
     }

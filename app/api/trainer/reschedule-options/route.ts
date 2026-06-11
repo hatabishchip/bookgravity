@@ -36,6 +36,10 @@ export async function GET(_req: NextRequest) {
       studioId: ctx.studioId,
       classType: "GROUP",
       date: { gte: today, lte: horizon },
+      // Only classes with an assigned trainer: moving a client to a
+      // trainer-less slot would reassign their chat to nobody and the
+      // "new booking" ping would reach no one.
+      trainerId: { not: null },
     },
     include: {
       trainer: { select: { name: true } },
