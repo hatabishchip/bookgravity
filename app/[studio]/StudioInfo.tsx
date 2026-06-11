@@ -38,7 +38,7 @@ function buildFaq(city: string, pricing: ClassPricing, country: string | null) {
   const faq: { q: string; a: string }[] = [
     {
       q: "How long is a stretching class?",
-      a: "Each class is 90 minutes: a guided warm-up, gravity stretching with the trainer, and a calm cool-down.",
+      a: "Each class is 75–90 minutes: a guided warm-up, gravity stretching with the trainer, and a calm cool-down.",
     },
     {
       q: "Do I need any experience or flexibility to join?",
@@ -106,7 +106,7 @@ export default function StudioInfo({
     {
       icon: Users,
       title: "Group class",
-      desc: `Up to 6 people, 90 minutes of gravity stretching with a trainer${
+      desc: `Up to 6 people, 75–90 minutes of gravity stretching with a trainer${
         pricing.group ? ` — from ${formatPrice(pricing.group, studio.country)} per person` : ""
       }.`,
     },
