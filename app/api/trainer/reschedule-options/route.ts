@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 
-// Target classes a trainer can move a client's booking to: upcoming GROUP
-// slots in the trainer's studio that still have a free spot. Cross-trainer
+// Target classes a trainer can move a client's booking to: upcoming slots
+// of ANY class type (group / private / kids) in the trainer's studio that
+// still have a free spot — a private's capacity of 1 is its own guard. Cross-trainer
 // targets are allowed — the receiving trainer gets the standard new-booking
 // WhatsApp ping when the move happens, so nothing lands silently.
 
@@ -34,7 +35,6 @@ export async function GET(_req: NextRequest) {
   const slots = await prisma.timeSlot.findMany({
     where: {
       studioId: ctx.studioId,
-      classType: "GROUP",
       date: { gte: today, lte: horizon },
       // Only classes with an assigned trainer: moving a client to a
       // trainer-less slot would reassign their chat to nobody and the
@@ -55,6 +55,7 @@ export async function GET(_req: NextRequest) {
       date: s.date,
       startTime: s.startTime,
       endTime: s.endTime,
+      classType: s.classType,
       trainerName: s.trainer?.name ?? null,
       mine: s.trainerId === trainer.id,
       spotsLeft: s.maxCapacity - s._count.bookings,

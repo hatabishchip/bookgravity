@@ -53,15 +53,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json()
   const data = UpdateSchema.parse(body)
 
-  // Moving to another class: the target must be a future GROUP slot in this
-  // studio with a free spot. Cross-trainer targets are fine — the receiving
+  // Moving to another class: the target must be a future slot in this
+  // studio (any class type) with a free spot. Cross-trainer targets are fine — the receiving
   // trainer is pinged below, same as for a fresh booking.
   if (data.slotId && data.slotId !== booking.slotId) {
     if (booking.status !== "CONFIRMED") {
       return NextResponse.json({ error: "Only confirmed bookings can be moved" }, { status: 400 })
     }
     const target = await prisma.timeSlot.findFirst({
-      where: { id: data.slotId, studioId: ctx.studioId, classType: "GROUP" },
+      where: { id: data.slotId, studioId: ctx.studioId },
       include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
     })
     if (!target) return NextResponse.json({ error: "Target class not found" }, { status: 400 })

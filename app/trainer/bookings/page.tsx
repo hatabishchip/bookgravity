@@ -232,6 +232,7 @@ type RescheduleOption = {
   date: string
   startTime: string
   endTime: string
+  classType: string
   trainerName: string | null
   mine: boolean
   spotsLeft: number
@@ -341,6 +342,11 @@ function ReschedulePicker({
                         >
                           <span className="font-medium">
                             {formatTime(o.startTime)}
+                            {o.classType !== "GROUP" && (
+                              <span className={cn("ml-1.5 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded", active ? "bg-white/20 text-white" : "bg-amber-50 text-amber-600")}>
+                                {o.classType === "PRIVATE" ? "Private" : o.classType === "KIDS" ? "Kids" : o.classType}
+                              </span>
+                            )}
                             {o.trainerName && (
                               <span className={cn("font-normal", active ? "text-white/80" : "text-gray-400")}>
                                 {" "}· {o.mine ? "my class" : o.trainerName}
