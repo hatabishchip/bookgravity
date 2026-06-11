@@ -527,3 +527,25 @@ model WhatsAppMessage {
   @@index([conversationId, createdAt])
   @@index([waMessageId])
 }
+
+// Verbose pipeline logging (incident 2026-06-11: reminders silently dead).
+// Written by lib/elog.ts at every notification-pipeline step while
+// NOTIF_DEBUG is not "0". Meant to run hot for a week or two after an
+// incident, then be switched off via env — rows are cheap, truth is not.
+model EventLog {
+  id        String   @id @default(cuid())
+  scope     String // e.g. "cron:today-reminders", "wa:send", "webhook:status"
+  level     String   @default("info") // info | warn | error
+  message   String
+  data      String? // JSON payload, truncated
+  createdAt DateTime @default(now())
+
+  @@index([scope, createdAt])
+  @@index([createdAt])
+}
+
+// Distributed claim for traffic-driven cron fallbacks (see lib/reminder-tick).
+model CronTick {
+  id        String   @id // job name, e.g. "today-reminders"
+  lastRunAt DateTime
+}

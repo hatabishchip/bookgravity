@@ -48,11 +48,22 @@ const paymentBadge = (type: string, status: string) => {
   return { label: "Unpaid", cls: "bg-yellow-50 text-yellow-700" }
 }
 
+// Studio-local calendar dates (Bali, UTC+8) — the device may be anywhere.
+const BALI_TZ = "Asia/Makassar"
+function baliDateStr(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: BALI_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d)
+}
+
+type DayFilter = "all" | "today" | "tomorrow"
+
 export default function TrainerBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [updating, setUpdating] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [dayFilter, setDayFilter] = useState<DayFilter>("all")
 
   const fetchBookings = useCallback(async () => {
     setLoading(true)
@@ -118,20 +129,49 @@ export default function TrainerBookingsPage() {
     }
   }
 
+  const todayStr = baliDateStr(new Date())
+  const tomorrowStr = baliDateStr(new Date(Date.now() + 86400_000))
+  const visible = bookings.filter((b) =>
+    dayFilter === "all" ? true : b.slot.date === (dayFilter === "today" ? todayStr : tomorrowStr)
+  )
+
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">All My Bookings</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-4">All My Bookings</h1>
+
+      {/* Day filter — quick "who's on my class today/tomorrow" view. */}
+      <div className="flex gap-1.5 mb-4">
+        {([
+          { value: "all", label: "All" },
+          { value: "today", label: "Today class" },
+          { value: "tomorrow", label: "Tomorrow class" },
+        ] as { value: DayFilter; label: string }[]).map((f) => (
+          <button
+            key={f.value}
+            type="button"
+            onClick={() => setDayFilter(f.value)}
+            className={cn(
+              "px-4 py-2 rounded-full text-xs font-semibold border touch-manipulation transition-colors",
+              dayFilter === f.value
+                ? "bg-brand text-white border-brand"
+                : "bg-white text-gray-500 border-gray-200 hover:border-brand/40 hover:text-brand"
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
 
       {loading ? (
         <div className="bg-white rounded-2xl shadow-sm"><PetalSpinner /></div>
-      ) : bookings.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center text-gray-400 text-sm shadow-sm">
-          No bookings yet
+          {dayFilter === "all" ? "No bookings yet" : `No bookings for ${dayFilter === "today" ? "today" : "tomorrow"}`}
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           <div className="divide-y divide-gray-50">
-            {bookings.map((b) => {
+            {visible.map((b) => {
               const badge = paymentBadge(b.paymentType, b.paymentStatus)
               const isExpanded = expandedId === b.id
 

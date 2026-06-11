@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { elogError } from "@/lib/elog"
 import { createHmac, timingSafeEqual } from "crypto"
 import { prisma } from "@/lib/prisma"
 import {
@@ -494,6 +495,15 @@ export async function POST(request: NextRequest) {
             })
           } catch (err) {
             console.error("[whatsapp-webhook] status update failed:", err)
+          }
+          // A FAILED delivery is the silent killer (bad number, template
+          // paused, quality drop) — make it loud and queryable.
+          if (st.status === "failed") {
+            void elogError("webhook:status", "message delivery FAILED", {
+              waMessageId: st.id,
+              recipient: st.recipient_id ?? null,
+              detail: errDetail,
+            })
           }
           // Mirror delivery status onto a matching booking-OTP send, so the
           // booking widget can tell a client their number isn't on WhatsApp

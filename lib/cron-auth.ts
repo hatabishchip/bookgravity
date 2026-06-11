@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { elogError } from "@/lib/elog"
 
 // Shared auth gate for cron endpoints (class reminders, today reminders).
 //
@@ -17,6 +18,12 @@ export function assertCronAuth(req: NextRequest): NextResponse | null {
   if (secret) {
     const auth = req.headers.get("authorization")
     if (auth !== `Bearer ${secret}`) {
+      // Loud trail: a misconfigured pinger used to fail here for weeks unseen.
+      void elogError("cron:auth", "rejected cron call (bad/missing bearer)", {
+        path: req.nextUrl.pathname,
+        ua: req.headers.get("user-agent"),
+        hadAuthHeader: auth != null,
+      })
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
     return null
@@ -24,6 +31,9 @@ export function assertCronAuth(req: NextRequest): NextResponse | null {
   // No secret configured.
   if (process.env.NODE_ENV === "production") {
     console.error("[cron-auth] CRON_SECRET is not set in production — refusing to run open.")
+    void elogError("cron:auth", "CRON_SECRET missing in production — cron refused (503)", {
+      path: req.nextUrl.pathname,
+    })
     return NextResponse.json({ error: "Cron not configured" }, { status: 503 })
   }
   return null

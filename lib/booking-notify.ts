@@ -1,5 +1,6 @@
 import { format, parseISO } from "date-fns"
 import { prisma } from "@/lib/prisma"
+import { elog, elogError } from "@/lib/elog"
 import {
   sendClientBookingConfirmationWA,
   sendTrainerBookingNotificationWA,
@@ -97,8 +98,13 @@ export async function notifyBookingCreated(opts: {
       cancelWaNumber: slotForWA.studio?.whatsappDisplayPhone || process.env.WHATSAPP_DISPLAY_PHONE || "628213130468",
       studioWA: slotForWA.studio,
     }).then(async (r) => {
-      if (!r.ok) console.warn("[booking-notify] WA client send failed:", r.error)
-      else console.log("[booking-notify] WA client sent:", r.messageId)
+      if (!r.ok) {
+        console.warn("[booking-notify] WA client send failed:", r.error)
+        void elogError("notify:booking", "client confirmation send FAILED", { bookingId: opts.leadBookingId, error: r.error })
+      } else {
+        console.log("[booking-notify] WA client sent:", r.messageId)
+        void elog("notify:booking", "client confirmation sent", { bookingId: opts.leadBookingId, messageId: r.messageId })
+      }
       if (conversationId) {
         try {
           await appendOutboundMessage({
@@ -176,6 +182,7 @@ export async function notifyBookingCreated(opts: {
         const r = await sendTrainerBookingNotificationWA({ ...base, trainerPhone: trainerWA! })
         if (!r.ok) {
           console.warn("[booking-notify] WA trainer send failed:", r.error)
+          void elogError("notify:booking", "trainer ping send FAILED", { bookingId: opts.leadBookingId, error: r.error })
           await recordStatus("failed", r.error)
         } else {
           console.log("[booking-notify] WA trainer sent:", r.messageId)

@@ -5,6 +5,7 @@ import { sendClassReminderWA } from "@/lib/whatsapp-cloud"
 import { appendOutboundMessage, upsertConversation } from "@/lib/whatsapp-conversation"
 import { phoneTail } from "@/lib/membership"
 import { clientClassRange } from "@/lib/class-time"
+import { elog, elogError } from "@/lib/elog"
 
 export const dynamic = "force-dynamic"
 // Sending several reminders sequentially can exceed the default 10s.
@@ -106,6 +107,11 @@ export async function GET(req: NextRequest) {
 
     if (res.ok) {
       sent++
+      await elog("reminders:tomorrow", "sent tomorrow-class reminder", {
+        bookingId: b.id,
+        phoneTail: phoneTail(b.clientPhone),
+        classTime: `${b.slot.date} ${b.slot.startTime}`,
+      })
       await prisma.booking.update({
         where: { id: b.id },
         data: { reminderSentAt: new Date() },
@@ -152,10 +158,15 @@ export async function GET(req: NextRequest) {
     } else {
       failed++
       console.warn("[class-reminders] send failed:", b.clientPhone, res.error)
+      await elogError("reminders:tomorrow", "send failed", {
+        bookingId: b.id,
+        phoneTail: phoneTail(b.clientPhone),
+        error: res.error,
+      })
     }
   }
 
-  return NextResponse.json({
+  const summary = {
     ok: true,
     date: tomorrowBali,
     candidates: bookings.length,
@@ -163,5 +174,8 @@ export async function GET(req: NextRequest) {
     skippedSameDay,
     skippedNoWA,
     failed,
-  })
+  }
+  // Heartbeat row: proves the evening cron ran at all.
+  await elog("reminders:tomorrow", "run via cron-endpoint", summary)
+  return NextResponse.json(summary)
 }

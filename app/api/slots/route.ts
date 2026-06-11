@@ -1,9 +1,15 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
+import { maybeRunTodayReminders } from "@/lib/reminder-tick"
 import { prisma } from "@/lib/prisma"
 import { getPublicStudioId } from "@/lib/studio"
 import { isSlotBookableWithAttendees, slotStartMs, slotEndMs } from "@/lib/booking-cutoff"
 
 export async function GET(request: NextRequest) {
+  // Traffic-driven fallback for the same-day reminder job: every widget visit
+  // gives it one cheap, rate-limited chance to run AFTER the response is sent
+  // (GitHub's cron pinger can lag hours — see lib/reminder-tick.ts).
+  after(() => maybeRunTodayReminders())
+
   const { searchParams } = new URL(request.url)
   const date = searchParams.get("date")
   // The booking widget passes ?studio=<slug> from the /[studio] page; falls
