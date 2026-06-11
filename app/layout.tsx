@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
     alternates: { canonical: "/" },
     keywords: [
       "gravity stretching",
-      "assisted stretching",
+      "spinal decompression",
       "stretching studio",
       "stretching class",
       "stretching Bali",

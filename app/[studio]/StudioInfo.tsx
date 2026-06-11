@@ -38,7 +38,7 @@ function buildFaq(city: string, pricing: ClassPricing, country: string | null) {
   const faq: { q: string; a: string }[] = [
     {
       q: "How long is a stretching class?",
-      a: "Each class is 90 minutes: a guided warm-up, assisted stretching with the trainer, and a calm cool-down.",
+      a: "Each class is 90 minutes: a guided warm-up, gravity stretching with the trainer, and a calm cool-down.",
     },
     {
       q: "Do I need any experience or flexibility to join?",
@@ -106,7 +106,7 @@ export default function StudioInfo({
     {
       icon: Users,
       title: "Group class",
-      desc: `Up to 6 people, 90 minutes of assisted stretching with a trainer${
+      desc: `Up to 6 people, 90 minutes of gravity stretching with a trainer${
         pricing.group ? ` — from ${formatPrice(pricing.group, studio.country)} per person` : ""
       }.`,
     },
@@ -135,7 +135,7 @@ export default function StudioInfo({
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h1 className="text-lg font-bold text-gray-900">Stretching classes in {city}</h1>
           <p className="mt-2 text-sm leading-relaxed text-gray-600">
-            {studio.name} is an assisted-stretching studio in {city}
+            {studio.name} is a gravity-stretching studio in {city}
             {studio.country === "ID" ? ", Bali" : ""}. A trainer works with your body through every
             stretch — deeper than you&apos;d ever get on your own, and safer too. Sessions improve
             flexibility, posture and recovery, release tight hips and backs, and simply feel
