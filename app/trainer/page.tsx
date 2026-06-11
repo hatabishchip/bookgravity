@@ -9,6 +9,7 @@ import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import SellMembershipButton from "@/app/_components/SellMembershipButton"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { useOpenChat } from "@/lib/use-open-chat"
+import { formatIDRCompact as formatIDR } from "@/lib/format"
 
 type Slot = {
   id: string
@@ -65,15 +66,8 @@ function formatTime(time: string) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`
 }
 
-function formatIDR(amount: number) {
-  if (amount >= 1_000_000) {
-    const m = amount / 1_000_000
-    const str = m % 1 === 0 ? m.toString() : m.toFixed(1).replace(/\.0$/, "")
-    return `${str}M`
-  }
-  if (amount >= 1000) return `${Math.round(amount / 1000)}k`
-  return Math.round(amount).toString()
-}
+// formatIDR now lives in lib/format (formatIDRCompact) — the local copy
+// carried the toFixed(1) bug that rendered 1.35M as "1.4M".
 
 type View = "2weeks" | "month"
 

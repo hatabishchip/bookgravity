@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { useVisualViewport } from "@/lib/use-visual-viewport"
 import FloatingInbox from "@/app/_components/FloatingInbox"
+import { formatIDRCompact as formatIDR } from "@/lib/format"
 
 const navItems = [
   { href: "/trainer", label: "My Schedule", icon: Calendar },
@@ -156,14 +157,8 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
   )
 }
 
-function formatIDR(amount: number) {
-  if (amount >= 1_000_000) {
-    const m = amount / 1_000_000
-    return `${(m % 1 === 0 ? m.toString() : m.toFixed(1)).replace(/\.0$/, "")}M`
-  }
-  if (amount >= 1000) return `${Math.round(amount / 1000)}k`
-  return Math.round(amount).toString()
-}
+// formatIDR now lives in lib/format (formatIDRCompact) — the local copy
+// carried the toFixed(1) bug that rendered 1.35M as "1.4M".
 
 function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname()

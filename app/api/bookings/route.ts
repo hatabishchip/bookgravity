@@ -22,7 +22,8 @@ import { z } from "zod"
 const BookingSchema = z.object({
   slotId: z.string(),
   clientName: z.string().min(2),
-  clientPhone: z.string().min(5),
+  // Stored digits-only (canonical since 2026-06-12) — display layers add the +.
+  clientPhone: z.string().min(5).transform((p) => p.replace(/\D/g, "")),
   clientEmail: z.string().email(),
   serviceIds: z.array(z.string()).optional(),
   partySize: z.number().int().min(1).max(6).default(1),

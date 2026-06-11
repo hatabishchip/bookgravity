@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { format } from "date-fns"
 import { CheckCircle2, Calendar, Clock, CreditCard, StickyNote, Sparkles, ChevronDown, CalendarClock } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { baliDateStr } from "@/lib/tz"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 type Booking = {
@@ -48,13 +49,6 @@ const paymentBadge = (type: string, status: string) => {
   return { label: "Unpaid", cls: "bg-yellow-50 text-yellow-700" }
 }
 
-// Studio-local calendar dates (Bali, UTC+8) — the device may be anywhere.
-const BALI_TZ = "Asia/Makassar"
-function baliDateStr(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: BALI_TZ, year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(d)
-}
 
 type DayFilter = "all" | "today" | "tomorrow"
 
@@ -90,6 +84,11 @@ export default function TrainerBookingsPage() {
       // Pull back authoritative fields (membership balance after a deduction).
       if (res.ok) {
         const saved = await res.json()
+        // A cancelled booking leaves the list immediately (GET filters CONFIRMED).
+        if (saved.status === "CANCELLED") {
+          setBookings((prev) => prev.filter((b) => b.id !== id))
+          return true
+        }
         setBookings((prev) => prev.map((b) => (b.id === id ? {
           ...b,
           paymentType: saved.paymentType ?? b.paymentType,
@@ -535,6 +534,21 @@ function BookingDetails({
           <p className="text-sm text-gray-700 whitespace-pre-wrap">{booking.notes}</p>
         </div>
       )}
+
+      {/* Cancel — same side-effects as the admin cancel: the membership
+          class returns to the client and they get a WhatsApp notification. */}
+      <button
+        type="button"
+        disabled={isUpdating}
+        onClick={async () => {
+          if (!confirm(`Cancel ${booking.clientName}'s booking? The client will be notified.`)) return
+          const ok = await onUpdate({ status: "CANCELLED" })
+          if (ok !== false) onDone()
+        }}
+        className="w-full py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 touch-manipulation"
+      >
+        Cancel booking
+      </button>
 
       {/* Reschedule — move the client to another upcoming class. The client
           gets a fresh confirmation and the receiving trainer a new-booking

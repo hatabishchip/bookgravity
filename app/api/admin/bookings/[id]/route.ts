@@ -3,16 +3,21 @@ import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { afterStaffCancellation } from "@/lib/booking-cancel"
 import { notifyBookingCreated } from "@/lib/booking-notify"
+import { applyPaymentSwitch } from "@/lib/booking-payment"
+import { zBookingPaymentType, zPaymentStatus, zBookingStatus } from "@/lib/payments"
+import { getMembershipBalance } from "@/lib/membership"
 import { z } from "zod"
 
 // Notifications can add a few WhatsApp round-trips beyond the 10s default.
 export const maxDuration = 30
 
 const UpdateSchema = z.object({
-  paymentType: z.enum(["ONLINE", "OFFLINE", "PENDING"]).optional(),
-  paymentStatus: z.enum(["PAID", "UNPAID"]).optional(),
+  // Full unified set (POS methods, MEMBERSHIP, PENDING, legacy ONLINE/OFFLINE)
+  // — admins used to be locked out of membership payments entirely.
+  paymentType: zBookingPaymentType.optional(),
+  paymentStatus: zPaymentStatus.optional(),
   notes: z.string().optional(),
-  status: z.enum(["CONFIRMED", "CANCELLED"]).optional(),
+  status: zBookingStatus.optional(),
   // Move the booking to a different class/day — admin "перенести".
   slotId: z.string().optional(),
 })
@@ -42,9 +47,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
   }
 
+  // Membership handling: charge/refund a pass class when switching to/from
+  // MEMBERSHIP (same shared rules as the trainer endpoint).
+  const updateData: Record<string, unknown> = { ...data }
+  if (data.paymentType !== undefined) {
+    const sw = await applyPaymentSwitch({
+      studioId: ctx.studioId,
+      clientPhone: existing.clientPhone,
+      currentMembershipId: existing.membershipId,
+      newPaymentType: data.paymentType,
+    })
+    if (!sw.ok) {
+      return NextResponse.json(
+        { error: "no_membership_balance", message: "This client has no membership classes left." },
+        { status: 400 }
+      )
+    }
+    Object.assign(updateData, sw.updateData)
+  }
+
   const booking = await prisma.booking.update({
     where: { id: existing.id },
-    data,
+    data: updateData,
     include: {
       slot: { include: { trainer: { select: { name: true } } } },
       services: { include: { service: true } },
@@ -78,5 +102,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     })
   }
 
-  return NextResponse.json(booking)
+  const membershipRemaining = await getMembershipBalance(ctx.studioId, booking.clientPhone)
+  return NextResponse.json({ ...booking, membershipRemaining })
 }

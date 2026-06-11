@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { baliDateStr } from "@/lib/tz"
 
 // Target classes a trainer can move a client's booking to: upcoming slots
 // of ANY class type (group / private / kids) in the trainer's studio that
@@ -8,17 +9,7 @@ import { prisma } from "@/lib/prisma"
 // targets are allowed — the receiving trainer gets the standard new-booking
 // WhatsApp ping when the move happens, so nothing lands silently.
 
-const BALI_TZ = "Asia/Makassar"
 const HORIZON_DAYS = 60
-
-function baliDateStr(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: BALI_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d)
-}
 
 export async function GET(_req: NextRequest) {
   const ctx = await requireTrainer()

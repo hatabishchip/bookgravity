@@ -6,6 +6,7 @@ import { appendOutboundMessage, upsertConversation } from "@/lib/whatsapp-conver
 import { phoneTail } from "@/lib/membership"
 import { clientClassRange } from "@/lib/class-time"
 import { elog, elogError } from "@/lib/elog"
+import { baliDateStr, addDaysStr } from "@/lib/tz"
 
 export const dynamic = "force-dynamic"
 // Sending several reminders sequentially can exceed the default 10s.
@@ -26,26 +27,6 @@ export const maxDuration = 60
 //
 // reminderSentAt guards against double-sends if the cron runs more than once.
 
-const BALI_TZ = "Asia/Makassar" // WITA, UTC+8, no DST
-
-function baliDateStr(d: Date): string {
-  // en-CA renders as YYYY-MM-DD
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: BALI_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d)
-}
-
-function addDaysStr(ymd: string, n: number): string {
-  const [y, m, d] = ymd.split("-").map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, d + n))
-  const yy = dt.getUTCFullYear()
-  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0")
-  const dd = String(dt.getUTCDate()).padStart(2, "0")
-  return `${yy}-${mm}-${dd}`
-}
 
 export async function GET(req: NextRequest) {
   const denied = assertCronAuth(req)

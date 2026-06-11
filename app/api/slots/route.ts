@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   // (GitHub's cron pinger can lag hours — see lib/reminder-tick.ts).
   after(() => maybeRunTodayReminders())
 
+  try {
   const { searchParams } = new URL(request.url)
   const date = searchParams.get("date")
   // The booking widget passes ?studio=<slug> from the /[studio] page; falls
@@ -102,4 +103,9 @@ export async function GET(request: NextRequest) {
     }))
 
   return NextResponse.json(result)
+  } catch (err) {
+    // Never leak Prisma/driver internals to the public widget.
+    console.error("[slots] GET failed:", err)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
 }

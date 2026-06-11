@@ -7,7 +7,7 @@ import { z } from "zod"
 // Memberships are sold at the studio by a trainer or an admin. Both hit this
 // endpoint; we scope to the seller's studioId and record who sold it.
 const CreateSchema = z.object({
-  clientPhone: z.string().min(5),
+  clientPhone: z.string().min(5).transform((p) => p.replace(/\D/g, "")),
   clientName: z.string().trim().optional(),
   paymentType: z.enum(["CASH", "EDC", "QR", "TRANSFER"]).default("CASH"),
   note: z.string().trim().optional(),
@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
   const ctx = await requireAuth()
   if (!ctx || !canSell(ctx.role)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  try {
   const { searchParams } = new URL(request.url)
   const phone = searchParams.get("phone")?.trim()
   if (!phone) return NextResponse.json({ remaining: 0, memberships: [] })
@@ -74,6 +75,10 @@ export async function GET(request: NextRequest) {
   const hasWhatsApp = !!convo
 
   return NextResponse.json({ remaining, memberships, name, hasWhatsApp })
+  } catch (err) {
+    console.error("[memberships] GET failed:", err)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
 }
 
 // POST /api/memberships → sell a new 5-class membership.

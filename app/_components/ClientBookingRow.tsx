@@ -36,7 +36,7 @@ export function ClientBookingRow({
     <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2.5">
       <div className="min-w-0 flex-1">
         <div className="text-sm font-semibold text-gray-800 truncate">{name}</div>
-        {phone && <div className="text-xs text-gray-500 truncate">{phone}</div>}
+        {phone && <div className="text-xs text-gray-500 truncate">{phone.match(/^\d+$/) ? `+${phone}` : phone}</div>}
       </div>
 
       {moving ? (

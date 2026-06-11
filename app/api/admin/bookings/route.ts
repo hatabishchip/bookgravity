@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { notifyBookingCreated } from "@/lib/booking-notify"
+import { getStudioMembershipBalances, phoneTail } from "@/lib/membership"
 import { z } from "zod"
 
 export async function GET(request: NextRequest) {
@@ -30,13 +31,20 @@ export async function GET(request: NextRequest) {
     orderBy: [{ slot: { date: "asc" } }, { slot: { startTime: "asc" } }, { createdAt: "asc" }],
   })
 
-  return NextResponse.json(bookings)
+  // Attach each client's membership balance so the admin can offer
+  // "pay from membership" exactly like the trainer cabinet does.
+  const balances = await getStudioMembershipBalances(ctx.studioId)
+  const withBalance = bookings.map((b) => ({
+    ...b,
+    membershipRemaining: balances.get(phoneTail(b.clientPhone)) ?? 0,
+  }))
+  return NextResponse.json(withBalance)
 }
 
 const BookingSchema = z.object({
   slotId: z.string(),
   clientName: z.string().min(1),
-  clientPhone: z.string().min(3),
+  clientPhone: z.string().min(3).transform((p) => p.replace(/\D/g, "")),
   clientEmail: z.string().optional(),
   clientTelegram: z.string().optional(),
   serviceIds: z.array(z.string()).optional(),

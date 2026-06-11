@@ -13,6 +13,9 @@ model Studio {
   // ISO 3166-1 alpha-2 country code (e.g. "ID", "KZ"). Groups studios by
   // country on the public chooser so a visitor on Bali never sees Almaty.
   country       String?
+  // IANA timezone (e.g. "Asia/Makassar"). Null = Bali default. Plumbed via
+  // lib/tz.studioDateStr for the day a studio opens outside WITA.
+  timezone      String?
   // City the studio is in (e.g. "Canggu", "Almaty"). The public label is just
   // the city — the "Gravity Stretching" prefix is implicit branding.
   city          String?

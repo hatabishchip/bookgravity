@@ -836,6 +836,8 @@ export async function forwardInboundToOwner(opts: {
   if (!ownerPhone) {
     return { ok: false, error: "OWNER_NOTIFY_PHONE not set" }
   }
+  // NOTE (audit 2026-06-11): deliberately NO default — production sets this
+  // to "" to keep owner-forwarding OFF. Empty/unset = feature disabled.
   const templateName = process.env.WHATSAPP_TEMPLATE_INBOUND_COPY
   if (!templateName) {
     return { ok: false, error: "WHATSAPP_TEMPLATE_INBOUND_COPY not set" }

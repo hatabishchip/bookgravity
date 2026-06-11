@@ -5,6 +5,7 @@ import { format, addMonths, subMonths, startOfMonth } from "date-fns"
 import { ChevronLeft, ChevronRight, Banknote, Users, HandHelping, TrendingUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { formatIDRCompact as formatIDR } from "@/lib/format"
 
 type Salary = {
   baseSalary: number
@@ -22,14 +23,8 @@ type Salary = {
   monthLabel: string
 }
 
-function formatIDR(amount: number) {
-  if (amount >= 1_000_000) {
-    const m = amount / 1_000_000
-    return `${(m % 1 === 0 ? m.toString() : m.toFixed(1)).replace(/\.0$/, "")}M`
-  }
-  if (amount >= 1000) return `${Math.round(amount / 1000)}k`
-  return amount.toString()
-}
+// formatIDR now lives in lib/format (formatIDRCompact) — the local copy
+// carried the toFixed(1) bug that rendered 1.35M as "1.4M".
 
 export default function TrainerSalaryPage() {
   const [anchor, setAnchor] = useState(startOfMonth(new Date()))

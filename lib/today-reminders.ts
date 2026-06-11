@@ -3,6 +3,7 @@ import { sendClassTodayConfirmWA } from "@/lib/whatsapp-cloud"
 import { appendOutboundMessage, upsertConversation } from "@/lib/whatsapp-conversation"
 import { phoneTail } from "@/lib/membership"
 import { elog, elogError } from "@/lib/elog"
+import { baliDateStr } from "@/lib/tz"
 
 // Same-day "are you still coming to today's class?" check-in — core logic.
 //
@@ -18,7 +19,6 @@ import { elog, elogError } from "@/lib/elog"
 // todayReminderSentAt is claimed ATOMICALLY before sending, so overlapping
 // runs (cron + pinger + traffic tick) can never double-send.
 
-const BALI_TZ = "Asia/Makassar"
 
 // Send when the class starts within this many minutes from now. 155 gives a
 // little slack above 2.5h (150); 20 is the floor so we don't ping when the
@@ -29,14 +29,6 @@ const WINDOW_MIN_MIN = 20
 // confirmation, no need to immediately follow up with "still coming?".
 const FRESH_SKIP_MIN = 30
 
-function baliDateStr(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: BALI_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d)
-}
 
 export type TodayRemindersSummary = {
   ok: true

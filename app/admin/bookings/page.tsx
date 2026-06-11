@@ -25,6 +25,8 @@ type Booking = {
     trainer: { name: string } | null
   }
   services: { service: { name: string; price: number } }[]
+  membershipRemaining?: number
+  membershipId?: string | null
 }
 
 function formatTime(time: string) {
@@ -45,9 +47,10 @@ const PAYMENT_METHODS = [
   { value: "TRANSFER", label: "Transfer" },
 ]
 
-const PAYMENT_LABEL: Record<string, string> = Object.fromEntries(
-  PAYMENT_METHODS.map((m) => [m.value, m.label])
-)
+const PAYMENT_LABEL: Record<string, string> = {
+  ...Object.fromEntries(PAYMENT_METHODS.map((m) => [m.value, m.label])),
+  MEMBERSHIP: "Membership",
+}
 
 const paymentBadge = (type: string, status: string) => {
   if (status === "PAID") {
@@ -112,8 +115,8 @@ function BookingDetails({
         <div className="bg-white rounded-xl p-3 border border-gray-100 space-y-2">
           <div className="flex items-center gap-2 group">
             <Phone size={14} className="text-gray-400 flex-shrink-0" />
-            <a href={`tel:${booking.clientPhone}`} className="text-sm text-gray-800 hover:text-brand flex-1 truncate">
-              {booking.clientPhone}
+            <a href={`tel:+${booking.clientPhone.replace(/\D/g, "")}`} className="text-sm text-gray-800 hover:text-brand flex-1 truncate">
+              {booking.clientPhone.match(/^\d+$/) ? `+${booking.clientPhone}` : booking.clientPhone}
             </a>
             <CopyButton value={booking.clientPhone} />
           </div>
@@ -151,6 +154,17 @@ function BookingDetails({
               </button>
             </div>
           ) : (
+            <div>
+              {((booking.membershipRemaining ?? 0) > 0 || booking.membershipId != null) && (
+                <button
+                  type="button"
+                  disabled={isUpdating}
+                  onClick={() => onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })}
+                  className="w-full mb-1.5 px-2 py-2 rounded-lg text-xs font-semibold border text-center touch-manipulation bg-white text-gray-700 border-gray-200 hover:border-brand/40 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  🎟️ Membership ({booking.membershipRemaining ?? 0} left)
+                </button>
+              )}
             <div className="grid grid-cols-4 gap-1.5">
               {PAYMENT_METHODS.map((pm) => (
                 <button
@@ -166,6 +180,7 @@ function BookingDetails({
                   {pm.label}
                 </button>
               ))}
+            </div>
             </div>
           )}
         </div>
