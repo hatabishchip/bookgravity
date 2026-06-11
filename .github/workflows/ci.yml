@@ -21,6 +21,11 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npx tsc --noEmit
+      # `next build` prerenders pages that query the DB, so give it a real
+      # (empty) SQLite file with the full schema.
+      - run: npx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: "file:./ci.db"
       - run: npm run build
         env:
           # Build-time only — no real secrets needed for `next build`.
