@@ -5,6 +5,7 @@ import { getPublicStudioId } from "@/lib/studio"
 import { getMembershipBalance } from "@/lib/membership"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { verifyBookingOtp } from "@/lib/otp"
+import { attachOtpSession } from "@/lib/otp-session"
 
 export const dynamic = "force-dynamic"
 
@@ -58,10 +59,14 @@ export async function POST(request: NextRequest) {
       membershipRemaining = await getMembershipBalance(studioId, phone)
     }
 
-    return NextResponse.json({
+    // Remember the verified number for 2h (signed httpOnly cookie): repeat
+    // bookings in that window skip the WhatsApp code entirely.
+    const res = NextResponse.json({
       ok: true,
       client: { name: cleanName, email: emailBooking?.clientEmail ?? null, membershipRemaining },
     })
+    if (otpRequired) attachOtpSession(res, { phone, studioId })
+    return res
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ ok: false, error: "invalid" }, { status: 400 })

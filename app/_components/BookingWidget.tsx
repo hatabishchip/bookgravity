@@ -209,11 +209,13 @@ function formatTime(time: string) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`
 }
 
-// Format IDR amounts: 300000 -> "300k", 1000000 -> "1M", 1800000 -> "1.8M"
+// Format IDR amounts: 300000 -> "300k", 1000000 -> "1M", 1350000 -> "1.35M".
+// Two decimals, trimmed — toFixed(1) used to round 1.35M up to a WRONG
+// "1.4M" on the ticket when a 50k add-on rode on a 1.3M private session.
 function formatIDR(amount: number) {
   if (amount >= 1_000_000) {
     const m = amount / 1_000_000
-    const str = m % 1 === 0 ? m.toString() : m.toFixed(1).replace(/\.0$/, "")
+    const str = (Math.round(m * 100) / 100).toString()
     return `${str}M IDR`
   }
   return `${Math.round(amount / 1000)}k IDR`

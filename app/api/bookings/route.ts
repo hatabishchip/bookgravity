@@ -15,6 +15,7 @@ import {
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { verifyBookingOtp } from "@/lib/otp"
+import { hasOtpSession, attachOtpSession } from "@/lib/otp-session"
 import { clientClassRange } from "@/lib/class-time"
 import { z } from "zod"
 
@@ -131,7 +132,11 @@ export async function POST(request: NextRequest) {
     // email (they get WhatsApp); the email — if on — goes only to the admin.
     const clientOnWhatsapp = studioWaOn && confirmWhatsapp
     const adminEmail = otpStudio?.users?.[0]?.email ?? null
-    if (studioWaOn && confirmWhatsapp) {
+    // A number verified in the last 2h (signed httpOnly cookie) books without
+    // re-entering a WhatsApp code — the session is as strong as the code it
+    // was minted from. Anything else goes through the normal code check.
+    const sessionOk = hasOtpSession(request, { phone: data.clientPhone, studioId })
+    if (studioWaOn && confirmWhatsapp && !sessionOk) {
       const otp = await verifyBookingOtp({
         studioId,
         phone: data.clientPhone,
@@ -497,7 +502,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Return the lead booking (first one)
-    return NextResponse.json(bookings[0], { status: 201 })
+    // Refresh the 2h verified-phone window on every successful booking — the
+    // client just proved the number (code or live session) either way.
+    const created = NextResponse.json(bookings[0], { status: 201 })
+    if (studioWaOn && confirmWhatsapp) {
+      attachOtpSession(created, { phone: data.clientPhone, studioId })
+    }
+    return created
   } catch (err) {
     if (err instanceof CapacityError) {
       return NextResponse.json({ error: err.message }, { status: 409 })

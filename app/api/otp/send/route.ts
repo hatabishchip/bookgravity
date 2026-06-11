@@ -5,6 +5,7 @@ import { getPublicStudioId } from "@/lib/studio"
 import { getConfigFor } from "@/lib/whatsapp-cloud"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { sendBookingOtp } from "@/lib/otp"
+import { hasOtpSession } from "@/lib/otp-session"
 
 // POST /api/otp/send  body: { phone, name? }  query: ?studio=<slug>
 // Sends a 2-digit WhatsApp confirmation code the client must enter before the
@@ -35,6 +36,13 @@ export async function POST(request: NextRequest) {
     }
     const config = getConfigFor(studio)
     if (!config) return NextResponse.json({ skipped: true })
+
+    // Verified this number in the last 2h (signed cookie)? Skip the code —
+    // the widget treats skipped like the no-OTP flow and books directly; the
+    // booking POST accepts the same session in place of a code.
+    if (hasOtpSession(request, { phone: data.phone, studioId })) {
+      return NextResponse.json({ skipped: true, session: true })
+    }
 
     const res = await sendBookingOtp({ studioId, phone: data.phone, name: data.name, config })
     if (res.ok) return NextResponse.json({ sent: true })

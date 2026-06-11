@@ -27,7 +27,8 @@ export type SiblingStudio = { slug: string; city: string | null; name: string }
 function formatPrice(price: number, country: string | null): string {
   const c = (country || "").toUpperCase()
   if (c === "ID") {
-    if (price >= 1_000_000) return `${(price / 1_000_000).toFixed(1).replace(/\.0$/, "")}M IDR`
+    // Two decimals, trimmed: 1350000 → "1.35M" (toFixed(1) wrongly rounded to "1.4M").
+    if (price >= 1_000_000) return `${Math.round((price / 1_000_000) * 100) / 100}M IDR`
     return `${Math.round(price / 1000)}k IDR`
   }
   if (c === "KZ") return `${price.toLocaleString("en-US")} ₸`
