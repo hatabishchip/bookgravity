@@ -1162,6 +1162,13 @@ export default function TrainerSchedulePage() {
           </div>
         )}
       </div>
+
+      {/* WhatsApp-style transient confirmation for payment/notes saves. */}
+      {savedToast > 0 && (
+        <div className="pointer-events-none fixed left-1/2 bottom-24 -translate-x-1/2 z-[60] flex items-center gap-1.5 rounded-full bg-gray-900/90 px-4 py-2 text-sm font-medium text-white shadow-lg">
+          ✓ Saved
+        </div>
+      )}
     </div>
   )
 }

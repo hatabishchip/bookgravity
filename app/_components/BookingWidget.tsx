@@ -287,7 +287,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     clientPhone: useRef<HTMLInputElement>(null),
     clientEmail: useRef<HTMLInputElement>(null),
   }
-  const [booking, setBooking] = useState<{ id: string; clientName: string; slot: Slot; ticketCode: string } | null>(null)
+  const [booking, setBooking] = useState<{ id: string; clientName: string; slot: Slot; ticketCode: string; waConfirmationSent?: boolean | null } | null>(null)
   const ticketRef = useRef<HTMLDivElement>(null)
 
   // Send the ticket to the client's OWN WhatsApp number.
@@ -1109,9 +1109,20 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 </a>
               )
             })()}
+            {/* Honest delivery status: the API reports whether the WhatsApp
+                confirmation was accepted. If it failed, say so and offer the
+                manual send — a silent miss used to leave clients without any
+                confirmation (audit 2026-06-12). */}
+            {booking?.waConfirmationSent === false && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-relaxed text-amber-700">
+                We couldn&apos;t deliver the confirmation to your WhatsApp — your spot is
+                still booked. Save this ticket or send it to us below.
+              </div>
+            )}
             {/* "Send to WhatsApp" only for studios WITHOUT WhatsApp — those WITH
-                it already auto-send the ticket to the client's WhatsApp. */}
-            {waLink && !studio?.whatsappEnabled && (
+                it already auto-send the ticket to the client's WhatsApp. The
+                failed-delivery case above re-enables it as a fallback. */}
+            {waLink && (!studio?.whatsappEnabled || booking?.waConfirmationSent === false) && (
               <button
                 onClick={() => shareTicketToWhatsApp(messageText, waLink)}
                 className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white py-3 rounded-xl text-sm font-semibold transition-colors shadow-sm"

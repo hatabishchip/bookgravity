@@ -327,6 +327,10 @@ export async function POST(request: NextRequest) {
       console.error("[bookings] mailing block exception:", err)
     }
 
+    // null = WA not applicable for this studio; true/false = client confirmation
+    // delivery accepted by Meta (surfaced to the widget for honest UX).
+    let waClientSent: boolean | null = null
+
     // WhatsApp Cloud API notifications. Best-effort, never throws.
     // Skipped entirely for studios where the super-admin hasn't enabled
     // the WhatsApp feature yet (e.g. Ubud while it's still being set up).
@@ -395,6 +399,7 @@ export async function POST(request: NextRequest) {
           cancelWaNumber: slotForWA.studio?.whatsappDisplayPhone || process.env.WHATSAPP_DISPLAY_PHONE || "628213130468",
           studioWA: slotForWA.studio,
         }).then(async (r) => {
+          waClientSent = r.ok
           if (!r.ok) console.warn("[bookings] WA client send failed:", r.error)
           else console.log("[bookings] WA client sent:", r.messageId)
           if (conversationId) {
@@ -515,7 +520,9 @@ export async function POST(request: NextRequest) {
     // Return the lead booking (first one)
     // Refresh the 2h verified-phone window on every successful booking — the
     // client just proved the number (code or live session) either way.
-    const created = NextResponse.json(bookings[0], { status: 201 })
+    // waConfirmationSent: false → the widget shows a "WhatsApp didn't go
+    // through, message us" warning on the ticket instead of silent success.
+    const created = NextResponse.json({ ...bookings[0], waConfirmationSent: waClientSent }, { status: 201 })
     if (studioWaOn && confirmWhatsapp) {
       attachOtpSession(created, { phone: data.clientPhone, studioId })
     }
