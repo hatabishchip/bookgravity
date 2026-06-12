@@ -128,17 +128,27 @@ export async function sendClassReminderWA(opts: {
   time: string
   /** GROUP | KIDS | PRIVATE — picks the template wording (see below). */
   classType?: string
+  /** Studio slug (e.g. "ubud") — picks a studio-branded template when one
+   *  is wired via env (see below). */
+  studioSlug?: string
   /** The class's studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
-  // The approved v2 body hardcodes "group class", so it's only right for
-  // GROUP. KIDS/PRIVATE go through the neutral v3 ("a class") — submitted
-  // via scripts/create-class-reminder-v3-template.ts. Until v3 is approved
-  // those sends fail (logged); same outcome as before, when KIDS/PRIVATE
-  // were filtered out entirely, so there's no regression window.
+  // Template routing:
+  //  • GROUP — the approved v2 body says "group class" BUT its header
+  //    hardcodes "Gravity Stretching Canggu" (it predates multi-studio).
+  //    Studios other than Canggu get their own branded template via the env
+  //    WHATSAPP_TEMPLATE_CLASS_REMINDER_<SLUG> (e.g. ..._UBUD =
+  //    class_reminder_ubud). Env-gated on purpose: we only set the env AFTER
+  //    Meta approves the template — a failed send (unapproved template) is
+  //    worse than a mislabeled-but-delivered one.
+  //  • KIDS/PRIVATE — neutral v3 ("a class", header "Gravity Stretching").
   const isGroup = (opts.classType ?? "GROUP") === "GROUP"
+  const slugEnv = opts.studioSlug
+    ? process.env[`WHATSAPP_TEMPLATE_CLASS_REMINDER_${opts.studioSlug.toUpperCase()}`]
+    : undefined
   const templateName = isGroup
-    ? process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder_v2"
+    ? slugEnv || process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder_v2"
     : process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_ANY || "class_reminder_v3"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
   return sendWhatsAppTemplate({

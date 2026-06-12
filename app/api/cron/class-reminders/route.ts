@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       slot: {
         include: {
           trainer: { select: { name: true } },
-          studio: { select: { name: true, whatsappEnabled: true, remindTomorrow: true, whatsappPhoneNumberId: true, whatsappAccessToken: true } },
+          studio: { select: { name: true, slug: true, whatsappEnabled: true, remindTomorrow: true, whatsappPhoneNumberId: true, whatsappAccessToken: true } },
         },
       },
     },
@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
       trainerName,
       time,
       classType: b.slot.classType,
+      studioSlug: b.slot.studio.slug,
       studioWA: b.slot.studio,
     })
 
