@@ -101,6 +101,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       clientName: updated.clientName,
       clientPhone: updated.clientPhone,
       membershipId: updated.membershipId,
+      slotId: updated.slotId,
       slot: { studioId: ctx.studioId },
     })
   }

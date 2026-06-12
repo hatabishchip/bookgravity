@@ -70,6 +70,12 @@ function formatTime(time: string) {
 // formatIDR now lives in lib/format (formatIDRCompact) — the local copy
 // carried the toFixed(1) bug that rendered 1.35M as "1.4M".
 
+type UnpaidTask = {
+  slot: Slot
+  unpaidCount: number
+  clients: string[]
+}
+
 type View = "2weeks" | "month"
 
 // localStorage key holding the per-slot booked count the trainer has already
@@ -262,20 +268,31 @@ export default function TrainerSchedulePage() {
     }
   }, [])
 
-  // On entering the cabinet: if a class just ended with unpaid clients, open
-  // straight into its payment list and lock it (can't close until all paid).
-  useEffect(() => {
-    fetch("/api/trainer/pending-payments")
-      .then((r) => (r.ok ? r.json() : { slot: null }))
-      .then((d: { slot: Slot | null }) => {
-        if (d.slot) {
-          setSelectedSlot(d.slot)
-          setForcedSlotId(d.slot.id)
-          fetchBookingsForSlot(d.slot.id)
-        }
-      })
-      .catch(() => {})
+  // Unpaid clients on ended classes (last 7 days) — open tasks for the bell.
+  const [unpaidTasks, setUnpaidTasks] = useState<UnpaidTask[]>([])
+  const refreshPending = useCallback(async (openGate = false) => {
+    try {
+      const r = await fetch("/api/trainer/pending-payments")
+      if (!r.ok) return
+      const d: { slot: Slot | null; unpaid?: UnpaidTask[] } = await r.json()
+      setUnpaidTasks(d.unpaid ?? [])
+      // On entering the cabinet: if a class just ended with unpaid clients,
+      // open straight into its payment list as a nudge. Closable — dismissing
+      // it keeps the clients counted on the bell until they're settled.
+      if (openGate && d.slot) {
+        setSelectedSlot(d.slot)
+        setForcedSlotId(d.slot.id)
+        fetchBookingsForSlot(d.slot.id)
+      }
+    } catch { /* ignore */ }
   }, [fetchBookingsForSlot])
+  useEffect(() => { refreshPending(true) }, [refreshPending])
+
+  // Bell badge = new registrations + unpaid clients on ended classes (each
+  // unpaid client is one open task).
+  const unpaidTotal = unpaidTasks.reduce((sum, t) => sum + t.unpaidCount, 0)
+  const bellTotal = newTotal + unpaidTotal
+
 
   const handleSlotClick = (slot: Slot) => {
     setSelectedSlot(slot)
@@ -331,6 +348,8 @@ export default function TrainerSchedulePage() {
       // Only the latest tap applies the authoritative server fields — stale
       // responses are dropped so the optimistic (last-tapped) state stays put.
       if (stale) return
+      // Payment state changed → recount the bell's unpaid tasks.
+      refreshPending()
       const saved = await res.json()
       setBookings((prev) =>
         prev.map((b) =>
@@ -464,20 +483,20 @@ export default function TrainerSchedulePage() {
                   so it doesn't run off the top edge on small screens. */}
               <button
                 type="button"
-                onClick={() => setBellOpen(true)}
-                aria-label="New bookings"
-                title="New bookings"
+                onClick={() => { setBellOpen(true); refreshPending() }}
+                aria-label="Notifications"
+                title="Notifications"
                 className={cn(
                   "relative w-7 h-7 flex items-center justify-center rounded-full touch-manipulation transition-colors shrink-0",
-                  newTotal > 0
+                  bellTotal > 0
                     ? "text-brand hover:bg-brand/10"
                     : "text-gray-400 hover:bg-gray-100"
                 )}
               >
                 <Bell size={16} strokeWidth={2.25} />
-                {newTotal > 0 && (
+                {bellTotal > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm leading-none">
-                    {newTotal > 9 ? "9+" : newTotal}
+                    {bellTotal > 9 ? "9+" : bellTotal}
                   </span>
                 )}
               </button>
@@ -499,7 +518,7 @@ export default function TrainerSchedulePage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 flex-shrink-0 border-b border-gray-100">
-              <h3 className="text-base font-semibold text-gray-900">New bookings</h3>
+              <h3 className="text-base font-semibold text-gray-900">Notifications</h3>
               <div className="flex items-center gap-3">
                 {newTotal > 0 && (
                   <button
@@ -520,11 +539,41 @@ export default function TrainerSchedulePage() {
                 </button>
               </div>
             </div>
-            {newItems.length === 0 ? (
-              <div className="px-4 py-12 text-center text-sm text-gray-400">
-                No new bookings
+            {/* Open payment tasks — every unpaid client on an ended class.
+                Tapping a class opens its payment list. */}
+            {unpaidTasks.length > 0 && (
+              <div className="flex-shrink-0 border-b border-gray-100">
+                <div className="px-5 pt-3 pb-1 text-[11px] font-semibold text-amber-600 uppercase tracking-wide">
+                  Collect payments · {unpaidTotal}
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {unpaidTasks.map((t) => (
+                    <button
+                      key={t.slot.id}
+                      type="button"
+                      onClick={() => handleSlotClick(t.slot)}
+                      className="w-full text-left px-5 py-3 hover:bg-amber-50/60 flex items-center justify-between gap-2 touch-manipulation"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900">
+                          {format(new Date(t.slot.date + "T00:00:00"), "EEE, MMM d")} · {formatTime(t.slot.startTime)}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">{t.clients.join(", ")}</div>
+                      </div>
+                      <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-amber-100 text-amber-700 text-[11px] font-bold flex items-center justify-center">
+                        {t.unpaidCount}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            ) : (
+            )}
+
+            {newItems.length === 0 && unpaidTasks.length === 0 ? (
+              <div className="px-4 py-12 text-center text-sm text-gray-400">
+                Nothing needs your attention
+              </div>
+            ) : newItems.length === 0 ? null : (
               <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
                 {newItems.map(({ slot, delta }) => (
                   <button
@@ -787,6 +836,9 @@ export default function TrainerSchedulePage() {
                 // Forced (a just-ended class with unpaid clients): no close until
                 // every client's payment is set, then a "Done" button releases it.
                 if (forced) {
+                  // Closable since 2026-06-12: the ✕ dismisses the nudge, and
+                  // every still-unpaid client stays counted on the bell as an
+                  // open task — nothing is silently forgotten.
                   return allPaid ? (
                     <button
                       onClick={() => { setForcedSlotId(null); setSelectedSlot(null) }}
@@ -795,9 +847,18 @@ export default function TrainerSchedulePage() {
                       Done
                     </button>
                   ) : (
-                    <span className="text-[11px] text-amber-600 font-medium max-w-[150px] text-right leading-tight">
-                      Set payment for all clients to continue
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-amber-600 font-medium max-w-[130px] text-right leading-tight">
+                        Unpaid clients stay on the bell
+                      </span>
+                      <button
+                        onClick={() => { setForcedSlotId(null); setSelectedSlot(null); refreshPending() }}
+                        aria-label="Close"
+                        className="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors lg:w-7 lg:h-7 lg:rounded-lg"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
                   )
                 }
                 return (

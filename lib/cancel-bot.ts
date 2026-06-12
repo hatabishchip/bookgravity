@@ -15,6 +15,7 @@ import { sendWhatsAppText, getConfigFor } from "@/lib/whatsapp-cloud"
 import { appendOutboundMessage } from "@/lib/whatsapp-conversation"
 import { restoreMembershipClass, phoneTail } from "@/lib/membership"
 import { slotStartMs } from "@/lib/booking-cutoff"
+import { notifyStaffOfCancellation } from "@/lib/booking-cancel"
 
 // A pending "1/0" confirmation is only honoured for 15 minutes.
 const PENDING_TTL_MS = 15 * 60 * 1000
@@ -124,6 +125,13 @@ export async function handleCancelBotMessage(opts: {
       slot: `${updated.slot.date} ${updated.slot.startTime}`,
       phone: opts.clientPhone,
     })
+    // Client cancelled themselves → alert the trainer + the admin number.
+    void notifyStaffOfCancellation({
+      studioId: opts.studioId,
+      slotId: booking.slotId,
+      clientName: booking.clientName,
+      cancelledBy: "client",
+    }).catch(() => {})
     await reply("Booking canceled 😔\n\nHope to see you another time 💫")
     return
   }
