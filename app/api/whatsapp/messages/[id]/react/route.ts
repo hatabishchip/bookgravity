@@ -46,6 +46,17 @@ export async function POST(
     }
   }
 
+  // Owner rules (2026-06-12): reactions only on the CLIENT's messages — a
+  // reaction on our own/system message looks like the client put it there
+  // (collision). And only while the 24h window is open: outside it Meta never
+  // delivers the reaction, so the team would see a state the client doesn't.
+  if (message.direction !== "INBOUND") {
+    return NextResponse.json({ error: "only_client_messages" }, { status: 400 })
+  }
+  if (!isInsideCustomerWindow(message.conversation.lastInboundAt)) {
+    return NextResponse.json({ error: "window_closed" }, { status: 409 })
+  }
+
   // Persist first so the team's reaction sticks even if Meta delivery fails.
   await prisma.whatsAppMessage.update({
     where: { id: message.id },

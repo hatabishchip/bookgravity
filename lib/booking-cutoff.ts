@@ -1,8 +1,9 @@
 // Studios are in Bali (UTC+8). Slot date+startTime are local studio time.
-// We close bookings 2 hours before a slot starts.
+// We close bookings 2.5 hours before a slot starts (owner rule 2026-06-12;
+// matches the same-day reminder window).
 
 const STUDIO_UTC_OFFSET = "+08:00"
-const CUTOFF_MS = 2 * 60 * 60 * 1000
+const CUTOFF_MS = 2.5 * 60 * 60 * 1000
 
 export function slotStartMs(date: string, startTime: string): number {
   // ISO string with explicit offset converts to UTC reliably.
@@ -24,7 +25,7 @@ export function isSlotBookable(date: string, startTime: string, nowMs = Date.now
  * Booking availability that accounts for existing attendees: a class with at
  * least one person already booked stays OPEN for booking right up until it
  * ends (so latecomers can still join an already-running class), and closes the
- * moment it finishes. An empty class follows the normal 2-hour cutoff.
+ * moment it finishes. An empty class follows the normal 2.5-hour cutoff.
  */
 export function isSlotBookableWithAttendees(
   date: string,

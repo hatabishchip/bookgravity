@@ -79,14 +79,14 @@ export async function POST(request: NextRequest) {
     if (!slot) return NextResponse.json({ error: "Slot not found" }, { status: 404 })
 
     // A class with at least one attendee stays open until it ends; an empty one
-    // closes 2 hours before it starts.
+    // closes 2.5 hours before it starts.
     if (!isSlotBookableWithAttendees(slot.date, slot.startTime, slot.endTime, slot._count.bookings)) {
       return NextResponse.json(
         {
           error:
             slot._count.bookings >= 1
               ? "This class has already finished — bookings are closed."
-              : "Bookings close 2 hours before the session starts.",
+              : "Bookings close 2.5 hours before the session starts.",
         },
         { status: 409 },
       )

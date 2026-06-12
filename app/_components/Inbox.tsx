@@ -191,6 +191,7 @@ function MessageBubble({
   onTranslate,
   translating = false,
   onReact,
+  canReact = false,
   onCopied,
   onImageClick,
 }: {
@@ -200,6 +201,10 @@ function MessageBubble({
   onTranslate?: (messageId: string) => void
   translating?: boolean
   onReact?: (messageId: string, emoji: string) => void
+  /** Reactions only on CLIENT messages while the 24h window is open — a
+   *  reaction outside the window never reaches the client (silent collision),
+   *  and reacting to our own/system messages reads as the client's doing. */
+  canReact?: boolean
   onCopied?: () => void
   onImageClick?: (src: string) => void
 }) {
@@ -358,8 +363,10 @@ function MessageBubble({
             className="flex flex-col items-stretch gap-2 w-full max-w-xs"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Reaction bar — springs up; emojis pop in one after another. */}
-            <div className={cn(
+            {/* Reaction bar — springs up; emojis pop in one after another.
+                Hidden when reacting isn't allowed (window closed / not a
+                client message) — the menu still offers copy/translate. */}
+            {canReact && <div className={cn(
               "flex items-center gap-1 overflow-x-auto no-scrollbar rounded-full bg-white dark:bg-[#233138] shadow-xl px-2 py-2",
               menuClosing ? "animate-reaction-pill-out" : "animate-reaction-pill-in",
             )}>
@@ -377,7 +384,7 @@ function MessageBubble({
                   {e}
                 </button>
               ))}
-            </div>
+            </div>}
 
             {/* Menu — Copy only (WhatsApp Cloud API has no recall, so there's
                 no real Delete to offer). Scales in just after the pill. */}
@@ -1617,6 +1624,7 @@ export default function Inbox({
                       onTranslate={translateMessage}
                       translating={translatingIds.has(m.id)}
                       onReact={reactMessage}
+                      canReact={windowOpen && m.direction === "INBOUND"}
                       onCopied={() => setCopiedAt(Date.now())}
                       onImageClick={setLightboxSrc}
                     />
