@@ -351,7 +351,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               autoCorrect={desktop ? "on" : "off"}
               autoCapitalize={desktop ? "sentences" : "off"}
               spellCheck={desktop}
-              placeholder={windowOpen ? "Message" : "Window closed — use a template"}
+              placeholder={windowOpen ? "Message" : role === "TRAINER" ? "Window closed — tap 👋" : "Window closed — use a template"}
               // Block typing entirely when the 24h window is closed — free text
               // can't reach the client, so the field is inactive until a client
               // message re-opens the window.

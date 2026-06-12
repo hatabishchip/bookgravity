@@ -634,6 +634,37 @@ export default function Inbox({
   }, [embedded, initialSelectedId])
   const selectedId = embedded ? embeddedSelectedId : searchParams.get("c")
 
+  // PAGE variant on a phone: when a chat is open and iOS shows the keyboard,
+  // Safari scrolls the page and the dvh-sized shell "floats" (huge dead gap
+  // under the keyboard — Gr's report 2026-06-12). Mirror the FloatingInbox
+  // trick: track the visual viewport and pin the shell to it as fixed.
+  const [pageVv, setPageVv] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  useEffect(() => {
+    if (embedded || !selectedId) { setPageVv(null); return }
+    if (typeof window === "undefined") return
+    // Desktop keeps the static layout — only narrow/coarse screens need this.
+    if (window.matchMedia("(min-width: 1024px)").matches) { setPageVv(null); return }
+    const visual = window.visualViewport
+    if (!visual) return
+    let raf = 0
+    const update = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        // Only engage when the keyboard actually shrinks the viewport —
+        // otherwise keep normal page flow (top bar visible, no jumps).
+        const keyboardOpen = visual.height < window.innerHeight - 80
+        setPageVv(keyboardOpen ? { x: visual.offsetLeft, y: visual.offsetTop, w: visual.width, h: visual.height } : null)
+        if (keyboardOpen) window.scrollTo(0, 0)
+      })
+    }
+    update()
+    visual.addEventListener("resize", update)
+    return () => {
+      cancelAnimationFrame(raf)
+      visual.removeEventListener("resize", update)
+    }
+  }, [embedded, selectedId])
+
   const [convos, setConvos] = useState<ConversationListItem[] | null>(null)
   const [search, setSearch] = useState("")
   // Chat-list filter by booking day: all chats / booked today / booked tomorrow.
@@ -1641,10 +1672,19 @@ export default function Inbox({
             // height (tracking visualViewport so iOS' keyboard doesn't
             // push the composer behind the URL bar).
             "absolute inset-0"
-          : // Inside the page <main> with its 16/32px padding — escape it
-            // and fit to the available height below the top bar.
-            "h-[calc(100dvh-72px)] lg:h-[calc(100dvh-64px)] -m-4 lg:-m-8",
+          : pageVv
+            ? // Phone + keyboard open: pin the chat to the visual viewport so
+              // nothing floats (see pageVv effect above).
+              "fixed z-40"
+            : // Inside the page <main> with its 16/32px padding — escape it
+              // and fit to the available height below the top bar.
+              "h-[calc(100dvh-72px)] lg:h-[calc(100dvh-64px)] -m-4 lg:-m-8",
       )}
+      style={
+        !embedded && pageVv
+          ? { top: pageVv.y, left: pageVv.x, width: pageVv.w, height: pageVv.h }
+          : undefined
+      }
     >
       {/* WhatsApp-style "copied" toast — dark pill near the bottom that slides
           up, holds, then fades out. Remounts on each copy (key) to replay. */}
