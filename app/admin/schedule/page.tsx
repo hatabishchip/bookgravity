@@ -369,10 +369,11 @@ export default function SchedulePage() {
     const refresh = () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return
       if (modalOpenRef.current) return
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
       fetchSlots()
       fetchBlocked()
     }
-    const id = setInterval(refresh, 20000)
+    const id = setInterval(refresh, 30000)
     const onFocus = () => refresh()
     const onVis = () => { if (document.visibilityState === "visible") refresh() }
     window.addEventListener("focus", onFocus)

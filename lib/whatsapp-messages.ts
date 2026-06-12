@@ -126,10 +126,20 @@ export async function sendClassReminderWA(opts: {
   clientPhone: string
   trainerName: string
   time: string
+  /** GROUP | KIDS | PRIVATE — picks the template wording (see below). */
+  classType?: string
   /** The class's studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
-  const templateName = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder_v2"
+  // The approved v2 body hardcodes "group class", so it's only right for
+  // GROUP. KIDS/PRIVATE go through the neutral v3 ("a class") — submitted
+  // via scripts/create-class-reminder-v3-template.ts. Until v3 is approved
+  // those sends fail (logged); same outcome as before, when KIDS/PRIVATE
+  // were filtered out entirely, so there's no regression window.
+  const isGroup = (opts.classType ?? "GROUP") === "GROUP"
+  const templateName = isGroup
+    ? process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder_v2"
+    : process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_ANY || "class_reminder_v3"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
   return sendWhatsAppTemplate({
     toPhone: opts.clientPhone,

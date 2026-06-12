@@ -185,7 +185,7 @@ export default function TrainerSchedulePage() {
   // refreshes — slotsLoaded stays true.
   useEffect(() => {
     const tick = () => { if (document.visibilityState === "visible") fetchSlots() }
-    const t = setInterval(tick, 20_000)
+    const t = setInterval(tick, 30_000)
     document.addEventListener("visibilitychange", tick)
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick) }
   }, [fetchSlots])

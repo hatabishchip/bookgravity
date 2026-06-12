@@ -18,9 +18,16 @@ import { elogError } from "@/lib/elog"
 
 const TICK_ID = "today-reminders"
 const MIN_GAP_MS = 10 * 60 * 1000 // at most one traffic tick per 10 minutes
+// Warm-instance short-circuit (CPU guard 2026-06-12): skip even the DB claim
+// query when THIS instance tried recently — /api/slots is hit many times per
+// widget visit and each tick used to cost a libsql round-trip.
+let lastLocalAttempt = 0
+const LOCAL_GAP_MS = 60 * 1000
 
 export async function maybeRunTodayReminders(): Promise<void> {
   try {
+    if (Date.now() - lastLocalAttempt < LOCAL_GAP_MS) return
+    lastLocalAttempt = Date.now()
     const threshold = new Date(Date.now() - MIN_GAP_MS)
     // Claim: flip lastRunAt forward only if the previous run is old enough.
     const claimed = await prisma.cronTick.updateMany({

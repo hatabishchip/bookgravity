@@ -79,9 +79,19 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
 
   useEffect(() => {
     refresh()
-    const t = setInterval(refresh, 20_000)
-    return () => clearInterval(t)
-  }, [refresh])
+    // CPU guard (Vercel Fluid limit, 2026-06-12): this used to poll every 20s
+    // on EVERY admin page with the modal closed, tab visible or not — the
+    // single biggest function burner. Closed modal only needs the unread
+    // badge: 90s is plenty. Hidden tabs don't poll at all.
+    const tick = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+      refresh()
+    }
+    const t = setInterval(tick, open ? 20_000 : 90_000)
+    const onVis = () => { if (document.visibilityState === "visible") refresh() }
+    document.addEventListener("visibilitychange", onVis)
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis) }
+  }, [refresh, open])
 
   // When the modal closes, refresh once so the badge updates if the user
   // just read some chats.

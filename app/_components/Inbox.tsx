@@ -772,8 +772,15 @@ export default function Inbox({
   }, [])
   useEffect(() => {
     refreshList()
-    const t = setInterval(refreshList, 15_000)
-    return () => clearInterval(t)
+    // Visible-tab only (CPU guard 2026-06-12) — cabinets stay open 24/7.
+    const tick = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+      refreshList()
+    }
+    const t = setInterval(tick, 30_000)
+    const onVis = () => { if (document.visibilityState === "visible") refreshList() }
+    document.addEventListener("visibilitychange", onVis)
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis) }
   }, [refreshList])
 
   // Load trainers list for admin reassign
@@ -804,8 +811,16 @@ export default function Inbox({
     }
     setLoadingDetail(true)
     refreshDetail(selectedId).finally(() => setLoadingDetail(false))
-    const t = setInterval(() => refreshDetail(selectedId), 8_000)
-    return () => clearInterval(t)
+    // Visible-tab only (CPU guard 2026-06-12): a chat left open in a
+    // background tab used to hit the function every 8s all night.
+    const tick = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+      refreshDetail(selectedId)
+    }
+    const t = setInterval(tick, 10_000)
+    const onVis = () => { if (document.visibilityState === "visible") refreshDetail(selectedId) }
+    document.addEventListener("visibilitychange", onVis)
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis) }
   }, [selectedId, refreshDetail])
 
   // Jump to the latest message. useLayoutEffect runs BEFORE the browser

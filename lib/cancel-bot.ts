@@ -177,6 +177,13 @@ export async function handleCancelBotMessage(opts: {
         slot: `${updated.slot.date} ${updated.slot.startTime}`,
         phone: opts.clientPhone,
       })
+      // Client cancelled themselves → alert the trainer + the admin number.
+      void notifyStaffOfCancellation({
+        studioId: opts.studioId,
+        slotId: active.slotId,
+        clientName: active.clientName,
+        cancelledBy: "client",
+      }).catch(() => {})
       await reply("Booking canceled 😔\n\nHope to see you another time 💫")
       return
     }

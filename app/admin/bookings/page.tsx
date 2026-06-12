@@ -279,7 +279,7 @@ export default function BookingsPage() {
       if (updatingRef.current) return
       refreshBookings()
     }
-    const id = setInterval(refresh, 20000)
+    const id = setInterval(refresh, 30000)
     const onFocus = () => refresh()
     const onVis = () => { if (document.visibilityState === "visible") refresh() }
     window.addEventListener("focus", onFocus)

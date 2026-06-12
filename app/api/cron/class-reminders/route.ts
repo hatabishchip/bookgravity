@@ -36,13 +36,14 @@ export async function GET(req: NextRequest) {
   const todayBali = baliDateStr(now)
   const tomorrowBali = addDaysStr(todayBali, 1)
 
-  // Candidate bookings: confirmed group classes happening tomorrow, not yet
-  // reminded.
+  // Candidate bookings: confirmed classes of ANY type happening tomorrow, not
+  // yet reminded. GROUP uses the "group class" template; KIDS/PRIVATE go
+  // through the neutral-wording one (see sendClassReminderWA).
   const bookings = await prisma.booking.findMany({
     where: {
       status: "CONFIRMED",
       reminderSentAt: null,
-      slot: { date: tomorrowBali, classType: "GROUP" },
+      slot: { date: tomorrowBali },
     },
     include: {
       slot: {
@@ -83,6 +84,7 @@ export async function GET(req: NextRequest) {
       clientPhone: b.clientPhone,
       trainerName,
       time,
+      classType: b.slot.classType,
       studioWA: b.slot.studio,
     })
 
