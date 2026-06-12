@@ -244,11 +244,41 @@ export async function POST(request: NextRequest) {
           // Client reacted to one of our messages: apply the emoji to that
           // message instead of saving a junk empty bubble. Empty emoji clears.
           if (msg.type === "reaction" && msg.reaction?.message_id) {
+            const rtsSec = parseInt(msg.timestamp || "0", 10)
+            const reactedAt = rtsSec > 0 ? new Date(rtsSec * 1000) : new Date()
             try {
               await prisma.whatsAppMessage.updateMany({
                 where: { waMessageId: msg.reaction.message_id },
                 data: { reaction: msg.reaction.emoji || null },
               })
+              // A reaction is a customer-initiated inbound event — per Meta it
+              // re-opens the 24h customer-service window just like a text reply.
+              // We must bump the conversation's lastInboundAt so the composer
+              // unlocks free-form replies; otherwise a client who "liked" our
+              // automated message still shows as window-closed and the admin
+              // can't write back. Find the conversation via the reacted message
+              // first, falling back to the sender's phone tail.
+              const reacted = await prisma.whatsAppMessage.findFirst({
+                where: { waMessageId: msg.reaction.message_id },
+                select: { conversationId: true },
+              })
+              let convoId = reacted?.conversationId ?? null
+              if (!convoId) {
+                const cv = await prisma.whatsAppConversation.findFirst({
+                  where: {
+                    studioId,
+                    clientPhone: { contains: msg.from.slice(-10) },
+                  },
+                  select: { id: true },
+                })
+                convoId = cv?.id ?? null
+              }
+              if (convoId) {
+                await prisma.whatsAppConversation.update({
+                  where: { id: convoId },
+                  data: { lastInboundAt: reactedAt, lastMessageAt: reactedAt },
+                })
+              }
             } catch (err) {
               console.error("[whatsapp-webhook] apply inbound reaction failed:", err)
             }
