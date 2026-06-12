@@ -22,26 +22,35 @@ export async function GET(request: NextRequest) {
   if (!phone || phone.length < 5) return NextResponse.json({ name: null, membershipRemaining: 0 })
 
   try {
-    // Most recent name (across all studios)
-    const nameBooking = await prisma.booking.findFirst({
-      where: { clientPhone: phone },
-      orderBy: { createdAt: "desc" },
-      select: { clientName: true },
-    })
-    // Most recent NON-EMPTY email — earliest bookings had empty clientEmail
-    // before we added the field to the widget, so we skip those.
-    const emailBooking = await prisma.booking.findFirst({
-      where: { clientPhone: phone, clientEmail: { not: "" } },
-      orderBy: { createdAt: "desc" },
-      select: { clientEmail: true },
-    })
+    // Match by 10-digit phone tail (endsWith), not exact string. Since the
+    // 2026-06-12 normalization phones are stored digits-only ("6282…") but
+    // callers still pass the country-code form ("+6282…"); exact-equals
+    // misses every returning client. Same fix as /api/otp/verify.
+    const tail = phone.replace(/\D/g, "").slice(-10)
+    const tooShort = tail.length < 6
+
+    const [nameBooking, emailBooking] = tooShort
+      ? [null, null]
+      : await Promise.all([
+          // Most recent name (across all studios)
+          prisma.booking.findFirst({
+            where: { clientPhone: { endsWith: tail } },
+            orderBy: { createdAt: "desc" },
+            select: { clientName: true },
+          }),
+          // Most recent NON-EMPTY email — earliest bookings had empty clientEmail
+          // before we added the field to the widget, so we skip those.
+          prisma.booking.findFirst({
+            where: { clientPhone: { endsWith: tail }, clientEmail: { not: "" } },
+            orderBy: { createdAt: "desc" },
+            select: { clientEmail: true },
+          }),
+        ])
     const cleanName = nameBooking?.clientName?.replace(/\s*\(\d+\/\d+\)$/, "").trim() || null
 
-    // Membership balance for this studio. Matched by last-10-digits in the
-    // helper (phones are stored formatted, so a SQL substring won't match).
+    // Membership balance for this studio. The helper already matches by tail.
     let membershipRemaining = 0
-    const tail = phone.replace(/\D/g, "").slice(-10)
-    if (tail.length >= 6) {
+    if (!tooShort) {
       const studioId = await getPublicStudioId(studioSlug)
       membershipRemaining = await getMembershipBalance(studioId, phone)
     }
