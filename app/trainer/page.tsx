@@ -11,6 +11,7 @@ import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
 import { useOpenChat } from "@/lib/use-open-chat"
 import { formatIDRCompact as formatIDR } from "@/lib/format"
+import { baliDateStr } from "@/lib/tz"
 
 type Slot = {
   id: string
@@ -74,6 +75,15 @@ type UnpaidTask = {
   slot: Slot
   unpaidCount: number
   clients: string[]
+}
+
+type Handover = {
+  id: string
+  status: string
+  note: string | null
+  fromName: string
+  toName: string
+  slot: { id: string; date: string; startTime: string; endTime: string; classType: string } | null
 }
 
 type View = "2weeks" | "month"
@@ -273,6 +283,16 @@ export default function TrainerSchedulePage() {
 
   // Unpaid clients on ended classes (last 7 days) — open tasks for the bell.
   const [unpaidTasks, setUnpaidTasks] = useState<UnpaidTask[]>([])
+  // Class handover requests (incoming = need my decision; outgoing = my offers).
+  const [handovers, setHandovers] = useState<{ incoming: Handover[]; outgoing: Handover[] }>({ incoming: [], outgoing: [] })
+  const refreshHandovers = useCallback(async () => {
+    try {
+      const r = await fetch("/api/trainer/handovers")
+      if (r.ok) setHandovers(await r.json())
+    } catch { /* ignore */ }
+  }, [])
+  // Hand-over modal: which of my slots is being offered.
+  const [handoverFor, setHandoverFor] = useState<Slot | null>(null)
   const refreshPending = useCallback(async (openGate = false) => {
     try {
       const r = await fetch("/api/trainer/pending-payments")
@@ -289,12 +309,12 @@ export default function TrainerSchedulePage() {
       }
     } catch { /* ignore */ }
   }, [fetchBookingsForSlot])
-  useEffect(() => { refreshPending(true) }, [refreshPending])
+  useEffect(() => { refreshPending(true); refreshHandovers() }, [refreshPending, refreshHandovers])
 
   // Bell badge = new registrations + unpaid clients on ended classes (each
   // unpaid client is one open task).
   const unpaidTotal = unpaidTasks.reduce((sum, t) => sum + t.unpaidCount, 0)
-  const bellTotal = newTotal + unpaidTotal
+  const bellTotal = newTotal + unpaidTotal + handovers.incoming.length
 
 
   const handleSlotClick = (slot: Slot) => {
@@ -488,7 +508,7 @@ export default function TrainerSchedulePage() {
                   so it doesn't run off the top edge on small screens. */}
               <button
                 type="button"
-                onClick={() => { setBellOpen(true); refreshPending() }}
+                onClick={() => { setBellOpen(true); refreshPending(); refreshHandovers() }}
                 aria-label="Notifications"
                 title="Notifications"
                 className={cn(
@@ -544,6 +564,94 @@ export default function TrainerSchedulePage() {
                 </button>
               </div>
             </div>
+            {/* Class handover requests — colleague asks me to take a class. */}
+            {handovers.incoming.length > 0 && (
+              <div className="flex-shrink-0 border-b border-gray-100">
+                <div className="px-5 pt-3 pb-1 text-[11px] font-semibold text-brand uppercase tracking-wide">
+                  Take a class? · {handovers.incoming.length}
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {handovers.incoming.map((h) => (
+                    <div key={h.id} className="px-5 py-3">
+                      <div className="text-sm font-medium text-gray-900">
+                        {h.fromName} asks you to take{" "}
+                        {h.slot ? `${format(new Date(h.slot.date + "T00:00:00"), "EEE, MMM d")} · ${formatTime(h.slot.startTime)}` : "a class"}
+                      </div>
+                      {h.note && <div className="text-xs text-gray-500 mt-0.5">“{h.note}”</div>}
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const r = await fetch(`/api/trainer/handovers/${h.id}`, {
+                              method: "PATCH", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ action: "accept" }),
+                            })
+                            if (!r.ok) alert((await r.json().catch(() => ({})))?.error || "Couldn't accept")
+                            refreshHandovers(); fetchSlots()
+                          }}
+                          className="flex-1 py-2 rounded-lg bg-brand text-white text-xs font-semibold touch-manipulation"
+                        >
+                          Accept class
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await fetch(`/api/trainer/handovers/${h.id}`, {
+                              method: "PATCH", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ action: "decline" }),
+                            })
+                            refreshHandovers()
+                          }}
+                          className="flex-1 py-2 rounded-lg border border-gray-200 text-gray-500 text-xs font-semibold touch-manipulation"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* My outgoing offers — pending (cancellable) and recent outcomes. */}
+            {handovers.outgoing.length > 0 && (
+              <div className="flex-shrink-0 border-b border-gray-100">
+                <div className="px-5 pt-3 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                  My handover offers
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {handovers.outgoing.map((h) => (
+                    <div key={h.id} className="px-5 py-2.5 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm text-gray-700 truncate">
+                          {h.slot ? `${format(new Date(h.slot.date + "T00:00:00"), "MMM d")} · ${formatTime(h.slot.startTime)}` : "Class"} → {h.toName}
+                        </div>
+                        <div className={cn("text-[11px] font-semibold",
+                          h.status === "PENDING" ? "text-amber-600" : h.status === "ACCEPTED" ? "text-brand" : "text-gray-400")}>
+                          {h.status === "PENDING" ? "Waiting for reply" : h.status === "ACCEPTED" ? "Accepted ✓" : "Declined"}
+                        </div>
+                      </div>
+                      {h.status === "PENDING" && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await fetch(`/api/trainer/handovers/${h.id}`, {
+                              method: "PATCH", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ action: "cancel" }),
+                            })
+                            refreshHandovers()
+                          }}
+                          className="text-xs text-gray-400 hover:text-red-500 underline whitespace-nowrap"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Open payment tasks — every unpaid client on an ended class.
                 Tapping a class opens its payment list. */}
             {unpaidTasks.length > 0 && (
@@ -834,6 +942,17 @@ export default function TrainerSchedulePage() {
                 <div className="text-sm text-gray-400 mt-0.5">
                   {selectedSlot._count?.bookings ?? 0}/{selectedSlot.maxCapacity ?? 0} booked
                 </div>
+                {/* Hand the whole class to a colleague (give-initiated only).
+                    Future classes only — the past is salary history. */}
+                {selectedSlot.date >= baliDateStr(new Date()) && (
+                  <button
+                    type="button"
+                    onClick={() => setHandoverFor(selectedSlot)}
+                    className="mt-1 text-xs font-medium text-brand hover:text-brand-dark underline touch-manipulation"
+                  >
+                    Hand over to a colleague
+                  </button>
+                )}
               </div>
               {(() => {
                 const forced = forcedSlotId === selectedSlot.id
@@ -1168,12 +1287,120 @@ export default function TrainerSchedulePage() {
         )}
       </div>
 
+      {/* Hand-over modal: pick a colleague, optional note, send the offer. */}
+      {handoverFor && (
+        <HandoverModal
+          slot={handoverFor}
+          onClose={() => setHandoverFor(null)}
+          onSent={() => { setHandoverFor(null); refreshHandovers() }}
+        />
+      )}
+
       {/* WhatsApp-style transient confirmation for payment/notes saves. */}
       {savedToast > 0 && (
         <div className="pointer-events-none fixed left-1/2 bottom-24 -translate-x-1/2 z-[60] flex items-center gap-1.5 rounded-full bg-gray-900/90 px-4 py-2 text-sm font-medium text-white shadow-lg">
           ✓ Saved
         </div>
       )}
+    </div>
+  )
+}
+
+
+// Pick-a-colleague modal for the class handover (give-initiated). Kept tiny:
+// list of active colleagues + optional note + one POST.
+function HandoverModal({ slot, onClose, onSent }: { slot: Slot; onClose: () => void; onSent: () => void }) {
+  const [colleagues, setColleagues] = useState<{ id: string; name: string; color?: string | null }[] | null>(null)
+  const [picked, setPicked] = useState<string | null>(null)
+  const [note, setNote] = useState("")
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch("/api/trainer/colleagues")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setColleagues)
+      .catch(() => setColleagues([]))
+  }, [])
+
+  const send = async () => {
+    if (!picked) return
+    setSending(true)
+    setError(null)
+    try {
+      const r = await fetch("/api/trainer/handovers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slotId: slot.id, toTrainerId: picked, note: note.trim() || undefined }),
+      })
+      if (!r.ok) {
+        setError((await r.json().catch(() => ({})))?.error || "Couldn't send the offer")
+        setSending(false)
+        return
+      }
+      onSent()
+    } catch {
+      setError("Couldn't send the offer — try again")
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-semibold text-gray-900">Hand over this class</h3>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {format(new Date(slot.date + "T00:00:00"), "EEE, MMM d")} · {formatTime(slot.startTime)} — the colleague
+          gets a request and can accept or decline. Until they accept, the class stays yours.
+        </p>
+
+        <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
+          {colleagues === null ? (
+            <div className="text-sm text-gray-400 py-2">Loading…</div>
+          ) : colleagues.length === 0 ? (
+            <div className="text-sm text-gray-400 py-2">No other trainers in this studio.</div>
+          ) : (
+            colleagues.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setPicked(picked === c.id ? null : c.id)}
+                className={cn(
+                  "w-full px-3 py-2.5 rounded-lg border text-left text-sm font-medium touch-manipulation",
+                  picked === c.id ? "bg-brand text-white border-brand" : "bg-white text-gray-700 border-gray-200 hover:border-brand/40"
+                )}
+              >
+                {c.name}
+              </button>
+            ))
+          )}
+        </div>
+
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Note (optional) — e.g. “I'm sick, can you cover?”"
+          maxLength={300}
+          className="mt-3 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+        />
+
+        {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
+
+        <div className="flex gap-2 mt-4">
+          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold touch-manipulation">
+            Back
+          </button>
+          <button
+            type="button"
+            disabled={!picked || sending}
+            onClick={send}
+            className="flex-1 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold disabled:opacity-50 touch-manipulation"
+          >
+            {sending ? "Sending…" : "Send request"}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

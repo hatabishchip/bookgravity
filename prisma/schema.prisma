@@ -564,3 +564,24 @@ model RateLimit {
   count     Int      @default(1)
   expiresAt DateTime
 }
+
+// Trainer-to-trainer class handover (trainer request 2026-06-12: Gr covered
+// Seni's class with no way to log it). Strictly GIVE-initiated: the slot's
+// owner offers a specific colleague; the colleague accepts/declines from the
+// bell. On accept the whole class moves — slot.trainerId, the clients'
+// chats and the reminder forward — so payments and salary land correctly.
+model SlotHandover {
+  id            String    @id @default(cuid())
+  slotId        String
+  studioId      String
+  fromTrainerId String
+  toTrainerId   String
+  note          String?
+  status        String    @default("PENDING") // PENDING | ACCEPTED | DECLINED | CANCELLED | EXPIRED
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+
+  @@index([toTrainerId, status])
+  @@index([fromTrainerId, status])
+  @@index([slotId, status])
+}
