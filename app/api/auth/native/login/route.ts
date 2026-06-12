@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { signAccessToken, signRefreshToken } from "@/lib/native-jwt"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
+import { rateLimit, clientIp } from "@/lib/rate-limit"
 
 const Body = z.object({
   email: z.string().email().or(z.string().min(2)),
@@ -19,6 +20,20 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const data = Body.parse(body)
+
+    // Brute-force brake (audit 2026-06-12).
+    const rl = await rateLimit({
+      scope: "login",
+      subject: `${clientIp(request)}:${(data.email || "").toLowerCase()}`,
+      limit: 10,
+      windowSec: 900,
+    })
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "Too many attempts — try again later." },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+      )
+    }
 
     const user = await prisma.user.findUnique({
       where: { email: data.email },

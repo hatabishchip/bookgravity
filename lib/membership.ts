@@ -1,28 +1,22 @@
 import { prisma } from "@/lib/prisma"
 
-// Memberships (абонементы) are keyed by the client's phone but phone strings
-// aren't normalized in the DB (bookings store whatever the client typed, the
-// sell form whatever the trainer typed). We match on the last 10 digits — the
-// same heuristic the WhatsApp webhook uses — so "+62 812…", "0812…" and
-// "62812…" all resolve to the same person.
+// Memberships (абонементы) are keyed by the client's phone. Since the
+// 2026-06-12 normalization phones are stored digits-only, so the last-10-digit
+// match runs as an indexed SQL endsWith instead of the old fetch-all-and-
+// filter-in-memory scan. phoneTail() stays the shared canonical-tail helper.
 export function phoneTail(phone: string): string {
   return phone.replace(/\D/g, "").slice(-10)
 }
 
 // Sum of unused classes for a phone at a studio (0 if none / phone too short).
-// Phones are stored with formatting (spaces), so we can't SQL-match a
-// contiguous digit substring — we fetch the studio's active passes and compare
-// by last-10-digits in memory instead. Studios have few rows, so this is cheap.
 export async function getMembershipBalance(studioId: string, phone: string): Promise<number> {
   const tail = phoneTail(phone)
   if (tail.length < 6) return 0
   const rows = await prisma.membership.findMany({
-    where: { studioId, remainingClasses: { gt: 0 } },
-    select: { clientPhone: true, remainingClasses: true },
+    where: { studioId, remainingClasses: { gt: 0 }, clientPhone: { endsWith: tail } },
+    select: { remainingClasses: true },
   })
-  return rows
-    .filter((r) => phoneTail(r.clientPhone) === tail)
-    .reduce((s, r) => s + r.remainingClasses, 0)
+  return rows.reduce((s, r) => s + r.remainingClasses, 0)
 }
 
 // Build a tail -> remaining-balance map for a studio in one query. Used by the
@@ -48,11 +42,10 @@ export async function deductMembershipClass(studioId: string, phone: string): Pr
   const tail = phoneTail(phone)
   if (tail.length < 6) return null
   return prisma.$transaction(async (tx) => {
-    const rows = await tx.membership.findMany({
-      where: { studioId, remainingClasses: { gt: 0 } },
+    const row = await tx.membership.findFirst({
+      where: { studioId, remainingClasses: { gt: 0 }, clientPhone: { endsWith: tail } },
       orderBy: { createdAt: "asc" },
     })
-    const row = rows.find((r) => phoneTail(r.clientPhone) === tail)
     if (!row) return null
     await tx.membership.update({
       where: { id: row.id },

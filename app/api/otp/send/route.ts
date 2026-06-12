@@ -6,6 +6,7 @@ import { getConfigFor } from "@/lib/whatsapp-cloud"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { sendBookingOtp } from "@/lib/otp"
 import { hasOtpSession } from "@/lib/otp-session"
+import { rateLimit, clientIp } from "@/lib/rate-limit"
 
 // POST /api/otp/send  body: { phone, name? }  query: ?studio=<slug>
 // Sends a 2-digit WhatsApp confirmation code the client must enter before the
@@ -19,6 +20,19 @@ const Schema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const data = Schema.parse(await request.json())
+
+    // Abuse brakes (audit 2026-06-12): spraying codes burns the Meta quota
+    // and the WhatsApp number's quality rating.
+    const ipRl = await rateLimit({ scope: "otp-ip", subject: clientIp(request), limit: 8, windowSec: 3600 })
+    const phoneRl = await rateLimit({ scope: "otp-phone", subject: data.phone.replace(/\D/g, ""), limit: 10, windowSec: 86400 })
+    if (!ipRl.ok || !phoneRl.ok) {
+      const retry = !ipRl.ok ? ipRl.retryAfterSec : (!phoneRl.ok ? phoneRl.retryAfterSec : 60)
+      return NextResponse.json(
+        { error: "Too many code requests — please try again later.", code: "rate_limited" },
+        { status: 429, headers: { "Retry-After": String(retry) } },
+      )
+    }
+
     const studioId = await getPublicStudioId(new URL(request.url).searchParams.get("studio"))
 
     // No WhatsApp for this studio → skip OTP entirely (booking proceeds as before).

@@ -42,13 +42,12 @@ export async function GET(request: NextRequest) {
   const tail = phoneTail(phone)
   if (tail.length < 6) return NextResponse.json({ remaining: 0, memberships: [], name: null })
 
-  // Phones are stored formatted (with spaces), so match on last-10-digits in
-  // memory rather than a SQL substring (which would miss "+62 812 …").
-  const allMemberships = await prisma.membership.findMany({
-    where: { studioId: ctx.studioId },
+  // Phones are digits-only since 2026-06-12 → indexed endsWith query instead
+  // of the old fetch-every-membership-and-filter-in-memory scan.
+  const memberships = await prisma.membership.findMany({
+    where: { studioId: ctx.studioId, clientPhone: { endsWith: tail } },
     orderBy: { createdAt: "desc" },
   })
-  const memberships = allMemberships.filter((m) => phoneTail(m.clientPhone) === tail)
   const remaining = memberships.reduce((s, m) => s + m.remainingClasses, 0)
 
   // Best-known client name: latest membership name, else a recent booking name

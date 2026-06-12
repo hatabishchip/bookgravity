@@ -555,3 +555,12 @@ model CronTick {
   id        String   @id // job name, e.g. "today-reminders"
   lastRunAt DateTime
 }
+
+// Fixed-window rate limiting for PUBLIC endpoints (audit 2026-06-12: otp/send,
+// bookings POST and native login had no abuse protection at all). Key =
+// "<scope>:<ip-or-phone>:<windowStart>"; rows expire and are lazily purged.
+model RateLimit {
+  id        String   @id @map("key")
+  count     Int      @default(1)
+  expiresAt DateTime
+}

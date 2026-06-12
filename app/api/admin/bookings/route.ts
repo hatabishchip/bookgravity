@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { notifyBookingCreated } from "@/lib/booking-notify"
 import { getStudioMembershipBalances, phoneTail } from "@/lib/membership"
+import { baliDateStr, addDaysStr } from "@/lib/tz"
 import { z } from "zod"
 
 export async function GET(request: NextRequest) {
@@ -19,7 +20,10 @@ export async function GET(request: NextRequest) {
       status: { not: "CANCELLED" },
       slot: {
         studioId: ctx.studioId,
-        ...(date ? { date } : {}),
+        // No explicit date → rolling window (60 days back + all future):
+        // the UI's filters never look further, and an unbounded fetch was
+        // growing with the studio's full booking history (audit 2026-06-12).
+        ...(date ? { date } : { date: { gte: addDaysStr(baliDateStr(new Date()), -60) } }),
       },
     },
     include: {

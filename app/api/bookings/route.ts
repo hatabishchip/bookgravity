@@ -16,6 +16,7 @@ import {
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { verifyBookingOtp } from "@/lib/otp"
 import { hasOtpSession, attachOtpSession } from "@/lib/otp-session"
+import { rateLimit, clientIp } from "@/lib/rate-limit"
 import { clientClassRange } from "@/lib/class-time"
 import { z } from "zod"
 
@@ -67,6 +68,15 @@ async function generateUniqueCodes(slotId: string, count: number): Promise<strin
 
 export async function POST(request: NextRequest) {
   try {
+    // Abuse brake (audit 2026-06-12): nothing stopped scripted slot-filling.
+    const rl = await rateLimit({ scope: "book-ip", subject: clientIp(request), limit: 12, windowSec: 3600 })
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "Too many booking attempts — please try again later." },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+      )
+    }
+
     const body = await request.json()
     const data = BookingSchema.parse(body)
 

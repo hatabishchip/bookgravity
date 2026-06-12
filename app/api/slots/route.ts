@@ -102,7 +102,12 @@ export async function GET(request: NextRequest) {
       price: slot.price,
     }))
 
-  return NextResponse.json(result)
+  // CDN cache (audit 2026-06-12): availability changes slowly; 60s shared
+  // cache absorbs the widget's per-date clicks without going stale enough
+  // to matter (capacity is re-checked server-side at booking time anyway).
+  return NextResponse.json(result, {
+    headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
+  })
   } catch (err) {
     // Never leak Prisma/driver internals to the public widget.
     console.error("[slots] GET failed:", err)
