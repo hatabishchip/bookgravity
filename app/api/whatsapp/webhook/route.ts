@@ -278,6 +278,36 @@ export async function POST(request: NextRequest) {
                   where: { id: convoId },
                   data: { lastInboundAt: reactedAt, lastMessageAt: reactedAt },
                 })
+                // A reaction counts as an answer to the same-day reminder too
+                // (owner request 2026-06-12): a client who just taps 👍 has
+                // confirmed they're coming — the trainer must hear about it,
+                // same as a text reply. Forward once and disarm.
+                try {
+                  const convo = await prisma.whatsAppConversation.findUnique({
+                    where: { id: convoId },
+                    select: { id: true, clientName: true, pendingReminderTrainerPhone: true },
+                  })
+                  if (convo?.pendingReminderTrainerPhone && msg.reaction.emoji) {
+                    const fwd = await forwardClientReplyToTrainer({
+                      trainerPhone: convo.pendingReminderTrainerPhone,
+                      clientName: convo.clientName ?? "A client",
+                      type: "text",
+                      body: `${msg.reaction.emoji} (reacted to our message)`,
+                      filename: null,
+                      config: waConfig,
+                    })
+                    if (fwd.ok) {
+                      await prisma.whatsAppConversation.update({
+                        where: { id: convo.id },
+                        data: { pendingReminderTrainerPhone: null },
+                      })
+                    } else {
+                      console.warn("[whatsapp-webhook] forward reaction to trainer failed:", fwd.error)
+                    }
+                  }
+                } catch (err) {
+                  console.error("[whatsapp-webhook] reaction forward failed:", err)
+                }
               }
             } catch (err) {
               console.error("[whatsapp-webhook] apply inbound reaction failed:", err)
