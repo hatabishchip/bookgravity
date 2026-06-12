@@ -193,6 +193,9 @@ model Trainer {
   name           String
   whatsapp       String           @default("")
   userId         String           @unique
+  // "Удалить тренера" = архив (audit 2026-06-12): hidden from lists and
+  // login, but salary/schedule history stays intact. Restore via PATCH.
+  archived  Boolean  @default(false)
   user           User             @relation(fields: [userId], references: [id])
   studioId       String
   studio         Studio           @relation(fields: [studioId], references: [id])

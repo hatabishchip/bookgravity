@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const trainer = await prisma.trainer.findFirst({
-    where: { userId: ctx.userId, studioId: ctx.studioId },
+    where: { userId: ctx.userId, studioId: ctx.studioId, archived: false },
   })
   if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
 

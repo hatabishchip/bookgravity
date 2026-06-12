@@ -16,7 +16,7 @@ export async function GET() {
   if (!ctx) return NextResponse.json({ slot: null }, { status: 401 })
 
   const trainer = await prisma.trainer.findFirst({
-    where: { userId: ctx.userId, studioId: ctx.studioId },
+    where: { userId: ctx.userId, studioId: ctx.studioId, archived: false },
     select: { id: true },
   })
   if (!trainer) return NextResponse.json({ slot: null })

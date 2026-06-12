@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import SellMembershipButton from "@/app/_components/SellMembershipButton"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
 import { useOpenChat } from "@/lib/use-open-chat"
 import { formatIDRCompact as formatIDR } from "@/lib/format"
 
@@ -282,6 +283,23 @@ export default function TrainerSchedulePage() {
     // Opening a class clears its "new" badge.
     markSlotSeen(slot)
     setBellOpen(false)
+  }
+
+  // Move a client to another class. On success the booking belongs to a
+  // different slot, so it simply disappears from this class's list on refetch.
+  const moveBooking = async (id: string, slotId: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/trainer/bookings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slotId }),
+      })
+      if (!res.ok) return false
+      if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+      return true
+    } catch {
+      return false
+    }
   }
 
   // Optimistic update — apply locally first, then sync to server in the
@@ -1050,6 +1068,15 @@ export default function TrainerSchedulePage() {
                           }}
                           className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-50"
                           placeholder="Add note..."
+                        />
+                      </div>
+
+                      {/* Reschedule — same picker as All My Bookings, so trainers
+                          who live on this page (Dita/Seni) can move a client too. */}
+                      <div className="mt-3">
+                        <ReschedulePicker
+                          excludeSlotId={b.slot.id}
+                          onMove={(slotId) => moveBooking(b.id, slotId)}
                         />
                       </div>
 

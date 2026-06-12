@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   await touchLoginActivity(ctx.userId, request.headers.get("user-agent"))
 
   const trainer = await prisma.trainer.findFirst({
-    where: { userId: ctx.userId, studioId: ctx.studioId },
+    where: { userId: ctx.userId, studioId: ctx.studioId, archived: false },
   })
   if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
 

@@ -44,6 +44,7 @@ function hexToRgba(hex: string, alpha: number) {
 type Trainer = {
   id: string
   name: string
+  archived?: boolean
   whatsapp: string
   commissionRate: number
   color: string
@@ -121,7 +122,7 @@ export default function TrainersPage() {
   const [loading, setLoading] = useState(true)
 
   const fetchTrainers = useCallback(async () => {
-    const res = await fetch("/api/admin/trainers")
+    const res = await fetch("/api/admin/trainers?all=1")
     const data = (await res.json()) as Trainer[]
     // Format raw whatsapp values from the DB so the field renders pretty
     // ("+62 821-4554-6405") instead of "+6282145546405".
@@ -157,10 +158,19 @@ export default function TrainersPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this trainer? This will also delete their account.")) return
+    if (!confirm("Archive this trainer? They disappear from schedules and lose cabinet access, but all history (salary, past classes) is kept. You can restore them anytime.")) return
     setDeleting(id)
     await fetch(`/api/admin/trainers?id=${id}`, { method: "DELETE" })
     await fetchTrainers(); setDeleting(null)
+  }
+
+  const handleRestore = async (id: string) => {
+    await fetch(`/api/admin/trainers?id=${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived: false }),
+    })
+    await fetchTrainers()
   }
 
 
@@ -253,7 +263,7 @@ export default function TrainersPage() {
       {loading && <PetalSpinner />}
 
       <div className={cn("grid grid-cols-1 lg:grid-cols-3 gap-4", loading && "hidden")}>
-        {trainers.map((trainer) => (
+        {trainers.filter((t) => !t.archived).map((trainer) => (
           <div
             key={trainer.id}
             className="rounded-2xl p-5 shadow-sm bg-white border border-gray-100"
@@ -469,6 +479,31 @@ export default function TrainersPage() {
           </div>
         )}
       </div>
+
+      {/* Archived trainers — hidden from schedules and login, history intact.
+          One-click restore (delete is really an archive since 2026-06-12). */}
+      {trainers.some((t) => t.archived) && !loading && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Archived</h2>
+          <div className="space-y-2">
+            {trainers.filter((t) => t.archived).map((t) => (
+              <div key={t.id} className="flex items-center justify-between gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 opacity-70">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-700 truncate">{t.name}</div>
+                  <div className="text-xs text-gray-400">History preserved · no cabinet access</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRestore(t.id)}
+                  className="text-xs font-semibold text-brand hover:text-brand-dark underline whitespace-nowrap touch-manipulation"
+                >
+                  Restore
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Trainer schedule overlay */}
       {scheduleFor && (

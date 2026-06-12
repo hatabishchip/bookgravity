@@ -30,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params
 
   const trainer = await prisma.trainer.findFirst({
-    where: { userId: ctx.userId, studioId: ctx.studioId },
+    where: { userId: ctx.userId, studioId: ctx.studioId, archived: false },
   })
   if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
 

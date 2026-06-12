@@ -17,12 +17,16 @@ function generatePin(): string {
   return String(Math.floor(1000 + Math.random() * 9000))
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const ctx = await requireAdmin()
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  // Default: active trainers only (schedule dropdowns must not offer an
+  // archived trainer). The Trainers management page passes ?all=1 to also
+  // get the archived section.
+  const includeArchived = new URL(request.url).searchParams.get("all") === "1"
   const trainers = await prisma.trainer.findMany({
-    where: { studioId: ctx.studioId },
+    where: { studioId: ctx.studioId, ...(includeArchived ? {} : { archived: false }) },
     include: {
       user: {
         select: {
@@ -128,6 +132,11 @@ export async function PATCH(request: NextRequest) {
     updateData.whatsapp = String(body.whatsapp)
   }
 
+  // Restore from (or send to) the archive.
+  if (body.archived !== undefined) {
+    updateData.archived = Boolean(body.archived)
+  }
+
   if (body.notifyEmail !== undefined) {
     updateData.notifyEmail = !!body.notifyEmail
   }
@@ -192,21 +201,28 @@ export async function DELETE(request: NextRequest) {
   const trainer = await prisma.trainer.findFirst({ where: { id, studioId: ctx.studioId } })
   if (!trainer) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  // Trainer relations: TrainerPayment cascades on delete; TimeSlot has the
-  // trainer as either primary (trainerId) or assistant (assistantId) with NO
-  // cascade — straight delete fails with an FK constraint. So we unassign
-  // first, then delete trainer + user atomically. Existing slots become
-  // "Unassigned" rather than disappearing.
+  // ARCHIVE, not delete (policy 2026-06-12, agreed with the owner): hard
+  // deletion used to cascade away the trainer's salary history and orphan
+  // past classes. Instead: hide the trainer (lists, login, assignment) and
+  // unassign only FUTURE classes — past classes and payments stay intact for
+  // reports. Restore any time via PATCH { archived: false }.
+  const { baliDateStr } = await import("@/lib/tz")
+  const today = baliDateStr(new Date())
   const [unassignedPrimary, unassignedAssistant] = await prisma.$transaction([
-    prisma.timeSlot.updateMany({ where: { trainerId: trainer.id }, data: { trainerId: null } }),
-    prisma.timeSlot.updateMany({ where: { assistantId: trainer.id }, data: { assistantId: null } }),
+    prisma.timeSlot.updateMany({
+      where: { trainerId: trainer.id, date: { gte: today } },
+      data: { trainerId: null },
+    }),
+    prisma.timeSlot.updateMany({
+      where: { assistantId: trainer.id, date: { gte: today } },
+      data: { assistantId: null },
+    }),
   ])
-  // Now safe to delete: trainer first (cascades TrainerPayment), then user.
-  await prisma.trainer.delete({ where: { id: trainer.id } })
-  await prisma.user.delete({ where: { id: trainer.userId } })
+  await prisma.trainer.update({ where: { id: trainer.id }, data: { archived: true } })
 
   return NextResponse.json({
     success: true,
+    archived: true,
     unassignedSlots: unassignedPrimary.count + unassignedAssistant.count,
   })
 }
