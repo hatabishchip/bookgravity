@@ -122,6 +122,9 @@ export default function TrainerSchedulePage() {
   // When a class just ended with unpaid clients, the cabinet opens straight
   // into that class's payment list and can't be closed until everyone is paid.
   const [forcedSlotId, setForcedSlotId] = useState<string | null>(null)
+  // Transient "Saved" confirmation after a successful payment/notes PATCH —
+  // the optimistic UI used to give no feedback at all (audit 2026-06-12).
+  const [savedToast, setSavedToast] = useState(0)
   // "New bookings" bell: baseline of already-seen counts (per slot), whether
   // it's been loaded from localStorage yet, and the dropdown open state.
   const [seenCounts, setSeenCounts] = useState<Record<string, number>>({})
@@ -350,6 +353,8 @@ export default function TrainerSchedulePage() {
       if (stale) return
       // Payment state changed → recount the bell's unpaid tasks.
       refreshPending()
+      setSavedToast(Date.now())
+      setTimeout(() => setSavedToast((t) => (Date.now() - t >= 1400 ? 0 : t)), 1500)
       const saved = await res.json()
       setBookings((prev) =>
         prev.map((b) =>
