@@ -45,15 +45,47 @@ export async function sendClientBookingConfirmationWA(opts: {
   cancelWaNumber?: string | null
   /** Pretty start time ("7:00 am") used by the v5 layout's "Class at {{2}}". */
   startTimePretty?: string | null
+  /** When one phone books 2+ people: the party size and EVERY ticket code.
+   *  Triggers the party confirmation (one message naming the count + listing
+   *  all tickets). Singles leave these unset and use the normal template. */
+  partySize?: number
+  allTickets?: string[]
   /** The booked studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
-  // Default to the approved v7 (new layout + quick-reply "Cancel booking"
+  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+
+  // Party booking (2+ people on one phone) → one message that names the count
+  // and lists every ticket. Env-gated; falls through to the single-ticket
+  // template until booking_confirmed_party is approved + wired.
+  const partyTemplate = process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION_PARTY
+  const tickets = opts.allTickets ?? []
+  if (partyTemplate && (opts.partySize ?? 1) > 1 && tickets.length > 1) {
+    const leadTicket = tickets[0]
+    return sendWhatsAppTemplate({
+      toPhone: opts.clientPhone,
+      templateName: partyTemplate,
+      languageCode: lang,
+      // {{1}} party size, {{2}} date, {{3}} start time, {{4}} tickets, {{5}} loc.
+      variables: [
+        String(opts.partySize),
+        opts.date,
+        (opts.startTimePretty || opts.time) ?? "—",
+        tickets.map((t) => `#${t}`).join(", "),
+        opts.locationUrl?.trim() || "—",
+      ],
+      // Tapping "Cancel booking" cancels the WHOLE group (every booking on
+      // this phone for this slot) — the cancel bot handles CANCELALL.
+      buttonPayload: `CANCELALL:${leadTicket}`,
+      config: getConfigFor(opts.studioWA),
+    })
+  }
+
+  // Default to the approved v10 (new layout + quick-reply "Cancel booking"
   // button). Override via env. (Vercel's `env add` tends to store an empty
   // value, so the code default is the reliable switch.)
   const templateName =
     process.env.WHATSAPP_TEMPLATE_BOOKING_CONFIRMATION || "booking_confirmed_v10"
-  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
 
   // Modern layout (v5 and up): {{1}} pretty date, {{2}} start time ("7:00 AM"),
   // {{3}} ticket, {{4}} location. v6 is the one exception — it adds {{5}} = a
@@ -210,17 +242,33 @@ export async function sendClassReminderWA(opts: {
  */
 export async function sendClassTodayConfirmWA(opts: {
   clientPhone: string
+  /** The booking studio's Google Maps link — shown as the location line by
+   *  the v2 template. Per-studio, so each client gets THEIR studio's map. */
+  locationUrl?: string | null
   /** The class's studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
+  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+  // v2 appends the studio location as the last line ({{1}} = maps link).
+  // Env-gated and needs a location on file; otherwise the variable-free v1.
+  const v2 = process.env.WHATSAPP_TEMPLATE_TODAY_CONFIRM_V2
+  const loc = opts.locationUrl?.trim()
+  if (v2 && loc) {
+    return sendWhatsAppTemplate({
+      toPhone: opts.clientPhone,
+      templateName: v2,
+      languageCode: lang,
+      variables: [loc],
+      config: getConfigFor(opts.studioWA),
+    })
+  }
   const templateName =
     process.env.WHATSAPP_TEMPLATE_TODAY_CONFIRM || "class_today_confirm"
-  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
   return sendWhatsAppTemplate({
     toPhone: opts.clientPhone,
     templateName,
     languageCode: lang,
-    // class_today_confirm has no variables.
+    // class_today_confirm (v1) has no variables.
     config: getConfigFor(opts.studioWA),
   })
 }

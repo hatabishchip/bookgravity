@@ -62,6 +62,7 @@ export async function runTodayReminders(trigger: string): Promise<TodayReminders
               remindToday: true,
               whatsappPhoneNumberId: true,
               whatsappAccessToken: true,
+              locationUrl: true,
             },
           },
         },
@@ -106,6 +107,7 @@ export async function runTodayReminders(trigger: string): Promise<TodayReminders
 
     const res = await sendClassTodayConfirmWA({
       clientPhone: b.clientPhone,
+      locationUrl: b.slot.studio.locationUrl,
       studioWA: b.slot.studio,
     })
 

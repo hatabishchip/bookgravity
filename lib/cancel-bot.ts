@@ -136,6 +136,63 @@ export async function handleCancelBotMessage(opts: {
     return
   }
 
+  // --- Party "Cancel booking" button → payload "CANCELALL:<leadTicket>" ---
+  // The party confirmation's button cancels the WHOLE group: every CONFIRMED
+  // booking on this phone for the lead ticket's slot. (Checked before the
+  // single-CANCEL regex below; "CANCELALL:271" never matches that one.)
+  const cancelAllCode = text.match(/^CANCELALL:(\d{3})$/i)?.[1] ?? null
+  if (cancelAllCode) {
+    const tail = phoneTail(opts.clientPhone)
+    if (tail.length < 6) return
+    const lead = (
+      await prisma.booking.findMany({
+        where: { ticketCode: cancelAllCode, slot: { studioId: opts.studioId } },
+        include: { slot: true },
+        orderBy: { createdAt: "desc" },
+      })
+    ).find((b) => phoneTail(b.clientPhone) === tail)
+    if (!lead) return // unknown payload — ignore silently
+    // Every CONFIRMED booking on this phone for the same slot = the party.
+    const mine = (
+      await prisma.booking.findMany({
+        where: { slotId: lead.slotId, status: "CONFIRMED" },
+      })
+    ).filter((b) => phoneTail(b.clientPhone) === tail)
+    if (mine.length === 0) {
+      // Already cancelled (double tap) → re-send success.
+      await reply("Booking canceled 😔\n\nHope to see you another time 💫")
+      return
+    }
+    if (!canCancelBooking(lead.slot.date, lead.slot.startTime, lead.createdAt)) {
+      await reply(
+        "Sorry, cancellation is no longer available — it's less than 2 hours before the class. Please contact the studio."
+      )
+      return
+    }
+    for (const b of mine) {
+      await prisma.booking.update({ where: { id: b.id }, data: { status: "CANCELLED" } })
+      if (b.membershipId) await restoreMembershipClass(b.membershipId)
+    }
+    console.log("[cancel-bot] cancelled party via payload", {
+      leadTicket: cancelAllCode,
+      count: mine.length,
+      slotId: lead.slotId,
+      phone: opts.clientPhone,
+    })
+    void notifyStaffOfCancellation({
+      studioId: opts.studioId,
+      slotId: lead.slotId,
+      clientName: lead.clientName.replace(/\s*\(\d+\/\d+\)$/, ""),
+      cancelledBy: "client",
+    }).catch(() => {})
+    await reply(
+      mine.length > 1
+        ? `All ${mine.length} bookings canceled 😔\n\nHope to see you another time 💫`
+        : "Booking canceled 😔\n\nHope to see you another time 💫"
+    )
+    return
+  }
+
   // --- Quick-reply button with our payload "CANCEL:<code>" ---
   // The confirmation template's "Cancel booking" button delivers this payload.
   // It identifies the EXACT booking, so we cancel it in one shot — no "type

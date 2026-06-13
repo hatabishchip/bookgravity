@@ -379,9 +379,15 @@ export async function POST(request: NextRequest) {
           console.error("[bookings] upsertConversation failed:", err)
         }
 
+        // What we log into the inbox thread. Mirror the party message when 2+
+        // people booked, so the admin sees what the client actually received.
+        const isParty = data.partySize > 1 && bookings.length > 1
+        const ticketLine = isParty
+          ? `Tickets: ${bookings.map((b) => `#${b.ticketCode}`).join(", ")}`
+          : `Ticket: ${bookings[0].ticketCode}`
         const clientMessageBody =
-          `Booking is confirmed.\n\n` +
-          `${niceDate}\nClass at ${niceStart}\nTicket: ${bookings[0].ticketCode}\n\n` +
+          (isParty ? `Booking is confirmed for ${data.partySize} people.\n\n` : `Booking is confirmed.\n\n`) +
+          `${niceDate}\nClass at ${niceStart}\n${ticketLine}\n\n` +
           `Please arrive 10 minutes before the class starts.`
 
         // Client WhatsApp confirmation only when the WhatsApp channel is on.
@@ -393,6 +399,10 @@ export async function POST(request: NextRequest) {
           time: clientTime,
           startTimePretty: niceStart,
           ticketCode: bookings[0].ticketCode,
+          // Party booking → one message naming the count + listing every
+          // ticket (booking_confirmed_party). Singles ignore these.
+          partySize: data.partySize,
+          allTickets: bookings.map((b) => b.ticketCode),
           locationUrl: slotForWA.studio?.locationUrl,
           // wa.me cancel link target: studio's own display number, else the
           // global studio WhatsApp number.
