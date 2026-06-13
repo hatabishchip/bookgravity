@@ -122,6 +122,15 @@ export async function sendClientBookingConfirmationWA(opts: {
  * `trainerName` is still accepted (callers pass it for the admin-side chat log)
  * but isn't sent in the client message.
  */
+/** "Gravity Stretching Canggu" / "GravityStretchingAlmaty" → "Canggu" /
+ *  "Almaty". Falls back to the full name when there's no brand prefix. */
+function studioCityFromName(name?: string | null): string | null {
+  const n = (name ?? "").trim()
+  if (!n) return null
+  const city = n.replace(/gravity\s*stretching/i, "").trim()
+  return city || n
+}
+
 export async function sendClassReminderWA(opts: {
   clientPhone: string
   trainerName: string
@@ -131,26 +140,45 @@ export async function sendClassReminderWA(opts: {
   /** Studio slug (e.g. "ubud") — picks a studio-branded template when one
    *  is wired via env (see below). */
   studioSlug?: string
+  /** Full studio name ("Gravity Stretching Ubud") — fills the {{1}} city in
+   *  the studio-var template's header. */
+  studioName?: string | null
   /** The class's studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
-  // Template routing:
-  //  • GROUP — the approved v2 body says "group class" BUT its header
-  //    hardcodes "Gravity Stretching Canggu" (it predates multi-studio).
-  //    Studios other than Canggu get their own branded template via the env
-  //    WHATSAPP_TEMPLATE_CLASS_REMINDER_<SLUG> (e.g. ..._UBUD =
-  //    class_reminder_ubud). Env-gated on purpose: we only set the env AFTER
-  //    Meta approves the template — a failed send (unapproved template) is
-  //    worse than a mislabeled-but-delivered one.
+  // Template routing (one decision, owner-approved 13.06.2026):
+  //  • GROUP, studio-var era — WHATSAPP_TEMPLATE_CLASS_REMINDER_STUDIO_VAR
+  //    names a template whose HEADER is "Gravity Stretching {{1}}"; we pass
+  //    the studio city as the header variable. ONE template serves every
+  //    studio, correctly branded, no per-studio Meta submissions. Env-gated:
+  //    set only after Meta approves it — a delivered-but-mislabeled send
+  //    beats a failed one, so until approval we stay on the legacy path.
+  //  • GROUP, legacy — per-studio env WHATSAPP_TEMPLATE_CLASS_REMINDER_<SLUG>
+  //    (e.g. class_reminder_ubud), else class_reminder_v2 (header hardcodes
+  //    "Gravity Stretching Canggu"; predates multi-studio).
   //  • KIDS/PRIVATE — neutral v3 ("a class", header "Gravity Stretching").
   const isGroup = (opts.classType ?? "GROUP") === "GROUP"
+  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+
+  const studioVarTemplate = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_STUDIO_VAR
+  const city = studioCityFromName(opts.studioName)
+  if (isGroup && studioVarTemplate && city) {
+    return sendWhatsAppTemplate({
+      toPhone: opts.clientPhone,
+      templateName: studioVarTemplate,
+      languageCode: lang,
+      headerVariables: [city],
+      variables: [opts.time],
+      config: getConfigFor(opts.studioWA),
+    })
+  }
+
   const slugEnv = opts.studioSlug
     ? process.env[`WHATSAPP_TEMPLATE_CLASS_REMINDER_${opts.studioSlug.toUpperCase()}`]
     : undefined
   const templateName = isGroup
     ? slugEnv || process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder_v2"
     : process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_ANY || "class_reminder_v3"
-  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
   return sendWhatsAppTemplate({
     toPhone: opts.clientPhone,
     templateName,

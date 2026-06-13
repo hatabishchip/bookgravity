@@ -427,6 +427,10 @@ export async function sendWhatsAppTemplate(opts: {
   templateName: string
   languageCode: string // e.g. "en", "en_US", "id"
   variables?: string[]
+  /** Values for {{n}} placeholders in the template's HEADER text (Meta allows
+   *  one). Separate namespace from body `variables` — used e.g. to inject the
+   *  studio city into a "Gravity Stretching {{1}}" header. */
+  headerVariables?: string[]
   /** Payload to attach to the template's first quick-reply button. Meta
    *  delivers this string back to us in `msg.button.payload` when the user
    *  taps the button, letting us tie the tap to an exact record (e.g. a
@@ -443,6 +447,12 @@ export async function sendWhatsAppTemplate(opts: {
   if (!to) return { ok: false, error: "empty_phone" }
 
   const components: Array<Record<string, unknown>> = []
+  if (opts.headerVariables?.length) {
+    components.push({
+      type: "header",
+      parameters: opts.headerVariables.map((v) => ({ type: "text", text: v })),
+    })
+  }
   if (opts.variables?.length) {
     components.push({
       type: "body",

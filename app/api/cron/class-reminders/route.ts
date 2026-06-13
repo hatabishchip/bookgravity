@@ -86,6 +86,7 @@ export async function GET(req: NextRequest) {
       time,
       classType: b.slot.classType,
       studioSlug: b.slot.studio.slug,
+      studioName: b.slot.studio.name,
       studioWA: b.slot.studio,
     })
 
