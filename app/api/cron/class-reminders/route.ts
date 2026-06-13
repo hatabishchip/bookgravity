@@ -14,8 +14,8 @@ export const maxDuration = 60
 
 // Daily "your class is tomorrow" reminder.
 //
-// Scheduled by Vercel Cron at 09:00 UTC = 17:00 WITA (Bali, UTC+8) — see
-// vercel.json. For every CONFIRMED group booking whose class is TOMORROW
+// Scheduled by Vercel Cron at 11:00 UTC = 19:00 WITA (Bali, UTC+8) — see
+// vercel.json. For every CONFIRMED booking whose class is TOMORROW
 // (studio-local), we send the client an approved WhatsApp template signed by
 // the class trainer.
 //
@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
       clientPhone: b.clientPhone,
       trainerName,
       time,
+      startTime: b.slot.startTime,
       classType: b.slot.classType,
       studioSlug: b.slot.studio.slug,
       studioName: b.slot.studio.name,

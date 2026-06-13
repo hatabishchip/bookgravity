@@ -33,3 +33,13 @@ export function clientEndTime12(startTime: string): string {
 export function clientClassRange(startTime: string): string {
   return `${startTime}–${clientEndTime24(startTime)}`
 }
+
+/** Class START time in 12h, lowercase, e.g. "11:00 am" / "3:00 pm". Used by
+ *  the day-before reminder, which shows only the start (class length varies
+ *  75–90+ min, so an end time would risk collisions). No +90 here. */
+export function clientStartTime12(startTime: string): string {
+  const [h, m] = (startTime || "").split(":").map(Number)
+  const hh = (h || 0) % 12 || 12
+  const ap = (h || 0) >= 12 ? "pm" : "am"
+  return `${hh}:${String(m || 0).padStart(2, "0")} ${ap}`
+}

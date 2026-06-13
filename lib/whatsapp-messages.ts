@@ -13,6 +13,7 @@ import {
   type StudioWA,
   type SendResult,
 } from "./whatsapp-cloud"
+import { clientStartTime12 } from "./class-time"
 
 
 /**
@@ -115,12 +116,10 @@ export async function sendClientBookingConfirmationWA(opts: {
 }
 
 /**
- * Day-before class reminder, sent by the daily cron at 17:00 studio-local time.
+ * Day-before class reminder, sent by the daily cron at 19:00 Bali time.
  * The trainer's name is deliberately NOT shown to the client (owner's choice);
- * the message is from the studio. Single variable:
- *   {{1}} = class time (e.g. "09:00–11:00")
- * `trainerName` is still accepted (callers pass it for the admin-side chat log)
- * but isn't sent in the client message.
+ * the message is from the studio. `trainerName` is still accepted (callers
+ * pass it for the admin-side chat log) but isn't sent in the client message.
  */
 /** "Gravity Stretching Canggu" / "GravityStretchingAlmaty" → "Canggu" /
  *  "Almaty". Falls back to the full name when there's no brand prefix. */
@@ -135,33 +134,47 @@ export async function sendClassReminderWA(opts: {
   clientPhone: string
   trainerName: string
   time: string
+  /** Raw stored start time ("11:00") — v5 shows ONLY the start (12h), since
+   *  class length varies 75–90+ min and an end time would risk collisions. */
+  startTime?: string
   /** GROUP | KIDS | PRIVATE — picks the template wording (see below). */
   classType?: string
   /** Studio slug (e.g. "ubud") — picks a studio-branded template when one
    *  is wired via env (see below). */
   studioSlug?: string
-  /** Full studio name ("Gravity Stretching Ubud") — fills the {{1}} city in
-   *  the studio-var template's header. */
+  /** Full studio name ("Gravity Stretching Ubud") — the city is woven into
+   *  the message ("in the {{2}} Studio" for v5, header {{1}} for v4). */
   studioName?: string | null
   /** The class's studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
 }): Promise<SendResult> {
-  // Template routing (one decision, owner-approved 13.06.2026):
-  //  • GROUP, studio-var era — WHATSAPP_TEMPLATE_CLASS_REMINDER_STUDIO_VAR
-  //    names a template whose HEADER is "Gravity Stretching {{1}}"; we pass
-  //    the studio city as the header variable. ONE template serves every
-  //    studio, correctly branded, no per-studio Meta submissions. Env-gated:
-  //    set only after Meta approves it — a delivered-but-mislabeled send
-  //    beats a failed one, so until approval we stay on the legacy path.
-  //  • GROUP, legacy — per-studio env WHATSAPP_TEMPLATE_CLASS_REMINDER_<SLUG>
-  //    (e.g. class_reminder_ubud), else class_reminder_v2 (header hardcodes
-  //    "Gravity Stretching Canggu"; predates multi-studio).
-  //  • KIDS/PRIVATE — neutral v3 ("a class", header "Gravity Stretching").
+  // Template routing (current = v5, owner-approved 13.06.2026):
+  //  • v5 (WHATSAPP_TEMPLATE_CLASS_REMINDER_V5) — no header; body names the
+  //    studio inline ("...in the {{2}} Studio") and shows ONLY the start time
+  //    {{1}} ("11:00 am"). Applies to ALL class types (wording says "class",
+  //    not "group class"). Env-gated: set only after Meta approves it, so
+  //    until then we fall through to the legacy paths below and keep sending.
+  //  • v4 (…_STUDIO_VAR) — header "Gravity Stretching {{1}}", body = time
+  //    range. Superseded by v5 but kept as a fallback.
+  //  • legacy — per-studio …_<SLUG>, else v2 (hardcoded Canggu header);
+  //    KIDS/PRIVATE → neutral v3.
   const isGroup = (opts.classType ?? "GROUP") === "GROUP"
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+  const city = studioCityFromName(opts.studioName)
+
+  const v5Template = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_V5
+  if (v5Template && city && opts.startTime) {
+    return sendWhatsAppTemplate({
+      toPhone: opts.clientPhone,
+      templateName: v5Template,
+      languageCode: lang,
+      // {{1}} = start time (12h, "11:00 am"), {{2}} = studio city ("Ubud").
+      variables: [clientStartTime12(opts.startTime), city],
+      config: getConfigFor(opts.studioWA),
+    })
+  }
 
   const studioVarTemplate = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_STUDIO_VAR
-  const city = studioCityFromName(opts.studioName)
   if (isGroup && studioVarTemplate && city) {
     return sendWhatsAppTemplate({
       toPhone: opts.clientPhone,
