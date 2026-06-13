@@ -194,12 +194,15 @@ function MessageBubble({
   canReact = false,
   onCopied,
   onImageClick,
+  onRetry,
 }: {
   m: MessageRow
   role: "ADMIN" | "TRAINER"
   fontScale: number
   onTranslate?: (messageId: string) => void
   translating?: boolean
+  /** Re-send a failed message (text only). Shown as "↻ Send again". */
+  onRetry?: (m: MessageRow) => void
   onReact?: (messageId: string, emoji: string) => void
   /** Reactions only on CLIENT messages while the 24h window is open — a
    *  reaction outside the window never reaches the client (silent collision),
@@ -564,8 +567,26 @@ function MessageBubble({
             </button>
           )}
 
-        {m.errorDetail && (
-          <div className="text-[10px] text-red-600 mt-1">Error: {m.errorDetail}</div>
+        {/* Failed send. We deliberately DON'T surface Meta's raw error
+            ("An unknown error has occurred." etc.) — it's noise to staff.
+            A neutral "Not delivered" plus a one-tap re-send covers the real
+            cause (a transient Meta outage on an open window). Retry is text
+            only; templates/media re-send needs the original params we don't
+            keep on the bubble. The 24h-window-closed case never reaches here
+            because the composer disables typing while the window is shut. */}
+        {m.status === "failed" && (
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-[10px] text-red-500">Not delivered</span>
+            {onRetry && m.type === "text" && !!(m.body && m.body.trim()) && (
+              <button
+                type="button"
+                onClick={() => onRetry(m)}
+                className="text-[10px] text-brand hover:underline"
+              >
+                ↻ Send again
+              </button>
+            )}
+          </div>
         )}
 
         <div className="flex items-center justify-end gap-1 mt-1 -mr-1">
@@ -960,6 +981,25 @@ export default function Inbox({
       )
     }
   }, [detail, refreshList])
+
+  // Re-send a failed message in one tap (the "↻ Send again" button). Text
+  // only — that's what staff actually type and what hits a transient Meta
+  // outage. We drop the optimistic failed bubble first so the retry replaces
+  // it rather than stacking a duplicate; a server-persisted failure (real id,
+  // marked failed by a later webhook) keeps its history row and just gets a
+  // fresh attempt below.
+  const retryMessage = useCallback(
+    (m: MessageRow) => {
+      if (m.type !== "text" || !m.body?.trim()) return
+      if (m.id.startsWith("tmp_")) {
+        setDetail((prev) =>
+          prev ? { ...prev, messages: prev.messages.filter((x) => x.id !== m.id) } : prev,
+        )
+      }
+      void send(m.body)
+    },
+    [send],
+  )
 
   // --- Trainer 👋 wave (rate-limited once / 12h per conversation) ----------
   const WAVE_COOLDOWN_MS = 12 * 60 * 60 * 1000
@@ -1642,6 +1682,7 @@ export default function Inbox({
                       canReact={windowOpen && m.direction === "INBOUND"}
                       onCopied={() => setCopiedAt(Date.now())}
                       onImageClick={setLightboxSrc}
+                      onRetry={retryMessage}
                     />
                   ))}
                 </div>
