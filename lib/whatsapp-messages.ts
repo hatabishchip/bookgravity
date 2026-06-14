@@ -70,9 +70,9 @@ export async function sendClientBookingConfirmationWA(opts: {
       variables: [
         String(opts.partySize),
         opts.date,
-        (opts.startTimePretty || opts.time) ?? "—",
+        (opts.startTimePretty || opts.time) ?? "-",
         tickets.map((t) => `#${t}`).join(", "),
-        opts.locationUrl?.trim() || "—",
+        opts.locationUrl?.trim() || "-",
       ],
       // Tapping "Cancel booking" cancels the WHOLE group (every booking on
       // this phone for this slot) — the cancel bot handles CANCELALL.
@@ -97,16 +97,16 @@ export async function sendClientBookingConfirmationWA(opts: {
   if (ver >= 5) {
     const vars = [
       opts.date,
-      (opts.startTimePretty || opts.time) ?? "—",
+      (opts.startTimePretty || opts.time) ?? "-",
       opts.ticketCode,
-      opts.locationUrl?.trim() || "—",
+      opts.locationUrl?.trim() || "-",
     ]
     if (isV6) {
       const num = (opts.cancelWaNumber || "").replace(/\D/g, "")
       vars.push(
         num
           ? `https://wa.me/${num}?text=${encodeURIComponent(`Cancel ${opts.ticketCode}`)}`
-          : "—",
+          : "-",
       )
     }
     return sendWhatsAppTemplate({
@@ -128,14 +128,14 @@ export async function sendClientBookingConfirmationWA(opts: {
   // the studio has no location set (Meta rejects empty body parameters).
   const isV4 = /v4$/.test(templateName)
   if (/v3$/.test(templateName) || isV4) {
-    variables.push(opts.locationUrl?.trim() || "—")
+    variables.push(opts.locationUrl?.trim() || "-")
   }
   // v4 adds {{6}}: a one-tap wa.me cancel link prefilled with "Cancel <code>".
   if (isV4) {
     const num = (opts.cancelWaNumber || "").replace(/\D/g, "")
     const cancelUrl = num
       ? `https://wa.me/${num}?text=${encodeURIComponent(`Cancel ${opts.ticketCode}`)}`
-      : "—"
+      : "-"
     variables.push(cancelUrl)
   }
   return sendWhatsAppTemplate({
@@ -397,9 +397,9 @@ export async function sendTrainerBookingNotificationWA(opts: {
         opts.time,
         String(opts.bookedCount),
         String(opts.maxCapacity),
-        namesLine || "—",
+        namesLine || "-",
       ]
-    : [longDate, opts.time, `${opts.bookedCount}/${opts.maxCapacity}`, namesLine || "—"]
+    : [longDate, opts.time, `${opts.bookedCount}/${opts.maxCapacity}`, namesLine || "-"]
   return sendWhatsAppTemplate({
     toPhone: opts.trainerPhone,
     templateName,

@@ -166,8 +166,10 @@ export async function runTodayReminders(trigger: string): Promise<TodayReminders
         conversationId: convoId,
         type: "template",
         body:
-          "Hello! 🌿 Just a gentle reminder about your class today — are you " +
-          "still able to join us? We'd love to see you on the mat. 🙏",
+          "Hello 👋\n\n" +
+          "Just a gentle reminder about your class today - are you still able to join us?\n\n" +
+          "📍 Location:\n" + (b.slot.studio.locationUrl?.trim() || "-") + "\n\n" +
+          "We'd love to see you at the studio ☀️",
         templateName:
           process.env.WHATSAPP_TEMPLATE_TODAY_CONFIRM || "class_today_confirm",
         waMessageId: res.messageId ?? null,

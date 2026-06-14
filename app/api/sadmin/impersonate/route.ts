@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   // Guard: only while the starter password is unchanged.
   if (!admin.initialPassword) {
     return NextResponse.json(
-      { error: "This admin already set their own password — impersonation is disabled." },
+      { error: "This admin already set their own password - impersonation is disabled." },
       { status: 409 },
     )
   }

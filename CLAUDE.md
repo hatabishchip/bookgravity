@@ -1,5 +1,14 @@
 @AGENTS.md
 
+## No long dash in any client/notification text
+
+Every string a human reads - WhatsApp templates (Meta), emails, cancel-bot
+replies, OTP/error messages, push notifications, time ranges ("11:00-12:30") -
+uses a plain hyphen "-", NEVER an em dash "—" (U+2014) or en dash "–" (U+2013).
+Applies to client, trainer and admin-facing text. When writing or editing any
+such string, type a hyphen; never paste a long dash. Code comments and logs are
+exempt. Owner rule (14.06.2026); full version in `~/.claude/CLAUDE.md`.
+
 ## Browser rule (applies here and everywhere)
 
 I have my OWN browser — the **Playwright MCP browser** (`mcp__playwright__*`) with the

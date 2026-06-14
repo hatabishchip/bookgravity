@@ -29,9 +29,10 @@ export function clientEndTime12(startTime: string): string {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`
 }
 
-/** Client-facing class range in 24h, e.g. "11:00–12:30". Start kept as stored. */
+/** Client-facing class range in 24h, e.g. "11:00-12:30". Start kept as stored.
+ *  Uses a plain hyphen (never en/em dash) per the owner's no-long-dash rule. */
 export function clientClassRange(startTime: string): string {
-  return `${startTime}–${clientEndTime24(startTime)}`
+  return `${startTime}-${clientEndTime24(startTime)}`
 }
 
 /** Class START time in 12h, lowercase, e.g. "11:00 am" / "3:00 pm". Used by

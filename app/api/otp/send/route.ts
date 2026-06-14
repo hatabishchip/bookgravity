@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     if (!ipRl.ok || !phoneRl.ok) {
       const retry = !ipRl.ok ? ipRl.retryAfterSec : (!phoneRl.ok ? phoneRl.retryAfterSec : 60)
       return NextResponse.json(
-        { error: "Too many code requests — please try again later.", code: "rate_limited" },
+        { error: "Too many code requests - please try again later.", code: "rate_limited" },
         { status: 429, headers: { "Retry-After": String(retry) } },
       )
     }
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     if (res.error === "too_soon") {
       return NextResponse.json(
-        { error: "A code was just sent — please wait a moment before requesting another.", code: "too_soon", retryInSec: res.retryInSec },
+        { error: "A code was just sent - please wait a moment before requesting another.", code: "too_soon", retryInSec: res.retryInSec },
         { status: 429 },
       )
     }

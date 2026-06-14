@@ -55,7 +55,7 @@ export async function notifyBookingCreated(opts: {
     if (!slotForWA) return
 
     const prettyDate = slotForWA.date // YYYY-MM-DD; trainer template formats it
-    const prettyTime = `${slotForWA.startTime}–${slotForWA.endTime}`
+    const prettyTime = `${slotForWA.startTime}-${slotForWA.endTime}`
     // Client-facing formatting: "June 6, Friday" + "7:00 am".
     const niceDate = (() => {
       try { return format(parseISO(slotForWA.date), "MMMM d, EEEE") } catch { return slotForWA.date }

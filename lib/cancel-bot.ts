@@ -94,7 +94,7 @@ export async function handleCancelBotMessage(opts: {
     })
 
     if (text === "0") {
-      await reply("No problem — your booking is kept. 🙏")
+      await reply("No problem - your booking is kept. 🙏")
       return
     }
 
@@ -108,7 +108,7 @@ export async function handleCancelBotMessage(opts: {
     }
     if (!canCancelBooking(booking.slot.date, booking.slot.startTime, booking.createdAt)) {
       await reply(
-        "Sorry, cancellation is no longer available — it's less than 2 hours before the class. Please contact the studio."
+        "Sorry, cancellation is no longer available - it's less than 2 hours before the class. Please contact the studio."
       )
       return
     }
@@ -165,7 +165,7 @@ export async function handleCancelBotMessage(opts: {
     }
     if (!canCancelBooking(lead.slot.date, lead.slot.startTime, lead.createdAt)) {
       await reply(
-        "Sorry, cancellation is no longer available — it's less than 2 hours before the class. Please contact the studio."
+        "Sorry, cancellation is no longer available - it's less than 2 hours before the class. Please contact the studio."
       )
       return
     }
@@ -218,7 +218,7 @@ export async function handleCancelBotMessage(opts: {
     if (active) {
       if (!canCancelBooking(active.slot.date, active.slot.startTime, active.createdAt)) {
         await reply(
-          "Sorry, cancellation is no longer available — it's less than 2 hours before the class. Please contact the studio."
+          "Sorry, cancellation is no longer available - it's less than 2 hours before the class. Please contact the studio."
         )
         return
       }
@@ -315,7 +315,7 @@ export async function handleCancelBotMessage(opts: {
       // their booking was gone while the booking was still CONFIRMED on the
       // class, so the trainer kept seeing the client.
       await reply(
-        "We couldn't find an active booking on this number. If you already cancelled, you're good — otherwise please reply with your 3-digit ticket code."
+        "We couldn't find an active booking on this number. If you already cancelled, you're good - otherwise please reply with your 3-digit ticket code."
       )
       return
     }

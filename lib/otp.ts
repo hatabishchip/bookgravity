@@ -79,7 +79,7 @@ export async function sendBookingOtp(opts: {
     const tpl = process.env.WHATSAPP_TEMPLATE_OTP || "admin_message"
     const variables =
       tpl === "admin_message"
-        ? [firstName, `${code} is your booking confirmation code — enter it to confirm your class.`]
+        ? [firstName, `${code} is your booking confirmation code - enter it to confirm your class.`]
         : [code]
     res = await sendWhatsAppTemplate({
       toPhone: phone,

@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       const exEnd = timeToMin(slot.endTime)
       if (startMin < exEnd + MIN_GAP_MIN && exStart < endMin + MIN_GAP_MIN) {
         return NextResponse.json(
-          { error: `Conflicts with session at ${slot.startTime}–${slot.endTime}. Min 30-min gap required.` },
+          { error: `Conflicts with session at ${slot.startTime}-${slot.endTime}. Min 30-min gap required.` },
           { status: 409 }
         )
       }
@@ -250,7 +250,7 @@ export async function PATCH(request: NextRequest) {
         const exEnd = timeToMin(slot.endTime)
         if (startMin < exEnd + MIN_GAP_MIN && exStart < endMin + MIN_GAP_MIN) {
           return NextResponse.json(
-            { error: `Conflicts with session at ${slot.startTime}–${slot.endTime}. Min 30-min gap required.` },
+            { error: `Conflicts with session at ${slot.startTime}-${slot.endTime}. Min 30-min gap required.` },
             { status: 409 }
           )
         }

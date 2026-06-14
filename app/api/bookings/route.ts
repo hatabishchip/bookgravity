@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     const rl = await rateLimit({ scope: "book-ip", subject: clientIp(request), limit: 12, windowSec: 3600 })
     if (!rl.ok) {
       return NextResponse.json(
-        { error: "Too many booking attempts — please try again later." },
+        { error: "Too many booking attempts - please try again later." },
         { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
       )
     }
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         {
           error:
             slot._count.bookings >= 1
-              ? "This class has already finished — bookings are closed."
+              ? "This class has already finished - bookings are closed."
               : "Bookings close 2.5 hours before the session starts.",
         },
         { status: 409 },
@@ -313,7 +313,7 @@ export async function POST(request: NextRequest) {
             sendPush({
               userId: trainerUserId,
               title: "New booking",
-              body: `${data.clientName} booked ${sharedData.startTime}–${sharedData.endTime} on ${sharedData.date}`,
+              body: `${data.clientName} booked ${sharedData.startTime}-${sharedData.endTime} on ${sharedData.date}`,
               category: "booking",
               data: { slotId: data.slotId, bookingId: bookings[0].id },
             }),
@@ -349,7 +349,7 @@ export async function POST(request: NextRequest) {
       if (slotForWA) {
         const prettyDate = slotForWA.date // YYYY-MM-DD; trainer template formats it
         // Trainer-facing time = real 2h slot (their working block incl. buffer).
-        const prettyTime = `${slotForWA.startTime}–${slotForWA.endTime}`
+        const prettyTime = `${slotForWA.startTime}-${slotForWA.endTime}`
         // Client-facing time = 1.5h (we always tell clients the class is 90min;
         // the extra 30min is the trainer's payment/prep buffer).
         const clientTime = clientClassRange(slotForWA.startTime)

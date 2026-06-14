@@ -64,8 +64,8 @@ export async function notifyStaffOfCancellation(opts: {
 
     // Trainer-facing time = the real 2h slot (their working block).
     const body =
-      `Booking canceled: ${opts.clientName} — ${slot.date}, ` +
-      `${slot.startTime}–${slot.endTime}. ` +
+      `Booking canceled: ${opts.clientName} - ${slot.date}, ` +
+      `${slot.startTime}-${slot.endTime}. ` +
       `Now ${slot._count.bookings}/${slot.maxCapacity} booked.`
     const templateName = process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message"
 

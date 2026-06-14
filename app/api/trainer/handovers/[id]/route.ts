@@ -70,7 +70,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (slot.trainerId !== handover.fromTrainerId) {
     // The schedule changed under the request (admin reassigned etc.).
     await prisma.slotHandover.updateMany({ where: { id, status: "PENDING" }, data: { status: "EXPIRED", resolvedAt: new Date() } })
-    return NextResponse.json({ error: "The class changed owner — ask for a new handover" }, { status: 409 })
+    return NextResponse.json({ error: "The class changed owner - ask for a new handover" }, { status: 409 })
   }
 
   const claimed = await prisma.slotHandover.updateMany({
@@ -116,7 +116,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   void elog("handover", "accepted — class transferred", {
     handoverId: id, slotId: slot.id, to: trainer.name, classTime: `${slot.date} ${slot.startTime}`,
   })
-  notifySender(handover.fromTrainerId, `${trainer.name} accepted your class — ${slot.date} ${slot.startTime} is now theirs.`)
+  notifySender(handover.fromTrainerId, `${trainer.name} accepted your class - ${slot.date} ${slot.startTime} is now theirs.`)
 
   return NextResponse.json({ ok: true, status: "ACCEPTED" })
 }

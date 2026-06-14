@@ -34,7 +34,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   await r.emails.send({
     from: FROM,
     to: email,
-    subject: "Password reset — Gravity Stretching",
+    subject: "Password reset - Gravity Stretching",
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
         <h2 style="color:#2C6E49">Password Reset</h2>
@@ -130,7 +130,7 @@ export async function sendClientBookingConfirmation(
         </div>
         <table style="border-collapse:collapse;width:100%;font-size:14px">
           <tr><td style="padding:4px 0;color:#888;width:90px">Date</td><td style="padding:4px 0;font-weight:600">${escapeHtml(prettyDate(data.date))}</td></tr>
-          <tr><td style="padding:4px 0;color:#888">Time</td><td style="padding:4px 0;font-weight:600">${escapeHtml(data.startTime)}–${escapeHtml(clientEndTime24(data.startTime))}</td></tr>
+          <tr><td style="padding:4px 0;color:#888">Time</td><td style="padding:4px 0;font-weight:600">${escapeHtml(data.startTime)}-${escapeHtml(clientEndTime24(data.startTime))}</td></tr>
           ${data.trainerName ? `<tr><td style="padding:4px 0;color:#888">Trainer</td><td style="padding:4px 0;font-weight:600">${escapeHtml(data.trainerName)}</td></tr>` : ""}
           <tr><td style="padding:4px 0;color:#888">Studio</td><td style="padding:4px 0;font-weight:600">${escapeHtml(data.studioName)}</td></tr>
         </table>
@@ -141,7 +141,7 @@ export async function sendClientBookingConfirmation(
         Need to cancel? Send your ticket code <b>${escapeHtml(data.ticketCode)}</b> to our WhatsApp and reply <b>1</b> to confirm.
         Cancellation is available up to 4 hours before the class.
       </p>
-      <p style="color:#bbb;font-size:11px;margin:18px 0 0">— BookGravity</p>
+      <p style="color:#bbb;font-size:11px;margin:18px 0 0">- BookGravity</p>
     </div>
   `
   try {
@@ -175,7 +175,7 @@ export async function sendTrainerBookingNotification(
       <p style="color:#666;margin-top:0;text-align:center">Hi ${escapeHtml(trainerName)}, a client just booked your class at <strong>${escapeHtml(data.studioName)}</strong>.</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:6px 0;color:#888;width:120px">Class</td><td style="padding:6px 0;font-weight:600">${escapeHtml(typeLabel)} class${partyLine}</td></tr>
-        <tr><td style="padding:6px 0;color:#888">When</td><td style="padding:6px 0;font-weight:600">${escapeHtml(data.date)} · ${escapeHtml(data.startTime)}–${escapeHtml(data.endTime)}</td></tr>
+        <tr><td style="padding:6px 0;color:#888">When</td><td style="padding:6px 0;font-weight:600">${escapeHtml(data.date)} · ${escapeHtml(data.startTime)}-${escapeHtml(data.endTime)}</td></tr>
         <tr><td style="padding:6px 0;color:#888">Client</td><td style="padding:6px 0;font-weight:600">${escapeHtml(data.clientName)}</td></tr>
         <tr><td style="padding:6px 0;color:#888">Phone</td><td style="padding:6px 0"><a href="tel:${encodeURIComponent(data.clientPhone)}" style="color:#2C6E49">${escapeHtml(data.clientPhone)}</a></td></tr>
         <tr><td style="padding:6px 0;color:#888">Email</td><td style="padding:6px 0"><a href="mailto:${encodeURIComponent(data.clientEmail)}" style="color:#2C6E49">${escapeHtml(data.clientEmail)}</a></td></tr>
