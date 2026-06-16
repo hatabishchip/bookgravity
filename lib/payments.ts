@@ -26,7 +26,10 @@ export const BOOKING_PAYMENT_TYPES = [
 ] as const
 
 export const PAYMENT_STATUSES = ["PAID", "UNPAID"] as const
-export const BOOKING_STATUSES = ["CONFIRMED", "CANCELLED"] as const
+// NO_SHOW = client booked but never came. It drops out of the trainer's
+// "collect payment" nag (which only looks at CONFIRMED) and, unlike CANCELLED,
+// does NOT restore a membership class - a no-show burns the pass class.
+export const BOOKING_STATUSES = ["CONFIRMED", "CANCELLED", "NO_SHOW"] as const
 
 export const zBookingPaymentType = z.enum(BOOKING_PAYMENT_TYPES)
 export const zPosPaymentMethod = z.enum(POS_PAYMENT_METHODS)

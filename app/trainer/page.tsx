@@ -33,6 +33,8 @@ type Booking = {
   clientTelegram?: string
   paymentType: string
   paymentStatus: string
+  // "CONFIRMED" | "NO_SHOW" (CANCELLED never reaches the roster).
+  status?: string
   checkedIn: boolean
   notes?: string
   // Last change time — used to allow editing a paid booking for 30 minutes.
@@ -383,6 +385,7 @@ export default function TrainerSchedulePage() {
                 ...b,
                 paymentType: saved.paymentType ?? b.paymentType,
                 paymentStatus: saved.paymentStatus ?? b.paymentStatus,
+                status: saved.status ?? b.status,
                 membershipId: saved.membershipId ?? null,
                 membershipRemaining:
                   typeof saved.membershipRemaining === "number"
@@ -411,6 +414,11 @@ export default function TrainerSchedulePage() {
       await updateBooking(booking.id, { paymentType: method, paymentStatus: "PAID" })
     }
   }
+
+  // No-show: client booked but never came. Removes them from the "collect
+  // payment" nag; a membership class (if used) stays spent. Reversible.
+  const markNoShow = (booking: Booking) => updateBooking(booking.id, { status: "NO_SHOW" })
+  const undoNoShow = (booking: Booking) => updateBooking(booking.id, { status: "CONFIRMED" })
 
   const toggleService = async (booking: Booking, serviceId: string) => {
     const has = booking.services.some((s) => s.service.id === serviceId)
@@ -497,7 +505,7 @@ export default function TrainerSchedulePage() {
               <Link
                 href="/trainer/salary"
                 className="text-right leading-tight hover:opacity-80"
-                title="Earnings this month — tap for breakdown"
+                title="Earnings this month - tap for breakdown"
               >
                 <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">This month</div>
                 <div className="text-sm font-semibold text-gray-700">Rp {formatIDR(salary.total)}</div>
@@ -861,7 +869,7 @@ export default function TrainerSchedulePage() {
                               "w-full rounded-lg border-2 border-dashed border-amber-300 bg-amber-50 select-none cursor-default",
                               view === "2weeks" ? "p-3" : "p-2"
                             )}
-                            title="No trainer assigned — ask the admin to take this session"
+                            title="No trainer assigned - ask the admin to take this session"
                           >
                             <div className={cn("font-semibold text-amber-700", view === "2weeks" ? "text-base" : "text-xs")}>
                               {formatTime(slot.startTime)}
@@ -871,7 +879,7 @@ export default function TrainerSchedulePage() {
                               {slot._count?.bookings ?? 0}/{slot.maxCapacity ?? 0}
                             </div>
                             <div className={cn("text-amber-700/80 leading-tight", view === "2weeks" ? "text-xs mt-1.5" : "text-[10px] mt-1")}>
-                              Free — ask admin
+                              Free - ask admin
                             </div>
                           </div>
                         )
@@ -1031,6 +1039,27 @@ export default function TrainerSchedulePage() {
                     ? "Membership"
                     : (PAYMENT_METHODS.find((p) => p.value === b.paymentType)?.label ?? b.paymentType)
 
+                  // No-show: a compact greyed row with one-tap undo. No payment
+                  // is asked and it's out of the bell's "collect payment" list.
+                  if (b.status === "NO_SHOW") {
+                    return (
+                      <div key={b.id} className="rounded-xl px-4 py-3 border-2 border-gray-200 bg-gray-50 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-6 h-6 rounded-full bg-gray-200 text-gray-400 text-xs font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                          <span className="font-medium text-gray-400 line-through truncate">{b.clientName}</span>
+                          <span className="text-[10px] font-semibold text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full flex-shrink-0">No-show</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => undoNoShow(b)}
+                          className="text-xs font-semibold text-gray-500 hover:text-brand underline touch-manipulation flex-shrink-0"
+                        >
+                          Undo
+                        </button>
+                      </div>
+                    )
+                  }
+
                   if (collapsed) {
                     return (
                       <div key={b.id} className="rounded-xl px-4 py-3 border-2 border-brand/25 bg-brand/5 shadow-sm flex items-center justify-between gap-2">
@@ -1055,7 +1084,7 @@ export default function TrainerSchedulePage() {
                               onClick={() => setCollapsedIds((prev) => { const n = new Set(prev); n.delete(b.id); return n })}
                               className="p-1.5 -mr-1 rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 touch-manipulation"
                               aria-label="Edit payment"
-                              title="Edit — available for 30 minutes after payment"
+                              title="Edit - available for 30 minutes after payment"
                             >
                               <Pencil size={15} />
                             </button>
@@ -1148,6 +1177,17 @@ export default function TrainerSchedulePage() {
                         </div>
                         {isPaid && (
                           <div className="mt-1.5 text-xs text-brand font-medium">✓ Paid · {paymentLabel}</div>
+                        )}
+                        {/* Didn't come? Mark no-show instead of chasing a
+                            payment. A used membership class stays spent. */}
+                        {!isPaid && (
+                          <button
+                            type="button"
+                            onClick={() => markNoShow(b)}
+                            className="mt-2 text-xs font-medium text-gray-400 hover:text-gray-600 underline touch-manipulation"
+                          >
+                            Mark as no-show
+                          </button>
                         )}
                       </div>
 
@@ -1274,7 +1314,7 @@ export default function TrainerSchedulePage() {
                           onClick={() => setCollapsedIds((prev) => new Set(prev).add(b.id))}
                           className="mt-4 w-full py-3 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark touch-manipulation flex items-center justify-center gap-2"
                         >
-                          ✓ Done — collapse
+                          ✓ Done - collapse
                         </button>
                       )}
                     </div>
@@ -1340,7 +1380,7 @@ function HandoverModal({ slot, onClose, onSent }: { slot: Slot; onClose: () => v
       }
       onSent()
     } catch {
-      setError("Couldn't send the offer — try again")
+      setError("Couldn't send the offer - try again")
       setSending(false)
     }
   }
@@ -1350,8 +1390,9 @@ function HandoverModal({ slot, onClose, onSent }: { slot: Slot; onClose: () => v
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-semibold text-gray-900">Hand over this class</h3>
         <p className="text-xs text-gray-500 mt-0.5">
-          {format(new Date(slot.date + "T00:00:00"), "EEE, MMM d")} · {formatTime(slot.startTime)} — the colleague
-          gets a request and can accept or decline. Until they accept, the class stays yours.
+          {format(new Date(slot.date + "T00:00:00"), "EEE, MMM d")} · {formatTime(slot.startTime)}. Pick the right
+          colleague below, then send. They get a request and must tap Accept in their bell - until then it shows as
+          pending and the class stays yours.
         </p>
 
         <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
@@ -1380,7 +1421,7 @@ function HandoverModal({ slot, onClose, onSent }: { slot: Slot; onClose: () => v
           type="text"
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Note (optional) — e.g. “I'm sick, can you cover?”"
+          placeholder="Note (optional) - e.g. “I'm sick, can you cover?”"
           maxLength={300}
           className="mt-3 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
         />
