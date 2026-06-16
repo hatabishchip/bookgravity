@@ -43,6 +43,9 @@ function hexToRgba(hex: string, alpha: number) {
 
 type Trainer = {
   id: string
+  // "TRAINER" (default) or "STAFF". Staff are bare User rows (no schedule,
+  // salary, whatsapp or commission) shown in this list with a "Staff" tag.
+  kind?: "TRAINER" | "STAFF"
   name: string
   archived?: boolean
   whatsapp: string
@@ -112,7 +115,7 @@ function ColorPicker({ color, onChange }: { color: string; onChange: (c: string)
 export default function TrainersPage() {
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: "", email: "", whatsapp: "" })
+  const [form, setForm] = useState<{ name: string; email: string; whatsapp: string; kind: "TRAINER" | "STAFF" }>({ name: "", email: "", whatsapp: "", kind: "TRAINER" })
   // After creating, show the auto-generated 4-digit starter password once.
   const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -139,7 +142,8 @@ export default function TrainersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (form.whatsapp.trim() !== "") {
+    // WhatsApp/commission only apply to trainers; staff is just name + login.
+    if (form.kind === "TRAINER" && form.whatsapp.trim() !== "") {
       const v = validatePhone(form.whatsapp)
       if (v.kind !== "ok") { setError("WhatsApp number is incomplete or invalid"); return }
     }
@@ -150,11 +154,11 @@ export default function TrainersPage() {
       body: JSON.stringify(form),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(data.error || "Failed to create trainer"); setSaving(false); return }
+    if (!res.ok) { setError(data.error || `Failed to create ${form.kind === "STAFF" ? "staff" : "trainer"}`); setSaving(false); return }
     await fetchTrainers()
     // Show the generated starter password so the admin can pass it on.
     setCreated({ name: form.name, email: form.email.trim().toLowerCase(), password: data.initialPassword })
-    setForm({ name: "", email: "", whatsapp: "" }); setSaving(false)
+    setForm({ name: "", email: "", whatsapp: "", kind: "TRAINER" }); setSaving(false)
   }
 
   const handleDelete = async (id: string) => {
@@ -162,6 +166,26 @@ export default function TrainersPage() {
     setDeleting(id)
     await fetch(`/api/admin/trainers?id=${id}`, { method: "DELETE" })
     await fetchTrainers(); setDeleting(null)
+  }
+
+  // Staff have no history, so removal is a real delete (not an archive).
+  const handleDeleteStaff = async (id: string, label: string) => {
+    if (!confirm(`Delete staff "${label}"? This removes their login for good.`)) return
+    setDeleting(id)
+    await fetch(`/api/admin/trainers?id=${id}&kind=STAFF`, { method: "DELETE" })
+    await fetchTrainers(); setDeleting(null)
+  }
+
+  // Staff name lives on the User row; a quick prompt is enough for this admin tool.
+  const handleRenameStaff = async (id: string, current: string | null) => {
+    const name = window.prompt("Staff name", current ?? "")?.trim()
+    if (!name || name.length < 2) return
+    await fetch(`/api/admin/trainers?id=${id}&kind=STAFF`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    })
+    await fetchTrainers()
   }
 
   const handleRestore = async (id: string) => {
@@ -263,7 +287,43 @@ export default function TrainersPage() {
       {loading && <PetalSpinner />}
 
       <div className={cn("grid grid-cols-1 lg:grid-cols-3 gap-4", loading && "hidden")}>
-        {trainers.filter((t) => !t.archived).map((trainer) => (
+        {trainers.filter((t) => !t.archived).map((trainer) => trainer.kind === "STAFF" ? (
+          // Staff card: compact (no schedule/salary/whatsapp/commission).
+          <div key={trainer.id} className="rounded-2xl p-5 shadow-sm bg-white border border-gray-100 flex flex-col">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-100 border-2 border-gray-200">
+                <User size={20} className="text-gray-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-gray-900 flex items-center gap-2">
+                  <span className="truncate">{trainer.name || trainer.user.email}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-shrink-0">Staff</span>
+                </div>
+                <div className="text-sm text-gray-500 mt-0.5 truncate">login: {trainer.user.email}</div>
+                <div className="text-xs mt-0.5">
+                  {trainer.user.initialPassword
+                    ? <span className="text-gray-500">password: <span className="font-mono font-semibold text-gray-700">{trainer.user.initialPassword}</span></span>
+                    : <span className="text-gray-400">{trainer.lastActiveAt ? `last active ${formatDistanceToNow(new Date(trainer.lastActiveAt), { addSuffix: true })}` : "hasn't signed in yet"}</span>}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 pt-3 mt-auto">
+              <button
+                onClick={() => handleRenameStaff(trainer.id, trainer.name)}
+                className="text-xs px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg flex items-center gap-1 font-medium"
+              >
+                <Pencil size={12} /> {trainer.name ? "Rename" : "Add name"}
+              </button>
+              <button
+                onClick={() => handleDeleteStaff(trainer.id, trainer.name || trainer.user.email)}
+                disabled={deleting === trainer.id}
+                className="text-xs px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg flex items-center gap-1 font-medium disabled:opacity-50"
+              >
+                <Trash2 size={12} /> Delete
+              </button>
+            </div>
+          </div>
+        ) : (
           <div
             key={trainer.id}
             className="rounded-2xl p-5 shadow-sm bg-white border border-gray-100"
@@ -515,7 +575,7 @@ export default function TrainersPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-800">{created ? "Trainer created" : "Add Trainer"}</h2>
+              <h2 className="text-lg font-semibold text-gray-800">{created ? "Account created" : "Add Trainer or Staff"}</h2>
               <button onClick={() => { setShowForm(false); setCreated(null) }} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X size={18} />
               </button>
@@ -550,31 +610,50 @@ export default function TrainersPage() {
               </div>
             ) : (
               <form onSubmit={handleCreate} className="space-y-4">
+                {/* Role: trainer (default) or staff. Staff get only name + login. */}
+                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-xl">
+                  {([["TRAINER", "Trainer"], ["STAFF", "Staff"]] as const).map(([k, label]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, kind: k }))}
+                      className={cn(
+                        "py-2 rounded-lg text-sm font-semibold transition-colors",
+                        form.kind === k ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                   <input required type="text" value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                    placeholder="Trainer name"
+                    placeholder={form.kind === "STAFF" ? "Staff name" : "Trainer name"}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email (for login)</label>
-                  <input required type="email" value={form.email}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{form.kind === "STAFF" ? "Login" : "Email (for login)"}</label>
+                  <input required type={form.kind === "STAFF" ? "text" : "email"} value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                    placeholder="trainer@gravity.com"
+                    placeholder={form.kind === "STAFF" ? "any login, e.g. cleaner" : "trainer@gravity.com"}
                   />
-                  <p className="text-xs text-gray-400 mt-1">A 4-digit password is generated automatically — you&apos;ll see it after creating.</p>
+                  <p className="text-xs text-gray-400 mt-1">A 4-digit password is generated automatically - you&apos;ll see it after creating.</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp <span className="text-gray-400 font-normal">(optional)</span></label>
-                  <PhoneInput
-                    value={form.whatsapp}
-                    onChange={(next) => setForm((f) => ({ ...f, whatsapp: next }))}
-                  />
-                  <p className="text-xs text-gray-400 mt-1">Used to ping the trainer about new bookings and for the WhatsApp chat link.</p>
-                </div>
+                {form.kind === "TRAINER" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp <span className="text-gray-400 font-normal">(optional)</span></label>
+                    <PhoneInput
+                      value={form.whatsapp}
+                      onChange={(next) => setForm((f) => ({ ...f, whatsapp: next }))}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Used to ping the trainer about new bookings and for the WhatsApp chat link.</p>
+                  </div>
+                )}
 
                 {error && (
                   <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{error}</div>
@@ -585,7 +664,7 @@ export default function TrainersPage() {
                     Cancel
                   </button>
                   <button type="submit" disabled={saving} className="flex-1 bg-brand text-white py-3 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
-                    {saving ? "Creating..." : "Create Trainer"}
+                    {saving ? "Creating..." : (form.kind === "STAFF" ? "Create Staff" : "Create Trainer")}
                   </button>
                 </div>
               </form>

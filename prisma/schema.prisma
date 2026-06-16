@@ -129,6 +129,10 @@ model User {
   email               String               @unique
   password            String
   role                String               @default("TRAINER")
+  // Display name. Trainers carry their name on the Trainer row; STAFF users
+  // have no Trainer record, so their name lives here (nullable: legacy staff
+  // created via the CLI script have none until an admin fills it in).
+  name                String?
   studioId            String
   studio              Studio               @relation(fields: [studioId], references: [id])
   // The temporary password the super-admin can read in /sadmin: the auto-

@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
       .filter((d): d is Date => !!d)
       .sort((a, b) => b.getTime() - a.getTime())[0] ?? null
     return {
+      kind: "TRAINER" as const,
       ...t,
       lastActiveAt,
       studioWhatsAppEnabled,
@@ -60,7 +61,34 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  return NextResponse.json(rows)
+  // STAFF users (cleaning/support) live on the User row with no Trainer record,
+  // so the Trainers page lists them alongside trainers with a "Staff" tag. They
+  // have no schedule/salary/commission — just a login, name and starter password.
+  const staffUsers = await prisma.user.findMany({
+    where: { studioId: ctx.studioId, role: "STAFF" },
+    select: {
+      id: true, name: true, email: true, initialPassword: true,
+      loginSessions: { select: { lastSeenAt: true }, orderBy: { lastSeenAt: "desc" }, take: 1 },
+      pushTokens: { select: { lastSeenAt: true }, orderBy: { lastSeenAt: "desc" }, take: 1 },
+    },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+  })
+  const staffRows = staffUsers.map((u) => {
+    const web = u.loginSessions[0]?.lastSeenAt ?? null
+    const mob = u.pushTokens[0]?.lastSeenAt ?? null
+    const lastActiveAt = [web, mob]
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null
+    return {
+      kind: "STAFF" as const,
+      id: u.id,
+      name: u.name,
+      lastActiveAt,
+      user: { email: u.email, initialPassword: u.initialPassword },
+    }
+  })
+
+  return NextResponse.json([...rows, ...staffRows])
 }
 
 export async function POST(request: NextRequest) {
@@ -69,6 +97,26 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+
+    // STAFF (cleaning/support): a bare User with role STAFF, a name and a login
+    // (login need not be an email - existing staff use plain handles like
+    // "1111"). No Trainer record, no whatsapp/commission.
+    if (body.kind === "STAFF") {
+      const StaffSchema = z.object({ name: z.string().min(2), email: z.string().min(2) })
+      const sd = StaffSchema.parse(body)
+      const login = sd.email.trim().toLowerCase()
+      const existing = await prisma.user.findUnique({ where: { email: login } })
+      if (existing) {
+        return NextResponse.json({ error: "Login already in use" }, { status: 409 })
+      }
+      const pin = generatePin()
+      const hashed = await bcrypt.hash(pin, 10)
+      const user = await prisma.user.create({
+        data: { email: login, password: hashed, role: "STAFF", name: sd.name.trim(), initialPassword: pin, studioId: ctx.studioId },
+      })
+      return NextResponse.json({ kind: "STAFF", id: user.id, name: user.name, user: { email: user.email }, initialPassword: pin }, { status: 201 })
+    }
+
     const data = TrainerSchema.parse(body)
 
     const email = data.email.trim().toLowerCase()
@@ -111,6 +159,25 @@ export async function PATCH(request: NextRequest) {
   if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
   const body = await request.json()
+
+  // STAFF edit: name lives on the User row (staff have no Trainer record).
+  if (searchParams.get("kind") === "STAFF") {
+    const u = await prisma.user.findFirst({ where: { id, studioId: ctx.studioId, role: "STAFF" } })
+    if (!u) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    const data: Record<string, unknown> = {}
+    if (body.name !== undefined) {
+      const name = String(body.name).trim()
+      if (name.length < 2) return NextResponse.json({ error: "Name must be at least 2 characters" }, { status: 400 })
+      data.name = name
+    }
+    const updated = await prisma.user.update({
+      where: { id: u.id },
+      data,
+      select: { id: true, name: true, email: true, initialPassword: true },
+    })
+    return NextResponse.json({ kind: "STAFF", id: updated.id, name: updated.name, user: { email: updated.email, initialPassword: updated.initialPassword } })
+  }
+
   const updateData: Record<string, unknown> = {}
 
   if (body.commissionRate !== undefined) {
@@ -197,6 +264,15 @@ export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
+
+  // STAFF: a bare User with no schedule/salary history, so a real delete is
+  // safe (login sessions / push tokens / reset tokens cascade away).
+  if (searchParams.get("kind") === "STAFF") {
+    const u = await prisma.user.findFirst({ where: { id, studioId: ctx.studioId, role: "STAFF" } })
+    if (!u) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    await prisma.user.delete({ where: { id: u.id } })
+    return NextResponse.json({ success: true, deleted: true })
+  }
 
   const trainer = await prisma.trainer.findFirst({ where: { id, studioId: ctx.studioId } })
   if (!trainer) return NextResponse.json({ error: "Not found" }, { status: 404 })
