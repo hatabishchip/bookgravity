@@ -16,6 +16,7 @@ import {
 import { sendInboundWhatsAppCopy } from "@/lib/mailer"
 import { translateAndDetect } from "@/lib/translate"
 import { handleCancelBotMessage } from "@/lib/cancel-bot"
+import { pickNextLeadTrainer } from "@/lib/lead-rotation"
 
 // WhatsApp Cloud API webhook.
 //
@@ -105,6 +106,9 @@ async function resolveStudioByPhoneNumberId(phoneNumberId: string | null) {
       emailAdminWaCopy: true,
       whatsappPhoneNumberId: true,
       whatsappAccessToken: true,
+      whatsappEnabled: true,
+      // Round-robin auto-assignment of ad leads to trainers.
+      autoAssignLeads: true,
       // This studio's own admin — inbound WhatsApp email copies go ONLY here,
       // so a studio's messages never reach another studio's admin.
       users: {
@@ -334,7 +338,23 @@ export async function POST(request: NextRequest) {
               orderBy: { createdAt: "desc" },
               include: { slot: { select: { trainerId: true } } },
             })
-            const assignedTrainerId = recentBooking?.slot?.trainerId ?? null
+            let assignedTrainerId = recentBooking?.slot?.trainerId ?? null
+
+            // Auto-assign an ad lead: a FIRST message from an unknown number with
+            // no booking. When the studio has the toggle on, round-robin it to a
+            // trainer in the pool instead of leaving it admin-only. The first
+            // message is then forwarded to that trainer's personal WhatsApp below.
+            let leadTrainer: { id: string; name: string; whatsapp: string } | null = null
+            if (!assignedTrainerId && studioRow?.autoAssignLeads && studioRow?.whatsappEnabled) {
+              const existingConvo = await prisma.whatsAppConversation.findFirst({
+                where: { studioId, clientPhone: { contains: phone.slice(-10) } },
+                select: { id: true },
+              })
+              if (!existingConvo) {
+                leadTrainer = await pickNextLeadTrainer(studioId)
+                if (leadTrainer) assignedTrainerId = leadTrainer.id
+              }
+            }
 
             const convo = await upsertConversation({
               studioId,
@@ -357,6 +377,26 @@ export async function POST(request: NextRequest) {
               conversationId: convo.id,
               hasTrainer: !!assignedTrainerId,
             })
+
+            // Auto-assigned ad lead → ping the trainer's personal WhatsApp once
+            // with this first message (they have no open 24h window, so via the
+            // approved forward template). The chat itself already shows in their
+            // cabinet inbox via assignedTrainerId.
+            if (leadTrainer && leadTrainer.whatsapp) {
+              try {
+                const fwd = await forwardClientReplyToTrainer({
+                  trainerPhone: leadTrainer.whatsapp,
+                  clientName: convo.clientName ?? contactName ?? "A new lead",
+                  type,
+                  body: msgBody,
+                  filename: msg.document?.filename ?? null,
+                  config: waConfig,
+                })
+                if (!fwd.ok) console.warn("[whatsapp-webhook] forward lead to trainer failed:", fwd.error)
+              } catch (err) {
+                console.error("[whatsapp-webhook] forward lead to trainer threw:", err)
+              }
+            }
 
             // Self-service cancellation bot. No-ops unless the text is a
             // 3-digit ticket code or a pending "1"/"0" reply, so it's safe to

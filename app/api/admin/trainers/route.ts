@@ -211,6 +211,11 @@ export async function PATCH(request: NextRequest) {
     updateData.notifyWhatsapp = !!body.notifyWhatsapp
   }
 
+  // Whether this trainer is in the round-robin pool for auto-assigned WhatsApp leads.
+  if (body.inLeadRotation !== undefined) {
+    updateData.inLeadRotation = !!body.inLeadRotation
+  }
+
   if (body.name !== undefined) {
     const name = String(body.name).trim()
     if (name.length < 2) {

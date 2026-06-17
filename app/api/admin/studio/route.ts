@@ -42,6 +42,8 @@ const StudioUpdateSchema = z.object({
   remindTomorrow: z.boolean().optional(),
   remindToday: z.boolean().optional(),
   notifyAdminWhatsapp: z.boolean().optional(),
+  // Round-robin auto-assignment of incoming WhatsApp leads to trainers.
+  autoAssignLeads: z.boolean().optional(),
 })
 
 const STUDIO_SELECT = {
@@ -60,6 +62,7 @@ const STUDIO_SELECT = {
   privatePrice: true,
   inboxLanguage: true,
   whatsappEnabled: true,
+  autoAssignLeads: true,
   requireBookingOtp: true,
   confirmEmail: true,
   emailAdminWaCopy: true,

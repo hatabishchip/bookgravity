@@ -26,6 +26,8 @@ type Studio = {
   country?: string | null
   /** Whether WhatsApp is connected/active for this studio. */
   whatsappEnabled?: boolean
+  /** Round-robin auto-assignment of incoming WhatsApp leads to trainers. */
+  autoAssignLeads?: boolean
   /** Super-admin gate for the self-service onboarding form. While false,
    *  the form is visible but disabled. */
   whatsappOnboardingEnabled?: boolean
@@ -254,6 +256,9 @@ export default function SettingsPage() {
           {/* Notifications — every message that goes out, with a preview and a
               toggle, edited behind a pencil. */}
           <NotificationsCard studio={studio} onSaved={loadStudio} />
+
+          {/* Auto-assign incoming WhatsApp leads to trainers (round-robin). */}
+          <LeadRoutingCard studio={studio} onChanged={loadStudio} />
 
           <GoogleCalendarCard studio={studio} onChanged={loadStudio} />
 
@@ -626,6 +631,124 @@ function ToggleRow({
           )}
         >
           {preview}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Lead routing — auto-assign incoming WhatsApp leads (first message from an
+// unknown number with no booking) to trainers in a round-robin. The toggle is
+// disabled until the studio has WhatsApp connected. When on, the admin ticks
+// which trainers take part in the rotation; each new lead lands in the next
+// trainer's cabinet inbox and is forwarded to their personal WhatsApp.
+type RotationTrainer = { id: string; name: string; inLeadRotation?: boolean; kind?: string; archived?: boolean }
+
+function LeadRoutingCard({ studio, onChanged }: { studio: Studio; onChanged: () => void }) {
+  const waReady = !!studio.whatsappEnabled
+  const [enabled, setEnabled] = useState(!!studio.autoAssignLeads)
+  const [trainers, setTrainers] = useState<RotationTrainer[]>([])
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => { setEnabled(!!studio.autoAssignLeads) }, [studio.autoAssignLeads])
+
+  const loadTrainers = async () => {
+    const r = await fetch("/api/admin/trainers?all=1", { cache: "no-store" })
+    if (!r.ok) return
+    const all = (await r.json()) as RotationTrainer[]
+    setTrainers(all.filter((t) => t.kind !== "STAFF" && !t.archived))
+  }
+  useEffect(() => { loadTrainers() }, [])
+
+  const toggleEnabled = async () => {
+    if (!waReady || busy) return
+    const next = !enabled
+    setEnabled(next)
+    setBusy(true)
+    const res = await fetch("/api/admin/studio", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ autoAssignLeads: next }),
+    })
+    if (!res.ok) setEnabled(!next) // revert on failure
+    else onChanged()
+    setBusy(false)
+  }
+
+  const toggleTrainer = async (t: RotationTrainer) => {
+    const next = !t.inLeadRotation
+    setTrainers((prev) => prev.map((x) => (x.id === t.id ? { ...x, inLeadRotation: next } : x)))
+    const res = await fetch(`/api/admin/trainers?id=${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inLeadRotation: next }),
+    })
+    if (!res.ok) setTrainers((prev) => prev.map((x) => (x.id === t.id ? { ...x, inLeadRotation: !next } : x)))
+  }
+
+  const inPool = trainers.filter((t) => t.inLeadRotation).length
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+      <h2 className="text-base font-semibold text-gray-900">Incoming lead routing</h2>
+      <p className="text-sm text-gray-500 mt-1">
+        Auto-assign a first message from an unknown number (an ad lead) to your trainers in turn.
+        It lands in the next trainer&apos;s inbox and is sent to their personal WhatsApp.
+      </p>
+
+      <div className={cn("mt-4 flex items-center justify-between rounded-xl border px-4 py-3", waReady ? "border-gray-200" : "border-gray-100 bg-gray-50")}>
+        <div className="min-w-0">
+          <div className={cn("text-sm font-medium", waReady ? "text-gray-800" : "text-gray-400")}>Auto-assign leads</div>
+          {!waReady && <div className="text-[11px] text-gray-400 mt-0.5">Connect WhatsApp to enable</div>}
+        </div>
+        <button
+          type="button"
+          onClick={toggleEnabled}
+          disabled={!waReady || busy}
+          aria-label="Toggle auto-assign leads"
+          className={cn(
+            "relative w-11 h-6 rounded-full transition-colors flex-shrink-0",
+            !waReady ? "bg-gray-200 cursor-not-allowed" : enabled ? "bg-brand" : "bg-gray-300",
+          )}
+        >
+          <span className={cn("absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow", enabled ? "left-[22px]" : "left-0.5")} />
+        </button>
+      </div>
+
+      {waReady && enabled && (
+        <div className="mt-3">
+          <div className="text-xs font-medium text-gray-500 mb-2">
+            Trainers in rotation {inPool > 0 && <span className="text-gray-400">· {inPool} selected</span>}
+          </div>
+          {trainers.length === 0 ? (
+            <div className="text-sm text-gray-400">No trainers yet.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {trainers.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => toggleTrainer(t)}
+                  className={cn(
+                    "w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left touch-manipulation",
+                    t.inLeadRotation ? "bg-brand/5 border-brand/20" : "bg-white border-gray-200 hover:border-brand/40",
+                  )}
+                >
+                  <span className={cn("w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0", t.inLeadRotation ? "bg-brand border-brand" : "bg-white border-gray-300")}>
+                    {t.inLeadRotation && (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className={cn("text-sm font-medium", t.inLeadRotation ? "text-gray-900" : "text-gray-700")}>{t.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {inPool === 0 && (
+            <p className="text-[11px] text-amber-600 mt-2">Pick at least one trainer, or leads stay with the admin.</p>
+          )}
         </div>
       )}
     </div>
