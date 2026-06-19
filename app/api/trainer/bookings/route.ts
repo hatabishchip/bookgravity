@@ -34,9 +34,16 @@ export async function GET(request: NextRequest) {
   // Attach each client's current membership balance so the trainer can offer
   // "pay from membership" only when there's a class to spend.
   const balances = await getStudioMembershipBalances(ctx.studioId)
+  // Studio country + local price drive the "Local" toggle (Indonesia only).
+  const studio = await prisma.studio.findUnique({
+    where: { id: ctx.studioId },
+    select: { country: true, localPrice: true },
+  })
   const withBalance = bookings.map((b) => ({
     ...b,
     membershipRemaining: balances.get(phoneTail(b.clientPhone)) ?? 0,
+    studioCountry: studio?.country ?? null,
+    localPrice: studio?.localPrice ?? 200000,
   }))
 
   return NextResponse.json(withBalance)

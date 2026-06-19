@@ -15,6 +15,7 @@ type Booking = {
   status: string
   paymentType: string
   paymentStatus: string
+  localResident?: boolean
   notes?: string
   ticketCode?: string
   createdAt: string
@@ -80,12 +81,13 @@ function CopyButton({ value }: { value: string }) {
 }
 
 function BookingDetails({
-  booking, isUpdating, onUpdate, onCancel,
+  booking, isUpdating, onUpdate, onCancel, localCtx,
 }: {
   booking: Booking
   isUpdating: boolean
-  onUpdate: (data: Record<string, string>) => Promise<void> | void
+  onUpdate: (data: Record<string, string | boolean>) => Promise<void> | void
   onCancel: () => void
+  localCtx: { country: string | null; localPrice: number }
 }) {
   const [noteDraft, setNoteDraft] = useState(booking.notes ?? "")
   const [noteSaved, setNoteSaved] = useState(false)
@@ -198,6 +200,30 @@ function BookingDetails({
         </div>
       </div>
 
+      {/* Local resident (Indonesia only): discounted class price for an
+          Indonesian local. */}
+      {localCtx.country === "ID" && booking.status !== "NO_SHOW" && (
+        <button
+          type="button"
+          disabled={isUpdating}
+          onClick={() => onUpdate({ localResident: !booking.localResident })}
+          className={cn(
+            "w-full flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left touch-manipulation disabled:opacity-50",
+            booking.localResident ? "bg-brand/5 border-brand/20" : "bg-white border-gray-200 hover:border-brand/40",
+          )}
+        >
+          <span className={cn("w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0", booking.localResident ? "bg-brand border-brand" : "bg-white border-gray-300")}>
+            {booking.localResident && (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </span>
+          <span className="text-sm font-medium text-gray-700 flex-1">Local (Indonesian resident)</span>
+          <span className="text-xs font-semibold text-brand">{Math.round(localCtx.localPrice / 1000)}k</span>
+        </button>
+      )}
+
       {/* Services — only if any; just the chips, compact */}
       {booking.services.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -268,6 +294,14 @@ export default function BookingsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // Studio country + local price drive the "Local" toggle (Indonesia only).
+  const [localCtx, setLocalCtx] = useState<{ country: string | null; localPrice: number }>({ country: null, localPrice: 200000 })
+
+  useEffect(() => {
+    fetch("/api/admin/studio").then((r) => r.json()).then((d) => {
+      setLocalCtx({ country: d.country ?? null, localPrice: d.localPrice ?? 200000 })
+    }).catch(() => {})
+  }, [])
 
   const fetchBookings = useCallback(async () => {
     setLoading(true)
@@ -316,7 +350,7 @@ export default function BookingsPage() {
 
   // Optimistic update — apply locally first, then sync to the server.
   // No "loading" / disabled state — the UI reacts in the same frame.
-  const updateBooking = async (id: string, data: Record<string, string>) => {
+  const updateBooking = async (id: string, data: Record<string, string | boolean>) => {
     setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...data } : b)))
     try {
       await fetch(`/api/admin/bookings/${id}`, {
@@ -509,6 +543,7 @@ export default function BookingsPage() {
                       isUpdating={updating === b.id}
                       onUpdate={(data) => updateBooking(b.id, data)}
                       onCancel={() => cancelBooking(b.id, b.clientName)}
+                      localCtx={localCtx}
                     />
                   )}
                 </div>

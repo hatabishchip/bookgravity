@@ -41,6 +41,12 @@ model Studio {
   groupPrice    Float    @default(300000)
   kidsPrice     Float    @default(200000)
   privatePrice  Float    @default(800000)
+  // Membership price PER CLASS (a pass of N classes costs membershipClassPrice
+  // x N). Cheaper than the drop-in groupPrice, so clients save by buying a pass.
+  membershipClassPrice Float @default(250000)
+  // Discounted single-class price for an Indonesian local resident. Only offered
+  // in Indonesian studios (country == "ID"); a trainer ticks "Local" at payment.
+  localPrice    Float    @default(200000)
   // WhatsApp Cloud API integration: gated per-studio. New studios start
   // disabled; the super-admin flips this to `true` only after the studio's
   // WhatsApp Business Account has been connected (creds below populated).
@@ -311,6 +317,9 @@ model Booking {
   status         String           @default("CONFIRMED")
   paymentType    String           @default("PENDING")
   paymentStatus  String           @default("UNPAID")
+  // Indonesian local resident: the trainer ticked "Local" at payment, so this
+  // class is charged at the studio's localPrice (e.g. 200k) instead of slot.price.
+  localResident  Boolean          @default(false)
   ticketCode     String           @default("")
   checkedIn      Boolean          @default(false)
   notes          String?
@@ -421,6 +430,9 @@ model Membership {
   clientName       String?
   totalClasses     Int      @default(5)
   remainingClasses Int      @default(5)
+  // Price per class at the time of sale (studio.membershipClassPrice). Recorded
+  // so reports stay accurate if the studio later changes the membership price.
+  classPrice       Float?
   // How the membership purchase itself was paid (reuses the booking payment
   // vocabulary): CASH | EDC | QR | TRANSFER.
   paymentType      String   @default("CASH")

@@ -17,6 +17,13 @@ export async function GET(request: NextRequest) {
   })
   if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
 
+  // Local-resident discount price: a paid booking marked local earns commission
+  // on localPrice, not the slot's full price.
+  const studio = await prisma.studio.findUnique({ where: { id: ctx.studioId }, select: { localPrice: true } })
+  const localPrice = studio?.localPrice ?? 200000
+  const slotRev = (slot: { price: number; bookings: { localResident: boolean }[] }) =>
+    slot.bookings.reduce((sum, b) => sum + (b.localResident ? localPrice : slot.price), 0)
+
   // Optional ?month=yyyy-MM. Defaults to current month.
   const { searchParams } = new URL(request.url)
   const monthParam = searchParams.get("month")
@@ -61,7 +68,7 @@ export async function GET(request: NextRequest) {
   let sessionsWorked = 0
   for (const slot of mainSlots) {
     const effectiveRate = slot.assistant ? FLAT_RATE - ASSISTANT_RATE : FLAT_RATE
-    const slotRevenue = slot.price * slot.bookings.length
+    const slotRevenue = slotRev(slot)
     mainCommission += Math.round(slotRevenue * effectiveRate / 100)
     paidBookingsCount += slot.bookings.length
     totalPaid += slotRevenue
@@ -71,7 +78,7 @@ export async function GET(request: NextRequest) {
   let assistantCommission = 0
   let assistedCount = 0
   for (const slot of assistedSlots) {
-    const slotRevenue = slot.price * slot.bookings.length
+    const slotRevenue = slotRev(slot)
     assistantCommission += Math.round(slotRevenue * ASSISTANT_RATE / 100)
     if (slot.bookings.length > 0) assistedCount++
   }

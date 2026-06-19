@@ -18,6 +18,8 @@ const UpdateSchema = z.object({
   paymentStatus: zPaymentStatus.optional(),
   notes: z.string().optional(),
   status: zBookingStatus.optional(),
+  // Indonesian local resident discount (admin/trainer ticks "Local" at payment).
+  localResident: z.boolean().optional(),
   // Move the booking to a different class/day — admin "перенести".
   slotId: z.string().optional(),
 })

@@ -282,6 +282,8 @@ type StudioPrices = {
   groupPrice: number
   kidsPrice: number
   privatePrice: number
+  membershipClassPrice: number
+  localPrice: number
 }
 
 function formatPriceShort(p: number) {
@@ -293,17 +295,24 @@ function formatPriceShort(p: number) {
   return `${Math.round(p / 1000)}k`
 }
 
-type MainKind = "GROUP" | "KIDS" | "PRIVATE"
+type MainKind = "GROUP" | "KIDS" | "PRIVATE" | "MEMBERSHIP" | "LOCAL"
 
 function MainServicesCard() {
   const [studio, setStudio] = useState<StudioPrices | null>(null)
+  const [country, setCountry] = useState<string | null>(null)
   const [editing, setEditing] = useState<MainKind | null>(null)
   const [draftValue, setDraftValue] = useState(0)
   const [saving, setSaving] = useState(false)
 
+  const pricesFrom = (d: StudioPrices) => ({
+    groupPrice: d.groupPrice, kidsPrice: d.kidsPrice, privatePrice: d.privatePrice,
+    membershipClassPrice: d.membershipClassPrice, localPrice: d.localPrice,
+  })
+
   useEffect(() => {
     fetch("/api/admin/studio").then((r) => r.json()).then((d) => {
-      setStudio({ groupPrice: d.groupPrice, kidsPrice: d.kidsPrice, privatePrice: d.privatePrice })
+      setStudio(pricesFrom(d))
+      setCountry(d.country ?? null)
     })
   }, [])
 
@@ -311,6 +320,11 @@ function MainServicesCard() {
     { kind: "GROUP", field: "groupPrice", label: "Group class", sub: "Adults, up to 6 people" },
     { kind: "KIDS", field: "kidsPrice", label: "Kids class", sub: "Children's group" },
     { kind: "PRIVATE", field: "privatePrice", label: "Private session", sub: "1 person only" },
+    { kind: "MEMBERSHIP", field: "membershipClassPrice", label: "Membership (per class)", sub: "Price per class when buying a pass" },
+    // Local resident discount only applies in Indonesian studios.
+    ...(country === "ID"
+      ? [{ kind: "LOCAL" as MainKind, field: "localPrice" as keyof StudioPrices, label: "Local price", sub: "Indonesian local resident, per class" }]
+      : []),
   ]
 
   const startEdit = (kind: MainKind, value: number) => {
@@ -330,7 +344,7 @@ function MainServicesCard() {
     })
     if (res.ok) {
       const updated = await res.json()
-      setStudio({ groupPrice: updated.groupPrice, kidsPrice: updated.kidsPrice, privatePrice: updated.privatePrice })
+      setStudio(pricesFrom(updated))
       setEditing(null)
     }
     setSaving(false)

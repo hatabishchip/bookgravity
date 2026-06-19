@@ -20,9 +20,9 @@ const PAYMENT_METHODS = [
   { value: "TRANSFER", label: "Transfer" },
 ]
 
-const MEMBERSHIP_CLASSES = 5
-const MEMBERSHIP_PRICE = 250000
-const PRICE_LABEL = `Rp ${MEMBERSHIP_PRICE.toLocaleString("en-US")}` // "Rp 250,000"
+const DEFAULT_CLASSES = 5
+const DEFAULT_PRICE = 250000
+const fmtRp = (n: number) => `Rp ${Math.round(n).toLocaleString("en-US")}`
 
 export default function SellMembershipButton({
   className,
@@ -41,6 +41,9 @@ export default function SellMembershipButton({
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Membership pricing comes from the studio (per-class price x class count).
+  const [perClass, setPerClass] = useState(DEFAULT_PRICE)
+  const [classes, setClasses] = useState(DEFAULT_CLASSES)
   // The name field unlocks only once the phone is "finished": either the
   // number hit its max length, or the seller left the phone field (blur) with
   // a valid number. Reset while editing so it can't open mid-typing.
@@ -67,6 +70,21 @@ export default function SellMembershipButton({
   const phoneCountry = detectCountry(phone)
   const phoneAtMax = !!phoneCountry && subscriberDigits(phone, phoneCountry) >= phoneCountry.max
   const nameEnabled = phoneOk && (phoneAtMax || phoneCommitted)
+
+  // On open, load the studio's membership pricing (per-class price + count).
+  useEffect(() => {
+    if (!open) return
+    const ctrl = new AbortController()
+    fetch(`/api/memberships`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return
+        if (typeof d.membershipClassPrice === "number") setPerClass(d.membershipClassPrice)
+        if (typeof d.membershipClasses === "number") setClasses(d.membershipClasses)
+      })
+      .catch(() => {})
+    return () => ctrl.abort()
+  }, [open])
 
   // Once the phone is valid, look up the existing balance and the client's
   // known name (auto-fill if found). Background fetch — does not steal focus.
@@ -114,7 +132,7 @@ export default function SellMembershipButton({
         return
       }
       const d = await res.json()
-      setDone(d.remaining ?? MEMBERSHIP_CLASSES)
+      setDone(d.remaining ?? classes)
       onSold?.()
     } catch {
       setError("Network error. Please try again.")
@@ -156,16 +174,20 @@ export default function SellMembershipButton({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 flex-shrink-0 border-b border-gray-100">
-              <h3 className="text-base font-semibold text-gray-900">Membership · {MEMBERSHIP_CLASSES} classes</h3>
+              <h3 className="text-base font-semibold text-gray-900">Membership · {classes} classes</h3>
               <button type="button" onClick={() => setOpen(false)} className="text-gray-400 text-xl leading-none p-1">×</button>
             </div>
 
             {done == null ? (
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                {/* Price banner — so admin & trainer always see what 5 classes cost. */}
+                {/* Price banner — per-class price x class count, so admin &
+                    trainer always see the total a membership costs. */}
                 <div className="rounded-xl bg-brand/[0.08] border border-brand/20 px-4 py-3 flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">{MEMBERSHIP_CLASSES} classes</span>
-                  <span className="text-lg font-bold text-brand">{PRICE_LABEL}</span>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-700">{classes} classes</span>
+                    <span className="text-[11px] text-gray-400">{classes} × {fmtRp(perClass)}</span>
+                  </div>
+                  <span className="text-lg font-bold text-brand">{fmtRp(perClass * classes)}</span>
                 </div>
 
                 {/* Phone — large, monospaced-feel digits for readability. */}
@@ -238,7 +260,7 @@ export default function SellMembershipButton({
                   onClick={submit}
                   className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
                 >
-                  {submitting ? "Saving…" : `Sell · ${PRICE_LABEL}`}
+                  {submitting ? "Saving…" : `Sell · ${fmtRp(perClass * classes)}`}
                 </button>
               </div>
             ) : (

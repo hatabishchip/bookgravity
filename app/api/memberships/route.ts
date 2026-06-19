@@ -34,13 +34,17 @@ export async function GET(request: NextRequest) {
   const ctx = await requireAuth()
   if (!ctx || !canSell(ctx.role)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  // Studio membership pricing, shown in the sell dialog before a phone is typed.
+  const studio = await prisma.studio.findUnique({ where: { id: ctx.studioId }, select: { membershipClassPrice: true } })
+  const pricing = { membershipClassPrice: studio?.membershipClassPrice ?? 250000, membershipClasses: MEMBERSHIP_CLASSES }
+
   try {
   const { searchParams } = new URL(request.url)
   const phone = searchParams.get("phone")?.trim()
-  if (!phone) return NextResponse.json({ remaining: 0, memberships: [] })
+  if (!phone) return NextResponse.json({ remaining: 0, memberships: [], ...pricing })
 
   const tail = phoneTail(phone)
-  if (tail.length < 6) return NextResponse.json({ remaining: 0, memberships: [], name: null })
+  if (tail.length < 6) return NextResponse.json({ remaining: 0, memberships: [], name: null, ...pricing })
 
   // Phones are digits-only since 2026-06-12 → indexed endsWith query instead
   // of the old fetch-every-membership-and-filter-in-memory scan.
@@ -73,7 +77,7 @@ export async function GET(request: NextRequest) {
   })
   const hasWhatsApp = !!convo
 
-  return NextResponse.json({ remaining, memberships, name, hasWhatsApp })
+  return NextResponse.json({ remaining, memberships, name, hasWhatsApp, ...pricing })
   } catch (err) {
     console.error("[memberships] GET failed:", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -90,6 +94,9 @@ export async function POST(request: NextRequest) {
 
   const soldByName = await sellerLabel(ctx.userId, ctx.role)
 
+  // Record the per-class price at sale time so reports stay accurate later.
+  const studio = await prisma.studio.findUnique({ where: { id: ctx.studioId }, select: { membershipClassPrice: true } })
+
   const created = await prisma.membership.create({
     data: {
       studioId: ctx.studioId,
@@ -97,6 +104,7 @@ export async function POST(request: NextRequest) {
       clientName: data.clientName || null,
       totalClasses: MEMBERSHIP_CLASSES,
       remainingClasses: MEMBERSHIP_CLASSES,
+      classPrice: studio?.membershipClassPrice ?? 250000,
       paymentType: data.paymentType,
       soldByUserId: ctx.userId,
       soldByName,

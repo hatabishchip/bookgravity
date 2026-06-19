@@ -28,6 +28,8 @@ const StudioUpdateSchema = z.object({
   groupPrice: z.number().min(0).optional(),
   kidsPrice: z.number().min(0).optional(),
   privatePrice: z.number().min(0).optional(),
+  membershipClassPrice: z.number().min(0).optional(),
+  localPrice: z.number().min(0).optional(),
   // Optional ISO 639-1 lowercase code, or null to turn translation off.
   inboxLanguage: z.enum(SUPPORTED_INBOX_LANGS).nullable().optional(),
   // Anti-spam: require a WhatsApp one-time code before a public booking.
@@ -60,6 +62,8 @@ const STUDIO_SELECT = {
   groupPrice: true,
   kidsPrice: true,
   privatePrice: true,
+  membershipClassPrice: true,
+  localPrice: true,
   inboxLanguage: true,
   whatsappEnabled: true,
   autoAssignLeads: true,

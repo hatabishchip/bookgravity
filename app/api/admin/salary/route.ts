@@ -23,6 +23,12 @@ export async function GET(request: NextRequest) {
   const slotFilter = { date: { gte: monthStart, lte: monthEnd }, studioId: ctx.studioId }
   const paidBookingsFilter = { status: "CONFIRMED", paymentStatus: "PAID" }
 
+  // Local-resident discount: a paid booking marked local counts at localPrice.
+  const studio = await prisma.studio.findUnique({ where: { id: ctx.studioId }, select: { localPrice: true } })
+  const localPrice = studio?.localPrice ?? 200000
+  const slotRev = (slot: { price: number; bookings: { localResident: boolean }[] }) =>
+    slot.bookings.reduce((s, b) => s + (b.localResident ? localPrice : slot.price), 0)
+
   const trainers = await prisma.trainer.findMany({
     where: { studioId: ctx.studioId },
     orderBy: { name: "asc" },
@@ -53,7 +59,7 @@ export async function GET(request: NextRequest) {
     let paidBookingsCount = 0
     for (const slot of trainer.timeSlots) {
       const effectiveRate = slot.assistant ? FLAT_RATE - ASSISTANT_RATE : FLAT_RATE
-      const slotRevenue = slot.price * slot.bookings.length
+      const slotRevenue = slotRev(slot)
       mainCommission += Math.round(slotRevenue * effectiveRate / 100)
       paidBookingsCount += slot.bookings.length
     }
@@ -61,12 +67,12 @@ export async function GET(request: NextRequest) {
     // Commission as assistant (5% per paid booking in assisted slots)
     let assistantCommission = 0
     for (const slot of trainer.assistedSlots) {
-      const slotRevenue = slot.price * slot.bookings.length
+      const slotRevenue = slotRev(slot)
       assistantCommission += Math.round(slotRevenue * ASSISTANT_RATE / 100)
     }
 
     const commission = mainCommission + assistantCommission
-    const revenue = trainer.timeSlots.reduce((sum, slot) => sum + slot.price * slot.bookings.length, 0)
+    const revenue = trainer.timeSlots.reduce((sum, slot) => sum + slotRev(slot), 0)
     // kind "accrual" = a manual amount the studio owes the trainer (adds to
     // ACCRUED); kind "payout" (default) = money actually paid out.
     const adjustments = trainer.payments.filter((p) => p.kind === "accrual").reduce((sum, p) => sum + p.amount, 0)

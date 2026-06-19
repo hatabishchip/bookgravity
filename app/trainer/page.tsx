@@ -40,11 +40,15 @@ type Booking = {
   // Last change time — used to allow editing a paid booking for 30 minutes.
   updatedAt?: string
   services: { service: Service; paymentType?: string | null }[]
-  slot: { id: string }
+  slot: { id: string; price?: number }
   // Membership: how many classes the client has left at this studio, and the
   // pass id this booking was charged to (set when paymentType === "MEMBERSHIP").
   membershipRemaining?: number
   membershipId?: string | null
+  // Indonesian local resident discount + studio context to gate/price it.
+  localResident?: boolean
+  studioCountry?: string | null
+  localPrice?: number
 }
 
 type Salary = {
@@ -312,6 +316,15 @@ export default function TrainerSchedulePage() {
     } catch { /* ignore */ }
   }, [fetchBookingsForSlot])
   useEffect(() => { refreshPending(true); refreshHandovers() }, [refreshPending, refreshHandovers])
+  // Poll handovers + pending every 30s (and on tab focus) so the GIVER's
+  // outgoing offer flips from "Waiting for reply" to "Accepted" on its own when
+  // the colleague accepts — without it the status stayed stale until reload.
+  useEffect(() => {
+    const tick = () => { if (document.visibilityState === "visible") { refreshHandovers(); refreshPending() } }
+    const t = setInterval(tick, 30_000)
+    document.addEventListener("visibilitychange", tick)
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick) }
+  }, [refreshHandovers, refreshPending])
 
   // Bell badge = new registrations + unpaid clients on ended classes (each
   // unpaid client is one open task).
@@ -386,6 +399,7 @@ export default function TrainerSchedulePage() {
                 paymentType: saved.paymentType ?? b.paymentType,
                 paymentStatus: saved.paymentStatus ?? b.paymentStatus,
                 status: saved.status ?? b.status,
+                localResident: saved.localResident ?? b.localResident,
                 membershipId: saved.membershipId ?? null,
                 membershipRemaining:
                   typeof saved.membershipRemaining === "number"
@@ -419,6 +433,23 @@ export default function TrainerSchedulePage() {
   // payment" nag; a membership class (if used) stays spent. Reversible.
   const markNoShow = (booking: Booking) => updateBooking(booking.id, { status: "NO_SHOW" })
   const undoNoShow = (booking: Booking) => updateBooking(booking.id, { status: "CONFIRMED" })
+
+  // Local resident (Indonesia only): toggling changes this class's price to the
+  // studio's localPrice. Optimistic, then synced.
+  const setLocal = async (booking: Booking, val: boolean) => {
+    setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, localResident: val } : b)))
+    try {
+      await fetch(`/api/trainer/bookings/${booking.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ localResident: val }),
+      })
+      setSavedToast(Date.now())
+      setTimeout(() => setSavedToast((t) => (Date.now() - t >= 1400 ? 0 : t)), 1500)
+    } catch {
+      if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+    }
+  }
 
   const toggleService = async (booking: Booking, serviceId: string) => {
     const has = booking.services.some((s) => s.service.id === serviceId)
@@ -1175,8 +1206,30 @@ export default function TrainerSchedulePage() {
                             })}
                           </div>
                         </div>
+                        {/* Local resident (Indonesia only): a discounted class
+                            price for an Indonesian local. */}
+                        {b.studioCountry === "ID" && (
+                          <button
+                            type="button"
+                            onClick={() => setLocal(b, !b.localResident)}
+                            className={cn(
+                              "mt-2 w-full flex items-center gap-2 rounded-lg border px-3 py-2 text-left touch-manipulation",
+                              b.localResident ? "bg-brand/5 border-brand/20" : "bg-white border-gray-200 hover:border-brand/40"
+                            )}
+                          >
+                            <span className={cn("w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0", b.localResident ? "bg-brand border-brand" : "bg-white border-gray-300")}>
+                              {b.localResident && (
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                  <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </span>
+                            <span className="text-sm font-medium text-gray-700 flex-1">Local (Indonesian resident)</span>
+                            <span className="text-xs font-semibold text-brand">{formatIDR(b.localPrice ?? 200000)}</span>
+                          </button>
+                        )}
                         {isPaid && (
-                          <div className="mt-1.5 text-xs text-brand font-medium">✓ Paid · {paymentLabel}</div>
+                          <div className="mt-1.5 text-xs text-brand font-medium">✓ Paid · {paymentLabel}{b.localResident ? " · Local" : ""}</div>
                         )}
                         {/* Didn't come? Mark no-show instead of chasing a
                             payment. A used membership class stays spent. */}

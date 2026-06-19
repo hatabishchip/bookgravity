@@ -16,6 +16,8 @@ const UpdateSchema = z.object({
   paymentType: zBookingPaymentType.optional(),
   paymentStatus: zPaymentStatus.optional(),
   notes: z.string().optional(),
+  // Indonesian local resident discount (trainer ticks "Local" at payment).
+  localResident: z.boolean().optional(),
   // Cancel — same side-effects as the admin cancel (membership restore +
   // client notification via afterStaffCancellation).
   status: zBookingStatus.optional(),
