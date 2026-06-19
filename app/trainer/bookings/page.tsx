@@ -23,6 +23,10 @@ type Booking = {
   // Membership balance for this client at the studio (from the API).
   membershipRemaining?: number
   membershipId?: string | null
+  // Indonesian local resident discount + studio context to gate/price it.
+  localResident?: boolean
+  studioCountry?: string | null
+  localPrice?: number
 }
 
 const PAYMENT_METHODS = [
@@ -73,7 +77,7 @@ export default function TrainerBookingsPage() {
   useEffect(() => { fetchBookings() }, [fetchBookings])
 
   // Optimistic update — UI changes instantly, server syncs in background
-  const updateBooking = async (id: string, data: Record<string, string>) => {
+  const updateBooking = async (id: string, data: Record<string, string | boolean>) => {
     setUpdating(id)
     setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...data } : b)))
     try {
@@ -94,6 +98,7 @@ export default function TrainerBookingsPage() {
           ...b,
           paymentType: saved.paymentType ?? b.paymentType,
           paymentStatus: saved.paymentStatus ?? b.paymentStatus,
+          localResident: saved.localResident ?? b.localResident,
           membershipId: saved.membershipId ?? null,
           membershipRemaining: typeof saved.membershipRemaining === "number" ? saved.membershipRemaining : b.membershipRemaining,
           // Reschedule: pull the new class back so date/time update in place.
@@ -244,7 +249,7 @@ function BookingDetails({
 }: {
   booking: Booking
   isUpdating: boolean
-  onUpdate: (data: Record<string, string>) => Promise<boolean | void> | boolean | void
+  onUpdate: (data: Record<string, string | boolean>) => Promise<boolean | void> | boolean | void
   onServicePayment: (serviceId: string, method: string) => Promise<void> | void
   onDone: () => void
 }) {
@@ -314,6 +319,30 @@ function BookingDetails({
           </div>
         )}
       </div>
+
+      {/* Local resident (Indonesia only): discounted class price for an
+          Indonesian local. */}
+      {booking.studioCountry === "ID" && (
+        <button
+          type="button"
+          disabled={isUpdating}
+          onClick={() => onUpdate({ localResident: !booking.localResident })}
+          className={cn(
+            "w-full flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left touch-manipulation disabled:opacity-50",
+            booking.localResident ? "bg-brand/5 border-brand/20" : "bg-white border-gray-200 hover:border-brand/40",
+          )}
+        >
+          <span className={cn("w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0", booking.localResident ? "bg-brand border-brand" : "bg-white border-gray-300")}>
+            {booking.localResident && (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </span>
+          <span className="text-sm font-medium text-gray-700 flex-1">Local (Indonesian resident)</span>
+          <span className="text-xs font-semibold text-brand">{Math.round((booking.localPrice ?? 200000) / 1000)}k</span>
+        </button>
+      )}
 
       {/* Services — only if any. When the session is on a membership, each
           add-on needs its own money method (the pass doesn't cover extras),
