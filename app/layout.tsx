@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import { Geist } from "next/font/google"
 import "./globals.css"
 import OfflineBanner from "./_components/OfflineBanner"
+import VersionWatcher from "./_components/VersionWatcher"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
 
@@ -102,6 +103,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <OfflineBanner />
+        <VersionWatcher />
         {children}
       </body>
     </html>
