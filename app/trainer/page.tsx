@@ -204,7 +204,9 @@ export default function TrainerSchedulePage() {
   // refreshes — slotsLoaded stays true.
   useEffect(() => {
     const tick = () => { if (document.visibilityState === "visible") fetchSlots() }
-    const t = setInterval(tick, 30_000)
+    // 60s (was 30s) to trim Vercel Fluid Active CPU - booking counts don't need
+    // 30s freshness; the tab-visible re-fetch still gives an instant update.
+    const t = setInterval(tick, 60_000)
     document.addEventListener("visibilitychange", tick)
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick) }
   }, [fetchSlots])
@@ -316,15 +318,17 @@ export default function TrainerSchedulePage() {
     } catch { /* ignore */ }
   }, [fetchBookingsForSlot])
   useEffect(() => { refreshPending(true); refreshHandovers() }, [refreshPending, refreshHandovers])
-  // Poll handovers + pending every 30s (and on tab focus) so the GIVER's
-  // outgoing offer flips from "Waiting for reply" to "Accepted" on its own when
-  // the colleague accepts — without it the status stayed stale until reload.
+  // Poll handovers every 120s (and on tab focus) so the GIVER's outgoing offer
+  // flips from "Waiting for reply" to "Accepted" on its own when the colleague
+  // accepts - without it the status stayed stale until reload. 120s (was 30s)
+  // and handovers-only (pending stays mount/action-driven as before) to keep
+  // Vercel Fluid Active CPU down.
   useEffect(() => {
-    const tick = () => { if (document.visibilityState === "visible") { refreshHandovers(); refreshPending() } }
-    const t = setInterval(tick, 30_000)
+    const tick = () => { if (document.visibilityState === "visible") refreshHandovers() }
+    const t = setInterval(tick, 120_000)
     document.addEventListener("visibilitychange", tick)
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick) }
-  }, [refreshHandovers, refreshPending])
+  }, [refreshHandovers])
 
   // Bell badge = new registrations + unpaid clients on ended classes (each
   // unpaid client is one open task).

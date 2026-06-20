@@ -87,7 +87,7 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return
       refresh()
     }
-    const t = setInterval(tick, open ? 20_000 : 90_000)
+    const t = setInterval(tick, open ? 20_000 : 180_000)
     const onVis = () => { if (document.visibilityState === "visible") refresh() }
     document.addEventListener("visibilitychange", onVis)
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis) }
