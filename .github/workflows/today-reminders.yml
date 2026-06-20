@@ -23,7 +23,13 @@ name: today-reminders
 
 on:
   schedule:
-    - cron: "*/20 * * * *"
+    # Every 30 min during Bali daytime only (UTC 20:00-15:59 = Bali 04:00-23:59),
+    # dark Bali 00:00-03:59 (UTC 16:00-19:59) is skipped - no classes, no
+    # reminders due then. Cuts ~45% of the background pings that were burning
+    # Vercel Fluid Active CPU 24/7 (analysis 20.06.2026). The 135-min send window
+    # + the /api/slots traffic-tick backup keep morning reminders covered even at
+    # */30; first window for a 07:00 Bali class opens ~04:25 Bali, inside this range.
+    - cron: "0,30 0-15,20-23 * * *"
   workflow_dispatch:
 
 jobs:
