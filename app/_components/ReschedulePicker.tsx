@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { format } from "date-fns"
-import { CheckCircle2, CalendarClock } from "lucide-react"
+import { CheckCircle2, CalendarClock, ChevronDown, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatTime12 } from "@/lib/format"
 
@@ -80,22 +80,24 @@ export function ReschedulePicker({
 
   return (
     <div className="bg-white rounded-xl p-4 border border-gray-100">
-      {/* One control: the whole header row toggles the picker, so it never
-          looks like two separate actions ("Reschedule" + "Move to another
-          class"). Reschedule and Cancel are kept clearly distinct. */}
+      {/* A single "Reschedule" button. Tapping it expands the class list; the
+          right side is just an affordance icon (chevron when closed, an X to
+          close when open) - no second text label, so nothing reads as a
+          duplicate of "Reschedule". Cancel stays a separate button. */}
       <button
         type="button"
         disabled={disabled || moving}
         onClick={toggle}
+        aria-expanded={open}
         className="w-full flex items-center justify-between gap-2 disabled:opacity-50 touch-manipulation"
       >
         <span className="flex items-center gap-1.5">
           <CalendarClock size={14} className="text-brand" />
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reschedule</span>
         </span>
-        <span className="text-xs font-medium text-brand">
-          {open ? "Close" : "Change class"}
-        </span>
+        {open
+          ? <X size={16} className="text-gray-400" aria-label="Close" />
+          : <ChevronDown size={16} className="text-gray-400" aria-label="Open" />}
       </button>
 
       {movedTo && !open && (
