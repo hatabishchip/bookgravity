@@ -21,8 +21,25 @@ export async function GET(request: NextRequest) {
   // on localPrice, not the slot's full price.
   const studio = await prisma.studio.findUnique({ where: { id: ctx.studioId }, select: { localPrice: true } })
   const localPrice = studio?.localPrice ?? 200000
-  const slotRev = (slot: { price: number; bookings: { localResident: boolean }[] }) =>
-    slot.bookings.reduce((sum, b) => sum + (b.localResident ? localPrice : slot.price), 0)
+  const bookingAmount = (b: { localResident: boolean }, slotPrice: number) =>
+    b.localResident ? localPrice : slotPrice
+
+  // One transparent row per paid class - the trainer sees exactly which class
+  // earned what (Sveta's request, 21.06.2026). The headline totals are summed
+  // FROM these rows so they always reconcile with the list.
+  type Row = {
+    bookingId: string
+    date: string
+    startTime: string
+    classType: string
+    client: string
+    paymentType: string
+    amount: number
+    rate: number
+    commission: number
+    role: "lead" | "assistant"
+  }
+  const breakdown: Row[] = []
 
   // Optional ?month=yyyy-MM. Defaults to current month.
   const { searchParams } = new URL(request.url)
@@ -68,20 +85,39 @@ export async function GET(request: NextRequest) {
   let sessionsWorked = 0
   for (const slot of mainSlots) {
     const effectiveRate = slot.assistant ? FLAT_RATE - ASSISTANT_RATE : FLAT_RATE
-    const slotRevenue = slotRev(slot)
-    mainCommission += Math.round(slotRevenue * effectiveRate / 100)
+    for (const b of slot.bookings) {
+      const amount = bookingAmount(b, slot.price)
+      const commission = Math.round(amount * effectiveRate / 100)
+      mainCommission += commission
+      totalPaid += amount
+      breakdown.push({
+        bookingId: b.id, date: slot.date, startTime: slot.startTime, classType: slot.classType,
+        client: b.clientName, paymentType: b.paymentType, amount, rate: effectiveRate, commission,
+        role: "lead",
+      })
+    }
     paidBookingsCount += slot.bookings.length
-    totalPaid += slotRevenue
     if (slot.bookings.length > 0) sessionsWorked++
   }
 
   let assistantCommission = 0
   let assistedCount = 0
   for (const slot of assistedSlots) {
-    const slotRevenue = slotRev(slot)
-    assistantCommission += Math.round(slotRevenue * ASSISTANT_RATE / 100)
+    for (const b of slot.bookings) {
+      const amount = bookingAmount(b, slot.price)
+      const commission = Math.round(amount * ASSISTANT_RATE / 100)
+      assistantCommission += commission
+      breakdown.push({
+        bookingId: b.id, date: slot.date, startTime: slot.startTime, classType: slot.classType,
+        client: b.clientName, paymentType: b.paymentType, amount, rate: ASSISTANT_RATE, commission,
+        role: "assistant",
+      })
+    }
     if (slot.bookings.length > 0) assistedCount++
   }
+
+  // Newest class first.
+  breakdown.sort((a, b) => (a.date === b.date ? b.startTime.localeCompare(a.startTime) : b.date.localeCompare(a.date)))
 
   const commission = mainCommission + assistantCommission
 
@@ -97,6 +133,7 @@ export async function GET(request: NextRequest) {
     paidBookingsCount,
     sessionsWorked,
     assistedCount,
+    breakdown,
     month: format(anchor, "yyyy-MM"),
     monthLabel: format(anchor, "MMMM yyyy"),
   })

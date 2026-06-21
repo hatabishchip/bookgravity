@@ -33,7 +33,7 @@ type Booking = {
   clientTelegram?: string
   paymentType: string
   paymentStatus: string
-  // "CONFIRMED" | "NO_SHOW" (CANCELLED never reaches the roster).
+  // "CONFIRMED" (CANCELLED never reaches the roster).
   status?: string
   checkedIn: boolean
   notes?: string
@@ -433,10 +433,35 @@ export default function TrainerSchedulePage() {
     }
   }
 
-  // No-show: client booked but never came. Removes them from the "collect
-  // payment" nag; a membership class (if used) stays spent. Reversible.
-  const markNoShow = (booking: Booking) => updateBooking(booking.id, { status: "NO_SHOW" })
-  const undoNoShow = (booking: Booking) => updateBooking(booking.id, { status: "CONFIRMED" })
+  // Cancel: client cancelled or never came. Same side-effects as the admin /
+  // All-My-Bookings cancel — the booking goes CANCELLED, a membership class (if
+  // used) is returned to the client, the client gets a WhatsApp notice, and it
+  // drops out of both the "collect payment" nag and the salary accrual. We
+  // refetch the slot so the cancelled row simply disappears from the roster.
+  const cancelBooking = async (booking: Booking): Promise<boolean> => {
+    if (!confirm(`Cancel ${booking.clientName}'s booking? The class returns to the client and they get a notification.`)) return false
+    setSyncingIds((prev) => new Set(prev).add(booking.id))
+    try {
+      const res = await fetch(`/api/trainer/bookings/${booking.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      })
+      if (!res.ok) {
+        alert("Couldn't cancel this booking. Please try again.")
+        return false
+      }
+      if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+      refreshPending()
+      fetchSalary()
+      return true
+    } catch {
+      alert("Couldn't cancel this booking. Please try again.")
+      return false
+    } finally {
+      setSyncingIds((prev) => { const n = new Set(prev); n.delete(booking.id); return n })
+    }
+  }
 
   // Local resident (Indonesia only): toggling changes this class's price to the
   // studio's localPrice. Optimistic, then synced.
@@ -1074,27 +1099,6 @@ export default function TrainerSchedulePage() {
                     ? "Membership"
                     : (PAYMENT_METHODS.find((p) => p.value === b.paymentType)?.label ?? b.paymentType)
 
-                  // No-show: a compact greyed row with one-tap undo. No payment
-                  // is asked and it's out of the bell's "collect payment" list.
-                  if (b.status === "NO_SHOW") {
-                    return (
-                      <div key={b.id} className="rounded-xl px-4 py-3 border-2 border-gray-200 bg-gray-50 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-6 h-6 rounded-full bg-gray-200 text-gray-400 text-xs font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
-                          <span className="font-medium text-gray-400 line-through truncate">{b.clientName}</span>
-                          <span className="text-[10px] font-semibold text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full flex-shrink-0">No-show</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => undoNoShow(b)}
-                          className="text-xs font-semibold text-gray-500 hover:text-brand underline touch-manipulation flex-shrink-0"
-                        >
-                          Undo
-                        </button>
-                      </div>
-                    )
-                  }
-
                   if (collapsed) {
                     return (
                       <div key={b.id} className="rounded-xl px-4 py-3 border-2 border-brand/25 bg-brand/5 shadow-sm flex items-center justify-between gap-2">
@@ -1235,17 +1239,6 @@ export default function TrainerSchedulePage() {
                         {isPaid && (
                           <div className="mt-1.5 text-xs text-brand font-medium">✓ Paid · {paymentLabel}{b.localResident ? " · Local" : ""}</div>
                         )}
-                        {/* Didn't come? Mark no-show instead of chasing a
-                            payment. A used membership class stays spent. */}
-                        {!isPaid && (
-                          <button
-                            type="button"
-                            onClick={() => markNoShow(b)}
-                            className="mt-2 text-xs font-medium text-gray-400 hover:text-gray-600 underline touch-manipulation"
-                          >
-                            Mark as no-show
-                          </button>
-                        )}
                       </div>
 
                       {/* Services — framed group; tap to add/remove. The extra's
@@ -1358,9 +1351,23 @@ export default function TrainerSchedulePage() {
                       <div className="mt-3">
                         <ReschedulePicker
                           excludeSlotId={b.slot.id}
+                          disabled={syncingIds.has(b.id)}
                           onMove={(slotId) => moveBooking(b.id, slotId)}
                         />
                       </div>
+
+                      {/* Cancel — for a client who cancelled or never came.
+                          Returns the membership class, notifies the client and
+                          drops the booking from salary. A separate action from
+                          Reschedule above, so the two are never confused. */}
+                      <button
+                        type="button"
+                        disabled={syncingIds.has(b.id)}
+                        onClick={() => cancelBooking(b)}
+                        className="mt-3 w-full py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 touch-manipulation"
+                      >
+                        Cancel booking
+                      </button>
 
                       {/* Once a payment method is picked, a clear "Done" button
                           appears — tapping it collapses this client to a compact

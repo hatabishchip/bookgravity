@@ -63,7 +63,7 @@ export function ReschedulePicker({
     const ok = await onMove(picked.id)
     setMoving(false)
     if (ok === false) {
-      setError("Couldn't move the booking — the class may be full. Try another one.")
+      setError("Couldn't move the booking - the class may be full. Try another one.")
       return
     }
     setMovedTo(`${format(new Date(picked.date), "EEE, MMM d")} · ${formatTime12(picked.startTime)}`)
@@ -80,20 +80,23 @@ export function ReschedulePicker({
 
   return (
     <div className="bg-white rounded-xl p-4 border border-gray-100">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
+      {/* One control: the whole header row toggles the picker, so it never
+          looks like two separate actions ("Reschedule" + "Move to another
+          class"). Reschedule and Cancel are kept clearly distinct. */}
+      <button
+        type="button"
+        disabled={disabled || moving}
+        onClick={toggle}
+        className="w-full flex items-center justify-between gap-2 disabled:opacity-50 touch-manipulation"
+      >
+        <span className="flex items-center gap-1.5">
           <CalendarClock size={14} className="text-brand" />
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reschedule</h3>
-        </div>
-        <button
-          type="button"
-          disabled={disabled || moving}
-          onClick={toggle}
-          className="text-xs font-medium text-brand hover:text-brand-dark underline disabled:opacity-50 touch-manipulation"
-        >
-          {open ? "Close" : "Move to another class"}
-        </button>
-      </div>
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reschedule</span>
+        </span>
+        <span className="text-xs font-medium text-brand">
+          {open ? "Close" : "Change class"}
+        </span>
+      </button>
 
       {movedTo && !open && (
         <div className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand bg-brand/5 border border-brand/20 rounded-lg px-3 py-2">

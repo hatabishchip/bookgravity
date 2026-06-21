@@ -140,19 +140,7 @@ function BookingDetails({
 
         {/* Payment — no "Mark as paid with" label, it's self-evident */}
         <div className="bg-white rounded-xl p-3 border border-gray-100">
-          {booking.status === "NO_SHOW" ? (
-            <div className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-              <span className="text-sm font-medium text-gray-500">No-show</span>
-              <button
-                type="button"
-                disabled={isUpdating}
-                onClick={() => onUpdate({ status: "CONFIRMED" })}
-                className="text-[11px] text-gray-500 hover:text-brand underline disabled:opacity-50"
-              >
-                Undo
-              </button>
-            </div>
-          ) : booking.paymentStatus === "PAID" ? (
+          {booking.paymentStatus === "PAID" ? (
             <div className="flex items-center justify-between gap-2 bg-brand/5 border border-brand/20 rounded-lg px-3 py-2">
               <span className="flex items-center gap-1.5 text-sm font-medium text-brand">
                 <CheckCircle2 size={14} />
@@ -202,7 +190,7 @@ function BookingDetails({
 
       {/* Local resident (Indonesia only): discounted class price for an
           Indonesian local. */}
-      {localCtx.country === "ID" && booking.status !== "NO_SHOW" && (
+      {localCtx.country === "ID" && (
         <button
           type="button"
           disabled={isUpdating}
@@ -255,19 +243,8 @@ function BookingDetails({
 
       {/* Cancel — same action as in Schedule / Schedule Beta. Hidden once the
           client has paid for the class (a paid booking can't be cancelled here). */}
-      {booking.paymentStatus !== "PAID" && booking.status !== "NO_SHOW" && (
+      {booking.paymentStatus !== "PAID" && (
         <div className="flex justify-end items-center gap-2 pt-1">
-          {/* No-show: client never came. Stops the trainer's payment nag and,
-              unlike cancel, does NOT restore a membership class. */}
-          <button
-            type="button"
-            disabled={isUpdating}
-            onClick={() => onUpdate({ status: "NO_SHOW" })}
-            title="Mark this client as a no-show"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-gray-100 text-gray-500 hover:bg-gray-200 active:scale-95 transition disabled:opacity-50"
-          >
-            Mark as no-show
-          </button>
           <button
             type="button"
             disabled={isUpdating}
@@ -519,15 +496,9 @@ export default function BookingsPage() {
                     </div>
                     <div className="hidden lg:block text-sm text-gray-600">{b.slot.trainer?.name ?? <span className="text-gray-400">-</span>}</div>
                     <div>
-                      {b.status === "NO_SHOW" ? (
-                        <span className="text-[10px] lg:text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap bg-gray-100 text-gray-500">
-                          No-show
-                        </span>
-                      ) : (
-                        <span className={cn("text-[10px] lg:text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap", badge.cls)}>
-                          {badge.label}
-                        </span>
-                      )}
+                      <span className={cn("text-[10px] lg:text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap", badge.cls)}>
+                        {badge.label}
+                      </span>
                     </div>
                     <div className="hidden lg:block text-xs text-gray-400">
                       {format(new Date(b.createdAt), "MMM d")}

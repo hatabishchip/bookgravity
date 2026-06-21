@@ -2,11 +2,24 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { format, addMonths, subMonths } from "date-fns"
-import { ChevronLeft, ChevronRight, Plus, Trash2, X, TrendingUp, Wallet, CreditCard, Receipt, DollarSign } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, Trash2, X, TrendingUp, Wallet, CreditCard, Receipt, DollarSign, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { paymentTypeLabel, classTypeLabel } from "@/lib/payments"
 
 type Payment = { id: string; amount: number; note: string | null; createdAt: string; kind?: string }
+type BreakdownRow = {
+  bookingId: string
+  date: string
+  startTime: string
+  classType: string
+  client: string
+  paymentType: string
+  amount: number
+  rate: number
+  commission: number
+  role: "lead" | "assistant"
+}
 type TrainerSalary = {
   id: string
   name: string
@@ -21,6 +34,7 @@ type TrainerSalary = {
   paid: number
   balance: number
   payments: Payment[]
+  breakdown: BreakdownRow[]
 }
 
 type Expense = {
@@ -79,6 +93,7 @@ export default function SalaryPage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [payModal, setPayModal] = useState<TrainerSalary | null>(null)
   const [payAmount, setPayAmount] = useState("")
   const [payNote, setPayNote] = useState("")
@@ -215,7 +230,7 @@ export default function SalaryPage() {
           icon={DollarSign}
           label="Net profit"
           value={formatIDR(netProfit)}
-          sub="Rev − salaries − exp"
+          sub="Rev - salaries - exp"
           color={netProfit >= 0 ? "green" : "red"}
         />
       </div>
@@ -289,6 +304,49 @@ export default function SalaryPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Per-class breakdown — audit each class that built the
+                    commission (Sveta's "Employee commissions" sheet): client,
+                    amount, payment method, %. Rows sum to "comm." above. */}
+                {t.breakdown.length > 0 && (
+                  <div className="pt-3 mt-3 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedIds((prev) => {
+                        const n = new Set(prev)
+                        n.has(t.id) ? n.delete(t.id) : n.add(t.id)
+                        return n
+                      })}
+                      className="w-full flex items-center justify-between text-[11px] uppercase tracking-wide text-gray-400 hover:text-gray-600"
+                    >
+                      <span>Commission breakdown · {t.breakdown.length} classes</span>
+                      <ChevronDown size={14} className={cn("transition-transform", expandedIds.has(t.id) && "rotate-180")} />
+                    </button>
+                    {expandedIds.has(t.id) && (
+                      <div className="mt-2 border border-gray-100 rounded-lg overflow-hidden">
+                        {t.breakdown.map((r) => (
+                          <div key={r.bookingId} className="flex items-center gap-2 px-3 py-2 border-b border-gray-50 last:border-b-0 text-xs">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-gray-800 truncate">{r.client}</div>
+                              <div className="text-[10px] text-gray-400 mt-0.5">
+                                {format(new Date(r.date), "MMM d")} · {r.startTime} · {classTypeLabel(r.classType)}
+                                {r.role === "assistant" && " · assisted"}
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <div className="font-semibold text-gray-900 whitespace-nowrap">+{formatIDR(r.commission)}</div>
+                              <div className="text-[10px] text-gray-400 whitespace-nowrap">{r.rate}% of {formatIDR(r.amount)} · {paymentTypeLabel(r.paymentType)}</div>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between px-3 py-2 bg-gray-50 text-xs">
+                          <span className="font-semibold text-gray-600">Total commission</span>
+                          <span className="font-bold text-gray-900">{formatIDR(t.commission)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -325,7 +383,7 @@ export default function SalaryPage() {
                     <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{exp.category}</span>
                     <span className="text-xs text-gray-400">{format(new Date(exp.date + "T00:00:00"), "d MMM yyyy")}</span>
                   </div>
-                  <div className="text-sm text-gray-700 mt-1">{exp.description || "—"}</div>
+                  <div className="text-sm text-gray-700 mt-1">{exp.description || "-"}</div>
                 </div>
                 <div className="flex flex-col items-end gap-2 flex-shrink-0">
                   <div className="font-semibold text-gray-900">{formatIDR(exp.amount)}</div>

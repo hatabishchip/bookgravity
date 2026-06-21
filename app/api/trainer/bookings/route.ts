@@ -18,10 +18,8 @@ export async function GET(request: NextRequest) {
   const bookings = await prisma.booking.findMany({
     where: {
       slot: { trainerId: trainer.id, studioId: ctx.studioId },
-      // In a single class roster (slotId given) keep no-shows visible so the
-      // trainer can see them and undo a mistake. The flat "All my bookings"
-      // list (no slotId) stays active-only.
-      status: slotId ? { in: ["CONFIRMED", "NO_SHOW"] } : "CONFIRMED",
+      // Only active bookings - a cancelled one drops off the roster entirely.
+      status: "CONFIRMED",
       ...(slotId ? { slotId } : {}),
     },
     include: {

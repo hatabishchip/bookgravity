@@ -26,12 +26,27 @@ export const BOOKING_PAYMENT_TYPES = [
 ] as const
 
 export const PAYMENT_STATUSES = ["PAID", "UNPAID"] as const
-// NO_SHOW = client booked but never came. It drops out of the trainer's
-// "collect payment" nag (which only looks at CONFIRMED) and, unlike CANCELLED,
-// does NOT restore a membership class - a no-show burns the pass class.
-export const BOOKING_STATUSES = ["CONFIRMED", "CANCELLED", "NO_SHOW"] as const
+// CANCELLED = client cancelled or never came. The trainer/admin cancel returns
+// any membership class used and notifies the client. (A separate "no-show"
+// state that burned the pass was removed - owner decision 21.06.2026.)
+export const BOOKING_STATUSES = ["CONFIRMED", "CANCELLED"] as const
 
 export const zBookingPaymentType = z.enum(BOOKING_PAYMENT_TYPES)
 export const zPosPaymentMethod = z.enum(POS_PAYMENT_METHODS)
 export const zPaymentStatus = z.enum(PAYMENT_STATUSES)
 export const zBookingStatus = z.enum(BOOKING_STATUSES)
+
+// Human labels for the salary breakdown (and anywhere a paid booking is shown).
+export const PAYMENT_TYPE_LABEL: Record<string, string> = {
+  CASH: "Cash",
+  EDC: "Card (EDC)",
+  QR: "QR",
+  TRANSFER: "Transfer",
+  MEMBERSHIP: "Membership",
+  ONLINE: "Online",
+  OFFLINE: "Offline",
+  PENDING: "Pending",
+}
+export const paymentTypeLabel = (t: string) => PAYMENT_TYPE_LABEL[t] ?? t
+export const classTypeLabel = (t: string) =>
+  t === "PRIVATE" ? "Private" : t === "KIDS" ? "Kids" : t === "GROUP" ? "Group" : t

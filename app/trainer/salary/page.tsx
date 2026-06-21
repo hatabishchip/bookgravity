@@ -6,6 +6,21 @@ import { ChevronLeft, ChevronRight, Banknote, Users, HandHelping, TrendingUp } f
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { formatIDRCompact as formatIDR } from "@/lib/format"
+import { paymentTypeLabel, classTypeLabel } from "@/lib/payments"
+import { format as formatDate, parseISO } from "date-fns"
+
+type BreakdownRow = {
+  bookingId: string
+  date: string
+  startTime: string
+  classType: string
+  client: string
+  paymentType: string
+  amount: number
+  rate: number
+  commission: number
+  role: "lead" | "assistant"
+}
 
 type Salary = {
   baseSalary: number
@@ -19,9 +34,14 @@ type Salary = {
   paidBookingsCount: number
   sessionsWorked: number
   assistedCount: number
+  breakdown: BreakdownRow[]
   month: string
   monthLabel: string
 }
+
+// Full-rupiah format for the per-class list, so a trainer can add the rows up
+// and match the total (the headline cards use the compact 1.2M style).
+const fmtFull = (n: number) => "Rp " + n.toLocaleString("en-US")
 
 // formatIDR now lives in lib/format (formatIDRCompact) — the local copy
 // carried the toFixed(1) bug that rendered 1.35M as "1.4M".
@@ -111,7 +131,7 @@ export default function TrainerSalaryPage() {
             <Row
               icon={<TrendingUp size={16} className="text-gray-400" />}
               label={`Commission${salary.assistantCommission > 0 ? " (lead)" : ""}`}
-              sub={`${salary.commissionRate}% of paid bookings — ${salary.assistantRate}% goes to the assistant when present`}
+              sub={`${salary.commissionRate}% of paid bookings - ${salary.assistantRate}% goes to the assistant when present`}
               value={`+ Rp ${formatIDR(salary.mainCommission)}`}
               hideSub={salary.mainCommission === 0}
             />
@@ -131,10 +151,46 @@ export default function TrainerSalaryPage() {
             />
           </div>
 
+          {/* Per-class breakdown — every paid class that built this total, so a
+              trainer sees exactly what earned what (read-only). The rows sum to
+              the Commission above. */}
+          {salary.breakdown.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-800">Your classes this month</span>
+                <span className="text-xs text-gray-400">{salary.breakdown.length} paid</span>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {salary.breakdown.map((r) => (
+                  <div key={r.bookingId} className="flex items-center gap-3 px-5 py-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-gray-800 truncate">{r.client}</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">
+                        {formatDate(parseISO(r.date), "MMM d")} · {r.startTime} · {classTypeLabel(r.classType)}
+                        {r.role === "assistant" && " · assisted"}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-sm font-semibold text-gray-900 whitespace-nowrap">+ {fmtFull(r.commission)}</div>
+                      <div className="text-[11px] text-gray-400 whitespace-nowrap">
+                        {r.rate}% of {fmtFull(r.amount)} · {paymentTypeLabel(r.paymentType)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-t border-gray-100">
+                <span className="text-sm font-semibold text-gray-700">Total commission</span>
+                <span className="text-sm font-bold text-gray-900">{fmtFull(salary.commission)}</span>
+              </div>
+            </div>
+          )}
+
           {/* Note */}
           <div className="text-xs text-gray-400 px-2">
-            You earn {salary.commissionRate}% of paid bookings on your sessions. When a session has an
-            assistant trainer, {salary.assistantRate}% of that goes to the assistant and the rest to you.
+            You earn {salary.commissionRate}% of paid bookings on your sessions - there is no fixed base
+            salary, your pay is the commission on the classes above. When a session has an assistant
+            trainer, {salary.assistantRate}% of that goes to the assistant and the rest to you.
           </div>
         </div>
       )}
