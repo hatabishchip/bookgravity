@@ -55,9 +55,9 @@ export default function LoginScreen() {
             label="Email or username"
             autoCapitalize="none"
             autoCorrect={false}
-            autoComplete="username"
+            autoComplete="off"
+            importantForAutofill="no"
             keyboardType="email-address"
-            textContentType="username"
             value={email}
             onChangeText={setEmail}
             placeholder="you@studio.com"
@@ -68,8 +68,8 @@ export default function LoginScreen() {
           <Input
             label="Password"
             secureTextEntry
-            autoComplete="current-password"
-            textContentType="password"
+            autoComplete="off"
+            importantForAutofill="no"
             value={password}
             onChangeText={setPassword}
             placeholder="••••••••"
