@@ -178,9 +178,25 @@ model User {
   trainer             Trainer?
   passwordResetTokens PasswordResetToken[]
   pushTokens          NativePushToken[]
+  webPushSubscriptions WebPushSubscription[]
   loginSessions       LoginSession[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+}
+
+// A browser's Web Push subscription (PWA notifications). Lets the web admin /
+// trainer cabinet ring like WhatsApp on a phone without a native app - works on
+// Android Chrome and iOS 16.4+ when the site is added to the home screen.
+model WebPushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // Web sign-ins. Recorded when a user logs in via the browser (NextAuth uses

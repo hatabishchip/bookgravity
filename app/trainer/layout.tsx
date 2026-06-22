@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { useVisualViewport } from "@/lib/use-visual-viewport"
 import FloatingInbox from "@/app/_components/FloatingInbox"
+import WebPushManager from "@/app/_components/WebPushManager"
 import { formatIDRCompact as formatIDR } from "@/lib/format"
 
 const navItems = [
@@ -227,6 +228,7 @@ export default function TrainerLayout({ children }: { children: React.ReactNode 
           <main className="flex-1 p-4 lg:p-8 min-w-0 overflow-x-hidden pt-[72px] lg:pt-8">{children}</main>
         </div>
         <FloatingInbox role="TRAINER" />
+        <WebPushManager />
       </div>
     </SessionProvider>
   )

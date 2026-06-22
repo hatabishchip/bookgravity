@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation"
 import { Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Settings, ExternalLink, X, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import FloatingInbox from "@/app/_components/FloatingInbox"
+import WebPushManager from "@/app/_components/WebPushManager"
 
 const navItems: { href: string; label: string; icon: React.ComponentType<{ size?: number }>; beta?: boolean }[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -175,6 +176,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <main className="flex-1 p-4 lg:p-8 min-w-0 overflow-x-hidden">{children}</main>
         </div>
         <FloatingInbox role="ADMIN" />
+        <WebPushManager />
       </div>
     </SessionProvider>
   )

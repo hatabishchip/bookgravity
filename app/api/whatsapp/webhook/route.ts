@@ -18,6 +18,7 @@ import { translateAndDetect } from "@/lib/translate"
 import { handleCancelBotMessage } from "@/lib/cancel-bot"
 import { pickNextLeadTrainer } from "@/lib/lead-rotation"
 import { sendPush } from "@/lib/expo-push"
+import { sendWebPush } from "@/lib/web-push"
 
 // WhatsApp Cloud API webhook.
 //
@@ -401,7 +402,8 @@ export async function POST(request: NextRequest) {
               const preview = type === "text" ? (msgBody ?? "").slice(0, 120) : `[${type}]`
               const title = convo.clientName ?? "New message"
               await Promise.all(
-                [...recipients].map((userId) =>
+                [...recipients].flatMap((userId) => [
+                  // Native push (Android/iOS app).
                   sendPush({
                     userId,
                     title,
@@ -409,7 +411,14 @@ export async function POST(request: NextRequest) {
                     category: "message",
                     data: { conversationId: convo.id },
                   }),
-                ),
+                  // Web push (PWA on phone, no native app needed).
+                  sendWebPush({
+                    userId,
+                    title,
+                    body: preview || "New message",
+                    data: { conversationId: convo.id },
+                  }),
+                ]),
               )
             } catch (err) {
               console.warn("[whatsapp-webhook] message push failed:", err)
