@@ -138,6 +138,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Don't create a class over a sublet block - the room is already rented out
+    // for that window (the studio-sublet service holds it).
+    const subletBlocks = await prisma.studioBlock.findMany({ where: { date: data.date, studioId: ctx.studioId } })
+    for (const blk of subletBlocks) {
+      const bStart = timeToMin(blk.startTime)
+      const bEnd = timeToMin(blk.endTime)
+      if (startMin < bEnd && bStart < endMin) {
+        return NextResponse.json(
+          { error: `Conflicts with a sublet booking at ${blk.startTime}-${blk.endTime}${blk.label ? ` (${blk.label})` : ""}.` },
+          { status: 409 }
+        )
+      }
+    }
+
     // Private session is always max 1 person
     const finalCapacity = data.classType === "PRIVATE" ? 1 : data.maxCapacity
 

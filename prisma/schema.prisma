@@ -130,11 +130,33 @@ model Studio {
   trainers     Trainer[]
   timeSlots    TimeSlot[]
   blockedDays  BlockedDay[]
+  studioBlocks StudioBlock[]
   payments     TrainerPayment[]
   expenses     Expense[]
   services     AdditionalService[]
   memberships  Membership[]
   whatsappConversations WhatsAppConversation[]
+}
+
+// A time-range the studio room is occupied by something OTHER than a class -
+// currently sublease bookings made through the separate "studio-sublet"
+// service, which talks to us only via /api/external/*. A block reserves the
+// physical room: no class slot can be created over it, and the sublet service
+// reads these (plus class slots) to know what's free. NEVER shown on the
+// public client booking page.
+model StudioBlock {
+  id          String   @id @default(cuid())
+  studioId    String
+  studio      Studio   @relation(fields: [studioId], references: [id])
+  date        String   // yyyy-MM-dd (Bali date)
+  startTime   String   // HH:mm
+  endTime     String   // HH:mm
+  label       String?  // subtenant name / note shown in admin
+  source      String   @default("SUBLET") // SUBLET (from the sublet service) | MANUAL
+  externalRef String?  // the booking id in the sublet service, for idempotent delete
+  createdAt   DateTime @default(now())
+
+  @@index([studioId, date])
 }
 
 model User {
