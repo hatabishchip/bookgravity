@@ -386,34 +386,37 @@ export async function POST(request: NextRequest) {
             // after the response) but guarded so a push failure never 500s the
             // webhook or blocks the cancel-bot below.
             try {
-              const recipients = new Set<string>()
-              const admins = await prisma.user.findMany({
-                where: { studioId, role: { in: ["ADMIN", "SUPER_ADMIN"] } },
-                select: { id: true },
+              // Collect recipients (admin users + assigned trainer), including
+              // their personal notification mode so each device gets the right
+              // sound/vibration channel.
+              const recipientRows = await prisma.user.findMany({
+                where: {
+                  studioId,
+                  OR: [
+                    { role: { in: ["ADMIN", "SUPER_ADMIN"] } },
+                    ...(assignedTrainerId
+                      ? [{ trainer: { id: assignedTrainerId } }]
+                      : []),
+                  ],
+                },
+                select: { id: true, chatNotifMode: true },
               })
-              admins.forEach((u) => recipients.add(u.id))
-              if (assignedTrainerId) {
-                const tr = await prisma.trainer.findUnique({
-                  where: { id: assignedTrainerId },
-                  select: { userId: true },
-                })
-                if (tr?.userId) recipients.add(tr.userId)
-              }
               const preview = type === "text" ? (msgBody ?? "").slice(0, 120) : `[${type}]`
               const title = convo.clientName ?? "New message"
               await Promise.all(
-                [...recipients].flatMap((userId) => [
-                  // Native push (Android/iOS app).
+                recipientRows.flatMap((u) => [
+                  // Native push (Android/iOS app) - respect user's sound/vibration preference.
                   sendPush({
-                    userId,
+                    userId: u.id,
                     title,
                     body: preview || "New message",
                     category: "message",
                     data: { conversationId: convo.id },
+                    chatNotifMode: (u.chatNotifMode as "SOUND_VIBRATION" | "VIBRATION_ONLY" | "SOUND_ONLY") ?? "SOUND_VIBRATION",
                   }),
                   // Web push (PWA on phone, no native app needed).
                   sendWebPush({
-                    userId,
+                    userId: u.id,
                     title,
                     body: preview || "New message",
                     data: { conversationId: convo.id },

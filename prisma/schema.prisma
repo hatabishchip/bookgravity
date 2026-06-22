@@ -180,6 +180,9 @@ model User {
   pushTokens          NativePushToken[]
   webPushSubscriptions WebPushSubscription[]
   loginSessions       LoginSession[]
+  // How the user wants to be notified for new chat messages.
+  // SOUND_VIBRATION (default) | VIBRATION_ONLY | SOUND_ONLY
+  chatNotifMode       String               @default("SOUND_VIBRATION")
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }

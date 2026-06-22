@@ -11,6 +11,8 @@
 
 import { prisma } from "@/lib/prisma"
 
+type ChatNotifMode = "SOUND_VIBRATION" | "VIBRATION_ONLY" | "SOUND_ONLY"
+
 type Payload = {
   title: string
   body: string
@@ -18,15 +20,30 @@ type Payload = {
   // iOS / Android category — the app uses this to deep-link on tap.
   // e.g. category: "booking" → tap opens the trainer's class screen.
   category?: string
+  // Override sound/vibration behaviour for this notification. When omitted,
+  // defaults to SOUND_VIBRATION. Used for chat messages so each user hears
+  // what their Profile "Notifications" setting says.
+  chatNotifMode?: ChatNotifMode
 }
 
 type Recipient = { userId: string } | { expoPushTokens: string[] }
 
 const ENDPOINT = "https://exp.host/--/api/v2/push/send"
 
+// Maps a user's chatNotifMode to Expo push fields.
+function notifModeToFields(mode: ChatNotifMode): { sound: "default" | null; channelId: string } {
+  switch (mode) {
+    case "VIBRATION_ONLY": return { sound: null, channelId: "chat_vibration" }
+    case "SOUND_ONLY":     return { sound: "default", channelId: "chat_sound" }
+    default:               return { sound: "default", channelId: "chat_sound_vibration" }
+  }
+}
+
 export async function sendPush(args: Recipient & Payload): Promise<void> {
   const tokens = await resolveTokens(args)
   if (tokens.length === 0) return
+
+  const { sound, channelId } = notifModeToFields(args.chatNotifMode ?? "SOUND_VIBRATION")
 
   // Expo accepts an array of message objects (one per recipient). Chunk
   // by 100 to stay under the documented batch limit.
@@ -36,7 +53,10 @@ export async function sendPush(args: Recipient & Payload): Promise<void> {
     body: args.body,
     data: args.data ?? {},
     categoryId: args.category,
-    sound: "default" as const,
+    sound,
+    // channelId selects the Android notification channel (sound + vibration
+    // config). The mobile app registers all three channels at startup.
+    channelId,
   }))
 
   for (let i = 0; i < messages.length; i += 100) {

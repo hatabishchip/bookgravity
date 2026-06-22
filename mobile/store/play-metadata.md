@@ -21,20 +21,19 @@ Open the app, see what's free today, lock in your spot in three taps, and get a
 QR ticket you can show at the door. That's it.
 
 WHAT YOU CAN DO
-• Browse the live schedule — group, kids, and private stretching classes
-• Book a slot in seconds with your name, phone, and email
-• Add a friend or two to the same booking (party size up to 6)
-• Pick optional services (mats, towels, etc.) at booking time
-• Save QR tickets locally so they work even without signal
-• Get notifications for booking confirmations and class reminders
+- Browse the live class schedule
+- Book a stretching class in seconds with your name, phone, and email
+- Add a friend or two to the same booking (group size up to 6)
+- Get a QR ticket to show at the door
+- Review your upcoming and past bookings
 
 FOR OUR TRAINERS
 If you teach at Gravity Stretching, sign in with the credentials your studio
 admin gave you and you'll see:
-• Today's class roster and the next 7 days at a glance
-• Per-class client list with tap-to-call
-• A camera-based QR check-in scanner — no more paper lists
-• A push whenever a new booking lands in your class
+- Today's class roster and the next 7 days at a glance
+- Per-class client list with tap-to-call
+- A camera-based QR check-in scanner - no more paper lists
+- A push notification when a new booking lands in your class
 
 PRIVACY & DATA
 We collect only what's needed to manage your booking (name, email, phone). We

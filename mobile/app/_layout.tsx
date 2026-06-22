@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { AppState } from "react-native"
+import { AppState, Platform } from "react-native"
 import { Stack, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
@@ -10,11 +10,38 @@ import * as Notifications from "expo-notifications"
 import * as Updates from "expo-updates"
 import { useAuth, homeRouteFor } from "@/lib/auth"
 import { useTheme } from "@/hooks/useTheme"
+import { api } from "@/lib/api"
 
 // Hide the native splash until we've at least read the secure store, so
 // the user never sees a flash of "Sign in" before the cached session
 // rehydrates into the trainer/client tabs.
 SplashScreen.preventAutoHideAsync().catch(() => {})
+
+// Android notification channels for chat messages. Created once at startup;
+// the server picks the right channel via channelId in the push payload.
+if (Platform.OS === "android") {
+  Notifications.setNotificationChannelAsync("chat_sound_vibration", {
+    name: "Chat - Sound & Vibration",
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: "default",
+    vibrationPattern: [0, 250, 250, 250],
+    enableVibrate: true,
+  }).catch(() => {})
+  Notifications.setNotificationChannelAsync("chat_vibration", {
+    name: "Chat - Vibration only",
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: null,
+    vibrationPattern: [0, 250, 250, 250],
+    enableVibrate: true,
+  }).catch(() => {})
+  Notifications.setNotificationChannelAsync("chat_sound", {
+    name: "Chat - Sound only",
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: "default",
+    vibrationPattern: undefined,
+    enableVibrate: false,
+  }).catch(() => {})
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,9 +81,26 @@ export default function RootLayout() {
     }
   }, [bootstrapped, user, segments, router])
 
-  // 3. Notification tap handler. The backend sends data.category="booking"
+  // 3. Badge: fetch unread chat count and sync it to the app icon badge.
+  //    Runs on startup (when user is known) and every time the app comes
+  //    to the foreground, so the badge stays fresh.
+  useEffect(() => {
+    if (!user) { Notifications.setBadgeCountAsync(0).catch(() => {}); return }
+    const refresh = async () => {
+      try {
+        const res = await api<{ unread: number }>("/api/push/unread")
+        await Notifications.setBadgeCountAsync(res.unread)
+      } catch { /* no-op: offline or token expired */ }
+    }
+    refresh()
+    const sub = AppState.addEventListener("change", (s) => { if (s === "active") refresh() })
+    return () => sub.remove()
+  }, [user])
+
+  // 4. Notification tap handler. The backend sends data.category="booking"
   //    with data.slotId so we can deep-link into the trainer's class screen
-  //    when they tap a "new booking" push.
+  //    when they tap a "new booking" push. For "message" taps, open the inbox
+  //    in the right WebView depending on role.
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
       const data = resp.notification.request.content.data as
@@ -66,11 +110,12 @@ export default function RootLayout() {
       if (data.category === "booking" && data.slotId) {
         router.push({ pathname: "/(trainer)/class", params: { slotId: data.slotId } })
       } else if (data.category === "message") {
-        // A client wrote in. Admins land in the web inbox (inside the admin
-        // WebView); trainers just get the ring (no native inbox screen yet).
         const role = useAuth.getState().user?.role
         if (role === "ADMIN" || role === "SUPER_ADMIN") {
           router.push({ pathname: "/(admin)", params: { next: "/admin/inbox" } })
+        } else {
+          // Trainer: open their inbox WebView (tab index 4, "Messages").
+          router.push("/(trainer)/inbox")
         }
       }
     })
