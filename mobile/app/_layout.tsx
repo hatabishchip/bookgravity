@@ -1,4 +1,5 @@
 import { useEffect } from "react"
+import { AppState } from "react-native"
 import { Stack, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
@@ -6,6 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import * as SplashScreen from "expo-splash-screen"
 import * as Notifications from "expo-notifications"
+import * as Updates from "expo-updates"
 import { useAuth, homeRouteFor } from "@/lib/auth"
 import { useTheme } from "@/hooks/useTheme"
 
@@ -67,6 +69,28 @@ export default function RootLayout() {
     })
     return () => sub.remove()
   }, [router])
+
+  // 4. OTA: silently check + download a pushed JS/asset fix on cold start and
+  //    whenever the app returns to the foreground, so it's ready to apply.
+  //    The user applies it from Profile > "Check for updates" (which reloads
+  //    into it), or it applies automatically on the next cold start. No-ops in
+  //    Expo Go / dev where Updates.isEnabled is false.
+  useEffect(() => {
+    if (!Updates.isEnabled) return
+    const check = async () => {
+      try {
+        const res = await Updates.checkForUpdateAsync()
+        if (res.isAvailable) await Updates.fetchUpdateAsync()
+      } catch {
+        // Offline or no update server reachable - ignore, try again next time.
+      }
+    }
+    check()
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") check()
+    })
+    return () => sub.remove()
+  }, [])
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.bg.page }}>

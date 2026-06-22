@@ -4,6 +4,13 @@
     "slug": "gravity-stretching",
     "scheme": "gravitystretching",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/538cbb55-1fe3-4195-bed2-b8ece8b0f43d",
+      "fallbackToCacheTimeout": 0
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

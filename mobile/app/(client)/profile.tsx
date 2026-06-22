@@ -5,6 +5,7 @@ import { spacing, radius } from "@/lib/theme"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
 import { Button } from "@/components/ui/Button"
+import { UpdateButton } from "@/components/UpdateButton"
 
 export default function ProfileTab() {
   const { theme } = useTheme()
@@ -21,6 +22,11 @@ export default function ProfileTab() {
         <Text variant="footnote" tone="muted" style={{ marginTop: 2 }}>
           {(user?.role ?? "—").toLowerCase()} · {user?.studioSlug ?? "—"}
         </Text>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: theme.bg.card, borderColor: theme.border.subtle }]}>
+        <Text variant="caption" tone="muted" style={{ marginBottom: spacing.sm }}>App</Text>
+        <UpdateButton />
       </View>
 
       <Button title="Sign out" variant="secondary" onPress={signOut} />
