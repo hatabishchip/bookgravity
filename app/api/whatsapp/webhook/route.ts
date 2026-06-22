@@ -17,6 +17,7 @@ import { sendInboundWhatsAppCopy } from "@/lib/mailer"
 import { translateAndDetect } from "@/lib/translate"
 import { handleCancelBotMessage } from "@/lib/cancel-bot"
 import { pickNextLeadTrainer } from "@/lib/lead-rotation"
+import { sendPush } from "@/lib/expo-push"
 
 // WhatsApp Cloud API webhook.
 //
@@ -377,6 +378,42 @@ export async function POST(request: NextRequest) {
               conversationId: convo.id,
               hasTrainer: !!assignedTrainerId,
             })
+
+            // Ring like WhatsApp: a native push for every inbound client message
+            // to the studio's admins and the assigned trainer, deep-linking into
+            // this chat (category "message"). Awaited (serverless can freeze
+            // after the response) but guarded so a push failure never 500s the
+            // webhook or blocks the cancel-bot below.
+            try {
+              const recipients = new Set<string>()
+              const admins = await prisma.user.findMany({
+                where: { studioId, role: { in: ["ADMIN", "SUPER_ADMIN"] } },
+                select: { id: true },
+              })
+              admins.forEach((u) => recipients.add(u.id))
+              if (assignedTrainerId) {
+                const tr = await prisma.trainer.findUnique({
+                  where: { id: assignedTrainerId },
+                  select: { userId: true },
+                })
+                if (tr?.userId) recipients.add(tr.userId)
+              }
+              const preview = type === "text" ? (msgBody ?? "").slice(0, 120) : `[${type}]`
+              const title = convo.clientName ?? "New message"
+              await Promise.all(
+                [...recipients].map((userId) =>
+                  sendPush({
+                    userId,
+                    title,
+                    body: preview || "New message",
+                    category: "message",
+                    data: { conversationId: convo.id },
+                  }),
+                ),
+              )
+            } catch (err) {
+              console.warn("[whatsapp-webhook] message push failed:", err)
+            }
 
             // Auto-assigned ad lead → ping the trainer's personal WhatsApp once
             // with this first message (they have no open 24h window, so via the

@@ -60,11 +60,18 @@ export default function RootLayout() {
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
       const data = resp.notification.request.content.data as
-        | { category?: string; slotId?: string }
+        | { category?: string; slotId?: string; conversationId?: string }
         | undefined
       if (!data) return
       if (data.category === "booking" && data.slotId) {
         router.push({ pathname: "/(trainer)/class", params: { slotId: data.slotId } })
+      } else if (data.category === "message") {
+        // A client wrote in. Admins land in the web inbox (inside the admin
+        // WebView); trainers just get the ring (no native inbox screen yet).
+        const role = useAuth.getState().user?.role
+        if (role === "ADMIN" || role === "SUPER_ADMIN") {
+          router.push({ pathname: "/(admin)", params: { next: "/admin/inbox" } })
+        }
       }
     })
     return () => sub.remove()

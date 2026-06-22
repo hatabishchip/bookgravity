@@ -68,8 +68,9 @@ export const useAuth = create<AuthState>((set) => ({
 }))
 
 // Helper for screens that need to decide where to land after auth resolves.
-export function homeRouteFor(role: UserRole | undefined): "/(auth)/login" | "/(client)" | "/(trainer)" {
+export function homeRouteFor(role: UserRole | undefined): "/(auth)/login" | "/(client)" | "/(trainer)" | "/(admin)" {
   if (role === "TRAINER") return "/(trainer)"
-  if (role === "ADMIN" || role === "SUPER_ADMIN" || role === "CLIENT") return "/(client)"
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return "/(admin)"
+  if (role === "CLIENT") return "/(client)"
   return "/(auth)/login"
 }

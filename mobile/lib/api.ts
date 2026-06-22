@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store"
 // Cross-platform base URL for the bookgravity backend. Lives in app.json
 // under expo.extra.apiBaseUrl so a single build can swap between prod and
 // staging via EAS env variables.
-const API_BASE = ((Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl) ??
+export const API_BASE = ((Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl) ??
   "https://bookgravity.com"
 
 // Token storage keys. SecureStore uses iOS Keychain / Android Keystore so
