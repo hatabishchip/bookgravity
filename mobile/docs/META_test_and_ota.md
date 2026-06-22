@@ -18,12 +18,15 @@ OTA = EAS Update (expo-updates). Каналы в eas.json: `preview` (тест) 
 - Кнопка добавлена в `app/(client)/profile.tsx` и `app/(trainer)/profile.tsx`.
 - typecheck чистый. Закоммичено + запушено.
 
-## Фаза 1 - Android тест (прямой APK)
-1. `eas build -p android --profile preview` → APK (канал preview). Взять ссылку/QR.
-2. Отдать владельцу ссылку/файл → тестеры ставят (разрешить неизвестные источники).
-3. Тест OTA: мелкая JS-правка → `eas update --channel preview --message "..."` → на телефоне Profile → Check for updates → проверить что подтянулось без переустановки.
+## Фаза 1 - Android тест (прямой APK) ✅ СОБРАНО 22.06.2026
+- EAS auth: токен hatabishchip в ~/.claude/secure/expo-token.txt (создан через Continue-with-Google).
+- `eas build -p android --profile preview` → **APK готов**: https://expo.dev/artifacts/eas/m89bpnG9fSy5AXWH8U00UWieX9aJqA85E2dJBKFJYiY.apk (v1.0.0, versionCode 6, канал preview, build 9b7ea0fb). Keystore сгенерирован EAS (Build Credentials lU7KKWC7yr).
+- TODO: отдать тестерам, проверить установку + OTA-цикл (`eas update --channel preview` → кнопка в Profile).
 
-## Фаза 2 - iOS тест (TestFlight, Education A5837FW3PP)
+## Фаза 2 - iOS тест (TestFlight) - ⏸️ ОТЛОЖЕНО 22.06.2026
+**Заблокировано на Apple-аккаунте.** Education A5837FW3PP: владелец (Account Holder) НЕ hatabishchip (он там только Admin) → owner-only действия (принять обновлённое лиц.соглашение, включить ASC API) недоступны, упирается «на владельца». PT Gravity Stretching Canggu: enrollment ещё не одобрен (ждём переводы). Личный Individual Apple под hatabishchip - не подтверждён в App Store Connect (показывал только Education). **Решение владельца 22.06: iOS отложить, делать под PT после одобрения enrollment** (там hatabishchip = владелец, без блоков). Код-groundwork (.test bundle через app.config.js + профиль testflight в eas.json) уже готов и закоммичен (d62c662) - пригодится позже. NB про iOS-auth: интерактивная 2FA через Bash в этом харнессе не работает; нужен ASC API key (создаётся в браузере владельцем, headless Apple-сессию не читает) ИЛИ ждать PT.
+
+## Фаза 2-OLD - iOS тест (TestFlight, Education A5837FW3PP)
 1. EAS логин в Apple Team A5837FW3PP (Apple ID hatabishchip, 2FA от владельца).
 2. iOS bundle для теста: `com.bookgravity.gravitystretching.test` (через app config override для preview, чтобы продакшн app.json не менять).
 3. Создать app в App Store Connect (Education) → `eas build -p ios --profile preview` (store-signed) → `eas submit -p ios`.
