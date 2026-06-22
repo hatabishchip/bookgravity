@@ -48,7 +48,10 @@ export default function WebPushManager() {
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+        // Cast: the runtime value is a valid Uint8Array; the double-cast just
+        // sidesteps the strict ArrayBufferLike/SharedArrayBuffer variance in
+        // newer TS lib.dom types.
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) as unknown as BufferSource,
       })
     }
     await fetch("/api/web-push/subscribe", {
