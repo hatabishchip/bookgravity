@@ -13,7 +13,7 @@ export default function ProfileTab() {
   const signOut = useAuth((s) => s.signOut)
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: spacing.xl, gap: spacing.lg }} edges={["top"]}>
+    <SafeAreaView style={{ flex: 1, padding: spacing.xl, gap: spacing.lg }} edges={["top", "bottom"]}>
       <Text variant="title2" tone="primary">Profile</Text>
 
       <View style={[styles.card, { backgroundColor: theme.bg.card, borderColor: theme.border.subtle }]}>
