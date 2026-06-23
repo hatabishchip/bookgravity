@@ -1497,10 +1497,10 @@ export default function Inbox({
                         </>
                       )}
                     </div>
-                    {/* WhatsApp-style green unread badge on the right */}
+                    {/* Unread dot — shows 1 per conversation (same principle as app icon badge). */}
                     {hasUnread && (
-                      <span className="bg-[#25D366] text-white text-[11px] min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center font-semibold tabular-nums flex-shrink-0">
-                        {c.unread > 99 ? "99+" : c.unread}
+                      <span className="bg-[#25D366] text-white text-[11px] w-5 h-5 rounded-full flex items-center justify-center font-semibold flex-shrink-0">
+                        1
                       </span>
                     )}
                   </div>
