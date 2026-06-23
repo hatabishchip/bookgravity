@@ -63,7 +63,14 @@ export async function POST(request: NextRequest) {
         role: user.role,
         studioId: user.studioId,
         studioSlug: user.studio.slug,
-        studioLogoUrl: user.studio.logoUrl ?? null,
+        // Send a lightweight URL to the public logo endpoint, NOT the raw
+        // data URL. The stored logoUrl is a base64 data URL (tens of KB) and
+        // the mobile auth store persists this user object into expo-secure-store,
+        // which has a ~2KB per-value limit on Android - a data URL here would
+        // blow that limit and silently drop the cached session (kicking the
+        // trainer back to login on every cold start). /api/logo?s=slug returns
+        // a trimmed, transparent PNG and is cached server-side.
+        studioLogoUrl: user.studio.logoUrl ? `/api/logo?s=${user.studio.slug}` : null,
       },
     })
   } catch (err) {

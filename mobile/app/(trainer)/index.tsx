@@ -9,6 +9,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
 import { useTrainerSchedule, type TrainerSlot } from "@/hooks/useTrainerSchedule"
 import { useAuth } from "@/lib/auth"
+import { API_BASE } from "@/lib/api"
 
 // Trainer's home: a segmented Today / Week / Upcoming switch over the same
 // /api/trainer/schedule endpoint the web dashboard uses. Each card opens
@@ -18,6 +19,10 @@ export default function TrainerScheduleTab() {
   const { theme } = useTheme()
   const router = useRouter()
   const studioLogoUrl = useAuth((s) => s.user?.studioLogoUrl)
+  // The server sends a relative /api/logo path; resolve it against the API host.
+  const logoUri = studioLogoUrl
+    ? studioLogoUrl.startsWith("http") ? studioLogoUrl : `${API_BASE}${studioLogoUrl}`
+    : null
   const [view, setView] = useState<"today" | "week" | "upcoming">("today")
   const todayStr = format(new Date(), "yyyy-MM-dd")
 
@@ -40,9 +45,9 @@ export default function TrainerScheduleTab() {
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.brand.primary} />}
       >
-        {studioLogoUrl ? (
+        {logoUri ? (
           <Image
-            source={{ uri: studioLogoUrl }}
+            source={{ uri: logoUri }}
             style={{ height: 48, width: 160, resizeMode: "contain", alignSelf: "flex-start" }}
           />
         ) : (

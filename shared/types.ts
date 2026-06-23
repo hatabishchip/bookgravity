@@ -56,6 +56,9 @@ export type NativeLoginResponse = {
     role: UserRole
     studioId: string
     studioSlug: string
+    // Relative path to the public logo endpoint (e.g. "/api/logo?s=canggu"),
+    // or null when the studio has no logo. NEVER a base64 data URL here - the
+    // mobile auth store persists this object in expo-secure-store (~2KB cap).
     studioLogoUrl: string | null
   }
   expiresAt: number  // unix ms
