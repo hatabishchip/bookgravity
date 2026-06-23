@@ -36,6 +36,7 @@
     },
     "android": {
       "package": "com.bookgravity.gravitystretching",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

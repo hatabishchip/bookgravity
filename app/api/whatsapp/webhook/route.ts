@@ -399,29 +399,49 @@ export async function POST(request: NextRequest) {
                       : []),
                   ],
                 },
-                select: { id: true, chatNotifMode: true },
+                select: { id: true, chatNotifMode: true, role: true, trainer: { select: { id: true } } },
               })
               const preview = type === "text" ? (msgBody ?? "").slice(0, 120) : `[${type}]`
               const title = convo.clientName ?? "New message"
+
+              // Compute badge (unread conversation count) per user so the app
+              // icon updates immediately when the push lands.
+              const adminBadge = await prisma.whatsAppConversation.count({
+                where: { studioId, unreadAdmin: { gt: 0 } },
+              })
+              const trainerBadgeFn = async (trainerId: string) =>
+                prisma.whatsAppConversation.count({
+                  where: { studioId, assignedTrainerId: trainerId, unreadTrainer: { gt: 0 } },
+                })
+
               await Promise.all(
-                recipientRows.flatMap((u) => [
-                  // Native push (Android/iOS app) - respect user's sound/vibration preference.
-                  sendPush({
-                    userId: u.id,
-                    title,
-                    body: preview || "New message",
-                    category: "message",
-                    data: { conversationId: convo.id },
-                    chatNotifMode: (u.chatNotifMode as "SOUND_VIBRATION" | "VIBRATION_ONLY" | "SOUND_ONLY") ?? "SOUND_VIBRATION",
-                  }),
-                  // Web push (PWA on phone, no native app needed).
-                  sendWebPush({
-                    userId: u.id,
-                    title,
-                    body: preview || "New message",
-                    data: { conversationId: convo.id },
-                  }),
-                ]),
+                recipientRows.flatMap((u) => {
+                  const isAdmin = u.role === "ADMIN" || u.role === "SUPER_ADMIN"
+                  const badgePromise = isAdmin
+                    ? Promise.resolve(adminBadge)
+                    : u.trainer ? trainerBadgeFn(u.trainer.id) : Promise.resolve(undefined)
+                  return [
+                    // Native push (Android/iOS app) - respect user's sound/vibration preference.
+                    badgePromise.then((badge) =>
+                      sendPush({
+                        userId: u.id,
+                        title,
+                        body: preview || "New message",
+                        category: "message",
+                        data: { conversationId: convo.id },
+                        chatNotifMode: (u.chatNotifMode as "SOUND_VIBRATION" | "VIBRATION_ONLY" | "SOUND_ONLY") ?? "SOUND_VIBRATION",
+                        badge,
+                      })
+                    ),
+                    // Web push (PWA on phone, no native app needed).
+                    sendWebPush({
+                      userId: u.id,
+                      title,
+                      body: preview || "New message",
+                      data: { conversationId: convo.id },
+                    }),
+                  ]
+                }),
               )
             } catch (err) {
               console.warn("[whatsapp-webhook] message push failed:", err)

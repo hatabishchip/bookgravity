@@ -24,6 +24,9 @@ type Payload = {
   // defaults to SOUND_VIBRATION. Used for chat messages so each user hears
   // what their Profile "Notifications" setting says.
   chatNotifMode?: ChatNotifMode
+  // iOS badge count + Android shortcut badge. Set to the user's total unread
+  // conversation count so the app icon reflects reality immediately on push.
+  badge?: number
 }
 
 type Recipient = { userId: string } | { expoPushTokens: string[] }
@@ -57,6 +60,9 @@ export async function sendPush(args: Recipient & Payload): Promise<void> {
     // channelId selects the Android notification channel (sound + vibration
     // config). The mobile app registers all three channels at startup.
     channelId,
+    // Badge on the app icon (iOS) and shortcut badge (Android).
+    // Callers pass the user's current total unread conversation count.
+    ...(args.badge !== undefined ? { badge: args.badge } : {}),
   }))
 
   for (let i = 0; i < messages.length; i += 100) {
