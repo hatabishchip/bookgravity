@@ -35,66 +35,64 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <div className="p-5 border-b border-gray-100 dark:border-white/10 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h1 className="font-bold text-brand dark:text-[#69b58f] text-lg leading-tight">
-            {studio?.name || "Gravity Stretching"}
-          </h1>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Admin Panel</p>
-        </div>
+      <div className="px-4 py-3 border-b border-gray-100 dark:border-white/10 flex items-center justify-between gap-2 flex-shrink-0">
+        <h1 className="font-semibold text-gray-700 dark:text-gray-200 text-sm">Admin Panel</h1>
         <button
           onClick={onClose}
-          className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-white/10 dark:text-gray-200 rounded-lg flex-shrink-0"
+          className="lg:hidden p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 dark:text-gray-200 rounded-lg flex-shrink-0"
           aria-label="Close menu"
         >
           <X size={18} />
         </button>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon, beta }) => {
-          const active = pathname === href
-          return (
-            <Link key={href} href={href}
-              className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
-                active ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
-              )}>
-              <Icon size={18} />
-              <span className="flex-1">{label}</span>
-              {beta && (
-                <span className={cn(
-                  "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded",
-                  active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300"
+      {/* Single scrollable region — nav + settings + sign out in one flow so
+          Sign Out is always reachable even behind Android system navigation. */}
+      <div className="flex-1 overflow-y-auto">
+        <nav className="p-4 space-y-1">
+          {navItems.map(({ href, label, icon: Icon, beta }) => {
+            const active = pathname === href
+            return (
+              <Link key={href} href={href}
+                className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
+                  active ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
                 )}>
-                  Beta
-                </span>
-              )}
-            </Link>
-          )
-        })}
-      </nav>
+                <Icon size={18} />
+                <span className="flex-1">{label}</span>
+                {beta && (
+                  <span className={cn(
+                    "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded",
+                    active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300"
+                  )}>
+                    Beta
+                  </span>
+                )}
+              </Link>
+            )
+          })}
+        </nav>
 
-      <div className="p-4 border-t border-gray-100 dark:border-white/10 space-y-1">
-        {/* Open the studio's own booking page in the SAME window (the NextAuth
-            session cookie rides along, so the page knows you're the admin and
-            shows a "back to dashboard" badge — no re-login). */}
-        <Link href={studio?.slug ? `/${studio.slug}` : "/"}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5">
-          <ExternalLink size={18} />
-          <span className="flex-1">Booking page</span>
-        </Link>
-        <Link href="/admin/settings"
-          className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
-            settingsActive ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
-          )}>
-          <Settings size={18} />
-          Settings
-        </Link>
-        <button onClick={() => signOut({ callbackUrl: `${window.location.origin}/` })}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5 w-full">
-          <LogOut size={18} />
-          Sign Out
-        </button>
+        <div className="px-4 pb-4 space-y-1 border-t border-gray-100 dark:border-white/10 pt-4">
+          <Link href={studio?.slug ? `/${studio.slug}` : "/"}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5">
+            <ExternalLink size={18} />
+            <span className="flex-1">Booking page</span>
+          </Link>
+          <Link href="/admin/settings"
+            className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
+              settingsActive ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
+            )}>
+            <Settings size={18} />
+            Settings
+          </Link>
+          <button onClick={() => signOut({ callbackUrl: `${window.location.origin}/` })}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5 w-full">
+            <LogOut size={18} />
+            Sign Out
+          </button>
+          {/* Padding so Sign Out scrolls above Android system navigation bar. */}
+          <div className="h-6" />
+        </div>
       </div>
     </>
   )
