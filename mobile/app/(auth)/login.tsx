@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const WORLD_LOGO = require("@/assets/world-logo.jpg")
+const WORLD_LOGO = require("@/assets/world-logo.png")
 
 export default function LoginScreen() {
   const { theme } = useTheme()
