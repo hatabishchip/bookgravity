@@ -43,6 +43,36 @@ if (Platform.OS === "android") {
   }).catch(() => {})
 }
 
+// Collapse stacked chat notifications down to one per conversation. Android
+// launchers render the app-icon badge as the number of notifications sitting
+// in the tray, so 8 messages in a single chat read as "8" on the icon while the
+// inbox correctly counts "1" conversation. Keeping only the newest notification
+// per conversationId makes the tray count match the conversation count. Run on
+// foreground and whenever a message arrives while the app is running.
+async function reconcileChatNotifications(): Promise<void> {
+  try {
+    const presented = await Notifications.getPresentedNotificationsAsync()
+    const byConvo = new Map<string, string[]>()
+    for (const n of presented) {
+      const d = n.request.content.data as { category?: string; conversationId?: string } | undefined
+      if (d?.category !== "message") continue
+      const cid = d.conversationId ?? "_"
+      const ids = byConvo.get(cid) ?? []
+      ids.push(n.request.identifier)
+      byConvo.set(cid, ids)
+    }
+    for (const ids of byConvo.values()) {
+      // Drop every notification but the last (newest) for that conversation.
+      for (let i = 0; i < ids.length - 1; i++) {
+        await Notifications.dismissNotificationAsync(ids[i]).catch(() => {})
+      }
+    }
+  } catch {
+    // getPresentedNotificationsAsync is Android/iOS only and can throw on some
+    // OS versions - the badge sync below still runs, so this is best-effort.
+  }
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -85,15 +115,41 @@ export default function RootLayout() {
   //    Runs on startup (when user is known) and every time the app comes
   //    to the foreground, so the badge stays fresh.
   useEffect(() => {
-    if (!user) { Notifications.setBadgeCountAsync(0).catch(() => {}); return }
+    if (!user) {
+      Notifications.setBadgeCountAsync(0).catch(() => {})
+      Notifications.dismissAllNotificationsAsync().catch(() => {})
+      return
+    }
     const refresh = async () => {
       try {
+        // Collapse stacked chat notifications first so the tray (and therefore
+        // the Android icon badge) reflects conversations, not raw message count.
+        await reconcileChatNotifications()
         const res = await api<{ unread: number }>("/api/push/unread")
         await Notifications.setBadgeCountAsync(res.unread)
       } catch { /* no-op: offline or token expired */ }
     }
     refresh()
     const sub = AppState.addEventListener("change", (s) => { if (s === "active") refresh() })
+    return () => sub.remove()
+  }, [user])
+
+  // 3b. While the app is open, collapse duplicate chat notifications as they
+  //     arrive and keep the icon badge equal to the unread-conversation count.
+  useEffect(() => {
+    if (!user) return
+    const sub = Notifications.addNotificationReceivedListener((n) => {
+      const d = n.request.content.data as { category?: string } | undefined
+      if (d?.category !== "message") return
+      // Small delay so the just-arrived notification is in the tray before we
+      // dedupe, then re-sync the badge to the conversation count.
+      setTimeout(() => {
+        reconcileChatNotifications()
+          .then(() => api<{ unread: number }>("/api/push/unread"))
+          .then((res) => Notifications.setBadgeCountAsync(res.unread))
+          .catch(() => {})
+      }, 500)
+    })
     return () => sub.remove()
   }, [user])
 

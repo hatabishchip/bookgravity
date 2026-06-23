@@ -30,8 +30,20 @@ export default function TrainerInboxWebView() {
 
   useEffect(() => {
     bridge()
-    // Clear the app icon badge — the user opened the inbox.
-    Notifications.setBadgeCountAsync(0).catch(() => {})
+    // Opening the inbox = the user is reading their messages. Clear the chat
+    // notifications from the tray (so the Android icon badge, which counts tray
+    // notifications, doesn't keep showing a stale number) and reset the badge.
+    ;(async () => {
+      try {
+        const presented = await Notifications.getPresentedNotificationsAsync()
+        await Promise.all(
+          presented
+            .filter((n) => (n.request.content.data as { category?: string } | undefined)?.category === "message")
+            .map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {})),
+        )
+      } catch { /* best-effort */ }
+      Notifications.setBadgeCountAsync(0).catch(() => {})
+    })()
   }, [bridge])
 
   const onNav = useCallback((navState: { url: string }) => {
