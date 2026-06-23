@@ -12,6 +12,7 @@ import {
 import {
   upsertConversation,
   appendOutboundMessage,
+  markBookingPreview,
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { verifyBookingOtp } from "@/lib/otp"
@@ -375,6 +376,11 @@ export async function POST(request: NextRequest) {
             forceReassign: true, // latest booking's trainer takes ownership of the chat
           })
           conversationId = convo.id
+          // Mark booking as unread in the inbox so admin/trainer notice it.
+          const preview = `New booking: ${slotForWA.classType || "class"} · ${niceDate} at ${niceStart}`
+          await markBookingPreview(convo.id, preview).catch((err) => {
+            console.error("[bookings] markBookingPreview failed:", err)
+          })
         } catch (err) {
           console.error("[bookings] upsertConversation failed:", err)
         }

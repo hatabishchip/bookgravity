@@ -213,13 +213,30 @@ export async function updateMessageStatus(opts: {
   })
 }
 
-/** Reset unread counter for a given viewer. */
+/**
+ * Mark a booking in the conversation as an unread item for admin and trainer.
+ * Sets a preview line visible in the inbox list; cleared when either opens the chat.
+ */
+export async function markBookingPreview(conversationId: string, preview: string) {
+  await prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: {
+      bookingPreview: preview,
+      unreadAdmin: { increment: 1 },
+      unreadTrainer: { increment: 1 },
+    },
+  })
+}
+
+/** Reset unread counter for a given viewer. Also clears bookingPreview. */
 export async function markConversationRead(
   conversationId: string,
   viewer: "admin" | "trainer"
 ) {
   await prisma.whatsAppConversation.update({
     where: { id: conversationId },
-    data: viewer === "admin" ? { unreadAdmin: 0 } : { unreadTrainer: 0 },
+    data: viewer === "admin"
+      ? { unreadAdmin: 0, bookingPreview: null }
+      : { unreadTrainer: 0, bookingPreview: null },
   })
 }

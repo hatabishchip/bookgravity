@@ -44,6 +44,7 @@ type ConversationListItem = {
    *  Drives the Today / Tomorrow chat-list filter. */
   bookedToday?: boolean
   bookedTomorrow?: boolean
+  bookingPreview: string | null
   lastMessage: {
     id: string
     direction: "INBOUND" | "OUTBOUND"
@@ -1479,13 +1480,22 @@ export default function Inbox({
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <div
-                      className="text-gray-500 dark:text-[#8696A0] truncate flex-1 flex items-center gap-1"
+                      className="truncate flex-1 flex items-center gap-1"
                       style={{ fontSize: `${fontScale * 0.8125}rem` }}
                     >
-                      {c.lastMessage?.direction === "OUTBOUND" && (
-                        <CheckCheck size={14} className="text-gray-400 dark:text-[#8696A0] flex-shrink-0" />
+                      {c.bookingPreview ? (
+                        <>
+                          <Calendar size={12} className="text-violet-500 dark:text-violet-400 flex-shrink-0" />
+                          <span className="truncate text-violet-600 dark:text-violet-400 font-medium">{c.bookingPreview}</span>
+                        </>
+                      ) : (
+                        <>
+                          {c.lastMessage?.direction === "OUTBOUND" && (
+                            <CheckCheck size={14} className="text-gray-400 dark:text-[#8696A0] flex-shrink-0" />
+                          )}
+                          <span className="truncate text-gray-500 dark:text-[#8696A0]">{previewText(c.lastMessage)}</span>
+                        </>
                       )}
-                      <span className="truncate">{previewText(c.lastMessage)}</span>
                     </div>
                     {/* WhatsApp-style green unread badge on the right */}
                     {hasUnread && (

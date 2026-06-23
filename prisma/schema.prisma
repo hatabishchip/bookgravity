@@ -534,6 +534,10 @@ model WhatsAppConversation {
   // clobber each other when one of them reads.
   unreadAdmin       Int      @default(0)
   unreadTrainer     Int      @default(0)
+  // Set when a client books and cleared when admin/trainer opens the conversation.
+  // Shown as a preview line in the inbox list so staff see "New booking · Class · Date"
+  // without any WA message needed.
+  bookingPreview    String?
   messages          WhatsAppMessage[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

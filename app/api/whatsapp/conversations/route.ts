@@ -103,6 +103,7 @@ export async function GET(_req: NextRequest) {
       lastMessageAt: c.lastMessageAt,
       lastInboundAt: c.lastInboundAt,
       unread: ctx.role === "ADMIN" ? c.unreadAdmin : c.unreadTrainer,
+      bookingPreview: c.bookingPreview ?? null,
       lastMessage: c.messages[0]
         ? {
             id: c.messages[0].id,
