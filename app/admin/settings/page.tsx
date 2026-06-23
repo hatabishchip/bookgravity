@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck, Pencil, X, MapPin, Sun, Moon, Mail } from "lucide-react"
+import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck, Pencil, X, MapPin, Sun, Moon, Mail, Bell } from "lucide-react"
 import { useAdminTheme } from "@/lib/use-admin-theme"
 import { formatDistanceToNow, format } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -256,6 +256,10 @@ export default function SettingsPage() {
           {/* Notifications — every message that goes out, with a preview and a
               toggle, edited behind a pencil. */}
           <NotificationsCard studio={studio} onSaved={loadStudio} />
+
+          {/* Personal mobile push notification mode — how the admin's phone
+              reacts when a new WhatsApp chat message arrives. */}
+          <MobileNotifCard />
 
           {/* Auto-assign incoming WhatsApp leads to trainers (round-robin). */}
           <LeadRoutingCard studio={studio} onChanged={loadStudio} />
@@ -1517,6 +1521,94 @@ function BookingCopyNumber({
           укажи личный номер.
         </p>
       )}
+    </div>
+  )
+}
+
+type NotifMode = "SOUND_VIBRATION" | "VIBRATION_ONLY" | "SOUND_ONLY"
+
+const NOTIF_OPTIONS: { value: NotifMode; label: string; sub: string }[] = [
+  { value: "SOUND_VIBRATION", label: "Sound + Vibration", sub: "Audible alert + buzz" },
+  { value: "VIBRATION_ONLY",  label: "Vibration only",    sub: "Silent buzz, no sound" },
+  { value: "SOUND_ONLY",      label: "Sound only",         sub: "Alert sound, no vibration" },
+]
+
+// Personal push notification mode for chat messages. The admin picks whether
+// their phone sounds, buzzes, or both when a new WhatsApp message arrives.
+// This mirrors the same setting on the trainer profile screen.
+function MobileNotifCard() {
+  const [mode, setMode] = useState<NotifMode>("SOUND_VIBRATION")
+  const [saving, setSaving] = useState(false)
+  const [done, setDone] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/push/settings")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => d?.chatNotifMode && setMode(d.chatNotifMode))
+      .catch(() => {})
+  }, [])
+
+  const save = async (next: NotifMode) => {
+    setMode(next)
+    setSaving(true)
+    setDone(false)
+    try {
+      await fetch("/api/push/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatNotifMode: next }),
+      })
+      setDone(true)
+      setTimeout(() => setDone(false), 1500)
+    } catch { /* no-op */ } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <Bell size={16} className="text-brand" />
+        <h2 className="text-base font-semibold text-gray-900">
+          Mobile notifications
+          {saving && <span className="ml-2 text-[11px] text-brand font-normal">Saving…</span>}
+          {done && !saving && <span className="ml-2 text-[11px] text-brand font-normal">Saved ✓</span>}
+        </h2>
+      </div>
+      <p className="text-xs text-gray-500 mb-4 max-w-md">
+        How your phone reacts when a new client message arrives in the chat inbox.
+        This applies to your account only and works like WhatsApp settings.
+      </p>
+      <div className="space-y-1">
+        {NOTIF_OPTIONS.map((opt) => {
+          const active = mode === opt.value
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => save(opt.value)}
+              disabled={saving}
+              className={cn(
+                "w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors",
+                active ? "bg-brand/5 border border-brand/20" : "border border-transparent hover:bg-gray-50",
+              )}
+            >
+              <span className={cn(
+                "w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center",
+                active ? "border-brand" : "border-gray-300",
+              )}>
+                {active && <span className="w-2.5 h-2.5 rounded-full bg-brand block" />}
+              </span>
+              <span className="min-w-0">
+                <span className={cn("block text-sm font-medium", active ? "text-brand" : "text-gray-800")}>
+                  {opt.label}
+                </span>
+                <span className="block text-xs text-gray-400">{opt.sub}</span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
