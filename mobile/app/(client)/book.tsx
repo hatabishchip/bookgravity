@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native"
+import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { ChevronLeft, Minus, Plus, CheckCircle2 } from "lucide-react-native"
@@ -93,7 +93,10 @@ export default function BookScreen() {
         <Text variant="headline" tone="primary">Confirm booking</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
+        refreshControl={<RefreshControl refreshing={slotsQuery.isRefetching} onRefresh={slotsQuery.refetch} tintColor={theme.brand.primary} />}
+      >
         {/* Slot recap card */}
         {slot ? (
           <View style={[styles.recap, { backgroundColor: theme.brand.primarySoft }]}>

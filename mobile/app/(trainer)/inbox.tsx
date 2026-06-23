@@ -6,6 +6,7 @@ import * as Notifications from "expo-notifications"
 import { api, API_BASE } from "@/lib/api"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
+import { PULL_TO_REFRESH_JS } from "@/lib/webview-pull-refresh"
 
 // Trainer inbox: the web /trainer/inbox embedded in a WebView with a
 // bridge token so the trainer stays logged in. Resets the app badge to 0
@@ -60,7 +61,7 @@ export default function TrainerInboxWebView() {
           sharedCookiesEnabled
           thirdPartyCookiesEnabled
           domStorageEnabled
-          pullToRefreshEnabled
+          injectedJavaScript={PULL_TO_REFRESH_JS}
           style={{ flex: 1, backgroundColor: theme.bg.card }}
         />
       )}

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter, Stack } from "expo-router"
-import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native"
+import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { ChevronLeft, Users } from "lucide-react-native"
 import * as Haptics from "expo-haptics"
@@ -19,7 +19,7 @@ export default function SlotsScreen() {
   const params = useLocalSearchParams<{ date?: string }>()
   const router = useRouter()
   const date = params.date ?? ""
-  const { data: slots = [], isLoading } = useDateSlots(date)
+  const { data: slots = [], isLoading, refetch, isRefetching } = useDateSlots(date)
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -40,7 +40,10 @@ export default function SlotsScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.brand.primary} />}
+      >
         {isLoading ? (
           <ActivityIndicator color={theme.brand.primary} style={{ marginTop: spacing["3xl"] }} />
         ) : slots.length === 0 ? (

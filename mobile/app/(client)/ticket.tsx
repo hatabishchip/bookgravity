@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { View, ScrollView, Pressable, StyleSheet, Share } from "react-native"
+import { View, ScrollView, Pressable, StyleSheet, Share, RefreshControl } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { ChevronLeft, Share2 } from "lucide-react-native"
@@ -17,7 +17,7 @@ export default function TicketScreen() {
   const { theme } = useTheme()
   const params = useLocalSearchParams<{ id?: string }>()
   const router = useRouter()
-  const { data: bookings = [] } = useMyBookings()
+  const { data: bookings = [], refetch, isRefetching } = useMyBookings()
   const booking = useMemo(() => bookings.find((b) => b.id === params.id), [bookings, params.id])
 
   const onShare = async () => {
@@ -62,7 +62,10 @@ export default function TicketScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, alignItems: "center", gap: spacing.lg }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, alignItems: "center", gap: spacing.lg }}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.brand.primary} />}
+      >
         {/* The QR card. White background even in dark mode — scanners need
             high contrast and the studio's room may not be well-lit. */}
         <View style={styles.qrCard}>

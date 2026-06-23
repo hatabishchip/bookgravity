@@ -6,6 +6,7 @@ import { useLocalSearchParams } from "expo-router"
 import { api, API_BASE } from "@/lib/api"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
+import { PULL_TO_REFRESH_JS } from "@/lib/webview-pull-refresh"
 
 // Admin home: the full web admin embedded in a WebView. We mint a short-lived
 // bridge token from the native session and open /native-bridge, which signs the
@@ -61,7 +62,7 @@ export default function AdminWebView() {
           sharedCookiesEnabled
           thirdPartyCookiesEnabled
           domStorageEnabled
-          pullToRefreshEnabled
+          injectedJavaScript={PULL_TO_REFRESH_JS}
           style={{ flex: 1, backgroundColor: theme.bg.card }}
         />
       )}
