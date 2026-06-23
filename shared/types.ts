@@ -56,6 +56,7 @@ export type NativeLoginResponse = {
     role: UserRole
     studioId: string
     studioSlug: string
+    studioLogoUrl: string | null
   }
   expiresAt: number  // unix ms
 }

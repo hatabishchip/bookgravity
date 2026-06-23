@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "248890895240",
+    "project_id": "bookgravity-f035f",
+    "storage_bucket": "bookgravity-f035f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:248890895240:android:a9f36aeaabea62b6da283d",
+        "android_client_info": {
+          "package_name": "com.bookgravity.gravitystretching"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD60dXFVG4CV7jZ7bPz1FN6QhM850d9AEQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

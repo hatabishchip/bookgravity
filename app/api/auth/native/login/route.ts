@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { email: data.email },
-      include: { studio: { select: { slug: true } } },
+      include: { studio: { select: { slug: true, logoUrl: true } } },
     })
     if (!user) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
 
@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
         role: user.role,
         studioId: user.studioId,
         studioSlug: user.studio.slug,
+        studioLogoUrl: user.studio.logoUrl ?? null,
       },
     })
   } catch (err) {

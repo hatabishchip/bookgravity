@@ -1,4 +1,4 @@
-import { View, ScrollView, Pressable, StyleSheet, Linking, ActivityIndicator } from "react-native"
+import { View, ScrollView, Pressable, StyleSheet, Linking, ActivityIndicator, RefreshControl } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { ChevronLeft, Phone, CheckCircle2, Circle, Users } from "lucide-react-native"
@@ -27,7 +27,7 @@ export default function ClassScreen() {
   const { slotId } = useLocalSearchParams<{ slotId?: string }>()
   const id = slotId ?? ""
 
-  const { data: bookings = [], isLoading } = useQuery<ClassBooking[]>({
+  const { data: bookings = [], isLoading, refetch, isRefetching } = useQuery<ClassBooking[]>({
     queryKey: ["trainer", "bookings", id],
     enabled: !!id,
     queryFn: () => api<ClassBooking[]>(`/api/trainer/bookings?slotId=${id}`),
@@ -54,7 +54,10 @@ export default function ClassScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.brand.primary} />}
+      >
         {isLoading ? (
           <ActivityIndicator color={theme.brand.primary} style={{ marginTop: spacing.xl }} />
         ) : bookings.length === 0 ? (

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { View, ScrollView, RefreshControl, Pressable, StyleSheet } from "react-native"
+import { View, ScrollView, RefreshControl, Pressable, StyleSheet, Image } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
 import { format, addDays, parseISO, startOfWeek } from "date-fns"
@@ -8,6 +8,7 @@ import { spacing, radius } from "@/lib/theme"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
 import { useTrainerSchedule, type TrainerSlot } from "@/hooks/useTrainerSchedule"
+import { useAuth } from "@/lib/auth"
 
 // Trainer's home: a segmented Today / Week / Upcoming switch over the same
 // /api/trainer/schedule endpoint the web dashboard uses. Each card opens
@@ -16,6 +17,7 @@ import { useTrainerSchedule, type TrainerSlot } from "@/hooks/useTrainerSchedule
 export default function TrainerScheduleTab() {
   const { theme } = useTheme()
   const router = useRouter()
+  const studioLogoUrl = useAuth((s) => s.user?.studioLogoUrl)
   const [view, setView] = useState<"today" | "week" | "upcoming">("today")
   const todayStr = format(new Date(), "yyyy-MM-dd")
 
@@ -38,7 +40,14 @@ export default function TrainerScheduleTab() {
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.brand.primary} />}
       >
-        <Text variant="title2" tone="primary">Your schedule</Text>
+        {studioLogoUrl ? (
+          <Image
+            source={{ uri: studioLogoUrl }}
+            style={{ height: 48, width: 160, resizeMode: "contain", alignSelf: "flex-start" }}
+          />
+        ) : (
+          <Text variant="title2" tone="primary">Your schedule</Text>
+        )}
 
         {/* Segmented switcher */}
         <View style={[styles.seg, { backgroundColor: theme.bg.card, borderColor: theme.border.subtle }]}>
