@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { View, ScrollView, KeyboardAvoidingView, Platform, StyleSheet } from "react-native"
+import { View, ScrollView, KeyboardAvoidingView, Platform, StyleSheet, Image } from "react-native"
 import { useRouter } from "expo-router"
 import { useAuth, homeRouteFor } from "@/lib/auth"
 import { ApiError } from "@/lib/api"
@@ -8,6 +8,9 @@ import { spacing } from "@/lib/theme"
 import { Text } from "@/components/ui/Text"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const WORLD_LOGO = require("@/assets/world-logo.jpg")
 
 export default function LoginScreen() {
   const { theme } = useTheme()
@@ -42,8 +45,8 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.heroBlock}>
-          <Text variant="title2" tone="brand" style={{ textAlign: "center" }}>Gravity Stretching</Text>
-          <Text variant="subhead" tone="muted" style={{ textAlign: "center", marginTop: spacing.xs }}>
+          <Image source={WORLD_LOGO} style={styles.logo} />
+          <Text variant="subhead" tone="muted" style={{ textAlign: "center", marginTop: spacing.sm }}>
             Sign in to your account
           </Text>
         </View>
@@ -105,7 +108,13 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     justifyContent: "center",
   },
-  heroBlock: { marginBottom: spacing["2xl"] },
+  heroBlock: { marginBottom: spacing["2xl"], alignItems: "center" },
+  logo: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    resizeMode: "cover",
+  },
   card: {
     borderRadius: 20,
     padding: spacing.xl,
