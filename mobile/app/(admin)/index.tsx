@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ActivityIndicator, View, StyleSheet, Pressable } from "react-native"
+import { ActivityIndicator, View, StyleSheet, Pressable, Linking } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView } from "react-native-webview"
 import { useLocalSearchParams } from "expo-router"
@@ -40,6 +40,34 @@ export default function AdminWebView() {
     if (/\/login(\?|$)/.test(navState.url)) bridge()
   }, [bridge])
 
+  // Google OAuth (e.g. "Connect Google Calendar") can't run inside an embedded
+  // WebView - Google blocks it ("disallowed_useragent"). So when the WebView
+  // tries to open the connect endpoint, run the WHOLE flow in the system
+  // browser instead, logged into the same web session via the bridge. After the
+  // admin finishes there and returns to the app, a pull-to-refresh shows
+  // "Connected".
+  const onShouldStart = useCallback((req: { url: string }) => {
+    const u = req.url
+    if (u.includes("/api/admin/google/calendar/connect")) {
+      ;(async () => {
+        try {
+          const { token } = await api<{ token: string }>("/api/auth/native/web-token")
+          const url = `${API_BASE}/native-bridge?token=${encodeURIComponent(token)}&next=${encodeURIComponent("/api/admin/google/calendar/connect")}`
+          await Linking.openURL(url)
+        } catch {
+          /* ignore - the admin can connect from a desktop browser */
+        }
+      })()
+      return false
+    }
+    // Any Google sign-in page reached another way -> system browser too.
+    if (/accounts\.google\.com|google\.com\/o\/oauth/i.test(u)) {
+      Linking.openURL(u).catch(() => {})
+      return false
+    }
+    return true
+  }, [])
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg.card }} edges={["top"]}>
       {error ? (
@@ -53,6 +81,7 @@ export default function AdminWebView() {
           ref={webRef}
           source={{ uri }}
           onNavigationStateChange={onNav}
+          onShouldStartLoadWithRequest={onShouldStart}
           onError={() => setError("Could not load the admin. Pull to retry.")}
           startInLoadingState
           renderLoading={() => (
