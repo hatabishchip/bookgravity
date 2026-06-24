@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { del } from "@vercel/blob"
 import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import {
@@ -81,24 +82,59 @@ export async function POST(
     )
   }
 
-  let form: FormData
-  try {
-    form = await req.formData()
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 })
-  }
-  const file = form.get("file")
-  const caption = (form.get("caption") as string | null) || undefined
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "file is required" }, { status: 400 })
+  // Two input modes:
+  //  - multipart form: small files posted straight to this function.
+  //  - JSON { blobUrl, mime, filename, caption }: large files (video) the client
+  //    first streamed to Vercel Blob to dodge the ~4.5 MB serverless body cap;
+  //    we fetch the bytes here (a fetch response is NOT bound by that cap).
+  const contentType = req.headers.get("content-type") || ""
+  let buffer: Buffer
+  let mimeType: string
+  let fileName: string
+  let caption: string | undefined
+  let blobUrlToDelete: string | null = null
+
+  if (contentType.includes("application/json")) {
+    let j: { blobUrl?: string; mime?: string; filename?: string; caption?: string }
+    try {
+      j = await req.json()
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    }
+    if (!j.blobUrl) return NextResponse.json({ error: "blobUrl is required" }, { status: 400 })
+    blobUrlToDelete = j.blobUrl
+    const res = await fetch(j.blobUrl)
+    if (!res.ok) {
+      await del(j.blobUrl).catch(() => {})
+      return NextResponse.json({ error: `Could not read the uploaded file (HTTP ${res.status})` }, { status: 400 })
+    }
+    buffer = Buffer.from(await res.arrayBuffer())
+    mimeType = j.mime || res.headers.get("content-type") || "application/octet-stream"
+    fileName = j.filename || "upload"
+    caption = j.caption || undefined
+  } else {
+    let form: FormData
+    try {
+      form = await req.formData()
+    } catch {
+      return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 })
+    }
+    const file = form.get("file")
+    caption = (form.get("caption") as string | null) || undefined
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: "file is required" }, { status: 400 })
+    }
+    buffer = Buffer.from(await file.arrayBuffer())
+    mimeType = file.type || "application/octet-stream"
+    fileName = file.name || ""
   }
 
-  const mimeType = file.type || "application/octet-stream"
-  const type = classifyMime(mimeType, file.name || "")
+  const type = classifyMime(mimeType, fileName)
   const limit = MAX_BYTES[type]
-  if (file.size > limit) {
+  if (buffer.length > limit) {
+    if (blobUrlToDelete) await del(blobUrlToDelete).catch(() => {})
     return NextResponse.json(
-      { error: `File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB exceeds ${limit / 1024 / 1024}MB limit for ${type}` },
+      { error: `File too large: ${(buffer.length / 1024 / 1024).toFixed(1)}MB exceeds ${limit / 1024 / 1024}MB limit for ${type}` },
       { status: 413 },
     )
   }
@@ -111,11 +147,13 @@ export async function POST(
   const waConfig = getConfigFor(studioWA)
 
   // 1. Upload bytes to Meta to get a media_id (on this studio's WABA).
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const upload = await uploadMediaToMeta(buffer, mimeType, file.name || `upload.${type}`, waConfig)
+  const upload = await uploadMediaToMeta(buffer, mimeType, fileName || `upload.${type}`, waConfig)
   if (!upload.ok) {
+    if (blobUrlToDelete) await del(blobUrlToDelete).catch(() => {})
     return NextResponse.json({ error: upload.error }, { status: 502 })
   }
+  // The bytes are now on Meta; the temporary blob (if any) is no longer needed.
+  if (blobUrlToDelete) await del(blobUrlToDelete).catch(() => {})
 
   // 2. Send the message referencing that media_id.
   const send = await sendWhatsAppMedia({
@@ -123,7 +161,7 @@ export async function POST(
     type,
     mediaId: upload.id,
     caption,
-    filename: type === "document" ? file.name || undefined : undefined,
+    filename: type === "document" ? fileName || undefined : undefined,
     config: waConfig,
   })
 

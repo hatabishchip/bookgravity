@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { upload } from "@vercel/blob/client"
 import Composer from "@/app/_components/Composer"
 import ImageLightbox from "@/app/_components/ImageLightbox"
 import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns"
@@ -1189,12 +1190,31 @@ export default function Inbox({
       })
 
       try {
-        const form = new FormData()
-        form.append("file", file)
-        const r = await fetch(`/api/whatsapp/conversations/${detail.id}/media`, {
-          method: "POST",
-          body: form,
-        })
+        // Vercel serverless caps the request body at ~4.5 MB, which a phone
+        // video blows past. For anything sizeable, stream it straight to Vercel
+        // Blob first and hand the media route just the URL; small photos still
+        // take the simple multipart path.
+        const BLOB_THRESHOLD = 4 * 1024 * 1024
+        let r: Response
+        if (file.size > BLOB_THRESHOLD) {
+          const blob = await upload(file.name || "upload", file, {
+            access: "public",
+            handleUploadUrl: `/api/whatsapp/conversations/${detail.id}/blob-upload`,
+            contentType: file.type || undefined,
+          })
+          r = await fetch(`/api/whatsapp/conversations/${detail.id}/media`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ blobUrl: blob.url, mime: file.type, filename: file.name }),
+          })
+        } else {
+          const form = new FormData()
+          form.append("file", file)
+          r = await fetch(`/api/whatsapp/conversations/${detail.id}/media`, {
+            method: "POST",
+            body: form,
+          })
+        }
         const data = (await r.json().catch(() => ({}))) as {
           message?: MessageRow
           error?: string
