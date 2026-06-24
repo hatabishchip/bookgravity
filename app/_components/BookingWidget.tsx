@@ -6,6 +6,8 @@ import { ChevronLeft, ChevronRight, Clock, Users, CheckCircle, MessageCircle, Lo
 import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { cn } from "@/lib/utils"
+// Phone country table + validation helpers: single source of truth in lib/phone.
+import { detectCountry, subscriberDigits, type PhoneCountry } from "@/lib/phone"
 import { clientEndTime12, clientEndTime24 } from "@/lib/class-time"
 
 // Deterministic barcode bars derived from a numeric code.
@@ -25,52 +27,6 @@ function generateBarcode(code: string): { width: number; isBar: boolean }[] {
   result.push({ width: 2, isBar: true }, { width: 1, isBar: false }, { width: 2, isBar: true })
   return result
 }
-
-type PhoneCountry = { code: string; flag: string; name: string; min: number; max: number }
-
-const PHONE_COUNTRIES: PhoneCountry[] = [
-  { code: "+380", flag: "🇺🇦", name: "Ukraine",             min: 9,  max: 9  },
-  { code: "+375", flag: "🇧🇾", name: "Belarus",             min: 9,  max: 9  },
-  { code: "+372", flag: "🇪🇪", name: "Estonia",             min: 7,  max: 8  },
-  { code: "+371", flag: "🇱🇻", name: "Latvia",              min: 8,  max: 8  },
-  { code: "+370", flag: "🇱🇹", name: "Lithuania",           min: 8,  max: 8  },
-  { code: "+971", flag: "🇦🇪", name: "UAE",                 min: 9,  max: 9  },
-  { code: "+856", flag: "🇱🇦", name: "Laos",                min: 8,  max: 9  },
-  { code: "+855", flag: "🇰🇭", name: "Cambodia",            min: 8,  max: 9  },
-  { code: "+852", flag: "🇭🇰", name: "Hong Kong",           min: 8,  max: 8  },
-  { code: "+66",  flag: "🇹🇭", name: "Thailand",            min: 8,  max: 9  },
-  { code: "+65",  flag: "🇸🇬", name: "Singapore",           min: 8,  max: 8  },
-  { code: "+63",  flag: "🇵🇭", name: "Philippines",         min: 10, max: 10 },
-  { code: "+62",  flag: "🇮🇩", name: "Indonesia",           min: 11, max: 12 },
-  { code: "+61",  flag: "🇦🇺", name: "Australia",           min: 9,  max: 9  },
-  { code: "+60",  flag: "🇲🇾", name: "Malaysia",            min: 9,  max: 10 },
-  { code: "+55",  flag: "🇧🇷", name: "Brazil",              min: 10, max: 11 },
-  { code: "+49",  flag: "🇩🇪", name: "Germany",             min: 10, max: 11 },
-  { code: "+48",  flag: "🇵🇱", name: "Poland",              min: 9,  max: 9  },
-  { code: "+47",  flag: "🇳🇴", name: "Norway",              min: 8,  max: 8  },
-  { code: "+46",  flag: "🇸🇪", name: "Sweden",              min: 9,  max: 9  },
-  { code: "+45",  flag: "🇩🇰", name: "Denmark",             min: 8,  max: 8  },
-  { code: "+44",  flag: "🇬🇧", name: "UK",                  min: 10, max: 10 },
-  { code: "+43",  flag: "🇦🇹", name: "Austria",             min: 10, max: 11 },
-  { code: "+41",  flag: "🇨🇭", name: "Switzerland",         min: 9,  max: 9  },
-  { code: "+40",  flag: "🇷🇴", name: "Romania",             min: 9,  max: 9  },
-  { code: "+39",  flag: "🇮🇹", name: "Italy",               min: 9,  max: 11 },
-  { code: "+36",  flag: "🇭🇺", name: "Hungary",             min: 9,  max: 9  },
-  { code: "+34",  flag: "🇪🇸", name: "Spain",               min: 9,  max: 9  },
-  { code: "+33",  flag: "🇫🇷", name: "France",              min: 9,  max: 9  },
-  { code: "+32",  flag: "🇧🇪", name: "Belgium",             min: 9,  max: 9  },
-  { code: "+31",  flag: "🇳🇱", name: "Netherlands",         min: 9,  max: 9  },
-  { code: "+30",  flag: "🇬🇷", name: "Greece",              min: 10, max: 10 },
-  { code: "+27",  flag: "🇿🇦", name: "South Africa",        min: 9,  max: 9  },
-  { code: "+91",  flag: "🇮🇳", name: "India",               min: 10, max: 10 },
-  { code: "+90",  flag: "🇹🇷", name: "Turkey",              min: 10, max: 10 },
-  { code: "+86",  flag: "🇨🇳", name: "China",               min: 11, max: 11 },
-  { code: "+84",  flag: "🇻🇳", name: "Vietnam",             min: 9,  max: 10 },
-  { code: "+82",  flag: "🇰🇷", name: "South Korea",         min: 9,  max: 10 },
-  { code: "+81",  flag: "🇯🇵", name: "Japan",               min: 9,  max: 10 },
-  { code: "+7",   flag: "🇷🇺", name: "Russia / Kazakhstan", min: 10, max: 10 },
-  { code: "+1",   flag: "🇺🇸", name: "USA / Canada",        min: 10, max: 10 },
-].sort((a, b) => b.code.length - a.code.length)
 
 const PHONE_FORMATS: Record<string, string> = {
   "+380": "(##) ###-##-##",
@@ -114,15 +70,6 @@ const PHONE_FORMATS: Record<string, string> = {
   "+81":  "##-####-####",
   "+7":   "(###) ###-##-##",
   "+1":   "(###) ###-####",
-}
-
-function detectCountry(phone: string): PhoneCountry | null {
-  return PHONE_COUNTRIES.find((c) => phone.startsWith(c.code)) ?? null
-}
-
-function subscriberDigits(phone: string, country: PhoneCountry): number {
-  const codeLen = country.code.length - 1
-  return phone.replace(/\D/g, "").slice(codeLen).length
 }
 
 // Mask the FULL template (entered digits + remaining slots) using the
