@@ -56,11 +56,18 @@ export interface ComposerProps {
   keyboardOpen?: boolean
   /** Notify the parent to open/close the on-screen keyboard. */
   onKeyboardOpenChange?: (open: boolean) => void
+  /** MOBILE: report the on-screen keyboard's natural pixel height so the parent
+   *  can drive the interactive (finger-tracked) show/hide via a CSS variable. */
+  onKbHeight?: (height: number) => void
 }
 
-export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, windowOpen = true, keyboardOpen = true, onKeyboardOpenChange }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, windowOpen = true, keyboardOpen = true, onKeyboardOpenChange, onKbHeight }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // The on-screen keyboard panel — measured so the parent can size the shell
+  // and drive the interactive drag. Absolutely positioned (out of flow), so we
+  // read its rendered height with a ResizeObserver and report it up.
+  const kbPanelRef = useRef<HTMLDivElement>(null)
   const [hasText, setHasText] = useState(false)
   const [sending, setSending] = useState(false)
   // Bottom panel mode — either the typing keyboard or the sticker picker.
@@ -225,6 +232,20 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     if (keyboardOpen) t.focus({ preventScroll: true })
     else t.blur()
   }, [keyboardOpen, desktop])
+
+  // Measure the keyboard panel and report its height to the parent (it sizes
+  // the shell + drives the interactive drag). Re-measures on rotation / font
+  // changes / sticker-vs-keyboard swap via the ResizeObserver.
+  useEffect(() => {
+    if (desktop) return
+    const el = kbPanelRef.current
+    if (!el || !onKbHeight) return
+    const report = () => onKbHeight(el.offsetHeight)
+    report()
+    const ro = new ResizeObserver(report)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [desktop, onKbHeight, bottomPanel])
 
   return (
     <>
@@ -429,22 +450,29 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             }}
           />
         )
-      ) : !keyboardOpen ? (
-        // Mobile, keyboard hidden (WhatsApp-style): show nothing under the
-        // composer so the whole thread is visible. A tap on the field re-opens.
-        null
-      ) : bottomPanel === "keyboard" ? (
-        <VirtualKeyboard onInsert={insertText} onBackspace={backspace} inactive={!windowOpen} defaultLang={role === "TRAINER" ? "en" : "ru"} />
       ) : (
-        <StickerPicker
-          onPick={(emoji) => {
-            // Insert the emoji character at the caret instead of sending
-            // it as a standalone sticker — so users can mix emoji with
-            // text: "Спасибо за бронь 🙏 жду тебя завтра"
-            insertText(emoji)
-            textareaRef.current?.focus({ preventScroll: true })
-          }}
-        />
+        // Mobile: the keyboard/sticker panel is ALWAYS mounted so it can be
+        // dragged. Its visible height = var(--kb-h) - var(--kb-off); the parent
+        // drives --kb-off (0 = fully open, --kb-h = fully hidden) on tap, scroll
+        // and the interactive finger-drag. The panel is absolutely positioned
+        // and top-anchored, so its bottom clips as the shell shrinks.
+        <div className="kb-shell">
+          <div ref={kbPanelRef} className="kb-panel">
+            {bottomPanel === "keyboard" ? (
+              <VirtualKeyboard onInsert={insertText} onBackspace={backspace} inactive={!windowOpen} defaultLang={role === "TRAINER" ? "en" : "ru"} />
+            ) : (
+              <StickerPicker
+                onPick={(emoji) => {
+                  // Insert the emoji character at the caret instead of sending
+                  // it as a standalone sticker — so users can mix emoji with
+                  // text: "Спасибо за бронь 🙏 жду тебя завтра"
+                  insertText(emoji)
+                  textareaRef.current?.focus({ preventScroll: true })
+                }}
+              />
+            )}
+          </div>
+        </div>
       )}
     </>
   )

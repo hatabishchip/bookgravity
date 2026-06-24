@@ -755,6 +755,12 @@ export default function Inbox({
   const [waveLockUntil, setWaveLockUntil] = useState<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
+  // Wrapper that carries the interactive-keyboard CSS vars (--kb-h height,
+  // --kb-off live drag offset) + the .kb-dragging class. The keyboard panel
+  // (in Composer, a descendant) reads them. We write them imperatively from the
+  // touch gesture so a 60fps finger-drag never triggers a React re-render.
+  const kbWrapRef = useRef<HTMLDivElement | null>(null)
+  const kbHeightRef = useRef(0)
   // True briefly right after a chat opens (during the programmatic jump to
   // bottom) so the floating date pill doesn't flash on load.
   const justOpenedRef = useRef(false)
@@ -1373,6 +1379,102 @@ export default function Inbox({
   // newest messages are visible; a tap on the input opens it.
   useEffect(() => { setKeyboardOpen(false) }, [detail?.id])
 
+  // Composer reports the keyboard's natural height → store it on the wrapper as
+  // --kb-h. If we're not mid-drag, also park --kb-off at its settled target.
+  const onKbHeight = useCallback((h: number) => {
+    kbHeightRef.current = h
+    const wrap = kbWrapRef.current
+    if (!wrap) return
+    // Set --kb-off (target) before --kb-h so the intermediate height never
+    // overshoots into a brief open-then-close flash on first measure.
+    if (!wrap.classList.contains("kb-dragging")) {
+      wrap.style.setProperty("--kb-off", `${keyboardOpen ? 0 : h}px`)
+    }
+    wrap.style.setProperty("--kb-h", `${h}px`)
+  }, [keyboardOpen])
+
+  // Settle/tap animation: whenever the open/closed state changes (and we're not
+  // actively dragging), glide --kb-off to its target. The CSS transition on
+  // .kb-shell does the easing.
+  useEffect(() => {
+    const wrap = kbWrapRef.current
+    if (!wrap) return
+    wrap.classList.remove("kb-dragging")
+    wrap.style.setProperty("--kb-off", `${keyboardOpen ? 0 : kbHeightRef.current}px`)
+  }, [keyboardOpen, detail?.id])
+
+  // Interactive finger-tracking (iOS-style). Dragging the thread down once it's
+  // scrolled to the bottom peels the keyboard down 1:1 with the finger; it
+  // freezes when the finger stops, follows back up if reversed, and on release
+  // snaps open/closed by position + velocity. Native non-passive listeners so we
+  // can preventDefault the page scroll while we own the gesture.
+  useEffect(() => {
+    const el = messagesScrollRef.current
+    const wrap = kbWrapRef.current
+    if (!el || !wrap) return
+    const readOff = () => parseFloat(getComputedStyle(wrap).getPropertyValue("--kb-off")) || 0
+    type G = { capturing: boolean; startY: number; startOff: number; lastY: number; lastT: number; vy: number }
+    let g: G | null = null
+
+    const onStart = (e: TouchEvent) => {
+      const y = e.touches[0].clientY
+      g = { capturing: false, startY: y, startOff: readOff(), lastY: y, lastT: e.timeStamp, vy: 0 }
+    }
+    const onMove = (e: TouchEvent) => {
+      if (!g) return
+      const H = kbHeightRef.current
+      if (H <= 0) return
+      const y = e.touches[0].clientY
+      const dt = e.timeStamp - g.lastT
+      if (dt > 0) g.vy = (y - g.lastY) / dt // px/ms, positive = moving down
+      g.lastY = y
+      g.lastT = e.timeStamp
+      if (!g.capturing) {
+        const dy = y - g.startY
+        const off = readOff()
+        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 4
+        // Begin peeling only when the keyboard is open AND the thread is already
+        // at the bottom AND the finger drags DOWN. Reversing back up is then
+        // handled by the continuous tracking below (same gesture). A closed
+        // keyboard never captures, so scrolling history stays normal.
+        if (off < H && atBottom && dy > 8) {
+          g.capturing = true
+          g.startY = y
+          g.startOff = off
+          wrap.classList.add("kb-dragging")
+        } else {
+          return
+        }
+      }
+      const next = Math.max(0, Math.min(H, g.startOff + (y - g.startY)))
+      wrap.style.setProperty("--kb-off", `${next}px`)
+      e.preventDefault() // own the gesture: stop the thread from scrolling
+    }
+    const onEnd = () => {
+      if (!g) return
+      const wasCapturing = g.capturing
+      const vy = g.vy
+      g = null
+      if (!wasCapturing) return
+      wrap.classList.remove("kb-dragging")
+      const H = kbHeightRef.current
+      const off = readOff()
+      // Snap by flick velocity first, then by how far it was dragged.
+      const closing = vy > 0.3 || (vy >= -0.3 && off > H * 0.45)
+      setKeyboardOpen(!closing)
+    }
+    el.addEventListener("touchstart", onStart, { passive: true })
+    el.addEventListener("touchmove", onMove, { passive: false })
+    el.addEventListener("touchend", onEnd, { passive: true })
+    el.addEventListener("touchcancel", onEnd, { passive: true })
+    return () => {
+      el.removeEventListener("touchstart", onStart)
+      el.removeEventListener("touchmove", onMove)
+      el.removeEventListener("touchend", onEnd)
+      el.removeEventListener("touchcancel", onEnd)
+    }
+  }, [detail?.id])
+
   // ---------- List column ----------
   // Client-side search over the loaded conversation list (by name; admin can
   // also match by phone digits).
@@ -1738,11 +1840,9 @@ export default function Inbox({
         <div
           ref={messagesScrollRef}
           onScroll={handleMessagesScroll}
-          // Dragging the thread dismisses the on-screen keyboard (WhatsApp-style).
-          // touchmove is a real user gesture, so programmatic auto-scroll (a new
-          // message arriving) never closes it. Guarded so it only re-renders when
-          // the keyboard was actually open.
-          onTouchMove={() => setKeyboardOpen((o) => (o ? false : o))}
+          // The interactive keyboard drag (peel down on a thread drag, snap on
+          // release) is wired via native touch listeners in an effect above, so
+          // it can preventDefault the scroll while it owns the gesture.
           className="chat-scroll flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-2"
         >
           {loadingDetail && !detail ? (
@@ -1788,7 +1888,7 @@ export default function Inbox({
           entirely (textarea has inputMode="none"), so the modal never has to
           resize and the composer stays glued to the bottom regardless of how
           many messages are above. */}
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0" ref={kbWrapRef}>
         {/* WhatsApp-style composer row: + on the left, pill input with the
             textarea, white circular Send button on the right. Sits over the
             chat doodle background, no separate border. */}
@@ -1799,7 +1899,7 @@ export default function Inbox({
             `windowOpen` flag still drives the 👋 (a greeting only makes sense
             to re-open a closed window, but it's harmless when open). */}
         {windowOpen || role === "ADMIN" || role === "TRAINER" ? (
-          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} windowOpen={windowOpen} keyboardOpen={keyboardOpen} onKeyboardOpenChange={setKeyboardOpen} />
+          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} windowOpen={windowOpen} keyboardOpen={keyboardOpen} onKeyboardOpenChange={setKeyboardOpen} onKbHeight={onKbHeight} />
         ) : null}
         {sendError && (
           <div className="px-3 pb-1 text-xs text-red-600 dark:text-red-400 bg-[#ECE5DD] dark:bg-[#0B141A]">

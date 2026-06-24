@@ -111,6 +111,32 @@ html, body {
   }
 }
 
+/* WhatsApp-style interactive on-screen keyboard.
+   The shell's height = full keyboard height (--kb-h) minus the live drag offset
+   (--kb-off). As the offset grows the keyboard area shrinks, so the message
+   list above flexes open in lockstep with the finger. The panel inside is
+   absolutely positioned and top-anchored, so its bottom rows clip off the
+   screen while its top edge follows the composer down — matching iOS.
+   Transitions animate the tap-to-open and the release snap; while the finger is
+   actively dragging (.kb-dragging set on an ancestor) they're disabled so the
+   keyboard tracks the finger 1:1. */
+.kb-shell {
+  position: relative;
+  overflow: hidden;
+  height: calc(var(--kb-h, 0px) - var(--kb-off, 0px));
+  transition: height 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: height;
+}
+.kb-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+}
+.kb-dragging .kb-shell {
+  transition: none;
+}
+
 /* Reaction/action menu: it pops up UNDER the still-pressed finger, so iOS
    would text-select the emoji or the "Copy" row it lands on. Kill selection
    and the callout outright (all platforms, !important to beat everything) —
