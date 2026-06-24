@@ -1888,7 +1888,18 @@ export default function Inbox({
           entirely (textarea has inputMode="none"), so the modal never has to
           resize and the composer stays glued to the bottom regardless of how
           many messages are above. */}
-      <div className="flex-shrink-0" ref={kbWrapRef}>
+      <div
+        className="flex-shrink-0"
+        ref={kbWrapRef}
+        style={{
+          // When the keyboard is hidden the composer drops to the very bottom,
+          // so lift it above the device's bottom inset (Android nav bar / iOS
+          // home indicator). When the keyboard is open, its own panel already
+          // carries that inset, so we add none here.
+          paddingBottom: keyboardOpen ? undefined : "env(safe-area-inset-bottom)",
+          transition: "padding-bottom 0.26s cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
+      >
         {/* WhatsApp-style composer row: + on the left, pill input with the
             textarea, white circular Send button on the right. Sits over the
             chat doodle background, no separate border. */}
