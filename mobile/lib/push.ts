@@ -74,9 +74,23 @@ export async function registerPushToken(): Promise<void> {
       Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "web"
     const deviceName = Device.deviceName ?? Device.modelName ?? undefined
 
+    // On Android, also grab the raw FCM registration token. The server uses it
+    // to deliver chat pushes via FCM directly with a per-conversation collapse
+    // key, so messages in one chat stay a single notification (and the app-icon
+    // badge equals the unread-conversation count). iOS keeps using Expo/APNs.
+    let fcmToken: string | undefined
+    if (Platform.OS === "android") {
+      try {
+        const dev = await Notifications.getDevicePushTokenAsync()
+        if (dev?.type === "android" && typeof dev.data === "string") fcmToken = dev.data
+      } catch (err) {
+        console.warn("[push] device (FCM) token failed:", err)
+      }
+    }
+
     await api("/api/native/push-token", {
       method: "POST",
-      body: { expoPushToken, platform, deviceName },
+      body: { expoPushToken, fcmToken, platform, deviceName },
     })
     await SecureStore.setItemAsync(LAST_TOKEN_KEY, expoPushToken)
     console.log("[push] registered token", expoPushToken.slice(0, 24), "…")

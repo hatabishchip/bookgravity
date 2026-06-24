@@ -229,6 +229,11 @@ model NativePushToken {
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expoPushToken String   @unique
+  // Native FCM registration token (Android only). Lets us send chat pushes via
+  // FCM HTTP v1 with a per-conversation collapse key, so multiple messages in
+  // one chat collapse to a single notification - keeping the Android icon badge
+  // equal to the unread-conversation count. iOS stays on Expo/APNs.
+  fcmToken      String?
   platform      String
   deviceName    String?
   lastSeenAt    DateTime @default(now())

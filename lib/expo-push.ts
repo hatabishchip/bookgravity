@@ -10,6 +10,7 @@
 // flow isn't broken by a flaky push gateway.
 
 import { prisma } from "@/lib/prisma"
+import { sendFcm } from "@/lib/fcm"
 
 type ChatNotifMode = "SOUND_VIBRATION" | "VIBRATION_ONLY" | "SOUND_ONLY"
 
@@ -43,10 +44,38 @@ function notifModeToFields(mode: ChatNotifMode): { sound: "default" | null; chan
 }
 
 export async function sendPush(args: Recipient & Payload): Promise<void> {
-  const tokens = await resolveTokens(args)
-  if (tokens.length === 0) return
-
+  const { expoTokens, fcmTokens } = await resolveTargets(args)
   const { sound, channelId } = notifModeToFields(args.chatNotifMode ?? "SOUND_VIBRATION")
+  // Chat pushes carry a conversationId; use it as the FCM collapse key so all
+  // messages in one chat stay a single Android notification.
+  const collapseKey =
+    typeof args.data?.conversationId === "string" ? args.data.conversationId : undefined
+
+  await Promise.all([
+    sendViaExpo(expoTokens, args, sound, channelId),
+    sendFcm(fcmTokens, {
+      title: args.title,
+      body: args.body,
+      data: args.data,
+      category: args.category,
+      channelId,
+      sound: sound !== null,
+      badge: args.badge,
+      collapseKey,
+    }),
+  ])
+}
+
+// Android devices that registered a native FCM token go through FCM directly
+// (for collapsing); everything else (iOS, older Android installs without an
+// fcmToken) goes through the Expo relay.
+async function sendViaExpo(
+  tokens: string[],
+  args: Payload,
+  sound: "default" | null,
+  channelId: string,
+): Promise<void> {
+  if (tokens.length === 0) return
 
   // Expo accepts an array of message objects (one per recipient). Chunk
   // by 100 to stay under the documented batch limit.
@@ -103,11 +132,23 @@ export async function sendPush(args: Recipient & Payload): Promise<void> {
   }
 }
 
-async function resolveTokens(args: Recipient): Promise<string[]> {
-  if ("expoPushTokens" in args) return args.expoPushTokens
+// Split a recipient's devices into Expo targets and FCM targets. Android
+// devices that have registered a native fcmToken go through FCM (so chat
+// notifications collapse per conversation); iOS and older Android installs
+// without an fcmToken stay on the Expo relay.
+async function resolveTargets(
+  args: Recipient,
+): Promise<{ expoTokens: string[]; fcmTokens: string[] }> {
+  if ("expoPushTokens" in args) return { expoTokens: args.expoPushTokens, fcmTokens: [] }
   const rows = await prisma.nativePushToken.findMany({
     where: { userId: args.userId },
-    select: { expoPushToken: true },
+    select: { expoPushToken: true, fcmToken: true, platform: true },
   })
-  return rows.map((r) => r.expoPushToken)
+  const expoTokens: string[] = []
+  const fcmTokens: string[] = []
+  for (const r of rows) {
+    if (r.platform === "android" && r.fcmToken) fcmTokens.push(r.fcmToken)
+    else expoTokens.push(r.expoPushToken)
+  }
+  return { expoTokens, fcmTokens }
 }

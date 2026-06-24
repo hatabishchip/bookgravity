@@ -5,6 +5,10 @@ import { z } from "zod"
 
 const Body = z.object({
   expoPushToken: z.string().min(10),
+  // Native FCM token (Android only) - lets the server deliver chat pushes via
+  // FCM with a per-conversation collapse key. Optional: iOS and older installs
+  // won't send it.
+  fcmToken: z.string().min(10).optional(),
   platform: z.enum(["ios", "android", "web"]),
   deviceName: z.string().max(80).optional(),
 })
@@ -41,11 +45,13 @@ export async function POST(request: NextRequest) {
     create: {
       userId: payload.sub,
       expoPushToken: data.expoPushToken,
+      fcmToken: data.fcmToken ?? null,
       platform: data.platform,
       deviceName: data.deviceName,
     },
     update: {
       userId: payload.sub,
+      fcmToken: data.fcmToken ?? null,
       platform: data.platform,
       deviceName: data.deviceName,
       lastSeenAt: new Date(),
