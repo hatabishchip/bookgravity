@@ -1413,54 +1413,68 @@ export default function Inbox({
     const wrap = kbWrapRef.current
     if (!el || !wrap) return
     const readOff = () => parseFloat(getComputedStyle(wrap).getPropertyValue("--kb-off")) || 0
-    type G = { capturing: boolean; startY: number; startOff: number; lastY: number; lastT: number; vy: number }
+    type G = { engaged: boolean; wasOpen: boolean; restingTop: number; lastY: number; lastT: number; vy: number }
     let g: G | null = null
 
     const onStart = (e: TouchEvent) => {
-      const y = e.touches[0].clientY
-      g = { capturing: false, startY: y, startOff: readOff(), lastY: y, lastT: e.timeStamp, vy: 0 }
+      const H = kbHeightRef.current
+      const off = readOff()
+      // restingTop = the keyboard's top edge when fully shown (constant). The
+      // shell's current top sits at restingTop + off, so back it out.
+      const shell = wrap.querySelector(".kb-shell") as HTMLElement | null
+      const restingTop = shell ? shell.getBoundingClientRect().top - off : window.innerHeight - H
+      g = {
+        engaged: false,
+        wasOpen: off < H * 0.5, // dismissing is only offered from an open keyboard
+        restingTop,
+        lastY: e.touches[0].clientY,
+        lastT: e.timeStamp,
+        vy: 0,
+      }
     }
     const onMove = (e: TouchEvent) => {
       if (!g) return
       const H = kbHeightRef.current
-      if (H <= 0) return
+      // A closed keyboard never re-opens from a scroll (tap the field instead),
+      // so we leave the thread to scroll normally.
+      if (H <= 0 || !g.wasOpen) return
       const y = e.touches[0].clientY
       const dt = e.timeStamp - g.lastT
       if (dt > 0) g.vy = (y - g.lastY) / dt // px/ms, positive = moving down
       g.lastY = y
       g.lastT = e.timeStamp
-      if (!g.capturing) {
-        const dy = y - g.startY
-        const off = readOff()
-        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 4
-        // Begin peeling only when the keyboard is open AND the thread is already
-        // at the bottom AND the finger drags DOWN. Reversing back up is then
-        // handled by the continuous tracking below (same gesture). A closed
-        // keyboard never captures, so scrolling history stays normal.
-        if (off < H && atBottom && dy > 8) {
-          g.capturing = true
-          g.startY = y
-          g.startOff = off
-          wrap.classList.add("kb-dragging")
-        } else {
-          return
-        }
+      // Position-based, like iOS: the keyboard's top edge sticks to the finger
+      // whenever the finger is inside the keyboard's vertical zone — independent
+      // of scroll position or drag direction. off = how far below the resting
+      // top the finger is, clamped to the keyboard height.
+      const desired = Math.max(0, Math.min(H, y - g.restingTop))
+      if (!g.engaged && desired <= 0) return // finger above the zone → let it scroll
+      if (!g.engaged) {
+        g.engaged = true
+        wrap.classList.add("kb-dragging")
       }
-      const next = Math.max(0, Math.min(H, g.startOff + (y - g.startY)))
-      wrap.style.setProperty("--kb-off", `${next}px`)
-      e.preventDefault() // own the gesture: stop the thread from scrolling
+      wrap.style.setProperty("--kb-off", `${desired}px`)
+      if (desired <= 0) {
+        // Back to fully shown → detach and hand scrolling back to the thread.
+        g.engaged = false
+        wrap.classList.remove("kb-dragging")
+        return
+      }
+      e.preventDefault() // own the gesture while the keyboard tracks the finger
     }
     const onEnd = () => {
       if (!g) return
-      const wasCapturing = g.capturing
+      const engaged = g.engaged
       const vy = g.vy
       g = null
-      if (!wasCapturing) return
       wrap.classList.remove("kb-dragging")
+      if (!engaged) return
       const H = kbHeightRef.current
       const off = readOff()
-      // Snap by flick velocity first, then by how far it was dragged.
-      const closing = vy > 0.3 || (vy >= -0.3 && off > H * 0.45)
+      // Snap by flick velocity first, then by how far it was peeled. Set the
+      // target offset directly so it eases even when keyboardOpen doesn't change.
+      const closing = vy > 0.3 || (vy >= -0.3 && off > H * 0.5)
+      wrap.style.setProperty("--kb-off", `${closing ? H : 0}px`)
       setKeyboardOpen(!closing)
     }
     el.addEventListener("touchstart", onStart, { passive: true })
