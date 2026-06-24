@@ -36,6 +36,40 @@ export const zPosPaymentMethod = z.enum(POS_PAYMENT_METHODS)
 export const zPaymentStatus = z.enum(PAYMENT_STATUSES)
 export const zBookingStatus = z.enum(BOOKING_STATUSES)
 
+// Price tier the coach marks per booking — drives the base the 20% trainer
+// commission (and cash-flow revenue) is computed from. Three tiers:
+//   FULL   → the slot's full group price (e.g. 300k)
+//   MEMBER → studio.membershipClassPrice (e.g. 250k) — client on a subscription
+//   LOCAL  → studio.localPrice (e.g. 200k) — Indonesian local resident
+export const PRICE_TIERS = ["FULL", "MEMBER", "LOCAL"] as const
+export const zPriceTier = z.enum(PRICE_TIERS)
+export type PriceTier = (typeof PRICE_TIERS)[number]
+export const PRICE_TIER_LABEL: Record<string, string> = {
+  FULL: "Full",
+  MEMBER: "Member",
+  LOCAL: "Local",
+}
+
+/**
+ * The price a booking counts for, given its tier. `null` tier = a legacy
+ * booking made before tiers existed, so we honour the old localResident flag.
+ */
+export function priceForTier(
+  booking: { priceTier?: string | null; localResident?: boolean | null },
+  prices: { slotPrice: number; memberPrice: number; localPrice: number },
+): number {
+  switch (booking.priceTier) {
+    case "MEMBER":
+      return prices.memberPrice
+    case "LOCAL":
+      return prices.localPrice
+    case "FULL":
+      return prices.slotPrice
+    default:
+      return booking.localResident ? prices.localPrice : prices.slotPrice
+  }
+}
+
 // Human labels for the salary breakdown (and anywhere a paid booking is shown).
 export const PAYMENT_TYPE_LABEL: Record<string, string> = {
   CASH: "Cash",

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { baliDateStr } from "@/lib/tz"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
+import PriceTierSelect from "@/app/_components/PriceTierSelect"
 
 type Booking = {
   id: string
@@ -18,7 +19,7 @@ type Booking = {
   notes?: string
   createdAt: string
   slotId?: string
-  slot: { date: string; startTime: string; endTime: string }
+  slot: { date: string; startTime: string; endTime: string; price?: number }
   services: { service: { id: string; name: string; price: number }; paymentType?: string | null }[]
   // Membership balance for this client at the studio (from the API).
   membershipRemaining?: number
@@ -27,6 +28,9 @@ type Booking = {
   localResident?: boolean
   studioCountry?: string | null
   localPrice?: number
+  // Price tier (Full/Member/Local) the coach marked — base for 20% commission.
+  priceTier?: string | null
+  memberPrice?: number
 }
 
 const PAYMENT_METHODS = [
@@ -99,6 +103,7 @@ export default function TrainerBookingsPage() {
           paymentType: saved.paymentType ?? b.paymentType,
           paymentStatus: saved.paymentStatus ?? b.paymentStatus,
           localResident: saved.localResident ?? b.localResident,
+          priceTier: saved.priceTier ?? b.priceTier,
           membershipId: saved.membershipId ?? null,
           membershipRemaining: typeof saved.membershipRemaining === "number" ? saved.membershipRemaining : b.membershipRemaining,
           // Reschedule: pull the new class back so date/time update in place.
@@ -320,28 +325,18 @@ function BookingDetails({
         )}
       </div>
 
-      {/* Local resident (Indonesia only): discounted class price for an
-          Indonesian local. */}
+      {/* Price tier (Indonesia studios): coach marks Full / Member / Local so
+          the 20% commission is computed off the right base. Replaces the old
+          single "Local" checkbox. */}
       {booking.studioCountry === "ID" && (
-        <button
-          type="button"
+        <PriceTierSelect
+          value={booking.priceTier}
+          fullPrice={booking.slot.price ?? 300000}
+          memberPrice={booking.memberPrice ?? 250000}
+          localPrice={booking.localPrice ?? 200000}
           disabled={isUpdating}
-          onClick={() => onUpdate({ localResident: !booking.localResident })}
-          className={cn(
-            "w-full flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left touch-manipulation disabled:opacity-50",
-            booking.localResident ? "bg-brand/5 border-brand/20" : "bg-white border-gray-200 hover:border-brand/40",
-          )}
-        >
-          <span className={cn("w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0", booking.localResident ? "bg-brand border-brand" : "bg-white border-gray-300")}>
-            {booking.localResident && (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-          </span>
-          <span className="text-sm font-medium text-gray-700 flex-1">Local (Indonesian resident)</span>
-          <span className="text-xs font-semibold text-brand">{Math.round((booking.localPrice ?? 200000) / 1000)}k</span>
-        </button>
+          onChange={(tier) => onUpdate({ priceTier: tier })}
+        />
       )}
 
       {/* Services — only if any. When the session is on a membership, each

@@ -146,7 +146,13 @@ export async function POST(
   })
 
   return NextResponse.json(
-    { message: patched, sendResult: send },
+    {
+      message: patched,
+      sendResult: send,
+      // Surface the real reason on the bubble when Meta accepted the upload but
+      // rejected the send, instead of a bare "HTTP 502".
+      ...(send.ok ? {} : { error: send.error }),
+    },
     { status: send.ok ? 201 : 502 },
   )
 }

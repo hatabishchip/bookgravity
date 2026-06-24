@@ -9,6 +9,8 @@ import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import SellMembershipButton from "@/app/_components/SellMembershipButton"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
+import PriceTierSelect from "@/app/_components/PriceTierSelect"
+import { PRICE_TIER_LABEL } from "@/lib/payments"
 import { useOpenChat } from "@/lib/use-open-chat"
 import { formatIDRCompact as formatIDR } from "@/lib/format"
 import { baliDateStr } from "@/lib/tz"
@@ -49,6 +51,9 @@ type Booking = {
   localResident?: boolean
   studioCountry?: string | null
   localPrice?: number
+  // Price tier (Full/Member/Local) the coach marked — base for 20% commission.
+  priceTier?: string | null
+  memberPrice?: number
 }
 
 type Salary = {
@@ -404,6 +409,7 @@ export default function TrainerSchedulePage() {
                 paymentStatus: saved.paymentStatus ?? b.paymentStatus,
                 status: saved.status ?? b.status,
                 localResident: saved.localResident ?? b.localResident,
+                priceTier: saved.priceTier ?? b.priceTier,
                 membershipId: saved.membershipId ?? null,
                 membershipRemaining:
                   typeof saved.membershipRemaining === "number"
@@ -463,15 +469,18 @@ export default function TrainerSchedulePage() {
     }
   }
 
-  // Local resident (Indonesia only): toggling changes this class's price to the
-  // studio's localPrice. Optimistic, then synced.
-  const setLocal = async (booking: Booking, val: boolean) => {
-    setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, localResident: val } : b)))
+  // Price tier (Indonesia only): the coach picks Full / Member / Local so the
+  // 20% commission is computed off the right base. Optimistic, then synced.
+  // Keeps localResident in lockstep so legacy displays stay correct.
+  const setTier = async (booking: Booking, tier: "FULL" | "MEMBER" | "LOCAL") => {
+    setBookings((prev) =>
+      prev.map((b) => (b.id === booking.id ? { ...b, priceTier: tier, localResident: tier === "LOCAL" } : b)),
+    )
     try {
       await fetch(`/api/trainer/bookings/${booking.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ localResident: val }),
+        body: JSON.stringify({ priceTier: tier }),
       })
       setSavedToast(Date.now())
       setTimeout(() => setSavedToast((t) => (Date.now() - t >= 1400 ? 0 : t)), 1500)
@@ -1214,30 +1223,28 @@ export default function TrainerSchedulePage() {
                             })}
                           </div>
                         </div>
-                        {/* Local resident (Indonesia only): a discounted class
-                            price for an Indonesian local. */}
+                        {/* Price tier (Indonesia): Full / Member / Local so the
+                            20% commission uses the right base. */}
                         {b.studioCountry === "ID" && (
-                          <button
-                            type="button"
-                            onClick={() => setLocal(b, !b.localResident)}
-                            className={cn(
-                              "mt-2 w-full flex items-center gap-2 rounded-lg border px-3 py-2 text-left touch-manipulation",
-                              b.localResident ? "bg-brand/5 border-brand/20" : "bg-white border-gray-200 hover:border-brand/40"
-                            )}
-                          >
-                            <span className={cn("w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0", b.localResident ? "bg-brand border-brand" : "bg-white border-gray-300")}>
-                              {b.localResident && (
-                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                  <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              )}
-                            </span>
-                            <span className="text-sm font-medium text-gray-700 flex-1">Local (Indonesian resident)</span>
-                            <span className="text-xs font-semibold text-brand">{formatIDR(b.localPrice ?? 200000)}</span>
-                          </button>
+                          <div className="mt-2">
+                            <PriceTierSelect
+                              value={b.priceTier}
+                              fullPrice={b.slot?.price ?? 300000}
+                              memberPrice={b.memberPrice ?? 250000}
+                              localPrice={b.localPrice ?? 200000}
+                              onChange={(tier) => setTier(b, tier)}
+                            />
+                          </div>
                         )}
                         {isPaid && (
-                          <div className="mt-1.5 text-xs text-brand font-medium">✓ Paid · {paymentLabel}{b.localResident ? " · Local" : ""}</div>
+                          <div className="mt-1.5 text-xs text-brand font-medium">
+                            ✓ Paid · {paymentLabel}
+                            {b.priceTier && b.priceTier !== "FULL"
+                              ? ` · ${PRICE_TIER_LABEL[b.priceTier] ?? b.priceTier}`
+                              : b.localResident
+                                ? " · Local"
+                                : ""}
+                          </div>
                         )}
                       </div>
 

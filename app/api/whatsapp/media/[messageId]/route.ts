@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
-import { fetchMetaMedia } from "@/lib/whatsapp-cloud"
+import { fetchMetaMedia, getConfigFor } from "@/lib/whatsapp-cloud"
+import { trainerHasAccess } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 
 // GET /api/whatsapp/media/[messageId]
@@ -30,18 +31,29 @@ export async function GET(
   const { messageId } = await params
   const msg = await prisma.whatsAppMessage.findFirst({
     where: { id: messageId },
-    include: { conversation: { select: { studioId: true, assignedTrainerId: true } } },
+    include: {
+      conversation: {
+        select: {
+          id: true,
+          studioId: true,
+          studio: { select: { whatsappPhoneNumberId: true, whatsappAccessToken: true } },
+        },
+      },
+    },
   })
   if (!msg) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (msg.conversation.studioId !== ctx.studioId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   if (ctx.role === "TRAINER") {
+    // Access is granted per-conversation (multi-trainer), not just to the single
+    // assignedTrainer — match the send route so any trainer who can see the chat
+    // can also load its media.
     const trainer = await prisma.trainer.findFirst({
       where: { userId: ctx.userId, studioId: ctx.studioId },
       select: { id: true },
     })
-    if (!trainer || msg.conversation.assignedTrainerId !== trainer.id) {
+    if (!trainer || !(await trainerHasAccess(msg.conversation.id, trainer.id))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
   }
@@ -50,7 +62,10 @@ export async function GET(
     return NextResponse.json({ error: "No media on this message" }, { status: 404 })
   }
 
-  const fetched = await fetchMetaMedia(msg.mediaUrl)
+  // Resolve the media_id with THIS studio's WhatsApp config (it was uploaded /
+  // received on the studio's own WABA). Using the global token would 403.
+  const waConfig = getConfigFor(msg.conversation.studio)
+  const fetched = await fetchMetaMedia(msg.mediaUrl, waConfig)
   if (!fetched.ok) {
     return NextResponse.json({ error: fetched.error }, { status: 502 })
   }

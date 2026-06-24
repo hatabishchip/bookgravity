@@ -162,6 +162,38 @@ function WindowBadge({ lastInboundAt }: { lastInboundAt: string | null }) {
   )
 }
 
+// Render plain message text with clickable links. WhatsApp auto-links URLs but
+// we store the body as plain text, so we detect http(s):// and www. URLs at
+// render time and wrap them in <a>. Deliberately simple (no markdown) — a fresh
+// (non-shared) regex per call avoids global-lastIndex state bugs.
+const LINK_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?)\]}'"]|www\.[^\s<]+[^\s<.,;:!?)\]}'"])/gi
+function linkify(text: string) {
+  const out: React.ReactNode[] = []
+  const re = new RegExp(LINK_RE.source, "gi")
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index))
+    const raw = m[0]
+    const href = raw.startsWith("www.") ? `https://${raw}` : raw
+    out.push(
+      <a
+        key={`${m.index}-${raw}`}
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="underline underline-offset-2 break-all text-blue-600 dark:text-[#53BDEB]"
+      >
+        {raw}
+      </a>,
+    )
+    last = m.index + raw.length
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out
+}
+
 // True when the text is *only* emoji (plus optional whitespace / variation
 // selectors / ZWJ). Mirrors WhatsApp's "jumbo emoji" rendering rule —
 // emoji-only messages get a larger font while everything else stays at the
@@ -512,7 +544,7 @@ function MessageBubble({
                 : undefined
             }
           >
-            {primaryText}
+            {linkify(primaryText)}
           </div>
         )}
 
@@ -534,7 +566,7 @@ function MessageBubble({
               {isOut ? "→" : "🌐"}
               {m.detectedLang ? ` ${m.detectedLang.toUpperCase()}:` : ""}
             </span>
-            {m.body}
+            {linkify(m.body)}
             {m.translatedVia && (
               <span className="ml-1.5 opacity-50 uppercase tracking-wide text-[9px]">
                 · {m.translatedVia}

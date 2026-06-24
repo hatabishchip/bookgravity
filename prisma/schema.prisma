@@ -360,7 +360,14 @@ model Booking {
   paymentStatus  String           @default("UNPAID")
   // Indonesian local resident: the trainer ticked "Local" at payment, so this
   // class is charged at the studio's localPrice (e.g. 200k) instead of slot.price.
+  // Kept in sync with priceTier === "LOCAL" for backward compatibility.
   localResident  Boolean          @default(false)
+  // Price tier the coach marked for trainer-commission purposes:
+  //   "FULL"   → slot.price (e.g. 300k)
+  //   "MEMBER" → studio.membershipClassPrice (e.g. 250k) — subscription/pass
+  //   "LOCAL"  → studio.localPrice (e.g. 200k) — Indonesian local
+  // null = legacy booking; fall back to the localResident flag.
+  priceTier      String?
   ticketCode     String           @default("")
   checkedIn      Boolean          @default(false)
   notes          String?

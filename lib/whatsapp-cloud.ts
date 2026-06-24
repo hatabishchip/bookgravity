@@ -222,8 +222,14 @@ export async function sendWhatsAppMedia(opts: {
  */
 export async function fetchMetaMedia(
   mediaId: string,
+  config?: CloudConfig | null,
 ): Promise<{ ok: true; mimeType: string; bytes: ArrayBuffer } | { ok: false; error: string }> {
-  const cfg = getConfig()
+  // A media_id is scoped to the WABA/app that owns it. Studios with their own
+  // token (e.g. Canggu) upload + receive media on their OWN WABA, so we MUST
+  // resolve the id with that same studio config — using the global token here
+  // returns a permissions error and the image silently fails to load. Callers
+  // pass the per-studio config; we only fall back to global when none given.
+  const cfg = config ?? getConfig()
   if (!cfg) return { ok: false, error: "not_configured" }
   try {
     // Step 1: resolve media_id → temporary signed URL.

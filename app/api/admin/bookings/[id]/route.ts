@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { afterStaffCancellation } from "@/lib/booking-cancel"
 import { notifyBookingCreated } from "@/lib/booking-notify"
 import { applyPaymentSwitch } from "@/lib/booking-payment"
-import { zBookingPaymentType, zPaymentStatus, zBookingStatus } from "@/lib/payments"
+import { zBookingPaymentType, zPaymentStatus, zBookingStatus, zPriceTier } from "@/lib/payments"
 import { getMembershipBalance } from "@/lib/membership"
 import { z } from "zod"
 
@@ -20,6 +20,8 @@ const UpdateSchema = z.object({
   status: zBookingStatus.optional(),
   // Indonesian local resident discount (admin/trainer ticks "Local" at payment).
   localResident: z.boolean().optional(),
+  // Price tier (Full / Member / Local) — base for the 20% trainer commission.
+  priceTier: zPriceTier.optional(),
   // Move the booking to a different class/day — admin "перенести".
   slotId: z.string().optional(),
 })
@@ -52,6 +54,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // Membership handling: charge/refund a pass class when switching to/from
   // MEMBERSHIP (same shared rules as the trainer endpoint).
   const updateData: Record<string, unknown> = { ...data }
+  // Keep the legacy localResident flag in lockstep with the tier.
+  if (data.priceTier !== undefined) {
+    updateData.localResident = data.priceTier === "LOCAL"
+  }
   if (data.paymentType !== undefined) {
     const sw = await applyPaymentSwitch({
       studioId: ctx.studioId,

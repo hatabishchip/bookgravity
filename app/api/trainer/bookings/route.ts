@@ -35,13 +35,14 @@ export async function GET(request: NextRequest) {
   // Studio country + local price drive the "Local" toggle (Indonesia only).
   const studio = await prisma.studio.findUnique({
     where: { id: ctx.studioId },
-    select: { country: true, localPrice: true },
+    select: { country: true, localPrice: true, membershipClassPrice: true },
   })
   const withBalance = bookings.map((b) => ({
     ...b,
     membershipRemaining: balances.get(phoneTail(b.clientPhone)) ?? 0,
     studioCountry: studio?.country ?? null,
     localPrice: studio?.localPrice ?? 200000,
+    memberPrice: studio?.membershipClassPrice ?? 250000,
   }))
 
   return NextResponse.json(withBalance)

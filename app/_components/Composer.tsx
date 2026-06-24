@@ -219,10 +219,13 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
         <div className="flex gap-2 items-end">
           {/* "+" attachment button — opens the native picker. We deliberately
               fire on `click` (not pointerdown) because the file input dialog
-              must be invoked from a user-initiated click for iOS to allow it. */}
-          {/* Attachment "+" — admin only. Trainers don't need it (and the
-              extra button just steals horizontal space from the input). */}
-          {role === "ADMIN" && (
+              must be invoked from a user-initiated click for iOS to allow it.
+
+              Shown for BOTH admin and trainer, but ONLY while the 24h window is
+              open — free-form media (like free text) can't reach the client
+              outside the window, so we swap it for the 👋 wave/template below
+              when the window is closed. */}
+          {windowOpen && onAttach && (
             <>
               <input
                 ref={fileInputRef}
@@ -282,11 +285,12 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             </>
           )}
 
-          {/* Standalone 👋 wave — shown to BOTH admin and trainer. It sends an
-              approved `wave` template, so it works even when the 24h window is
-              closed (a cold chat). Rate-limited to once per 12h. This is the
-              only quick-send in the composer — the templates menu was removed. */}
-          {onWave && (
+          {/* Standalone 👋 wave — shown to BOTH admin and trainer, but ONLY
+              when the 24h window is CLOSED (a cold chat). It sends an approved
+              `wave` template, the one thing that still reaches the client when
+              free text/media can't. When the window is open we show the "+"
+              attach button instead. Rate-limited to once per 12h. */}
+          {!windowOpen && onWave && (
             <button
               type="button"
               tabIndex={-1}

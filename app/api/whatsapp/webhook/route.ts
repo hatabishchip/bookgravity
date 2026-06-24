@@ -610,7 +610,7 @@ export async function POST(request: NextRequest) {
                   | { bytes: Buffer; mimeType: string; filename: string }
                   | null = null
                 if (mediaUrl && type !== "text") {
-                  const fetched = await fetchMetaMedia(mediaUrl)
+                  const fetched = await fetchMetaMedia(mediaUrl, waConfig)
                   if (fetched.ok) {
                     const ext = (fetched.mimeType.split("/")[1] || "bin").split(";")[0]
                     const filename =

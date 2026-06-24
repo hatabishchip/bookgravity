@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { priceForTier } from "@/lib/payments"
 import { format, startOfMonth, endOfMonth, parse } from "date-fns"
 
 // Flat 20% commission, no fixed base salary. Assistant on a slot takes 5%,
@@ -17,12 +18,16 @@ export async function GET(request: NextRequest) {
   })
   if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
 
-  // Local-resident discount price: a paid booking marked local earns commission
-  // on localPrice, not the slot's full price.
-  const studio = await prisma.studio.findUnique({ where: { id: ctx.studioId }, select: { localPrice: true } })
+  // Each paid booking earns commission on its marked price tier (Full / Member /
+  // Local); legacy rows with no tier fall back to the old localResident flag.
+  const studio = await prisma.studio.findUnique({
+    where: { id: ctx.studioId },
+    select: { localPrice: true, membershipClassPrice: true },
+  })
   const localPrice = studio?.localPrice ?? 200000
-  const bookingAmount = (b: { localResident: boolean }, slotPrice: number) =>
-    b.localResident ? localPrice : slotPrice
+  const memberPrice = studio?.membershipClassPrice ?? 250000
+  const bookingAmount = (b: { priceTier?: string | null; localResident: boolean }, slotPrice: number) =>
+    priceForTier(b, { slotPrice, memberPrice, localPrice })
 
   // One transparent row per paid class - the trainer sees exactly which class
   // earned what (Sveta's request, 21.06.2026). The headline totals are summed
@@ -34,6 +39,7 @@ export async function GET(request: NextRequest) {
     classType: string
     client: string
     paymentType: string
+    tier: string | null
     amount: number
     rate: number
     commission: number
@@ -92,7 +98,7 @@ export async function GET(request: NextRequest) {
       totalPaid += amount
       breakdown.push({
         bookingId: b.id, date: slot.date, startTime: slot.startTime, classType: slot.classType,
-        client: b.clientName, paymentType: b.paymentType, amount, rate: effectiveRate, commission,
+        client: b.clientName, paymentType: b.paymentType, tier: b.priceTier ?? null, amount, rate: effectiveRate, commission,
         role: "lead",
       })
     }
@@ -109,7 +115,7 @@ export async function GET(request: NextRequest) {
       assistantCommission += commission
       breakdown.push({
         bookingId: b.id, date: slot.date, startTime: slot.startTime, classType: slot.classType,
-        client: b.clientName, paymentType: b.paymentType, amount, rate: ASSISTANT_RATE, commission,
+        client: b.clientName, paymentType: b.paymentType, tier: b.priceTier ?? null, amount, rate: ASSISTANT_RATE, commission,
         role: "assistant",
       })
     }

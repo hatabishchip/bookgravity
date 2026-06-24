@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { priceForTier } from "@/lib/payments"
 
 // Cash-flow report = the studio's daily money ledger, auto-built from data the
 // app already holds, mirroring the owner's "2026 Cash flow" sheet:
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
       label: b.clientName,
       responsible: b.slot.trainer?.name ?? "",
       method: b.paymentType,
-      amount: b.localResident ? localPrice : b.slot.price,
+      amount: priceForTier(b, { slotPrice: b.slot.price, memberPrice: fallbackClassPrice, localPrice }),
       kind: "class",
     })
   }

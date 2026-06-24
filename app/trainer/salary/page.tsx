@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Banknote, Users, HandHelping, TrendingUp } f
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { formatIDRCompact as formatIDR } from "@/lib/format"
-import { paymentTypeLabel, classTypeLabel } from "@/lib/payments"
+import { paymentTypeLabel, classTypeLabel, PRICE_TIER_LABEL } from "@/lib/payments"
 import { format as formatDate, parseISO } from "date-fns"
 
 type BreakdownRow = {
@@ -16,6 +16,7 @@ type BreakdownRow = {
   classType: string
   client: string
   paymentType: string
+  tier?: string | null
   amount: number
   rate: number
   commission: number
@@ -173,7 +174,8 @@ export default function TrainerSalaryPage() {
                     <div className="text-right flex-shrink-0">
                       <div className="text-sm font-semibold text-gray-900 whitespace-nowrap">+ {fmtFull(r.commission)}</div>
                       <div className="text-[11px] text-gray-400 whitespace-nowrap">
-                        {r.rate}% of {fmtFull(r.amount)} · {paymentTypeLabel(r.paymentType)}
+                        {r.rate}% of {fmtFull(r.amount)}
+                        {r.tier && r.tier !== "FULL" ? ` (${PRICE_TIER_LABEL[r.tier] ?? r.tier})` : ""} · {paymentTypeLabel(r.paymentType)}
                       </div>
                     </div>
                   </div>

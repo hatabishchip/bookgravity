@@ -5,7 +5,7 @@ import { format, addMonths, subMonths } from "date-fns"
 import { ChevronLeft, ChevronRight, Plus, Trash2, X, TrendingUp, Wallet, CreditCard, Receipt, DollarSign, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
-import { paymentTypeLabel, classTypeLabel } from "@/lib/payments"
+import { paymentTypeLabel, classTypeLabel, PRICE_TIER_LABEL } from "@/lib/payments"
 
 type Payment = { id: string; amount: number; note: string | null; createdAt: string; kind?: string }
 type BreakdownRow = {
@@ -15,6 +15,7 @@ type BreakdownRow = {
   classType: string
   client: string
   paymentType: string
+  tier?: string | null
   amount: number
   rate: number
   commission: number
@@ -335,7 +336,7 @@ export default function SalaryPage() {
                             </div>
                             <div className="text-right flex-shrink-0">
                               <div className="font-semibold text-gray-900 whitespace-nowrap">+{formatIDR(r.commission)}</div>
-                              <div className="text-[10px] text-gray-400 whitespace-nowrap">{r.rate}% of {formatIDR(r.amount)} · {paymentTypeLabel(r.paymentType)}</div>
+                              <div className="text-[10px] text-gray-400 whitespace-nowrap">{r.rate}% of {formatIDR(r.amount)}{r.tier && r.tier !== "FULL" ? ` (${PRICE_TIER_LABEL[r.tier] ?? r.tier})` : ""} · {paymentTypeLabel(r.paymentType)}</div>
                             </div>
                           </div>
                         ))}
