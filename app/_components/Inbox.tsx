@@ -1150,8 +1150,6 @@ export default function Inbox({
   const sendMedia = useCallback(
     async (file: File) => {
       if (!detail) return
-      const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
-      const localUrl = URL.createObjectURL(file)
       const isWebp = file.type === "image/webp" || /\.webp$/i.test(file.name)
       const guessType: MessageRow["type"] = isWebp
         ? "sticker"
@@ -1162,6 +1160,18 @@ export default function Inbox({
             : file.type.startsWith("image/")
               ? "image"
               : "document"
+      // WhatsApp's own per-type media caps. Reject oversized files up front with
+      // a clear message instead of letting Blob/Meta bounce them with a raw error
+      // (e.g. a >16MB video). Photo 5MB, video/audio 16MB, document 100MB.
+      const WA_LIMIT_MB: Record<string, number> = { image: 5, video: 16, audio: 16, document: 100, sticker: 0.5 }
+      const limitMb = WA_LIMIT_MB[guessType] ?? 16
+      if (file.size > limitMb * 1024 * 1024) {
+        const niceType = guessType === "sticker" ? "sticker" : guessType
+        setSendError(`This ${niceType} is ${(file.size / 1024 / 1024).toFixed(0)}MB - WhatsApp allows up to ${limitMb}MB. Trim or compress it and try again.`)
+        return
+      }
+      const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+      const localUrl = URL.createObjectURL(file)
       const optimistic: MessageRow = {
         id: tempId,
         direction: "OUTBOUND",

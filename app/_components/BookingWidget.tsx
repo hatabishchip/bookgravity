@@ -999,6 +999,15 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               </div>
             </div>
 
+            {/* Membership balance (informational) - a returning client with an
+                active pass sees how many classes are left, same as on the
+                booking step. Hidden when there's no active membership. */}
+            {membershipLeft > 0 && (
+              <div className="mx-6 mb-5 -mt-1 rounded-xl border border-brand/30 bg-brand/5 px-3 py-2.5 text-center text-xs text-brand">
+                🎟️ {membershipLeft} {membershipLeft === 1 ? "class" : "classes"} left on your membership
+              </div>
+            )}
+
             {/* Perforated divider */}
             <div className="relative">
               <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-sand rounded-full"></div>

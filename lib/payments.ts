@@ -46,7 +46,7 @@ export const zPriceTier = z.enum(PRICE_TIERS)
 export type PriceTier = (typeof PRICE_TIERS)[number]
 export const PRICE_TIER_LABEL: Record<string, string> = {
   FULL: "Full",
-  MEMBER: "Member",
+  MEMBER: "Membership",
   LOCAL: "Local",
 }
 
