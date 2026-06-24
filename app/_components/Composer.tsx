@@ -50,9 +50,15 @@ export interface ComposerProps {
    *  written within 24h). When closed, free text can't reach the client —
    *  only an approved template/wave can — so the text field is shown muted. */
   windowOpen?: boolean
+  /** MOBILE WhatsApp-style keyboard visibility. When false the on-screen
+   *  keyboard/sticker panel is hidden (more room for messages); tapping the
+   *  input opens it, scrolling the thread closes it. Desktop ignores this. */
+  keyboardOpen?: boolean
+  /** Notify the parent to open/close the on-screen keyboard. */
+  onKeyboardOpenChange?: (open: boolean) => void
 }
 
-export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, windowOpen = true }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, windowOpen = true, keyboardOpen = true, onKeyboardOpenChange }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasText, setHasText] = useState(false)
@@ -203,12 +209,22 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     }
   }, [onSend, sending, updateHeight])
 
-  // Initial focus + keep caret blinking when focus is lost to body.
+  // Initial focus — desktop only. On mobile the keyboard starts hidden
+  // (WhatsApp-style: tap the field to open it), so we don't grab focus on mount.
   useEffect(() => {
+    if (desktop) textareaRef.current?.focus()
+  }, [desktop])
+
+  // Mobile: mirror the open/closed keyboard state onto the textarea — focus it
+  // when the keyboard opens (caret + ready to type), blur it when a thread
+  // scroll closes it.
+  useEffect(() => {
+    if (desktop) return
     const t = textareaRef.current
     if (!t) return
-    t.focus()
-  }, [])
+    if (keyboardOpen) t.focus({ preventScroll: true })
+    else t.blur()
+  }, [keyboardOpen, desktop])
 
   return (
     <>
@@ -268,6 +284,8 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                     setEmojiOpen((v) => !v)
                     textareaRef.current?.focus({ preventScroll: true })
                   } else {
+                    // Opening the panel also un-hides the keyboard area on mobile.
+                    onKeyboardOpenChange?.(true)
                     setBottomPanel((m) => (m === "keyboard" ? "stickers" : "keyboard"))
                   }
                 }}
@@ -324,7 +342,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               // emoji insert — that would close the picker after one pick.
               onPointerDown={() => {
                 if (desktop) setEmojiOpen(false)
-                else setBottomPanel("keyboard")
+                else { setBottomPanel("keyboard"); onKeyboardOpenChange?.(true) }
               }}
               onInput={() => {
                 updateHeight()
@@ -334,6 +352,9 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               // textarea focused (re-grab focus if it's lost to <body>). On
               // desktop the real keyboard is used, so we let blur happen.
               onBlur={desktop ? undefined : () => {
+                // Only fight to keep focus while the keyboard is open. When a
+                // thread scroll closed it, let the blur stand.
+                if (!keyboardOpen) return
                 requestAnimationFrame(() => {
                   const active = document.activeElement
                   if (
@@ -408,6 +429,10 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             }}
           />
         )
+      ) : !keyboardOpen ? (
+        // Mobile, keyboard hidden (WhatsApp-style): show nothing under the
+        // composer so the whole thread is visible. A tap on the field re-opens.
+        null
       ) : bottomPanel === "keyboard" ? (
         <VirtualKeyboard onInsert={insertText} onBackspace={backspace} inactive={!windowOpen} defaultLang={role === "TRAINER" ? "en" : "ru"} />
       ) : (

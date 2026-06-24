@@ -714,9 +714,9 @@ export default function Inbox({
       raf = requestAnimationFrame(() => {
         // Only engage when the keyboard actually shrinks the viewport —
         // otherwise keep normal page flow (top bar visible, no jumps).
-        const keyboardOpen = visual.height < window.innerHeight - 80
-        setPageVv(keyboardOpen ? { x: visual.offsetLeft, y: visual.offsetTop, w: visual.width, h: visual.height } : null)
-        if (keyboardOpen) window.scrollTo(0, 0)
+        const vvShrunk = visual.height < window.innerHeight - 80
+        setPageVv(vvShrunk ? { x: visual.offsetLeft, y: visual.offsetTop, w: visual.width, h: visual.height } : null)
+        if (vvShrunk) window.scrollTo(0, 0)
       })
     }
     update()
@@ -732,6 +732,9 @@ export default function Inbox({
   // Chat-list filter by booking day: all chats / booked today / booked tomorrow.
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "tomorrow">("all")
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
+  // Mobile WhatsApp-style keyboard: hidden until the user taps the input;
+  // scrolling the thread hides it again. Desktop ignores this (real keyboard).
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [sendError, setSendError] = useState<string | null>(null)
@@ -1366,6 +1369,10 @@ export default function Inbox({
     return Date.now() - new Date(detail.lastInboundAt).getTime() < ONE_DAY_MS
   }, [detail?.lastInboundAt])
 
+  // Each conversation opens with the keyboard hidden (WhatsApp-style) so the
+  // newest messages are visible; a tap on the input opens it.
+  useEffect(() => { setKeyboardOpen(false) }, [detail?.id])
+
   // ---------- List column ----------
   // Client-side search over the loaded conversation list (by name; admin can
   // also match by phone digits).
@@ -1731,6 +1738,11 @@ export default function Inbox({
         <div
           ref={messagesScrollRef}
           onScroll={handleMessagesScroll}
+          // Dragging the thread dismisses the on-screen keyboard (WhatsApp-style).
+          // touchmove is a real user gesture, so programmatic auto-scroll (a new
+          // message arriving) never closes it. Guarded so it only re-renders when
+          // the keyboard was actually open.
+          onTouchMove={() => setKeyboardOpen((o) => (o ? false : o))}
           className="chat-scroll flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-2"
         >
           {loadingDetail && !detail ? (
@@ -1787,7 +1799,7 @@ export default function Inbox({
             `windowOpen` flag still drives the 👋 (a greeting only makes sense
             to re-open a closed window, but it's harmless when open). */}
         {windowOpen || role === "ADMIN" || role === "TRAINER" ? (
-          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} windowOpen={windowOpen} />
+          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} windowOpen={windowOpen} keyboardOpen={keyboardOpen} onKeyboardOpenChange={setKeyboardOpen} />
         ) : null}
         {sendError && (
           <div className="px-3 pb-1 text-xs text-red-600 dark:text-red-400 bg-[#ECE5DD] dark:bg-[#0B141A]">
