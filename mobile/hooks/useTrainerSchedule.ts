@@ -12,6 +12,17 @@ export type TrainerSlot =
       maxCapacity: number
       _count: { bookings: number }
     }
+  | {
+      state: "assisting"
+      id: string
+      date: string
+      startTime: string
+      endTime: string
+      classType: string
+      maxCapacity: number
+      _count: { bookings: number }
+      mainTrainerName: string | null
+    }
   | { state: "unassigned"; id: string; date: string; startTime: string; endTime: string; maxCapacity: number; _count: { bookings: number } }
   | { state: "other"; id: string; date: string; startTime: string; endTime: string }
 

@@ -34,17 +34,33 @@ export async function GET(request: NextRequest) {
     },
     include: {
       _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
+      trainer: { select: { name: true } },
     },
     orderBy: [{ date: "asc" }, { startTime: "asc" }],
   })
 
-  // Three states:
+  // States:
   //  - mine: own slot, full info
+  //  - assisting: I'm the assistant on someone else's class — show when + which
+  //    class (with the lead's name + roster size) so I know to come help.
   //  - unassigned: no trainer set, expose bookings/capacity so the trainer
   //    can ask the admin to be assigned
   //  - other: another trainer is assigned, just an "Occupied" placeholder
   const sanitized = slots.map((s) => {
     if (s.trainerId === trainer.id) return { ...s, state: "mine" as const }
+    if (s.assistantId === trainer.id) {
+      return {
+        id: s.id,
+        date: s.date,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        classType: s.classType,
+        maxCapacity: s.maxCapacity,
+        _count: s._count,
+        mainTrainerName: s.trainer?.name ?? null,
+        state: "assisting" as const,
+      }
+    }
     if (s.trainerId === null) {
       return {
         id: s.id,

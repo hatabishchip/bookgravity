@@ -38,6 +38,11 @@ export default function TrainerScheduleTab() {
 
   const { data: slots = [], isLoading, refetch, isRefetching } = useTrainerSchedule(range.from, range.to)
   const myClasses = slots.filter((s): s is Extract<TrainerSlot, { state: "mine" }> => s.state === "mine")
+  const assisting = slots.filter((s): s is Extract<TrainerSlot, { state: "assisting" }> => s.state === "assisting")
+  // One agenda mixing own classes + the ones I assist, in the API's day order.
+  const agenda = [...myClasses, ...assisting].sort((a, b) =>
+    a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date),
+  )
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -78,38 +83,65 @@ export default function TrainerScheduleTab() {
           <Stat label="Confirmed" value={myClasses.reduce((acc, s) => acc + (s._count?.bookings ?? 0), 0)} />
         </View>
 
-        {/* Slot list — only "mine" rendered as actionable; others stay flat. */}
-        {isLoading ? <Skeleton /> : myClasses.length === 0 ? (
+        {/* Agenda — own classes are actionable; classes I only assist are shown
+            flat (info only) with a "You assist" badge so I know when to come. */}
+        {isLoading ? <Skeleton /> : agenda.length === 0 ? (
           <Empty view={view} />
         ) : (
           <View style={{ gap: spacing.sm }}>
-            {myClasses.map((slot) => (
-              <Pressable
-                key={slot.id}
-                onPress={() => router.push({ pathname: "/(trainer)/class", params: { slotId: slot.id } })}
-                style={({ pressed }) => [
-                  styles.classRow,
-                  { backgroundColor: theme.bg.card, borderColor: theme.border.subtle, opacity: pressed ? 0.85 : 1 },
-                ]}
-              >
-                <View style={[styles.timeBlock, { backgroundColor: theme.brand.primarySoft }]}>
-                  <Text variant="callout" tone="brand">{slot.startTime}</Text>
-                  <Text variant="footnote" tone="muted">{slot.endTime}</Text>
-                </View>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text variant="headline" tone="primary">
-                    {format(parseISO(slot.date), "EEE, MMM d")}
-                  </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Users size={12} color={theme.text.muted} />
-                    <Text variant="footnote" tone="muted">
-                      {slot._count.bookings} / {slot.maxCapacity} confirmed
+            {agenda.map((slot) =>
+              slot.state === "mine" ? (
+                <Pressable
+                  key={slot.id}
+                  onPress={() => router.push({ pathname: "/(trainer)/class", params: { slotId: slot.id } })}
+                  style={({ pressed }) => [
+                    styles.classRow,
+                    { backgroundColor: theme.bg.card, borderColor: theme.border.subtle, opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <View style={[styles.timeBlock, { backgroundColor: theme.brand.primarySoft }]}>
+                    <Text variant="callout" tone="brand">{slot.startTime}</Text>
+                    <Text variant="footnote" tone="muted">{slot.endTime}</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text variant="headline" tone="primary">
+                      {format(parseISO(slot.date), "EEE, MMM d")}
                     </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Users size={12} color={theme.text.muted} />
+                      <Text variant="footnote" tone="muted">
+                        {slot._count.bookings} / {slot.maxCapacity} confirmed
+                      </Text>
+                    </View>
+                  </View>
+                  <ChevronRight size={18} color={theme.text.muted} />
+                </Pressable>
+              ) : (
+                <View
+                  key={slot.id}
+                  style={[styles.classRow, { backgroundColor: theme.bg.card, borderColor: theme.brand.primary }]}
+                >
+                  <View style={[styles.timeBlock, { backgroundColor: theme.brand.primarySoft }]}>
+                    <Text variant="callout" tone="brand">{slot.startTime}</Text>
+                    <Text variant="footnote" tone="muted">{slot.endTime}</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text variant="headline" tone="primary">
+                      {format(parseISO(slot.date), "EEE, MMM d")}
+                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <View style={[styles.assistBadge, { backgroundColor: theme.brand.primary }]}>
+                        <Text style={{ color: theme.text.invert, fontSize: 10, fontWeight: "700" }}>You assist</Text>
+                      </View>
+                      <Text variant="footnote" tone="muted">
+                        {slot.mainTrainerName ? `with ${slot.mainTrainerName} · ` : ""}
+                        {slot._count.bookings}/{slot.maxCapacity}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-                <ChevronRight size={18} color={theme.text.muted} />
-              </Pressable>
-            ))}
+              ),
+            )}
           </View>
         )}
       </ScrollView>
@@ -187,6 +219,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: "center",
     gap: 2,
+  },
+  assistBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
   },
   empty: {
     alignItems: "center",

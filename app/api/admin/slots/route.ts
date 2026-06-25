@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { syncSlotToGoogle, unsyncSlotFromGoogle } from "@/lib/google-calendar"
 import { restoreMembershipsForBookings } from "@/lib/booking-cancel"
+import { sendPush } from "@/lib/expo-push"
+import { format, parseISO } from "date-fns"
 
 // Google Calendar sync can add a few network calls per slot; give the function
 // headroom past the 10s default (no-ops instantly when not connected).
@@ -284,6 +286,27 @@ export async function PATCH(request: NextRequest) {
       },
       include: slotInclude,
     })
+
+    // Newly assigned an assistant to this class? Ping them so they know to come
+    // help (they don't book it themselves). Fire-and-forget; never block the save.
+    if (data.assistantId && data.assistantId !== current.assistantId) {
+      void (async () => {
+        const assistant = await prisma.trainer.findUnique({
+          where: { id: data.assistantId! },
+          select: { userId: true },
+        })
+        if (!assistant?.userId) return
+        let dateLabel = updated.date
+        try { dateLabel = format(parseISO(updated.date), "EEE, MMM d") } catch {}
+        await sendPush({
+          userId: assistant.userId,
+          title: "You're assisting a class",
+          body: `${dateLabel} at ${updated.startTime}`,
+          category: "booking",
+          data: { category: "booking", slotId: updated.id },
+        })
+      })().catch(() => {})
+    }
 
     // If the admin un-checks "Repeat weekly" on this slot, strip the series
     // from future occurrences and delete the ones with no bookings. Past +

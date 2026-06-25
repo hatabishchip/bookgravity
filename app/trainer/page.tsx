@@ -20,10 +20,12 @@ type Slot = {
   date: string
   startTime: string
   endTime: string
-  state: "mine" | "unassigned" | "other"
+  state: "mine" | "unassigned" | "other" | "assisting"
   maxCapacity?: number
   price?: number
   _count?: { bookings: number }
+  // "assisting" only: the lead trainer running the class I help with.
+  mainTrainerName?: string | null
 }
 
 type Service = { id: string; name: string; price: number }
@@ -545,10 +547,13 @@ export default function TrainerSchedulePage() {
 
   const slotsForDay = (date: string) => slots.filter((s) => s.date === date)
 
-  // In the 2-week view, show ONLY the days that have this trainer's own
-  // classes ("mine"); empty days are hidden. Month keeps the full calendar.
+  // In the 2-week view, show ONLY the days the trainer is actually involved in -
+  // their own classes ("mine") or ones they assist; empty days are hidden. Month
+  // keeps the full calendar.
   const visibleDays = view === "2weeks"
-    ? range.days.filter((d) => slotsForDay(format(d, "yyyy-MM-dd")).some((s) => s.state === "mine"))
+    ? range.days.filter((d) =>
+        slotsForDay(format(d, "yyyy-MM-dd")).some((s) => s.state === "mine" || s.state === "assisting"),
+      )
     : range.days
 
   // Navigation bounds (only Month view is navigable)
@@ -911,6 +916,31 @@ export default function TrainerSchedulePage() {
 
                   <div className="space-y-2">
                     {daySlots.map((slot) => {
+                      // I'm the assistant on this class — show when + the lead so
+                      // I know to come help (I don't run or book it).
+                      if (slot.state === "assisting") {
+                        return (
+                          <div
+                            key={slot.id}
+                            className={cn(
+                              "w-full rounded-lg border border-brand/40 bg-brand/5 select-none cursor-default",
+                              view === "2weeks" ? "p-3" : "p-2",
+                            )}
+                            title="You assist this class"
+                          >
+                            <div className={cn("font-semibold text-brand", view === "2weeks" ? "text-base" : "text-xs")}>
+                              {formatTime(slot.startTime)}
+                            </div>
+                            <div className="mt-0.5 inline-block text-[9px] font-bold uppercase tracking-wider bg-brand text-white px-1.5 py-0.5 rounded-full">
+                              Assist
+                            </div>
+                            <div className={cn("text-brand/70 leading-tight", view === "2weeks" ? "text-xs mt-1" : "text-[10px] mt-1")}>
+                              {slot.mainTrainerName ? `with ${slot.mainTrainerName} · ` : ""}
+                              {slot._count?.bookings ?? 0}/{slot.maxCapacity ?? 0}
+                            </div>
+                          </div>
+                        )
+                      }
                       // Another trainer's slot — gray "occupied" placeholder, no details
                       if (slot.state === "other") {
                         return (
