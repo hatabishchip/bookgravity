@@ -29,6 +29,23 @@ export function formatIDRFull(amount: number): string {
 }
 
 /**
+ * Currency-aware price for the booking widget. Indonesian studios stay on the
+ * compact IDR style ("300k IDR"); studios with currency "USD" (e.g. the USA /
+ * Online studio) render proper dollars ("$19", "$19.50"). Defaults to IDR so
+ * existing studios are unaffected.
+ */
+export function formatMoney(amount: number, currency: string | null | undefined = "IDR"): string {
+  const cur = (currency || "IDR").toUpperCase()
+  if (cur === "IDR") return formatIDRCompact(amount, true)
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: cur,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+  }).format(amount)
+}
+
+/**
  * Bare digits with a leading "+": "62812345678" → "+62812345678".
  * Phones are stored digits-only (normalized 2026-06-11); this is the display
  * form for admin/trainer screens and wa.me links.

@@ -37,6 +37,10 @@ model Studio {
   // Admin's WhatsApp number to receive a copy of every booking alert (in
   // addition to the assigned trainer). Empty = admin copy off.
   bookingAlertWhatsapp String?
+  // ISO 4217 currency for this studio's prices (e.g. "IDR", "USD"). Drives
+  // booking-widget money formatting. Defaults to IDR so existing studios are
+  // unaffected; the USA / Online studio uses "USD".
+  currency      String   @default("IDR")
   // Main-service prices (per person) — used as defaults when creating slots
   groupPrice    Float    @default(300000)
   kidsPrice     Float    @default(200000)

@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 // Phone country table + validation helpers: single source of truth in lib/phone.
 import { detectCountry, subscriberDigits, type PhoneCountry } from "@/lib/phone"
 import { clientEndTime12, clientEndTime24 } from "@/lib/class-time"
+import { formatMoney } from "@/lib/format"
 
 // Deterministic barcode bars derived from a numeric code.
 // Returns an array of widths (in px) and gap booleans to render a Code-128-style look.
@@ -156,17 +157,9 @@ function formatTime(time: string) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`
 }
 
-// Format IDR amounts: 300000 -> "300k", 1000000 -> "1M", 1350000 -> "1.35M".
-// Two decimals, trimmed — toFixed(1) used to round 1.35M up to a WRONG
-// "1.4M" on the ticket when a 50k add-on rode on a 1.3M private session.
-function formatIDR(amount: number) {
-  if (amount >= 1_000_000) {
-    const m = amount / 1_000_000
-    const str = (Math.round(m * 100) / 100).toString()
-    return `${str}M IDR`
-  }
-  return `${Math.round(amount / 1000)}k IDR`
-}
+// Price formatting moved to a currency-aware, in-component helper (formatIDR
+// below) so the USA / Online studio renders USD while Indonesian studios keep
+// the compact "300k IDR" style. Single source: lib/format.formatMoney.
 
 // Client-facing end time (12h) lives in lib/class-time.ts now — single source
 // of truth for the "real slot is 2h, client sees 1.5h" rule. Aliased so the
@@ -175,7 +168,7 @@ const clientEndTime = clientEndTime12
 
 export default function BookingWidget({ services, studio, studioSlug }: {
   services: Service[]
-  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null; whatsappEnabled?: boolean }
+  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null; whatsappEnabled?: boolean; currency?: string }
   // Slug of the studio this widget books into. Sent as ?studio= on the
   // slots/bookings calls so the API scopes to the right studio regardless of
   // host (we serve every studio from bookgravity.com now). Falls back to the
@@ -184,6 +177,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 }) {
   // Query-string suffix that pins API calls to this studio.
   const studioParam = (studioSlug ?? studio?.slug) ? `studio=${encodeURIComponent(studioSlug ?? studio!.slug)}` : ""
+  // Currency-aware price formatter: USD for the USA / Online studio, compact
+  // IDR for the Indonesian studios. Replaces the old IDR-only formatIDR.
+  const formatIDR = (amount: number) => formatMoney(amount, studio?.currency)
   const [step, setStep] = useState<Step>("date")
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
