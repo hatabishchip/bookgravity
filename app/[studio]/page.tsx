@@ -210,7 +210,7 @@ export default async function StudioBookingPage({
           .map((s) => ({ slug: s.slug, city: s.city, name: s.name }))}
       />
 
-      <SiteFooter />
+      <SiteFooter variant={(studio.country || "").toUpperCase() === "US" ? "us" : "id"} />
     </div>
   )
 }
