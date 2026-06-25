@@ -168,7 +168,7 @@ const clientEndTime = clientEndTime12
 
 export default function BookingWidget({ services, studio, studioSlug }: {
   services: Service[]
-  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null; whatsappEnabled?: boolean; currency?: string }
+  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null; whatsappEnabled?: boolean; currency?: string; groupPrice?: number }
   // Slug of the studio this widget books into. Sent as ?studio= on the
   // slots/bookings calls so the API scopes to the right studio regardless of
   // host (we serve every studio from bookgravity.com now). Falls back to the
@@ -1151,8 +1151,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 <div className="text-[11px] text-gray-500 mt-1.5 leading-none">Up to 6 people · 1.5 hours</div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="text-2xl font-bold text-brand leading-none tabular-nums">300k</div>
-                <div className="text-[10px] text-gray-500 mt-1.5 uppercase tracking-wide leading-none">IDR / person</div>
+                <div className="text-2xl font-bold text-brand leading-none tabular-nums">{formatIDR(studio?.groupPrice ?? 300000)}</div>
+                <div className="text-[10px] text-gray-500 mt-1.5 uppercase tracking-wide leading-none">per person</div>
               </div>
             </div>
 
