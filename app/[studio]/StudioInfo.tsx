@@ -65,7 +65,9 @@ function buildFaq(city: string, pricing: ClassPricing, currency: string | null, 
     },
     {
       q: "How do I pay?",
-      a: "You pay at the studio — cash, card, QR or transfer. Regulars save with a 5-class membership; ask your trainer about it after class.",
+      a: (country || "").toUpperCase() === "US"
+        ? "After you book, your coach sends the class link and simple payment details (card or transfer). Regulars save with a 5-class pack or a monthly membership."
+        : "You pay at the studio - cash, card, QR or transfer. Regulars save with a 5-class membership; ask your trainer about it after class.",
     },
   ]
   if (pricing.group) {
@@ -73,7 +75,7 @@ function buildFaq(city: string, pricing: ClassPricing, currency: string | null, 
       q: `How much does a stretching class in ${city} cost?`,
       a: `Group classes start from ${formatPrice(pricing.group, currency, country)} per person.${
         pricing.private ? ` Private 1-on-1 sessions start from ${formatPrice(pricing.private, currency, country)}.` : ""
-      } You book your spot online for free and pay at the studio.`,
+      }${(country || "").toUpperCase() === "US" ? " Booking is free; your coach shares payment details when you join." : " You book your spot online for free and pay at the studio."}`,
     })
   }
   return faq
@@ -163,8 +165,9 @@ export default function StudioInfo({
             ))}
           </ul>
           <p className="mt-3 text-xs text-gray-400">
-            Booking online is free — you pay at the studio (cash, card, QR or transfer). Free
-            cancellation up to 2 hours before class.
+            {(studio.country || "").toUpperCase() === "US"
+              ? "Booking is free - your coach sends the class link after you book. Free cancellation up to 2 hours before class."
+              : "Booking online is free - you pay at the studio (cash, card, QR or transfer). Free cancellation up to 2 hours before class."}
           </p>
         </div>
 

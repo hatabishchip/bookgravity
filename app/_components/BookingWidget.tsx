@@ -168,7 +168,7 @@ const clientEndTime = clientEndTime12
 
 export default function BookingWidget({ services, studio, studioSlug }: {
   services: Service[]
-  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null; whatsappEnabled?: boolean; currency?: string; groupPrice?: number }
+  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null; whatsappEnabled?: boolean; currency?: string; groupPrice?: number; country?: string | null }
   // Slug of the studio this widget books into. Sent as ?studio= on the
   // slots/bookings calls so the API scopes to the right studio regardless of
   // host (we serve every studio from bookgravity.com now). Falls back to the
@@ -1148,7 +1148,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             <div className="px-4 py-3 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[13px] font-semibold text-brand leading-none">Group class</div>
-                <div className="text-[11px] text-gray-500 mt-1.5 leading-none">Up to 6 people · 1.5 hours</div>
+                <div className="text-[11px] text-gray-500 mt-1.5 leading-none">{(studio?.country || "").toUpperCase() === "US" ? "Live online · small group" : "Up to 6 people · 1.5 hours"}</div>
               </div>
               <div className="text-right flex-shrink-0">
                 <div className="text-2xl font-bold text-brand leading-none tabular-nums">{formatIDR(studio?.groupPrice ?? 300000)}</div>
@@ -1795,7 +1795,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 ≥2h before class (or within 30 min of booking). Builds trust at
                 the exact moment of commitment. */}
             <p className="text-[11px] text-gray-400 text-center leading-relaxed">
-              Booking is free — you pay at the studio. Free cancellation up to 2 hours before
+              {(studio?.country || "").toUpperCase() === "US" ? "Booking is free; your coach sends the class link after you book. Free cancellation up to 2 hours before" : "Booking is free - you pay at the studio. Free cancellation up to 2 hours before"}
               class{studio?.whatsappEnabled ? " via the Cancel button in your WhatsApp confirmation" : ""}.
             </p>
             </div>)}
