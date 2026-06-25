@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { MapPin, Users, Clock, Sparkles } from "lucide-react"
 import JsonLd from "../_components/JsonLd"
+import { formatMoney } from "@/lib/format"
 
 // Server-rendered SEO/content block under the booking widget. This is the
 // page's crawlable substance — the widget itself is interactive UI that
@@ -12,6 +13,7 @@ export type StudioInfoData = {
   slug: string
   city: string | null
   country: string | null
+  currency: string | null
   locationUrl: string | null
 }
 
@@ -24,7 +26,11 @@ export type ClassPricing = {
 
 export type SiblingStudio = { slug: string; city: string | null; name: string }
 
-function formatPrice(price: number, country: string | null): string {
+function formatPrice(price: number, currency: string | null, country: string | null): string {
+  const cur = (currency || "IDR").toUpperCase()
+  // Studios priced in a real currency (e.g. USD for the USA / Online studio)
+  // get proper symbols via the shared formatter ("$19").
+  if (cur !== "IDR") return formatMoney(price, cur)
   const c = (country || "").toUpperCase()
   if (c === "ID") {
     // Two decimals, trimmed: 1350000 → "1.35M" (toFixed(1) wrongly rounded to "1.4M").
@@ -35,7 +41,7 @@ function formatPrice(price: number, country: string | null): string {
   return price.toLocaleString("en-US")
 }
 
-function buildFaq(city: string, pricing: ClassPricing, country: string | null) {
+function buildFaq(city: string, pricing: ClassPricing, currency: string | null, country: string | null) {
   const faq: { q: string; a: string }[] = [
     {
       q: "How long is a stretching class?",
@@ -65,8 +71,8 @@ function buildFaq(city: string, pricing: ClassPricing, country: string | null) {
   if (pricing.group) {
     faq.splice(3, 0, {
       q: `How much does a stretching class in ${city} cost?`,
-      a: `Group classes start from ${formatPrice(pricing.group, country)} per person.${
-        pricing.private ? ` Private 1-on-1 sessions start from ${formatPrice(pricing.private, country)}.` : ""
+      a: `Group classes start from ${formatPrice(pricing.group, currency, country)} per person.${
+        pricing.private ? ` Private 1-on-1 sessions start from ${formatPrice(pricing.private, currency, country)}.` : ""
       } You book your spot online for free and pay at the studio.`,
     })
   }
@@ -83,7 +89,7 @@ export default function StudioInfo({
   siblings: SiblingStudio[]
 }) {
   const city = studio.city?.trim() || studio.name
-  const faq = buildFaq(city, pricing, studio.country)
+  const faq = buildFaq(city, pricing, studio.currency, studio.country)
 
   const faqLd = {
     "@context": "https://schema.org",
@@ -108,14 +114,14 @@ export default function StudioInfo({
       icon: Users,
       title: "Group class",
       desc: `Up to 6 people, 75–90 minutes of gravity stretching with a trainer${
-        pricing.group ? ` — from ${formatPrice(pricing.group, studio.country)} per person` : ""
+        pricing.group ? ` — from ${formatPrice(pricing.group, studio.currency, studio.country)} per person` : ""
       }.`,
     },
     {
       icon: Sparkles,
       title: "Private 1-on-1",
       desc: `A full session focused entirely on your body and goals${
-        pricing.private ? ` — from ${formatPrice(pricing.private, studio.country)}` : ""
+        pricing.private ? ` — from ${formatPrice(pricing.private, studio.currency, studio.country)}` : ""
       }. Ideal for deep progress or specific issues.`,
     },
     {

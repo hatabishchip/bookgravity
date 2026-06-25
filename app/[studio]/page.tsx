@@ -131,7 +131,9 @@ export default async function StudioBookingPage({
     ...(pricing.group
       ? {
           priceRange: `${pricing.group}${pricing.private ? `-${pricing.private}` : ""} ${
-            (studio.country || "").toUpperCase() === "KZ" ? "KZT" : "IDR"
+            (studio.currency || "IDR").toUpperCase() !== "IDR"
+              ? (studio.currency || "").toUpperCase()
+              : (studio.country || "").toUpperCase() === "KZ" ? "KZT" : "IDR"
           }`,
         }
       : {}),
