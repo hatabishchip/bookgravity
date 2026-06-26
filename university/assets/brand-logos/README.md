@@ -7,6 +7,8 @@ Canonical logo files (transparent PNG, 1090x1088, black mark).
   `mobile/assets/world-logo.png` (login screen). Shown to all clients.
 - `CANGGU.png` - Canggu studio "GRAVITY STRETCHING CANGGU". Stored in the DB as
   `Studio.logoUrl` + `faviconUrl` for the canggu studio (white-square composite).
+- `USA.png`    - USA studio "GRAVITY STRETCHING USA". Stored in the DB as
+  `Studio.logoUrl` + `faviconUrl` for the usa studio (white-square composite).
 
 Rule: these REPLACE the previous World/Canggu logos everywhere. The UBUD studio
 logo is separate and must NOT be touched. Stored/icon copies are composited on a
