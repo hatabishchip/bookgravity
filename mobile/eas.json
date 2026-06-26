@@ -35,7 +35,8 @@
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "credentialsSource": "local"
+        "credentialsSource": "local",
+        "image": "latest"
       }
     }
   },
