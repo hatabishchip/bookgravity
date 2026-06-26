@@ -33,14 +33,20 @@
     },
     "production": {
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "ios": {
+        "credentialsSource": "local"
+      }
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "PLACEHOLDER_APP_STORE_CONNECT_ID",
-        "appleTeamId": "PLACEHOLDER_APPLE_TEAM_ID"
+        "ascAppId": "6784350273",
+        "appleTeamId": "GMS4GT3QBU",
+        "ascApiKeyPath": "/Users/oleksandrdiachuk/Downloads/AuthKey_3F2JT4F4S9.p8",
+        "ascApiKeyId": "3F2JT4F4S9",
+        "ascApiKeyIssuerId": "b3a3cfc9-94e7-4057-b96b-2df9e1f67c9f"
       },
       "android": {
         // Path to the Google Cloud service-account JSON with Play access.
