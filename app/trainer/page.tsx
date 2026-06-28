@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import Link from "next/link"
 import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns"
-import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2, MessageSquare, Bell } from "lucide-react"
+import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2, MessageSquare, Bell, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import SellMembershipButton from "@/app/_components/SellMembershipButton"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
+import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import PriceTierSelect from "@/app/_components/PriceTierSelect"
 import { PRICE_TIER_LABEL } from "@/lib/payments"
 import { useOpenChat } from "@/lib/use-open-chat"
@@ -134,10 +135,9 @@ export default function TrainerSchedulePage() {
   const reqSeqRef = useRef<Record<string, number>>({})
   const [services, setServices] = useState<Service[]>([])
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
-  // Manual "add a client" form (today's own class only).
+  // Manual "add a client" form (today's own class only). The fields live in the
+  // shared AddClientForm (same PhoneInput as the public booking widget).
   const [addOpen, setAddOpen] = useState(false)
-  const [addName, setAddName] = useState("")
-  const [addPhone, setAddPhone] = useState("+")
   const [addSaving, setAddSaving] = useState(false)
   const [addErr, setAddErr] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
@@ -498,19 +498,15 @@ export default function TrainerSchedulePage() {
   }
 
   // Manually add a client to the open class (today only, server-enforced).
-  const submitAddClient = async () => {
+  const submitAddClient = async (c: NewClient) => {
     if (!selectedSlot) return
-    const name = addName.trim()
-    const digits = addPhone.replace(/\D/g, "")
-    if (!name) { setAddErr("Enter a name"); return }
-    if (digits.length < 6) { setAddErr("Enter a valid phone"); return }
     setAddSaving(true)
     setAddErr(null)
     try {
       const res = await fetch(`/api/trainer/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slotId: selectedSlot.id, clientName: name, clientPhone: addPhone }),
+        body: JSON.stringify({ slotId: selectedSlot.id, clientName: c.clientName, clientPhone: c.clientPhone, clientEmail: c.clientEmail }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
@@ -518,8 +514,6 @@ export default function TrainerSchedulePage() {
         return
       }
       setAddOpen(false)
-      setAddName("")
-      setAddPhone("+")
       fetchBookingsForSlot(selectedSlot.id)
     } catch {
       setAddErr("Network error - please try again")
@@ -1088,25 +1082,28 @@ export default function TrainerSchedulePage() {
                 </div>
                 {/* Hand the whole class to a colleague (give-initiated only).
                     Future classes only — the past is salary history. */}
+                {/* Class actions as spaced pill buttons (not cramped links).
+                    "Add a client" (today only) is the primary; "Hand over"
+                    (today + future) is the quiet secondary. */}
                 {selectedSlot.date >= baliDateStr(new Date()) && (
-                  <button
-                    type="button"
-                    onClick={() => setHandoverFor(selectedSlot)}
-                    className="mt-1 text-xs font-medium text-brand hover:text-brand-dark underline touch-manipulation"
-                  >
-                    Hand over to a colleague
-                  </button>
-                )}
-                {/* Manually add a client to TODAY's class (e.g. someone asked to
-                    be recorded after the session). */}
-                {selectedSlot.date === baliDateStr(new Date()) && (
-                  <button
-                    type="button"
-                    onClick={() => { setAddErr(null); setAddName(""); setAddPhone("+"); setAddOpen(true) }}
-                    className="mt-1 block text-xs font-medium text-brand hover:text-brand-dark underline touch-manipulation"
-                  >
-                    + Add a client
-                  </button>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {selectedSlot.date === baliDateStr(new Date()) && (
+                      <button
+                        type="button"
+                        onClick={() => { setAddErr(null); setAddOpen(true) }}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 text-brand px-3 py-1.5 text-xs font-semibold hover:bg-brand/15 active:scale-95 transition touch-manipulation"
+                      >
+                        <UserPlus size={13} /> Add a client
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setHandoverFor(selectedSlot)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 text-gray-600 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 active:scale-95 transition touch-manipulation"
+                    >
+                      Hand over
+                    </button>
+                  </div>
                 )}
               </div>
               {(() => {
@@ -1498,31 +1495,16 @@ export default function TrainerSchedulePage() {
                 <X size={18} />
               </button>
             </div>
-            <p className="text-xs text-gray-400 mb-3">
-              A manual record for today&apos;s class. The client gets no WhatsApp message.
+            <p className="text-xs text-gray-400 mb-1">
+              {selectedSlot.date && format(new Date(selectedSlot.date + "T00:00:00"), "MMM d")} · a manual record, no client message.
             </p>
-            <input
-              type="text"
-              value={addName}
-              onChange={(e) => setAddName(e.target.value)}
-              placeholder="Client name"
-              className="w-full mb-2 px-3 py-2.5 rounded-lg border border-gray-200 text-gray-900 outline-none focus:border-brand/40"
-            />
-            <input
-              type="tel"
-              value={addPhone}
-              onChange={(e) => setAddPhone(e.target.value)}
-              placeholder="Phone (+62...)"
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-gray-900 outline-none focus:border-brand/40"
+            <AddClientForm
+              maxParty={1}
+              submitting={addSaving}
+              onSubmit={submitAddClient}
+              onCancel={() => setAddOpen(false)}
             />
             {addErr && <div className="mt-2 text-xs text-red-600">{addErr}</div>}
-            <button
-              onClick={submitAddClient}
-              disabled={addSaving}
-              className="mt-4 w-full py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-60 touch-manipulation"
-            >
-              {addSaving ? "Adding..." : "Add to class"}
-            </button>
           </div>
         </div>
       )}

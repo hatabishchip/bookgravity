@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { baliDateStr } from "@/lib/tz"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
+import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import PriceTierSelect from "@/app/_components/PriceTierSelect"
 
 type Booking = {
@@ -67,11 +68,10 @@ export default function TrainerBookingsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [dayFilter, setDayFilter] = useState<DayFilter>("all")
-  // Manual "add a client" to one of today's own classes.
+  // Manual "add a client" to one of today's own classes. The name/phone fields
+  // live in the shared AddClientForm (same PhoneInput as the booking widget).
   const [addOpen, setAddOpen] = useState(false)
   const [addSlotId, setAddSlotId] = useState("")
-  const [addName, setAddName] = useState("")
-  const [addPhone, setAddPhone] = useState("+")
   const [addSaving, setAddSaving] = useState(false)
   const [addErr, setAddErr] = useState<string | null>(null)
   const [todayClasses, setTodayClasses] = useState<{ id: string; startTime: string; endTime: string }[]>([])
@@ -88,7 +88,7 @@ export default function TrainerBookingsPage() {
 
   // Open the add-client form and load today's own classes to pick from.
   const openAdd = useCallback(async () => {
-    setAddErr(null); setAddName(""); setAddPhone("+"); setAddSlotId(""); setAddOpen(true)
+    setAddErr(null); setAddSlotId(""); setAddOpen(true)
     try {
       const today = baliDateStr(new Date())
       const res = await fetch(`/api/trainer/schedule?from=${today}&to=${today}`)
@@ -101,19 +101,15 @@ export default function TrainerBookingsPage() {
     }
   }, [])
 
-  const submitAdd = async () => {
-    const name = addName.trim()
-    const digits = addPhone.replace(/\D/g, "")
+  const submitAdd = async (c: NewClient) => {
     if (!addSlotId) { setAddErr("Pick a class"); return }
-    if (!name) { setAddErr("Enter a name"); return }
-    if (digits.length < 6) { setAddErr("Enter a valid phone"); return }
     setAddSaving(true)
     setAddErr(null)
     try {
       const res = await fetch(`/api/trainer/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slotId: addSlotId, clientName: name, clientPhone: addPhone }),
+        body: JSON.stringify({ slotId: addSlotId, clientName: c.clientName, clientPhone: c.clientPhone, clientEmail: c.clientEmail }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
@@ -315,39 +311,29 @@ export default function TrainerBookingsPage() {
             {todayClasses.length === 0 ? (
               <div className="text-sm text-gray-500 py-2">You have no classes today.</div>
             ) : (
-              <select
-                value={addSlotId}
-                onChange={(e) => setAddSlotId(e.target.value)}
-                className="w-full mb-2 px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-900 outline-none focus:border-brand/40"
-              >
-                <option value="">Pick a class...</option>
-                {todayClasses.map((c) => (
-                  <option key={c.id} value={c.id}>{formatTime(c.startTime)} - {formatTime(c.endTime)}</option>
-                ))}
-              </select>
+              <>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Class</label>
+                <select
+                  value={addSlotId}
+                  onChange={(e) => setAddSlotId(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-900 outline-none focus:border-brand/40"
+                >
+                  <option value="">Pick a class...</option>
+                  {todayClasses.map((c) => (
+                    <option key={c.id} value={c.id}>{formatTime(c.startTime)} - {formatTime(c.endTime)}</option>
+                  ))}
+                </select>
+                {addSlotId && (
+                  <AddClientForm
+                    maxParty={1}
+                    submitting={addSaving}
+                    onSubmit={submitAdd}
+                    onCancel={() => setAddOpen(false)}
+                  />
+                )}
+              </>
             )}
-            <input
-              type="text"
-              value={addName}
-              onChange={(e) => setAddName(e.target.value)}
-              placeholder="Client name"
-              className="w-full mb-2 px-3 py-2.5 rounded-lg border border-gray-200 text-gray-900 outline-none focus:border-brand/40"
-            />
-            <input
-              type="tel"
-              value={addPhone}
-              onChange={(e) => setAddPhone(e.target.value)}
-              placeholder="Phone (+62...)"
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-gray-900 outline-none focus:border-brand/40"
-            />
             {addErr && <div className="mt-2 text-xs text-red-600">{addErr}</div>}
-            <button
-              onClick={submitAdd}
-              disabled={addSaving || todayClasses.length === 0}
-              className="mt-4 w-full py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-60 touch-manipulation"
-            >
-              {addSaving ? "Adding..." : "Add to class"}
-            </button>
           </div>
         </div>
       )}
