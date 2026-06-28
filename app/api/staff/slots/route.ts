@@ -26,9 +26,25 @@ export async function GET(request: NextRequest) {
     },
     orderBy: [{ date: "asc" }, { startTime: "asc" }],
     // INTENTIONAL minimal projection — no trainer, no classType, no maxCapacity,
-    // no bookings. The cleaner doesn't need (and shouldn't see) any of that.
-    select: { id: true, date: true, startTime: true, endTime: true },
+    // no client data. We DO expose a single privacy-safe boolean (hasBookings)
+    // so the cleaner can tell which classes actually have guests coming and when
+    // the first ones arrive - but never a count and never a name.
+    select: {
+      id: true,
+      date: true,
+      startTime: true,
+      endTime: true,
+      _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
+    },
   })
 
-  return NextResponse.json(slots)
+  const result = slots.map((s) => ({
+    id: s.id,
+    date: s.date,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    hasBookings: s._count.bookings > 0,
+  }))
+
+  return NextResponse.json(result)
 }
