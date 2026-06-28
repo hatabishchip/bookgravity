@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import Link from "next/link"
 import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns"
-import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2, MessageSquare, Bell, UserPlus } from "lucide-react"
+import { ChevronLeft, ChevronRight, Users, X, Pencil, Loader2, MessageSquare, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
-import SellMembershipButton from "@/app/_components/SellMembershipButton"
+import { useTrainerBell } from "@/app/trainer/layout"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
@@ -158,7 +158,11 @@ export default function TrainerSchedulePage() {
   // it's been loaded from localStorage yet, and the dropdown open state.
   const [seenCounts, setSeenCounts] = useState<Record<string, number>>({})
   const [seenLoaded, setSeenLoaded] = useState(false)
-  const [bellOpen, setBellOpen] = useState(false)
+  // The bell BUTTON lives in the top bar / sidebar (shared context); this page
+  // still owns the data + the popover modal. open/total flow through context.
+  const bell = useTrainerBell()
+  const bellOpen = bell?.open ?? false
+  const setBellOpen = (v: boolean) => bell?.setOpen(v)
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)")
@@ -348,6 +352,19 @@ export default function TrainerSchedulePage() {
   const unpaidTotal = unpaidTasks.reduce((sum, t) => sum + t.unpaidCount, 0)
   const bellTotal = newTotal + unpaidTotal + handovers.incoming.length
 
+  // Drive the shared bell button in the top bar: mark this page as the bell's
+  // owner while mounted, push the live total, and refresh the lists whenever
+  // the popover is opened (the button up top can't call our refreshers itself).
+  useEffect(() => {
+    bell?.setActive(true)
+    return () => { bell?.setActive(false); bell?.setOpen(false) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => { bell?.setTotal(bellTotal) }, [bell, bellTotal])
+  useEffect(() => {
+    if (bellOpen) { refreshPending(); refreshHandovers() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bellOpen])
 
   const handleSlotClick = (slot: Slot) => {
     setSelectedSlot(slot)
@@ -600,35 +617,9 @@ export default function TrainerSchedulePage() {
 
   return (
     <div>
-      {/* Compact title — date subtitle moved into day cards, salary moved to top bar */}
-      <div className="flex items-center justify-between gap-3 mb-3 lg:mb-4">
-        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Schedule</h1>
-        <div className="flex items-center gap-3">
-          <SellMembershipButton />
-          {/* Notification bell. Badge counts clients who registered since the
-              trainer last looked. Monthly earnings live ONLY in the top bar -
-              we no longer repeat them here (it was a duplicate). */}
-          <button
-            type="button"
-            onClick={() => { setBellOpen(true); refreshPending(); refreshHandovers() }}
-            aria-label="Notifications"
-            title="Notifications"
-            className={cn(
-              "relative w-7 h-7 flex items-center justify-center rounded-full touch-manipulation transition-colors shrink-0",
-              bellTotal > 0
-                ? "text-brand hover:bg-brand/10"
-                : "text-gray-400 hover:bg-gray-100"
-            )}
-          >
-            <Bell size={16} strokeWidth={2.25} />
-            {bellTotal > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm leading-none">
-                {bellTotal > 9 ? "9+" : bellTotal}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
+      {/* Title + actions moved into the top bar / sidebar: the studio header
+          already shows "My Schedule", the bell sits next to the earnings, and
+          selling a membership now lives in its own Membership menu section. */}
 
       {/* New-bookings modal — centered on screen, not anchored to the bell.
           Mirrors SellMembershipButton's pattern (full-screen on mobile, centered

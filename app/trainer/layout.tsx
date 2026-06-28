@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, createContext, useContext } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Calendar, BookOpen, Banknote, LogOut, KeyRound, X, Menu, ExternalLink, GraduationCap } from "lucide-react"
+import { Calendar, BookOpen, Banknote, LogOut, KeyRound, X, Menu, ExternalLink, GraduationCap, Ticket, Bell } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { useVisualViewport } from "@/lib/use-visual-viewport"
@@ -15,9 +15,43 @@ import { formatIDRCompact as formatIDR } from "@/lib/format"
 const navItems = [
   { href: "/trainer", label: "My Schedule", icon: Calendar },
   { href: "/trainer/bookings", label: "Bookings", icon: BookOpen },
+  { href: "/trainer/memberships", label: "Membership", icon: Ticket },
   { href: "/trainer/instruction", label: "How to start", icon: GraduationCap },
   { href: "/trainer/salary", label: "Salary", icon: Banknote },
 ]
+
+// Shared notification-bell slot. The bell BUTTON renders in the top bar (and the
+// desktop sidebar), but all of its data + the popover modal live in the My
+// Schedule page - which registers its total here and reads `open`. The button
+// only appears once a page has registered a total (i.e. on My Schedule).
+type BellCtxT = { total: number; setTotal: (n: number) => void; open: boolean; setOpen: (b: boolean) => void; active: boolean; setActive: (b: boolean) => void }
+const BellCtx = createContext<BellCtxT | null>(null)
+export function useTrainerBell() { return useContext(BellCtx) }
+
+function BellButton({ className }: { className?: string }) {
+  const bell = useContext(BellCtx)
+  if (!bell || !bell.active) return null
+  return (
+    <button
+      type="button"
+      onClick={() => bell.setOpen(true)}
+      aria-label="Notifications"
+      title="Notifications"
+      className={cn(
+        "relative w-8 h-8 flex items-center justify-center rounded-full touch-manipulation transition-colors shrink-0",
+        bell.total > 0 ? "text-brand hover:bg-brand/10" : "text-gray-400 hover:bg-gray-100",
+        className,
+      )}
+    >
+      <Bell size={18} strokeWidth={2.25} />
+      {bell.total > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm leading-none">
+          {bell.total > 9 ? "9+" : bell.total}
+        </span>
+      )}
+    </button>
+  )
+}
 
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const router = useRouter()
@@ -115,6 +149,9 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           </h1>
           <p className="text-xs text-gray-400 mt-1">Trainer Portal</p>
         </div>
+        {/* Bell lives in the mobile top bar; on desktop (no top bar) it sits
+            here in the always-visible sidebar header. */}
+        <BellButton className="hidden lg:inline-flex" />
         <button
           onClick={onClose}
           className="lg:hidden p-2 hover:bg-gray-100 rounded-lg flex-shrink-0"
@@ -201,6 +238,7 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
         </div>
         <div className="text-xs text-gray-400">{activeLabel}</div>
       </div>
+      <BellButton />
       {salary && (
         <Link href="/trainer/salary" className="text-right leading-tight hover:opacity-80">
           <div className="text-[9px] uppercase tracking-wider text-gray-400 font-medium">This month</div>
@@ -213,9 +251,15 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
 
 export default function TrainerLayout({ children }: { children: React.ReactNode }) {
   const [navOpen, setNavOpen] = useState(false)
+  // Notification-bell state shared with the My Schedule page (it owns the data
+  // + modal; the button lives up here in the chrome). See BellCtx above.
+  const [bellTotal, setBellTotal] = useState(0)
+  const [bellOpen, setBellOpen] = useState(false)
+  const [bellActive, setBellActive] = useState(false)
 
   return (
     <SessionProvider>
+     <BellCtx.Provider value={{ total: bellTotal, setTotal: setBellTotal, open: bellOpen, setOpen: setBellOpen, active: bellActive, setActive: setBellActive }}>
       <div className="flex min-h-screen bg-sand">
         <aside
           className={cn(
@@ -241,6 +285,7 @@ export default function TrainerLayout({ children }: { children: React.ReactNode 
         <FloatingInbox role="TRAINER" />
         <WebPushManager />
       </div>
+     </BellCtx.Provider>
     </SessionProvider>
   )
 }

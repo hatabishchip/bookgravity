@@ -41,6 +41,46 @@ export async function GET(request: NextRequest) {
   try {
   const { searchParams } = new URL(request.url)
   const phone = searchParams.get("phone")?.trim()
+  // ?list=1 → every client at this studio who has ever been sold a membership,
+  // grouped by phone (newest purchase first). Powers the Membership section.
+  if (searchParams.get("list")) {
+    const all = await prisma.membership.findMany({
+      where: { studioId: ctx.studioId },
+      orderBy: { createdAt: "desc" },
+    })
+    type Group = {
+      clientPhone: string
+      clientName: string | null
+      remaining: number
+      totalSold: number
+      purchases: number
+      lastSoldAt: Date
+      lastSoldBy: string | null
+    }
+    const groups = new Map<string, Group>()
+    for (const m of all) {
+      const key = phoneTail(m.clientPhone)
+      const g = groups.get(key)
+      if (g) {
+        g.remaining += m.remainingClasses
+        g.totalSold += m.totalClasses
+        g.purchases += 1
+        if (!g.clientName && m.clientName) g.clientName = m.clientName
+      } else {
+        groups.set(key, {
+          clientPhone: m.clientPhone,
+          clientName: m.clientName ?? null,
+          remaining: m.remainingClasses,
+          totalSold: m.totalClasses,
+          purchases: 1,
+          lastSoldAt: m.createdAt,
+          lastSoldBy: m.soldByName ?? null,
+        })
+      }
+    }
+    return NextResponse.json({ clients: Array.from(groups.values()), ...pricing })
+  }
+
   if (!phone) return NextResponse.json({ remaining: 0, memberships: [], ...pricing })
 
   const tail = phoneTail(phone)
