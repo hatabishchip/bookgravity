@@ -232,12 +232,13 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
       >
         <Menu size={20} />
       </button>
-      <div className="flex-1 min-w-0">
+      {/* Tapping the brand returns to the trainer home (My Schedule). */}
+      <Link href="/trainer" className="flex-1 min-w-0 block hover:opacity-80 transition-opacity">
         <div className="font-bold text-brand text-sm truncate">
           {studio?.name || "Gravity Stretching"}
         </div>
         <div className="text-xs text-gray-400">{activeLabel}</div>
-      </div>
+      </Link>
       <BellButton />
       {salary && (
         <Link href="/trainer/salary" className="text-right leading-tight hover:opacity-80">

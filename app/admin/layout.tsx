@@ -132,12 +132,13 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
       >
         <Menu size={20} />
       </button>
-      <div className="flex-1 min-w-0">
+      {/* Tapping the brand returns to the admin home (Dashboard). */}
+      <Link href="/admin" className="flex-1 min-w-0 block hover:opacity-80 transition-opacity">
         <div className="font-bold text-brand dark:text-[#69b58f] text-sm truncate">
           {studio?.name || "Gravity Stretching"}
         </div>
         <div className="text-xs text-gray-400 dark:text-gray-500">{activeLabel}</div>
-      </div>
+      </Link>
     </header>
   )
 }
