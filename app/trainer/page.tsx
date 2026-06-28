@@ -605,41 +605,28 @@ export default function TrainerSchedulePage() {
         <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Schedule</h1>
         <div className="flex items-center gap-3">
           <SellMembershipButton />
-          {salary && (
-            <div className="flex items-center gap-1.5">
-              <Link
-                href="/trainer/salary"
-                className="text-right leading-tight hover:opacity-80"
-                title="Earnings this month - tap for breakdown"
-              >
-                <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">This month</div>
-                <div className="text-sm font-semibold text-gray-700">Rp {formatIDR(salary.total)}</div>
-              </Link>
-              {/* Tiny notification bell next to the salary block. Badge counts
-                  clients who registered since the trainer last looked. The
-                  popover modal is centered on screen (not pinned to the bell)
-                  so it doesn't run off the top edge on small screens. */}
-              <button
-                type="button"
-                onClick={() => { setBellOpen(true); refreshPending(); refreshHandovers() }}
-                aria-label="Notifications"
-                title="Notifications"
-                className={cn(
-                  "relative w-7 h-7 flex items-center justify-center rounded-full touch-manipulation transition-colors shrink-0",
-                  bellTotal > 0
-                    ? "text-brand hover:bg-brand/10"
-                    : "text-gray-400 hover:bg-gray-100"
-                )}
-              >
-                <Bell size={16} strokeWidth={2.25} />
-                {bellTotal > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm leading-none">
-                    {bellTotal > 9 ? "9+" : bellTotal}
-                  </span>
-                )}
-              </button>
-            </div>
-          )}
+          {/* Notification bell. Badge counts clients who registered since the
+              trainer last looked. Monthly earnings live ONLY in the top bar -
+              we no longer repeat them here (it was a duplicate). */}
+          <button
+            type="button"
+            onClick={() => { setBellOpen(true); refreshPending(); refreshHandovers() }}
+            aria-label="Notifications"
+            title="Notifications"
+            className={cn(
+              "relative w-7 h-7 flex items-center justify-center rounded-full touch-manipulation transition-colors shrink-0",
+              bellTotal > 0
+                ? "text-brand hover:bg-brand/10"
+                : "text-gray-400 hover:bg-gray-100"
+            )}
+          >
+            <Bell size={16} strokeWidth={2.25} />
+            {bellTotal > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm leading-none">
+                {bellTotal > 9 ? "9+" : bellTotal}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
