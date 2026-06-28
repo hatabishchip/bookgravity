@@ -24,14 +24,20 @@ const navItems: { href: string; label: string; icon: React.ComponentType<{ size?
 function SidebarContent({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
   const [studio, setStudio] = useState<{ name: string; slug: string; isDefault: boolean } | null>(null)
+  // The just-tapped item lights up INSTANTLY (before the route resolves); the
+  // mobile drawer closes a beat later so you actually see where you landed.
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
 
-  useEffect(() => { onClose() }, [pathname])
+  useEffect(() => {
+    const t = setTimeout(() => onClose(), 180)
+    return () => clearTimeout(t)
+  }, [pathname])
 
   useEffect(() => {
     fetch("/api/studio").then((r) => r.ok ? r.json() : null).then((d) => d && setStudio(d))
   }, [])
 
-  const settingsActive = pathname === "/admin/settings"
+  const settingsActive = pathname === "/admin/settings" || pendingHref === "/admin/settings"
 
   return (
     <>
@@ -51,11 +57,16 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
       <div className="flex-1 overflow-y-auto">
         <nav className="p-4 space-y-1">
           {navItems.map(({ href, label, icon: Icon, beta }) => {
-            const active = pathname === href
+            const active = pathname === href || pendingHref === href
             return (
               <Link key={href} href={href}
-                className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
-                  active ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
+                onClick={() => setPendingHref(href)}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150 active:scale-[0.98]",
+                  active
+                    ? "bg-brand text-white shadow-sm"
+                    : "text-gray-600 hover:bg-gray-50 active:bg-brand/10 active:text-brand dark:text-gray-300 dark:hover:bg-white/5 dark:active:bg-brand/20",
                 )}>
                 <Icon size={18} />
                 <span className="flex-1">{label}</span>
@@ -79,8 +90,13 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
             <span className="flex-1">Booking page</span>
           </Link>
           <Link href="/admin/settings"
-            className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
-              settingsActive ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
+            onClick={() => setPendingHref("/admin/settings")}
+            aria-current={settingsActive ? "page" : undefined}
+            className={cn(
+              "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150 active:scale-[0.98]",
+              settingsActive
+                ? "bg-brand text-white shadow-sm"
+                : "text-gray-600 hover:bg-gray-50 active:bg-brand/10 active:text-brand dark:text-gray-300 dark:hover:bg-white/5 dark:active:bg-brand/20",
             )}>
             <Settings size={18} />
             Settings

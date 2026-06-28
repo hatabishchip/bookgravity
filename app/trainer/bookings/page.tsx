@@ -67,6 +67,14 @@ export default function TrainerBookingsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [dayFilter, setDayFilter] = useState<DayFilter>("all")
+  // Manual "add a client" to one of today's own classes.
+  const [addOpen, setAddOpen] = useState(false)
+  const [addSlotId, setAddSlotId] = useState("")
+  const [addName, setAddName] = useState("")
+  const [addPhone, setAddPhone] = useState("+")
+  const [addSaving, setAddSaving] = useState(false)
+  const [addErr, setAddErr] = useState<string | null>(null)
+  const [todayClasses, setTodayClasses] = useState<{ id: string; startTime: string; endTime: string }[]>([])
 
   const fetchBookings = useCallback(async () => {
     setLoading(true)
@@ -77,6 +85,49 @@ export default function TrainerBookingsPage() {
       setLoading(false)
     }
   }, [])
+
+  // Open the add-client form and load today's own classes to pick from.
+  const openAdd = useCallback(async () => {
+    setAddErr(null); setAddName(""); setAddPhone("+"); setAddSlotId(""); setAddOpen(true)
+    try {
+      const today = baliDateStr(new Date())
+      const res = await fetch(`/api/trainer/schedule?from=${today}&to=${today}`)
+      const slots = (await res.json()) as { id: string; startTime: string; endTime: string; state: string }[]
+      const mine = Array.isArray(slots) ? slots.filter((s) => s.state === "mine") : []
+      setTodayClasses(mine)
+      if (mine.length === 1) setAddSlotId(mine[0].id)
+    } catch {
+      setTodayClasses([])
+    }
+  }, [])
+
+  const submitAdd = async () => {
+    const name = addName.trim()
+    const digits = addPhone.replace(/\D/g, "")
+    if (!addSlotId) { setAddErr("Pick a class"); return }
+    if (!name) { setAddErr("Enter a name"); return }
+    if (digits.length < 6) { setAddErr("Enter a valid phone"); return }
+    setAddSaving(true)
+    setAddErr(null)
+    try {
+      const res = await fetch(`/api/trainer/bookings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slotId: addSlotId, clientName: name, clientPhone: addPhone }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setAddErr(d?.error || "Could not add the client")
+        return
+      }
+      setAddOpen(false)
+      fetchBookings()
+    } catch {
+      setAddErr("Network error - please try again")
+    } finally {
+      setAddSaving(false)
+    }
+  }
 
   useEffect(() => { fetchBookings() }, [fetchBookings])
 
@@ -147,7 +198,16 @@ export default function TrainerBookingsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">All My Bookings</h1>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h1 className="text-2xl font-bold text-gray-900">All My Bookings</h1>
+        <button
+          type="button"
+          onClick={openAdd}
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-brand hover:bg-brand-dark px-3 py-2 rounded-xl touch-manipulation flex-shrink-0"
+        >
+          + Add a client
+        </button>
+      </div>
 
       {/* Day filter — quick "who's on my class today/tomorrow" view. */}
       <div className="flex gap-1.5 mb-4">
@@ -230,6 +290,64 @@ export default function TrainerBookingsPage() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Add-a-client form — pick one of today's own classes + name/phone.
+          No capacity check and no client WhatsApp (a manual same-day record). */}
+      {addOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
+          onClick={() => !addSaving && setAddOpen(false)}
+        >
+          <div
+            className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-semibold text-gray-900">Add a client</h3>
+              <button onClick={() => setAddOpen(false)} aria-label="Close" className="text-gray-400 hover:text-gray-700 text-lg leading-none px-1">✕</button>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">
+              A manual record for today&apos;s class. The client gets no WhatsApp message.
+            </p>
+            {todayClasses.length === 0 ? (
+              <div className="text-sm text-gray-500 py-2">You have no classes today.</div>
+            ) : (
+              <select
+                value={addSlotId}
+                onChange={(e) => setAddSlotId(e.target.value)}
+                className="w-full mb-2 px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-900 outline-none focus:border-brand/40"
+              >
+                <option value="">Pick a class...</option>
+                {todayClasses.map((c) => (
+                  <option key={c.id} value={c.id}>{formatTime(c.startTime)} - {formatTime(c.endTime)}</option>
+                ))}
+              </select>
+            )}
+            <input
+              type="text"
+              value={addName}
+              onChange={(e) => setAddName(e.target.value)}
+              placeholder="Client name"
+              className="w-full mb-2 px-3 py-2.5 rounded-lg border border-gray-200 text-gray-900 outline-none focus:border-brand/40"
+            />
+            <input
+              type="tel"
+              value={addPhone}
+              onChange={(e) => setAddPhone(e.target.value)}
+              placeholder="Phone (+62...)"
+              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-gray-900 outline-none focus:border-brand/40"
+            />
+            {addErr && <div className="mt-2 text-xs text-red-600">{addErr}</div>}
+            <button
+              onClick={submitAdd}
+              disabled={addSaving || todayClasses.length === 0}
+              className="mt-4 w-full py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-60 touch-manipulation"
+            >
+              {addSaving ? "Adding..." : "Add to class"}
+            </button>
           </div>
         </div>
       )}
