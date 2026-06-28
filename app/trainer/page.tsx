@@ -134,6 +134,12 @@ export default function TrainerSchedulePage() {
   const reqSeqRef = useRef<Record<string, number>>({})
   const [services, setServices] = useState<Service[]>([])
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
+  // Manual "add a client" form (today's own class only).
+  const [addOpen, setAddOpen] = useState(false)
+  const [addName, setAddName] = useState("")
+  const [addPhone, setAddPhone] = useState("+")
+  const [addSaving, setAddSaving] = useState(false)
+  const [addErr, setAddErr] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
   const [salary, setSalary] = useState<Salary | null>(null)
   // Which paid bookings are collapsed to the one-line "Paid" row. A booking
@@ -488,6 +494,37 @@ export default function TrainerSchedulePage() {
       setTimeout(() => setSavedToast((t) => (Date.now() - t >= 1400 ? 0 : t)), 1500)
     } catch {
       if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+    }
+  }
+
+  // Manually add a client to the open class (today only, server-enforced).
+  const submitAddClient = async () => {
+    if (!selectedSlot) return
+    const name = addName.trim()
+    const digits = addPhone.replace(/\D/g, "")
+    if (!name) { setAddErr("Enter a name"); return }
+    if (digits.length < 6) { setAddErr("Enter a valid phone"); return }
+    setAddSaving(true)
+    setAddErr(null)
+    try {
+      const res = await fetch(`/api/trainer/bookings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slotId: selectedSlot.id, clientName: name, clientPhone: addPhone }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setAddErr(d?.error || "Could not add the client")
+        return
+      }
+      setAddOpen(false)
+      setAddName("")
+      setAddPhone("+")
+      fetchBookingsForSlot(selectedSlot.id)
+    } catch {
+      setAddErr("Network error - please try again")
+    } finally {
+      setAddSaving(false)
     }
   }
 
@@ -1060,6 +1097,17 @@ export default function TrainerSchedulePage() {
                     Hand over to a colleague
                   </button>
                 )}
+                {/* Manually add a client to TODAY's class (e.g. someone asked to
+                    be recorded after the session). */}
+                {selectedSlot.date === baliDateStr(new Date()) && (
+                  <button
+                    type="button"
+                    onClick={() => { setAddErr(null); setAddName(""); setAddPhone("+"); setAddOpen(true) }}
+                    className="mt-1 block text-xs font-medium text-brand hover:text-brand-dark underline touch-manipulation"
+                  >
+                    + Add a client
+                  </button>
+                )}
               </div>
               {(() => {
                 const forced = forcedSlotId === selectedSlot.id
@@ -1435,6 +1483,48 @@ export default function TrainerSchedulePage() {
           onClose={() => setHandoverFor(null)}
           onSent={() => { setHandoverFor(null); refreshHandovers() }}
         />
+      )}
+
+      {/* Manual "add a client" form - today's own class, no client notification. */}
+      {addOpen && selectedSlot && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4" onClick={() => !addSaving && setAddOpen(false)}>
+          <div
+            className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-semibold text-gray-900">Add a client</h3>
+              <button onClick={() => setAddOpen(false)} aria-label="Close" className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">
+              A manual record for today&apos;s class. The client gets no WhatsApp message.
+            </p>
+            <input
+              type="text"
+              value={addName}
+              onChange={(e) => setAddName(e.target.value)}
+              placeholder="Client name"
+              className="w-full mb-2 px-3 py-2.5 rounded-lg border border-gray-200 text-gray-900 outline-none focus:border-brand/40"
+            />
+            <input
+              type="tel"
+              value={addPhone}
+              onChange={(e) => setAddPhone(e.target.value)}
+              placeholder="Phone (+62...)"
+              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-gray-900 outline-none focus:border-brand/40"
+            />
+            {addErr && <div className="mt-2 text-xs text-red-600">{addErr}</div>}
+            <button
+              onClick={submitAddClient}
+              disabled={addSaving}
+              className="mt-4 w-full py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-60 touch-manipulation"
+            >
+              {addSaving ? "Adding..." : "Add to class"}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* WhatsApp-style transient confirmation for payment/notes saves. */}
