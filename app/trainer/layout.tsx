@@ -93,8 +93,14 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [studio, setStudio] = useState<{ name: string; slug?: string } | null>(null)
+  // The just-tapped item lights up INSTANTLY (before the route resolves), and
+  // the mobile drawer closes a beat later so you actually see where you landed.
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
 
-  useEffect(() => { onClose() }, [pathname])
+  useEffect(() => {
+    const t = setTimeout(() => onClose(), 180)
+    return () => clearTimeout(t)
+  }, [pathname])
 
   useEffect(() => {
     fetch("/api/studio").then((r) => r.ok ? r.json() : null).then((d) => d && setStudio(d))
@@ -120,11 +126,16 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href
+          const active = pathname === href || pendingHref === href
           return (
             <Link key={href} href={href}
-              className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-                active ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"
+              onClick={() => setPendingHref(href)}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150 active:scale-[0.98]",
+                active
+                  ? "bg-brand text-white shadow-sm"
+                  : "text-gray-600 hover:bg-gray-50 active:bg-brand/10 active:text-brand",
               )}>
               <Icon size={18} />
               {label}
