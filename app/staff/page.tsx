@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { Clock } from "lucide-react"
 
-type Slot = { id: string; date: string; startTime: string; endTime: string }
+type Slot = { id: string; date: string; startTime: string; endTime: string; hasBookings: boolean }
 
 const formatTime = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number)
@@ -76,7 +76,8 @@ export default function StaffSchedulePage() {
     <div>
       <h1 className="text-xl font-bold text-gray-900 mb-1">Next 7 days</h1>
       <p className="text-xs text-gray-500 mb-5">
-        Time slots when a class is in the room. Anything outside these blocks is free for cleaning.
+        Time slots when a class is in the room. Green means guests are booked, grey means empty.
+        Anything outside these blocks is free for cleaning.
       </p>
 
       {!loaded ? (
@@ -87,6 +88,10 @@ export default function StaffSchedulePage() {
             const date = parseISO(d + "T00:00:00")
             const list = byDate.get(d) ?? []
             const isToday = d === todayStr
+            // Earliest class that actually has guests booked (list is already
+            // ordered by start time) - so the cleaner knows when the first
+            // people arrive and whether to hurry.
+            const firstBooked = list.find((s) => s.hasBookings)
             return (
               <section
                 key={d}
@@ -112,6 +117,23 @@ export default function StaffSchedulePage() {
                   </div>
                 </header>
 
+                {/* The headline the cleaner cares about: when do the first
+                    guests arrive today/this day, or is it a calm morning. */}
+                {list.length > 0 && (
+                  <div className="mb-2">
+                    {firstBooked ? (
+                      <div className="inline-flex items-center gap-1.5 rounded-lg bg-brand/10 text-brand px-2.5 py-1 text-xs font-bold">
+                        <Clock size={13} strokeWidth={2.5} />
+                        First guests at {formatTime(firstBooked.startTime)}
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 text-gray-500 px-2.5 py-1 text-xs font-medium">
+                        No bookings yet - no rush
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {list.length === 0 ? (
                   // Whole-day free — the room can be cleaned at any time.
                   <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-4 text-center">
@@ -126,14 +148,21 @@ export default function StaffSchedulePage() {
                     {list.map((s) => (
                       <li
                         key={s.id}
-                        className="flex items-center gap-3 rounded-xl border border-brand/20 bg-brand/[0.07] px-3 py-2.5"
+                        className={
+                          "flex items-center gap-3 rounded-xl border px-3 py-2.5 " +
+                          (s.hasBookings ? "border-brand/20 bg-brand/[0.07]" : "border-gray-200 bg-gray-50")
+                        }
                       >
-                        <Clock size={16} className="text-brand shrink-0" strokeWidth={2.25} />
+                        <Clock size={16} className={(s.hasBookings ? "text-brand" : "text-gray-400") + " shrink-0"} strokeWidth={2.25} />
                         <div className="text-sm font-semibold text-gray-900 tabular-nums">
-                          {formatTime(s.startTime)} – {formatTime(s.endTime)}
+                          {formatTime(s.startTime)} - {formatTime(s.endTime)}
                         </div>
-                        <div className="ml-auto text-[10px] uppercase tracking-wider text-brand/70 font-semibold">
-                          Room in use
+                        <div className="ml-auto text-[10px] uppercase tracking-wider font-semibold">
+                          {s.hasBookings ? (
+                            <span className="text-brand/80">Guests</span>
+                          ) : (
+                            <span className="text-gray-400">Empty</span>
+                          )}
                         </div>
                       </li>
                     ))}
