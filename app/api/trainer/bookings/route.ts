@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
-import { getStudioMembershipBalances, phoneTail } from "@/lib/membership"
+import { getStudioMembershipBalances, getMembershipBalance, phoneTail } from "@/lib/membership"
+import { upsertConversation } from "@/lib/whatsapp-conversation"
+import { baliDateStr } from "@/lib/tz"
+import { z } from "zod"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireTrainer()
@@ -46,4 +49,85 @@ export async function GET(request: NextRequest) {
   }))
 
   return NextResponse.json(withBalance)
+}
+
+// Trainer adds a client to their OWN class by hand. The real use case: a client
+// asked to be recorded but the trainer was busy during the session, so later
+// that same day they enter the name themselves. Allowed only for a class dated
+// TODAY (even one whose time has already passed), and only the trainer's own
+// class. No capacity check (a real attendee can be over the cap) and no client
+// WhatsApp confirmation (it's a post-hoc record) - we just link the chat so the
+// client still appears in the inbox.
+const CreateSchema = z.object({
+  slotId: z.string(),
+  clientName: z.string().min(1),
+  clientPhone: z.string().min(3).transform((p) => p.replace(/\D/g, "")),
+  clientEmail: z.string().optional(),
+})
+
+export async function POST(request: NextRequest) {
+  const ctx = await requireTrainer()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const trainer = await prisma.trainer.findFirst({
+    where: { userId: ctx.userId, studioId: ctx.studioId, archived: false },
+  })
+  if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
+
+  let body: unknown
+  try { body = await request.json() } catch { return NextResponse.json({ error: "Invalid body" }, { status: 400 }) }
+  const parsed = CreateSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join("; ") }, { status: 400 })
+  }
+  const data = parsed.data
+
+  const slot = await prisma.timeSlot.findFirst({ where: { id: data.slotId, studioId: ctx.studioId } })
+  if (!slot) return NextResponse.json({ error: "Class not found" }, { status: 404 })
+  if (slot.trainerId !== trainer.id) {
+    return NextResponse.json({ error: "You can only add a client to your own class" }, { status: 403 })
+  }
+  if (slot.date !== baliDateStr(new Date())) {
+    return NextResponse.json({ error: "You can only add a client to a class scheduled for today" }, { status: 400 })
+  }
+
+  // Unique 3-digit ticket within the slot (matches the public/admin format).
+  const existing = await prisma.booking.findMany({
+    where: { slotId: slot.id, status: "CONFIRMED" },
+    select: { ticketCode: true },
+  })
+  const used = new Set(existing.map((b) => b.ticketCode))
+  let ticketCode = ""
+  for (let i = 0; i < 60 && !ticketCode; i++) {
+    const c = String(Math.floor(100 + Math.random() * 900))
+    if (!used.has(c)) ticketCode = c
+  }
+  if (!ticketCode) ticketCode = String(Date.now()).slice(-4)
+
+  const booking = await prisma.booking.create({
+    data: {
+      slotId: slot.id,
+      clientName: data.clientName,
+      clientEmail: data.clientEmail || "",
+      clientPhone: data.clientPhone,
+      ticketCode,
+    },
+    include: { slot: true, services: { include: { service: true } } },
+  })
+
+  // Link a chat (grants this trainer inbox access) WITHOUT sending the client
+  // anything - this is a quiet, same-day record, not a booking confirmation.
+  try {
+    await upsertConversation({
+      studioId: ctx.studioId,
+      clientPhone: data.clientPhone,
+      clientName: data.clientName,
+      assignedTrainerId: trainer.id,
+    })
+  } catch { /* non-fatal: the booking still stands */ }
+
+  // Return the client's membership balance so the cabinet can immediately offer
+  // "pay from membership" for the new booking.
+  const membershipRemaining = await getMembershipBalance(ctx.studioId, data.clientPhone)
+  return NextResponse.json({ ...booking, membershipRemaining }, { status: 201 })
 }

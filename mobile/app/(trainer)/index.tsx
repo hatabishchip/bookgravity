@@ -93,7 +93,7 @@ export default function TrainerScheduleTab() {
               slot.state === "mine" ? (
                 <Pressable
                   key={slot.id}
-                  onPress={() => router.push({ pathname: "/(trainer)/class", params: { slotId: slot.id } })}
+                  onPress={() => router.push({ pathname: "/(trainer)/class", params: { slotId: slot.id, date: slot.date, startTime: slot.startTime, endTime: slot.endTime } })}
                   style={({ pressed }) => [
                     styles.classRow,
                     { backgroundColor: theme.bg.card, borderColor: theme.border.subtle, opacity: pressed ? 0.85 : 1 },
