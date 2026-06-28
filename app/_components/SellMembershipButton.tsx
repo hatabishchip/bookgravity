@@ -27,9 +27,13 @@ const fmtRp = (n: number) => `Rp ${Math.round(n).toLocaleString("en-US")}`
 export default function SellMembershipButton({
   className,
   onSold,
+  fullLabel,
 }: {
   className?: string
   onSold?: () => void
+  // Always show the "Sell membership" label (even on mobile). Used on the
+  // dedicated Membership page where the action should read clearly.
+  fullLabel?: boolean
 }) {
   const [open, setOpen] = useState(false)
   // Pre-fill the international "+" so the seller doesn't have to type it.
@@ -152,12 +156,14 @@ export default function SellMembershipButton({
         title="Sell membership"
         className={cn(
           "inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand text-white font-semibold hover:bg-brand-dark whitespace-nowrap shrink-0",
-          "h-9 w-9 text-base sm:h-auto sm:w-auto sm:px-3 sm:py-2 sm:text-sm",
+          fullLabel
+            ? "px-3.5 py-2 text-sm"
+            : "h-9 w-9 text-base sm:h-auto sm:w-auto sm:px-3 sm:py-2 sm:text-sm",
           className
         )}
       >
         <span className="leading-none">＋</span>
-        <span className="hidden sm:inline">Sell membership</span>
+        <span className={fullLabel ? "inline" : "hidden sm:inline"}>Sell membership</span>
       </button>
 
       {open && (
