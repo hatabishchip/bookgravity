@@ -55,6 +55,13 @@ export const PHONE_COUNTRIES: PhoneCountry[] = [
   { code: "+81",  flag: "🇯🇵", name: "Japan",               min: 9,  max: 10 },
   { code: "+7",   flag: "🇷🇺", name: "Russia / Kazakhstan", min: 10, max: 10 },
   { code: "+1",   flag: "🇺🇸", name: "USA / Canada",        min: 10, max: 10 },
+  { code: "+995", flag: "🇬🇪", name: "Georgia",             min: 9,  max: 9  },
+  { code: "+998", flag: "🇺🇿", name: "Uzbekistan",          min: 9,  max: 9  },
+  { code: "+996", flag: "🇰🇬", name: "Kyrgyzstan",          min: 9,  max: 9  },
+  { code: "+972", flag: "🇮🇱", name: "Israel",              min: 9,  max: 9  },
+  { code: "+966", flag: "🇸🇦", name: "Saudi Arabia",        min: 9,  max: 9  },
+  { code: "+886", flag: "🇹🇼", name: "Taiwan",              min: 9,  max: 9  },
+  { code: "+64",  flag: "🇳🇿", name: "New Zealand",         min: 8,  max: 10 },
 ].sort((a, b) => b.code.length - a.code.length)
 
 const PHONE_FORMATS: Record<string, string> = {
@@ -141,14 +148,23 @@ export type PhoneValidation =
   | { kind: "too_short"; country: PhoneCountry; have: number }
   | { kind: "ok"; country: PhoneCountry }
 
+// Fallback for any country code not in the curated list above. The studio gets
+// clients from everywhere (Georgia +995, Uzbekistan, etc.); never hard-reject a
+// plausible international number just because its country is not curated.
+const INTL_FALLBACK: PhoneCountry = { code: "+", flag: "🌍", name: "International", min: 7, max: 15 }
+
 /** Pure validation: classify what state the input is in. */
 export function validatePhone(value: string): PhoneValidation {
   const digits = value.replace(/\D/g, "")
   if (!value || digits.length === 0) return { kind: "empty" }
   const country = detectCountry(value)
   if (!country) {
-    // 3 = our longest single-digit code is "+7", longest 3-digit is "+380".
-    return digits.length > 3 ? { kind: "unknown_code" } : { kind: "empty" }
+    // Uncurated country code: accept as a plausible international number instead
+    // of blocking it. E.164 allows up to 15 digits total (incl. country code).
+    if (digits.length < 4) return { kind: "empty" }                                    // just the code, keep typing
+    if (digits.length < 8) return { kind: "too_short", country: INTL_FALLBACK, have: digits.length }
+    if (digits.length > 15) return { kind: "unknown_code" }                            // implausibly long
+    return { kind: "ok", country: INTL_FALLBACK }
   }
   const sub = subscriberDigits(value, country)
   if (sub < country.min) return { kind: "too_short", country, have: sub }
