@@ -32,6 +32,9 @@ type Booking = {
   // Price tier (Full/Member/Local) the coach marked — base for 20% commission.
   priceTier?: string | null
   memberPrice?: number
+  // An admin linked a bank/QRIS SMS to this booking → "confirmed by bank"
+  // (staff-only proof of payment; never shown to the client).
+  bankConfirmed?: boolean
 }
 
 const PAYMENT_METHODS = [
@@ -267,6 +270,11 @@ export default function TrainerBookingsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 lg:gap-3 flex-shrink-0">
+                      {b.bankConfirmed ? (
+                        <span className="text-[10px] lg:text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap bg-emerald-100 text-emerald-700" title="Payment confirmed by bank">
+                          ✓ bank
+                        </span>
+                      ) : null}
                       <span className={cn("text-[10px] lg:text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap", badge.cls)}>
                         {badge.label}
                       </span>

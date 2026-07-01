@@ -28,6 +28,8 @@ type Booking = {
   services: { service: { name: string; price: number } }[]
   membershipRemaining?: number
   membershipId?: string | null
+  // Staff-only "confirmed by bank" flag (a linked BankPayment).
+  bankConfirmed?: boolean
 }
 
 function formatTime(time: string) {
@@ -495,10 +497,15 @@ export default function BookingsPage() {
                       </div>
                     </div>
                     <div className="hidden lg:block text-sm text-gray-600">{b.slot.trainer?.name ?? <span className="text-gray-400">-</span>}</div>
-                    <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className={cn("text-[10px] lg:text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap", badge.cls)}>
                         {badge.label}
                       </span>
+                      {b.bankConfirmed ? (
+                        <span className="text-[10px] lg:text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap bg-emerald-100 text-emerald-700" title="Payment confirmed by bank">
+                          ✓ bank
+                        </span>
+                      ) : null}
                     </div>
                     <div className="hidden lg:block text-xs text-gray-400">
                       {format(new Date(b.createdAt), "MMM d")}

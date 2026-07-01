@@ -140,6 +140,7 @@ model Studio {
   services     AdditionalService[]
   memberships  Membership[]
   whatsappConversations WhatsAppConversation[]
+  bankPayments BankPayment[]
 }
 
 // A time-range the studio room is occupied by something OTHER than a class -
@@ -387,6 +388,10 @@ model Booking {
   // the class if the booking is later cancelled.
   membershipId   String?
   membership     Membership?      @relation(fields: [membershipId], references: [id])
+  // Bank/QRIS payment notifications an admin has linked to this booking as proof
+  // of payment ("✓ confirmed by bank" badge, staff-only). A booking usually has
+  // at most one, but the list tolerates split/duplicate settlements.
+  bankPayments   BankPayment[]
   // Diagnostic fields for the trainer's WhatsApp notification — populated by
   // the booking POST handler so we can audit why a trainer didn't get pinged
   // even though the message was "accepted" by Meta. Values:
@@ -502,6 +507,44 @@ model Membership {
   updatedAt        DateTime @updatedAt
 
   @@index([studioId, clientPhone])
+}
+
+// ---------------------------------------------------------------------------
+// Bank payment confirmations (BRI QRIS SMS)
+//
+// The studio owner receives a bank SMS for every incoming QRIS payment on the
+// SIM tied to the studio account. An Android SMS forwarder POSTs each SMS to
+// /api/payments/sms-inbound, where lib/bank-sms parses it into one row here.
+//
+// The SMS carries NO payer name, so a payment cannot be auto-matched to a
+// client - an admin links it to a booking by hand (suggestions by amount +
+// same-day time). Once linked, the booking shows a staff-only "confirmed by
+// bank" badge (never shown to the client). `reference` (Nomor Referensi) is
+// unique per transaction and is the idempotency key so a re-forwarded SMS is
+// not recorded twice.
+// ---------------------------------------------------------------------------
+model BankPayment {
+  id              String   @id @default(cuid())
+  studioId        String
+  studio          Studio   @relation(fields: [studioId], references: [id])
+  amount          Int // IDR rupiah, whole units (no decimals in the SMS)
+  reference       String? // Nomor Referensi - unique per txn, de-dup key
+  channel         String   @default("QRIS") // QRIS | TRANSFER
+  sender          String? // SMS sender / bank shortcode, when the forwarder sends it
+  rawText         String // full SMS text, kept for audit / re-parsing
+  paidAt          DateTime // instant of payment (parsed from "Jam", Bali local)
+  // Manual linkage to the booking this payment settles (admin, one tap).
+  bookingId       String?
+  booking         Booking? @relation(fields: [bookingId], references: [id])
+  matchedByUserId String? // admin User.id who linked it
+  matchedAt       DateTime?
+  createdAt       DateTime @default(now())
+
+  // reference is unique per studio; SQLite treats NULLs as distinct, so several
+  // reference-less rows are allowed (deduped in code by amount+time instead).
+  @@unique([studioId, reference])
+  @@index([studioId, paidAt])
+  @@index([bookingId])
 }
 
 // ---------------------------------------------------------------------------
