@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Settings, ExternalLink, X, Menu } from "lucide-react"
+import { Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Landmark, Settings, ExternalLink, X, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 import WebPushManager from "@/app/_components/WebPushManager"
@@ -19,6 +19,7 @@ const navItems: { href: string; label: string; icon: React.ComponentType<{ size?
   { href: "/admin/services", label: "Services", icon: Package },
   { href: "/admin/salary", label: "Salary", icon: Banknote },
   { href: "/admin/cashflow", label: "Cash Flow", icon: ArrowLeftRight },
+  { href: "/admin/payments", label: "Bank confirmations", icon: Landmark },
 ]
 
 function SidebarContent({ onClose }: { onClose: () => void }) {

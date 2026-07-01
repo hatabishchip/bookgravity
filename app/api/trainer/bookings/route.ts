@@ -28,6 +28,9 @@ export async function GET(request: NextRequest) {
     include: {
       slot: true,
       services: { include: { service: true } },
+      // Bank/QRIS payments an admin linked to this booking → "confirmed by bank"
+      // badge (staff-only). id-only keeps the payload small.
+      bankPayments: { select: { id: true } },
     },
     orderBy: [{ slot: { date: "asc" } }, { slot: { startTime: "asc" } }],
   })
@@ -40,12 +43,13 @@ export async function GET(request: NextRequest) {
     where: { id: ctx.studioId },
     select: { country: true, localPrice: true, membershipClassPrice: true },
   })
-  const withBalance = bookings.map((b) => ({
+  const withBalance = bookings.map(({ bankPayments, ...b }) => ({
     ...b,
     membershipRemaining: balances.get(phoneTail(b.clientPhone)) ?? 0,
     studioCountry: studio?.country ?? null,
     localPrice: studio?.localPrice ?? 200000,
     memberPrice: studio?.membershipClassPrice ?? 250000,
+    bankConfirmed: bankPayments.length > 0,
   }))
 
   return NextResponse.json(withBalance)

@@ -57,6 +57,9 @@ type Booking = {
   // Price tier (Full/Member/Local) the coach marked — base for 20% commission.
   priceTier?: string | null
   memberPrice?: number
+  // Staff-only "confirmed by bank" flag (a linked BankPayment); never shown to
+  // the client.
+  bankConfirmed?: boolean
 }
 
 type Salary = {
@@ -1169,6 +1172,9 @@ export default function TrainerSchedulePage() {
                           <span className="font-semibold text-gray-900 truncate">{b.clientName}</span>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
+                          {b.bankConfirmed ? (
+                            <span className="text-[10px] font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full whitespace-nowrap" title="Payment confirmed by bank">✓ bank</span>
+                          ) : null}
                           <span className="text-xs font-semibold text-brand whitespace-nowrap">✓ Paid · {paymentLabel}</span>
                           <button
                             type="button"
@@ -1203,6 +1209,7 @@ export default function TrainerSchedulePage() {
                           <div className="font-semibold text-gray-900">{b.clientName}</div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
+                          {b.bankConfirmed && <span className="text-[10px] font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full" title="Payment confirmed by bank">✓ bank</span>}
                           {b.checkedIn && <span className="text-[10px] font-medium text-green-700 bg-green-200 px-2 py-0.5 rounded-full">✓ checked in</span>}
                           {/* Message this client in the in-app chat. */}
                           <button

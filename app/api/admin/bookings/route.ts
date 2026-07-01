@@ -31,6 +31,8 @@ export async function GET(request: NextRequest) {
         include: { trainer: { select: { id: true, name: true } } },
       },
       services: { include: { service: true } },
+      // Bank/QRIS payments linked to this booking → "confirmed by bank" badge.
+      bankPayments: { select: { id: true } },
     },
     orderBy: [{ slot: { date: "asc" } }, { slot: { startTime: "asc" } }, { createdAt: "asc" }],
   })
@@ -38,9 +40,10 @@ export async function GET(request: NextRequest) {
   // Attach each client's membership balance so the admin can offer
   // "pay from membership" exactly like the trainer cabinet does.
   const balances = await getStudioMembershipBalances(ctx.studioId)
-  const withBalance = bookings.map((b) => ({
+  const withBalance = bookings.map(({ bankPayments, ...b }) => ({
     ...b,
     membershipRemaining: balances.get(phoneTail(b.clientPhone)) ?? 0,
+    bankConfirmed: bankPayments.length > 0,
   }))
   return NextResponse.json(withBalance)
 }
