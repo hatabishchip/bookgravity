@@ -387,29 +387,38 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       return
     }
     if (digits === sentDigitsRef.current) return
-    sentDigitsRef.current = digits
-    setOtpError("")
-    setOtpCode("")
-    otpFailedRef.current = false
-    // Already verified this number this session → skip the code, just unlock +
-    // restore the details (and the verified code for the booking call).
+    // Already verified this number this session → restore immediately, no send.
     const cached = verifiedClientsRef.current.get(digits)
     if (cached) {
+      sentDigitsRef.current = digits
+      setOtpError("")
+      setOtpCode(cached.code)
+      otpFailedRef.current = false
       setOtpSent(false)
       setOtpVerified(true)
       setOtpReady(true)
-      setOtpCode(cached.code)
       setMembershipLeft(cached.membership)
       setLookupState(cached.name || cached.email ? "found" : "new")
       setForm((f) => ({ ...f, clientName: cached.name ?? "", clientEmail: cached.email ?? "" }))
       return
     }
-    setOtpVerified(false)
-    setOtpReady(false)
-    setMembershipLeft(0)
-    setLookupState("idle")
-    setForm((f) => ({ ...f, clientName: "", clientEmail: "" }))
-    void sendOtp(form.clientPhone)
+    // DEBOUNCE the send: fire ONE code ~800ms after the user stops typing, not at
+    // every valid-length prefix. Typing one number used to send a code at each
+    // length (sub 8,9,10,11...), spamming incomplete numbers and burning the
+    // per-IP send rate limit so even the final real number stopped arriving.
+    const t = setTimeout(() => {
+      sentDigitsRef.current = digits
+      setOtpError("")
+      setOtpCode("")
+      otpFailedRef.current = false
+      setOtpVerified(false)
+      setOtpReady(false)
+      setMembershipLeft(0)
+      setLookupState("idle")
+      setForm((f) => ({ ...f, clientName: "", clientEmail: "" }))
+      void sendOtp(form.clientPhone)
+    }, 800)
+    return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.clientPhone, step])
 
