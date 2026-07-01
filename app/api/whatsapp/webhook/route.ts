@@ -17,6 +17,7 @@ import { sendInboundWhatsAppCopy } from "@/lib/mailer"
 import { translateAndDetect } from "@/lib/translate"
 import { handleCancelBotMessage } from "@/lib/cancel-bot"
 import { pickNextLeadTrainer } from "@/lib/lead-rotation"
+import { recordBankPayment } from "@/lib/bank-payment"
 import { sendPush } from "@/lib/expo-push"
 import { sendWebPush } from "@/lib/web-push"
 
@@ -106,6 +107,9 @@ async function resolveStudioByPhoneNumberId(phoneNumberId: string | null) {
       name: true,
       inboxLanguage: true,
       emailAdminWaCopy: true,
+      // Bank's WhatsApp sender for QRIS payment notifications (null = detect by
+      // message content only).
+      bankWhatsappSender: true,
       whatsappPhoneNumberId: true,
       whatsappAccessToken: true,
       whatsappEnabled: true,
@@ -324,6 +328,38 @@ export async function POST(request: NextRequest) {
           const { type, body: msgBody, mediaUrl, mediaMime } = describeIncomingMessage(msg)
           const tsSec = parseInt(msg.timestamp || "0", 10)
           const receivedAt = tsSec > 0 ? new Date(tsSec * 1000) : new Date()
+
+          // Bank payment notification (e.g. BRI QRIS "Telah Diterima") routed to
+          // this studio's WhatsApp number. Record it as a BankPayment and STOP -
+          // it must NOT become a client conversation, an auto-assigned lead, or
+          // reach a trainer. When the studio pinned its bank's WhatsApp sender we
+          // trust only that number; otherwise the bank-specific message format is
+          // the gate (a client can't accidentally forge it).
+          if (type === "text" && msgBody) {
+            const bankSender = studioRow?.bankWhatsappSender
+            const fromDigits = msg.from.replace(/\D/g, "")
+            const bankDigits = (bankSender ?? "").replace(/\D/g, "")
+            const senderAllowed =
+              !bankDigits ||
+              fromDigits === bankDigits ||
+              fromDigits.endsWith(bankDigits) ||
+              bankDigits.endsWith(fromDigits)
+            if (senderAllowed) {
+              try {
+                const res = await recordBankPayment({ studioId, text: msgBody, sender: msg.from })
+                if (res.status !== "ignored") {
+                  console.log("[whatsapp-webhook] bank payment", res.status, {
+                    from: msg.from,
+                    id: res.status === "created" ? res.id : undefined,
+                  })
+                  continue // handled - do not route as a client message
+                }
+              } catch (err) {
+                // Don't drop a real message if recording fails - fall through.
+                console.error("[whatsapp-webhook] bank payment record failed:", err)
+              }
+            }
+          }
 
           try {
             // Look up booking history for this phone — if we find one, assign

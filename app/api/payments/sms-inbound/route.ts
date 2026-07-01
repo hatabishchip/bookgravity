@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { parseBankSms } from "@/lib/bank-sms"
+import { recordBankPayment } from "@/lib/bank-payment"
 
 // Inbound bank-SMS webhook. An Android SMS forwarder on the phone that holds the
 // studio's bank SIM POSTs every incoming SMS here; we parse the BRI QRIS ones
@@ -85,43 +85,18 @@ export async function POST(req: NextRequest) {
   const studio = await resolveStudio(studioSlug)
   if (!studio) return NextResponse.json({ error: "studio not found" }, { status: 404 })
 
-  const parsed = parseBankSms(text)
-  // Not a recognised incoming-payment SMS (balance info, OTP, promo). Ack with
-  // 200 so the forwarder marks it delivered and does not retry-spam us.
-  if (!parsed) return NextResponse.json({ ignored: true }, { status: 200 })
-
-  // Idempotency: a re-forwarded SMS must not create a second row.
-  const dupWhere = parsed.reference
-    ? { studioId: studio.id, reference: parsed.reference }
-    : { studioId: studio.id, amount: parsed.amount, paidAt: parsed.paidAt, rawText: text }
-  const existing = await prisma.bankPayment.findFirst({ where: dupWhere, select: { id: true } })
-  if (existing) return NextResponse.json({ duplicate: true, id: existing.id }, { status: 200 })
-
   try {
-    const row = await prisma.bankPayment.create({
-      data: {
-        studioId: studio.id,
-        amount: parsed.amount,
-        reference: parsed.reference,
-        channel: parsed.channel,
-        sender,
-        rawText: text,
-        paidAt: parsed.paidAt,
-      },
-      select: { id: true },
-    })
+    const res = await recordBankPayment({ studioId: studio.id, text, sender })
+    // Not a recognised incoming-payment SMS (balance info, OTP, promo). Ack with
+    // 200 so the forwarder marks it delivered and does not retry-spam us.
+    if (res.status === "ignored") return NextResponse.json({ ignored: true }, { status: 200 })
+    if (res.status === "duplicate") return NextResponse.json({ duplicate: true, id: res.id }, { status: 200 })
     return NextResponse.json(
-      { ok: true, id: row.id, amount: parsed.amount, reference: parsed.reference, studio: studio.slug },
+      { ok: true, id: res.id, amount: res.amount, reference: res.reference, studio: studio.slug },
       { status: 200 },
     )
   } catch (err) {
-    // Unique (studioId, reference) race - another request won; treat as dupe.
-    const msg = err instanceof Error ? err.message : String(err)
-    if (/unique|constraint/i.test(msg)) {
-      const row = await prisma.bankPayment.findFirst({ where: dupWhere, select: { id: true } })
-      return NextResponse.json({ duplicate: true, id: row?.id ?? null }, { status: 200 })
-    }
-    console.error("[sms-inbound] insert failed:", msg)
+    console.error("[sms-inbound] insert failed:", err instanceof Error ? err.message : err)
     return NextResponse.json({ error: "insert failed" }, { status: 500 })
   }
 }

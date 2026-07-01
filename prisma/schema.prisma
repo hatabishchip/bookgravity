@@ -124,6 +124,12 @@ model Studio {
   // inbox; outbound replies typed in this language get auto-translated
   // to the client's detected language before delivery. Null = off.
   inboxLanguage              String?
+  // Bank's WhatsApp sender number (digits) that delivers QRIS payment
+  // notifications to this studio's WhatsApp business number. When set, the
+  // webhook only treats inbound from THIS number as a bank payment (and never
+  // routes it to a trainer). Null = detect bank payments by message content
+  // only (the "Telah Diterima" format is bank-specific).
+  bankWhatsappSender         String?
   // Running total of transactional emails sent for this studio (booking
   // confirmations, trainer notifications, password resets). Shown in /sadmin
   // as a rough usage indicator.
