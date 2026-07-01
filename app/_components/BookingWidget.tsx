@@ -406,7 +406,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     // every valid-length prefix. Typing one number used to send a code at each
     // length (sub 8,9,10,11...), spamming incomplete numbers and burning the
     // per-IP send rate limit so even the final real number stopped arriving.
-    const t = setTimeout(() => {
+    const t = setTimeout(async () => {
       sentDigitsRef.current = digits
       setOtpError("")
       setOtpCode("")
@@ -416,6 +416,35 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       setMembershipLeft(0)
       setLookupState("idle")
       setForm((f) => ({ ...f, clientName: "", clientEmail: "" }))
+      // Returning device: if this number was already verified on THIS device
+      // (long-lived trust cookie), skip the WhatsApp code entirely - unlock the
+      // fields and prefill the known details, no code sent.
+      try {
+        const r = await fetch(
+          `/api/otp/session?phone=${encodeURIComponent(form.clientPhone)}${studioParam ? `&${studioParam}` : ""}`,
+          { cache: "no-store" },
+        )
+        const d = await r.json().catch(() => ({}))
+        if (sentDigitsRef.current !== digits) return // a newer number took over while awaiting
+        if (d.verified) {
+          setOtpSent(false)
+          setOtpVerified(true)
+          setOtpReady(true)
+          setMembershipLeft(d.client?.membershipRemaining ?? 0)
+          setLookupState(d.client?.name || d.client?.email ? "found" : "new")
+          setForm((f) => ({ ...f, clientName: d.client?.name ?? "", clientEmail: d.client?.email ?? "" }))
+          verifiedClientsRef.current.set(digits, {
+            code: "",
+            name: d.client?.name ?? null,
+            email: d.client?.email ?? null,
+            membership: d.client?.membershipRemaining ?? 0,
+          })
+          return
+        }
+      } catch {
+        /* session check failed → fall through to the normal code flow */
+      }
+      if (sentDigitsRef.current !== digits) return
       void sendOtp(form.clientPhone)
     }, 1100)
     return () => clearTimeout(t)

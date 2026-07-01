@@ -540,7 +540,7 @@ export async function POST(request: NextRequest) {
     // through, message us" warning on the ticket instead of silent success.
     const created = NextResponse.json({ ...bookings[0], waConfirmationSent: waClientSent }, { status: 201 })
     if (studioWaOn && confirmWhatsapp) {
-      attachOtpSession(created, { phone: data.clientPhone, studioId })
+      attachOtpSession(request, created, { phone: data.clientPhone, studioId })
     }
     return created
   } catch (err) {
