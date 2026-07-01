@@ -1528,16 +1528,19 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               </div>
             )}
 
-            {/* Number isn't on WhatsApp → ask to change it; no code field. */}
-            {otpSent && !otpReady && !otpVerified && otpDelivery === "failed" && (
+            {/* Number isn't on WhatsApp → ask to change it; no code field.
+                "failed" wins over "ready": even if the ready-fallback fired before
+                the failed status arrived, we still show this and hide the code. */}
+            {otpSent && !otpVerified && otpDelivery === "failed" && (
               <div className="rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                 <span className="font-semibold">⚠️ This number isn&apos;t on WhatsApp.</span>{" "}
                 Please change the number above to one that has WhatsApp — then we&apos;ll send the code.
               </div>
             )}
 
-            {/* WhatsApp code — only once we know the number is on WhatsApp. */}
-            {otpSent && otpReady && !otpVerified && (
+            {/* WhatsApp code — only once we know the number is on WhatsApp
+                (and the send did not fail). */}
+            {otpSent && otpReady && !otpVerified && otpDelivery !== "failed" && (
               <div ref={otpScrollRef} className="flex flex-col items-center gap-3 py-1 scroll-mt-24">
                 {/* 2-digit code: two airy slots, each a big digit over an
                     underline. The underline UNDER the slot you type next blinks
