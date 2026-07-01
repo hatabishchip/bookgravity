@@ -23,7 +23,10 @@ export async function POST(request: NextRequest) {
 
     // Abuse brakes (audit 2026-06-12): spraying codes burns the Meta quota
     // and the WhatsApp number's quality rating.
-    const ipRl = await rateLimit({ scope: "otp-ip", subject: clientIp(request), limit: 8, windowSec: 3600 })
+    // 15/hr per IP: a studio's clients often book from one shared wifi (one IP),
+    // so keep headroom above the old 8 to avoid locking out real clients. The
+    // per-phone 10/day cap below is the tighter anti-spam brake.
+    const ipRl = await rateLimit({ scope: "otp-ip", subject: clientIp(request), limit: 15, windowSec: 3600 })
     const phoneRl = await rateLimit({ scope: "otp-phone", subject: data.phone.replace(/\D/g, ""), limit: 10, windowSec: 86400 })
     if (!ipRl.ok || !phoneRl.ok) {
       const retry = !ipRl.ok ? ipRl.retryAfterSec : (!phoneRl.ok ? phoneRl.retryAfterSec : 60)
