@@ -25,6 +25,7 @@ _Generated/updated автоматически при обработке исто
 | n-acquiring-customer-5-25x-costlier-than-retention | Acquiring a new customer costs 5–25x more than retaining an existing one | M |
 | n-5pct-retention-lift-raises-profit-25-95pct | A 5% increase in customer retention raises profit by 25–95% | M |
 | n-store-publishing-apple-google-state-2026-06 | Публикация App Store: нужны wet-sign employment letter + заверенные EN-переводы Akta/NIB; Google Play отклонял по Misleading Claims | H |
+| n-booking-phone-otp-device-trust-2026-07 | Booking-виджет: ввод любого номера (196 стран), WhatsApp-OTP единственный гейт, доверие номера на устройстве 400 дней скользящее | H |
 
 ## Claims
 
