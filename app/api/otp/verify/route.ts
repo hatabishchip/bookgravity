@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { getPublicStudioId } from "@/lib/studio"
-import { getMembershipBalance, phoneTail } from "@/lib/membership"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { verifyBookingOtp } from "@/lib/otp"
 import { attachOtpSession } from "@/lib/otp-session"
+import { getVerifiedClientDetails } from "@/lib/client-lookup"
 
 export const dynamic = "force-dynamic"
 
@@ -38,44 +38,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Verified (or OTP not required) → privacy-safe lookup of last-used details.
-    // Scope to THIS studio (via slot.studioId): the same phone may have booked
-    // at another studio, and one studio must never surface a name/email the
-    // client only ever gave to a different studio.
-    //
-    // Match by the 10-digit phone tail (endsWith), NOT by exact string. Since
-    // the 2026-06-12 normalization phones are stored digits-only ("6282…"),
-    // but the booking widget still posts the country-code form ("+6282…").
-    // An exact-equals lookup misses every returning client. The membership
-    // lookup below already works this way (see phoneTail in lib/membership).
-    const tail = phoneTail(phone)
-    const tooShortToMatch = tail.length < 6
-    const [nameBooking, emailBooking] = tooShortToMatch
-      ? [null, null]
-      : await Promise.all([
-          prisma.booking.findFirst({
-            where: { clientPhone: { endsWith: tail }, slot: { studioId } },
-            orderBy: { createdAt: "desc" },
-            select: { clientName: true },
-          }),
-          prisma.booking.findFirst({
-            where: { clientPhone: { endsWith: tail }, clientEmail: { not: "" }, slot: { studioId } },
-            orderBy: { createdAt: "desc" },
-            select: { clientEmail: true },
-          }),
-        ])
-    const cleanName = nameBooking?.clientName?.replace(/\s*\(\d+\/\d+\)$/, "").trim() || null
-    let membershipRemaining = 0
-    if (phone.replace(/\D/g, "").slice(-10).length >= 6) {
-      membershipRemaining = await getMembershipBalance(studioId, phone)
-    }
+    const client = await getVerifiedClientDetails({ studioId, phone })
 
-    // Remember the verified number for 2h (signed httpOnly cookie): repeat
-    // bookings in that window skip the WhatsApp code entirely.
-    const res = NextResponse.json({
-      ok: true,
-      client: { name: cleanName, email: emailBooking?.clientEmail ?? null, membershipRemaining },
-    })
-    if (otpRequired) attachOtpSession(res, { phone, studioId })
+    // Remember the verified number on this device (signed httpOnly cookie, up to
+    // 400 days, sliding): repeat bookings from the same device skip the code.
+    const res = NextResponse.json({ ok: true, client })
+    if (otpRequired) attachOtpSession(request, res, { phone, studioId })
     return res
   } catch (err) {
     if (err instanceof z.ZodError) {
