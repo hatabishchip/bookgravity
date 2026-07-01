@@ -109,8 +109,10 @@ export default function PhoneInput({
         onChange={(e) => {
           const stripped = "+" + e.target.value.replace(/\D/g, "")
           const c = detectCountry(stripped)
-          // Reject typing past the longest known country prefix when nothing matches.
-          if (!c && stripped.replace(/\D/g, "").length > 3) return
+          // Accept ANY number: an unmatched code is still typeable up to the
+          // E.164 max of 15 digits (the WhatsApp check is the real gate), not
+          // hard-blocked at 3 like before.
+          if (!c && stripped.replace(/\D/g, "").length > 15) return
           // Reject typing past the country's max subscriber digits.
           if (c && subscriberDigits(stripped, c) > c.max) return
           const formatted = c ? formatPhoneInput(stripped) : stripped
