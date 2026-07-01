@@ -417,7 +417,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       setLookupState("idle")
       setForm((f) => ({ ...f, clientName: "", clientEmail: "" }))
       void sendOtp(form.clientPhone)
-    }, 800)
+    }, 1100)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.clientPhone, step])
@@ -452,9 +452,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     const id = setInterval(() => {
       tries++
       void poll()
-      // Fallback after ~8s with no failure: a valid number whose phone is just
-      // offline still got the code — let them enter it.
-      if (tries >= 4 && !otpFailedRef.current) setOtpReady(true)
+      // Fallback after ~12s with no failure: a valid number whose phone is just
+      // offline still got the code — let them enter it. Kept longer than the
+      // delivery latency so a slow "failed" (number not on WhatsApp) lands FIRST
+      // and we show "not on WhatsApp" instead of prematurely revealing the code.
+      if (tries >= 6 && !otpFailedRef.current) setOtpReady(true)
       if (tries >= 12 || otpFailedRef.current) clearInterval(id)
     }, 2000)
     return () => { cancelled = true; clearInterval(id) }
