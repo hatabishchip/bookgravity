@@ -7,7 +7,7 @@ import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { cn } from "@/lib/utils"
 // Phone country table + validation helpers: single source of truth in lib/phone.
-import { detectCountry, subscriberDigits, type PhoneCountry } from "@/lib/phone"
+import { detectCountry, validatePhone, type PhoneCountry } from "@/lib/phone"
 import { clientEndTime12, clientEndTime24 } from "@/lib/class-time"
 import { formatMoney } from "@/lib/format"
 
@@ -365,8 +365,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // to a restored ticket (step "done", phone restored) would re-send a code.
   useEffect(() => {
     if (step !== "details") return
-    const country = detectCountry(form.clientPhone)
-    const complete = !!country && subscriberDigits(form.clientPhone, country) >= country.min
+    // Accept ANY plausible number (validatePhone has an International fallback for
+    // uncurated country codes). The real gate is the WhatsApp OTP check below,
+    // not a curated country list - if the number is not on WhatsApp, sending
+    // simply fails and the user is told so.
+    const complete = validatePhone(form.clientPhone).kind === "ok"
     const digits = form.clientPhone.replace(/\D/g, "")
     if (!complete) {
       if (sentDigitsRef.current) {
@@ -628,17 +631,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const validateForm = () => {
     const errors: Record<string, string> = {}
     if (form.clientName.trim().length < 2) errors.clientName = "Please enter your full name"
-    const country = detectCountry(form.clientPhone)
-    if (country) {
-      const sub = subscriberDigits(form.clientPhone, country)
-      if (sub < country.min) {
-        errors.clientPhone = `Too few digits for ${country.name} — need ${country.min}, got ${sub}`
-      }
-    } else {
-      const digits = form.clientPhone.replace(/\D/g, "")
-      if (!form.clientPhone.startsWith("+") || digits.length < 7) {
-        errors.clientPhone = "Enter phone with country code, e.g. +62 812 3456 7890"
-      }
+    // Any plausible international number is allowed; WhatsApp is the real check.
+    if (validatePhone(form.clientPhone).kind !== "ok") {
+      errors.clientPhone = "Enter your phone with country code, e.g. +62 812 3456 7890"
     }
     const trimmedEmail = form.clientEmail.trim()
     if (!trimmedEmail) {
@@ -1452,8 +1447,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       onChange={(e) => {
                         const stripped = "+" + e.target.value.replace(/\D/g, "")
                         const c = detectCountry(stripped)
-                        if (!c && stripped.replace(/\D/g, "").length > 3) return
-                        if (c && subscriberDigits(stripped, c) > c.max) return
+                        // Allow ANY number up to the E.164 max (15 digits), regardless of
+                        // whether the country code is curated. WhatsApp is the real check.
+                        if (stripped.replace(/\D/g, "").length > 15) return
                         const formatted = c ? formatPhoneInput(stripped) : stripped
                         setForm({ ...form, clientPhone: formatted })
                         clearFieldError("clientPhone")
