@@ -480,6 +480,12 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.clientPhone, step])
 
+  // A PREFILLED phone renders "calm": readOnly, no focus, no caret (autofocus
+  // used to drop a cursor on top of one of the digits - looked broken). First
+  // tap re-enables editing with the caret AFTER the last digit. A new client's
+  // empty field keeps the normal autofocus+type flow.
+  const [phoneIdle, setPhoneIdle] = useState(false)
+
   // Returning client, zero typing: when the details step opens with an empty
   // phone, prefill the last number this device verified. The trust-cookie check
   // then unlocks the fields on its own → date, slot, Continue = 3 taps total.
@@ -488,7 +494,12 @@ export default function BookingWidget({ services, studio, studioSlug }: {
     setForm((f) => {
       if (f.clientPhone.replace(/\D/g, "").length >= 5) return f
       const last = recallLastPhone()
-      return last ? { ...f, clientPhone: `+${last}` } : f
+      if (!last) return f
+      // Park the field: kill the mount autofocus so no caret sits on the
+      // prefilled digits until the client deliberately taps to edit.
+      setPhoneIdle(true)
+      requestAnimationFrame(() => fieldRefs.clientPhone.current?.blur())
+      return { ...f, clientPhone: `+${last}` }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
@@ -1569,6 +1580,21 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       type="tel"
                       autoComplete="tel"
                       autoFocus
+                      // Prefilled number rests readOnly with no caret; the
+                      // first tap re-arms editing below with the caret placed
+                      // AFTER the last digit (autofocus used to strike a
+                      // cursor through one of the prefilled digits).
+                      readOnly={phoneIdle}
+                      onClick={(e) => {
+                        if (!phoneIdle) return
+                        setPhoneIdle(false)
+                        const el = e.currentTarget
+                        requestAnimationFrame(() => {
+                          el.focus()
+                          const end = el.value.length
+                          el.setSelectionRange(end, end)
+                        })
+                      }}
                       value={form.clientPhone}
                       onChange={(e) => {
                         const stripped = "+" + e.target.value.replace(/\D/g, "")
@@ -1588,7 +1614,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       // and solid (24px at regular weight looked spindly). The
                       // overlay below MUST mirror size/weight/padding to align.
                       className={cn(
-                        "w-full border rounded-xl px-4 py-3 text-xl font-semibold tabular-nums focus:outline-none focus:ring-2 transition-colors caret-brand",
+                        "w-full border rounded-xl px-4 py-3 text-xl font-semibold tabular-nums focus:outline-none focus:ring-2 transition-colors",
+                        // While parked, no caret even if the field somehow
+                        // gains focus (iOS shows a caret in readOnly fields).
+                        phoneIdle ? "caret-transparent" : "caret-brand",
                         display && form.clientPhone ? "text-transparent" : "text-gray-900",
                         rightPad && "pr-11",
                         hasError
