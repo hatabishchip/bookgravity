@@ -49,6 +49,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json()
   const data = UpdateSchema.parse(body)
 
+  // A cancelled booking is settled - block payment-type edits on it, otherwise
+  // switching it away from MEMBERSHIP would restore a class that afterStaff-
+  // Cancellation already returned (double-restore).
+  if (booking.status === "CANCELLED" && data.paymentType !== undefined) {
+    return NextResponse.json({ error: "Cannot change payment on a cancelled booking" }, { status: 400 })
+  }
+
   // Moving to another class: the target must be a future slot in this studio
   // (any class type) with a free spot and an assigned trainer. Cross-trainer
   // targets are fine — the receiving trainer is pinged below.
@@ -83,9 +90,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (data.paymentType !== undefined) {
     const sw = await applyPaymentSwitch({
       studioId: ctx.studioId,
+      bookingId: booking.id,
       clientPhone: booking.clientPhone,
       currentMembershipId: booking.membershipId,
       newPaymentType: data.paymentType,
+      requestedPriceTier: data.priceTier,
+      requestedPaymentStatus: data.paymentStatus,
     })
     if (!sw.ok) {
       return NextResponse.json(
@@ -96,11 +106,34 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     Object.assign(updateData, sw.updateData)
   }
 
-  const updated = await prisma.booking.update({
-    where: { id },
-    data: updateData,
-    include: { slot: true, services: { include: { service: true } } },
-  })
+  // Apply the update. When MOVING to another slot, re-check the target's
+  // capacity inside the same transaction (the earlier check was a plain read -
+  // a concurrent booking could have taken the last seat = overbook).
+  const moving = !!(data.slotId && data.slotId !== booking.slotId)
+  const updated = moving
+    ? await prisma
+        .$transaction(async (tx) => {
+          const target = await tx.timeSlot.findUnique({
+            where: { id: data.slotId! },
+            select: { maxCapacity: true },
+          })
+          const count = await tx.booking.count({
+            where: { slotId: data.slotId!, status: "CONFIRMED" },
+          })
+          if (target && count >= target.maxCapacity) throw new Error("TARGET_FULL")
+          return tx.booking.update({
+            where: { id },
+            data: updateData,
+            include: { slot: true, services: { include: { service: true } } },
+          })
+        })
+        .catch((e) => (e instanceof Error && e.message === "TARGET_FULL" ? null : Promise.reject(e)))
+    : await prisma.booking.update({
+        where: { id },
+        data: updateData,
+        include: { slot: true, services: { include: { service: true } } },
+      })
+  if (!updated) return NextResponse.json({ error: "Target class is full" }, { status: 409 })
 
   // Cancellation side-effects: behave exactly like an admin/client cancel —
   // return the membership class and notify the client.

@@ -3,7 +3,7 @@ import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { getStudioMembershipBalances, getMembershipBalance, phoneTail } from "@/lib/membership"
 import { upsertConversation } from "@/lib/whatsapp-conversation"
-import { baliDateStr } from "@/lib/tz"
+import { baliDateStr, addDaysStr } from "@/lib/tz"
 import { z } from "zod"
 
 export async function GET(request: NextRequest) {
@@ -20,9 +20,16 @@ export async function GET(request: NextRequest) {
 
   const bookings = await prisma.booking.findMany({
     where: {
-      slot: { trainerId: trainer.id, studioId: ctx.studioId },
       // Only active bookings - a cancelled one drops off the roster entirely.
       status: "CONFIRMED",
+      slot: {
+        trainerId: trainer.id,
+        studioId: ctx.studioId,
+        // No explicit slot → rolling 60-day-back window (+ all future). Without
+        // it this fetched the trainer's entire lifetime history every load,
+        // growing unbounded (mirrors the admin bookings route's window).
+        ...(slotId ? {} : { date: { gte: addDaysStr(baliDateStr(new Date()), -60) } }),
+      },
       ...(slotId ? { slotId } : {}),
     },
     include: {

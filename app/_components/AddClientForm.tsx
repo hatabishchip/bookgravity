@@ -55,12 +55,13 @@ export function AddClientForm({
     setLookup("loading")
     const ctrl = new AbortController()
     fetch(`/api/lookup-client?phone=${encodeURIComponent(phone)}`, { signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : { name: null, email: null }))
-      .then((d: { name: string | null; email: string | null }) => {
-        if (d.name || d.email) {
+      .then((r) => (r.ok ? r.json() : { name: null }))
+      .then((d: { name: string | null }) => {
+        // lookup-client returns name only (no email) - it's an unauthenticated
+        // endpoint and must not leak PII by phone. Email is typed in by hand.
+        if (d.name) {
           setLookup("found")
           setName((prev) => (prev.trim() ? prev : d.name ?? prev))
-          setEmail((prev) => (prev.trim() ? prev : d.email ?? prev))
         } else {
           setLookup("new")
         }

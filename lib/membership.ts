@@ -47,10 +47,13 @@ export async function deductMembershipClass(studioId: string, phone: string): Pr
       orderBy: { createdAt: "asc" },
     })
     if (!row) return null
-    await tx.membership.update({
-      where: { id: row.id },
+    // Conditional decrement guards against ever going below 0 (defensive: the
+    // findFirst already filtered gt:0, but a money counter should never trust it).
+    const dec = await tx.membership.updateMany({
+      where: { id: row.id, remainingClasses: { gt: 0 } },
       data: { remainingClasses: { decrement: 1 } },
     })
+    if (dec.count === 0) return null
     return row.id
   })
 }
@@ -60,12 +63,19 @@ export async function deductMembershipClass(studioId: string, phone: string): Pr
 // cancelled. Capped at totalClasses so repeated calls can't over-credit.
 export async function restoreMembershipClass(membershipId: string): Promise<void> {
   try {
-    const row = await prisma.membership.findUnique({ where: { id: membershipId } })
-    if (!row) return
-    if (row.remainingClasses >= row.totalClasses) return
-    await prisma.membership.update({
-      where: { id: membershipId },
-      data: { remainingClasses: { increment: 1 } },
+    // Read + guard + increment in ONE transaction: two concurrent restores
+    // (double webhook + admin) serialize on the writer, so the second sees the
+    // committed bump and the cap holds - remainingClasses can't exceed total.
+    await prisma.$transaction(async (tx) => {
+      const row = await tx.membership.findUnique({
+        where: { id: membershipId },
+        select: { remainingClasses: true, totalClasses: true },
+      })
+      if (!row || row.remainingClasses >= row.totalClasses) return
+      await tx.membership.update({
+        where: { id: membershipId },
+        data: { remainingClasses: { increment: 1 } },
+      })
     })
   } catch {
     /* row gone — nothing to restore */

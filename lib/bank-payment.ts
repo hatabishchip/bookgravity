@@ -21,6 +21,8 @@ export async function recordBankPayment(opts: {
   studioId: string
   text: string
   sender?: string | null
+  /** Which ingest path recorded this - "sms" (forwarder) or "wa" (WhatsApp). */
+  source?: "sms" | "wa"
 }): Promise<RecordResult> {
   const parsed = parseBankSms(opts.text)
   if (!parsed) return { status: "ignored" }
@@ -42,6 +44,7 @@ export async function recordBankPayment(opts: {
         amount: parsed.amount,
         reference: parsed.reference,
         channel: parsed.channel,
+        source: opts.source ?? "sms",
         sender: opts.sender ?? null,
         rawText: text,
         paidAt: parsed.paidAt,

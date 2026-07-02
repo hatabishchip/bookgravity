@@ -49,7 +49,9 @@ export async function GET(request: NextRequest) {
   const localPrice = studio?.localPrice ?? 200000
 
   const payments = await prisma.bankPayment.findMany({
-    where: { studioId: ctx.studioId },
+    // Push the "to link" filter into SQL instead of fetching all 300 and
+    // filtering in JS.
+    where: { studioId: ctx.studioId, ...(filter === "unmatched" ? { bookingId: null } : {}) },
     orderBy: { paidAt: "desc" },
     take: 300,
     include: {
@@ -64,7 +66,11 @@ export async function GET(request: NextRequest) {
     },
   })
 
-  const unmatchedCount = payments.filter((p) => !p.bookingId).length
+  // Always the true count of unmatched payments (independent of the filter),
+  // so the "To link" tab badge stays accurate on the "All" view too.
+  const unmatchedCount = await prisma.bankPayment.count({
+    where: { studioId: ctx.studioId, bookingId: null },
+  })
 
   // Same-day bookings to suggest for the UNLINKED payments in this page.
   const neededDates = Array.from(
@@ -143,7 +149,6 @@ export async function GET(request: NextRequest) {
   }
 
   const rows = payments
-    .filter((p) => (filter === "unmatched" ? !p.bookingId : true))
     .map((p) => ({
       id: p.id,
       amount: p.amount,

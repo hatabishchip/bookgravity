@@ -16,6 +16,12 @@ export async function GET(request: NextRequest) {
   // The booking widget passes ?studio=<slug> from the /[studio] page; falls
   // back to cookie/subdomain/default when absent.
   const studioId = await getPublicStudioId(searchParams.get("studio"))
+  // Studio-local timezone for the cutoff math (null = Bali default). Threaded
+  // so a non-WITA studio's "bookable / ended" windows land at the right local
+  // moment instead of being computed ~3h off in Bali time.
+  const studioTz =
+    (await prisma.studio.findUnique({ where: { id: studioId }, select: { timezone: true } }))?.timezone ??
+    undefined
 
   if (!date) {
     // Return all dates that have slots from the start of the current month
@@ -59,10 +65,10 @@ export async function GET(request: NextRequest) {
         available: s._count.bookings < s.maxCapacity,
         // A class with ≥1 attendee stays bookable until it ends; an empty one
         // uses the 2h cutoff.
-        bookable: isSlotBookableWithAttendees(s.date, s.startTime, s.endTime, s._count.bookings, nowMs),
+        bookable: isSlotBookableWithAttendees(s.date, s.startTime, s.endTime, s._count.bookings, nowMs, studioTz),
         // Class already finished — lets the widget keep an in-progress class
         // visible (greyed) but hide ones that are fully over.
-        ended: slotEndMs(s.date, s.endTime) <= nowMs,
+        ended: slotEndMs(s.date, s.endTime, studioTz) <= nowMs,
         price: s.price,
       }))
     )
@@ -85,7 +91,7 @@ export async function GET(request: NextRequest) {
   const nowMs = Date.now()
   const result = slots
     // Keep in-progress classes visible; drop only fully-finished ones.
-    .filter((slot) => slotEndMs(slot.date, slot.endTime) > nowMs)
+    .filter((slot) => slotEndMs(slot.date, slot.endTime, studioTz) > nowMs)
     .map((slot) => ({
       id: slot.id,
       date: slot.date,
@@ -96,9 +102,9 @@ export async function GET(request: NextRequest) {
       bookedCount: slot._count.bookings,
       available: slot._count.bookings < slot.maxCapacity,
       // Outside the 2h cutoff, OR (with ≥1 attendee) any time before it ends.
-      bookable: isSlotBookableWithAttendees(slot.date, slot.startTime, slot.endTime, slot._count.bookings, nowMs),
+      bookable: isSlotBookableWithAttendees(slot.date, slot.startTime, slot.endTime, slot._count.bookings, nowMs, studioTz),
       // Class is currently running (started but not yet finished).
-      started: slotStartMs(slot.date, slot.startTime) <= nowMs,
+      started: slotStartMs(slot.date, slot.startTime, studioTz) <= nowMs,
       price: slot.price,
     }))
 

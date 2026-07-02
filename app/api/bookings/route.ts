@@ -84,14 +84,18 @@ export async function POST(request: NextRequest) {
     const studioId = await getPublicStudioId(new URL(request.url).searchParams.get("studio"))
     const slot = await prisma.timeSlot.findFirst({
       where: { id: data.slotId, studioId, trainerId: { not: null }, publicVisible: true },
-      include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
+      include: {
+        _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
+        studio: { select: { timezone: true } },
+      },
     })
 
     if (!slot) return NextResponse.json({ error: "Slot not found" }, { status: 404 })
 
     // A class with at least one attendee stays open until it ends; an empty one
-    // closes 2.5 hours before it starts.
-    if (!isSlotBookableWithAttendees(slot.date, slot.startTime, slot.endTime, slot._count.bookings)) {
+    // closes 2.5 hours before it starts. Cutoff math uses the studio's own tz
+    // (null = Bali) so a non-WITA studio isn't gated ~3h off.
+    if (!isSlotBookableWithAttendees(slot.date, slot.startTime, slot.endTime, slot._count.bookings, undefined, slot.studio?.timezone ?? undefined)) {
       return NextResponse.json(
         {
           error:
