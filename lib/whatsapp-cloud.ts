@@ -51,6 +51,7 @@ export function getConfig(): CloudConfig | null {
 export function getConfigFor(studio: {
   whatsappPhoneNumberId: string | null
   whatsappAccessToken: string | null
+  isDefault?: boolean
 } | null | undefined): CloudConfig | null {
   const global = getConfig()
   const apiVersion = process.env.WHATSAPP_API_VERSION || "v21.0"
@@ -65,7 +66,14 @@ export function getConfigFor(studio: {
       return { phoneNumberId: studio.whatsappPhoneNumberId, accessToken, apiVersion }
     }
   }
-  return global
+  // Env fallback = the DEFAULT studio's number. Only the default studio (or a
+  // no-studio context) may use it. A NON-default studio without its own number
+  // must get null (no send) rather than silently sending FROM the default
+  // studio's number and having replies land in the default studio's inbox
+  // (cross-studio leak). Live studios all have their own number, so they never
+  // reach this line.
+  if (!studio || studio.isDefault) return global
+  return null
 }
 
 export type WhatsAppHealth =

@@ -114,7 +114,15 @@ export async function afterStaffCancellation(booking: {
   slot: { studioId: string }
 }): Promise<void> {
   try {
-    if (booking.membershipId) await restoreMembershipClass(booking.membershipId)
+    if (booking.membershipId) {
+      await restoreMembershipClass(booking.membershipId)
+      // Clear the link so a later payment-type edit (or a re-cancel) can't
+      // restore the same class a second time - the class is already back.
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { membershipId: null },
+      })
+    }
   } catch (err) {
     console.error("[booking-cancel] membership restore failed:", err)
   }

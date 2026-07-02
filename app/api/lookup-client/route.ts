@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getPublicStudioId } from "@/lib/studio"
 import { getMembershipBalance } from "@/lib/membership"
+import { rateLimit, clientIp } from "@/lib/rate-limit"
 
 export const dynamic = "force-dynamic"
 
@@ -15,11 +16,23 @@ export const dynamic = "force-dynamic"
 // number of unused membership classes this phone has at THAT studio (memberships
 // are per-studio). This is informational only — clients never spend a class
 // themselves; a trainer deducts it at the studio.
+//
+// PRIVACY: this endpoint is UNAUTHENTICATED (the booking widget calls it before
+// any login), so it must never leak identifying data an attacker could harvest
+// by spraying phone numbers. It returns ONLY the display name (for autofill) and
+// the membership count — never email or other PII. An IP rate-limit caps
+// enumeration. Full identity (email etc.) is only ever returned after WhatsApp
+// OTP proof-of-ownership (see getVerifiedClientDetails / /api/otp/verify).
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const phone = searchParams.get("phone")?.trim()
   const studioSlug = searchParams.get("studio")?.trim() || undefined
   if (!phone || phone.length < 5) return NextResponse.json({ name: null, membershipRemaining: 0 })
+
+  // Cap phone-number enumeration from a single IP. Fail-open (limiter down must
+  // not block real bookings). Studio wifi = one shared IP, so keep it generous.
+  const rl = await rateLimit({ scope: "lookup-ip", subject: clientIp(request), limit: 40, windowSec: 3600 })
+  if (!rl.ok) return NextResponse.json({ name: null, membershipRemaining: 0 }, { status: 429 })
 
   try {
     // Match by 10-digit phone tail (endsWith), not exact string. Since the
@@ -29,23 +42,14 @@ export async function GET(request: NextRequest) {
     const tail = phone.replace(/\D/g, "").slice(-10)
     const tooShort = tail.length < 6
 
-    const [nameBooking, emailBooking] = tooShort
-      ? [null, null]
-      : await Promise.all([
-          // Most recent name (across all studios)
-          prisma.booking.findFirst({
-            where: { clientPhone: { endsWith: tail } },
-            orderBy: { createdAt: "desc" },
-            select: { clientName: true },
-          }),
-          // Most recent NON-EMPTY email — earliest bookings had empty clientEmail
-          // before we added the field to the widget, so we skip those.
-          prisma.booking.findFirst({
-            where: { clientPhone: { endsWith: tail }, clientEmail: { not: "" } },
-            orderBy: { createdAt: "desc" },
-            select: { clientEmail: true },
-          }),
-        ])
+    // Most recent name (across all studios) — for autofill only. No email.
+    const nameBooking = tooShort
+      ? null
+      : await prisma.booking.findFirst({
+          where: { clientPhone: { endsWith: tail } },
+          orderBy: { createdAt: "desc" },
+          select: { clientName: true },
+        })
     const cleanName = nameBooking?.clientName?.replace(/\s*\(\d+\/\d+\)$/, "").trim() || null
 
     // Membership balance for this studio. The helper already matches by tail.
@@ -57,7 +61,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       name: cleanName,
-      email: emailBooking?.clientEmail ?? null,
       membershipRemaining,
     })
   } catch {

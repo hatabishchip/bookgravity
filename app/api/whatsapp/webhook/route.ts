@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { elogError } from "@/lib/elog"
 import { createHmac, timingSafeEqual } from "crypto"
 import { prisma } from "@/lib/prisma"
@@ -105,6 +105,7 @@ async function resolveStudioByPhoneNumberId(phoneNumberId: string | null) {
     select: {
       id: true,
       name: true,
+      isDefault: true,
       inboxLanguage: true,
       emailAdminWaCopy: true,
       // Bank's WhatsApp sender for QRIS payment notifications (null = detect by
@@ -332,21 +333,19 @@ export async function POST(request: NextRequest) {
           // Bank payment notification (e.g. BRI QRIS "Telah Diterima") routed to
           // this studio's WhatsApp number. Record it as a BankPayment and STOP -
           // it must NOT become a client conversation, an auto-assigned lead, or
-          // reach a trainer. When the studio pinned its bank's WhatsApp sender we
-          // trust only that number; otherwise the bank-specific message format is
-          // the gate (a client can't accidentally forge it).
+          // reach a trainer.
+          //
+          // TRUST: we only take this path when the studio has PINNED its bank's
+          // WhatsApp sender (`bankWhatsappSender`) AND the message is from EXACTLY
+          // that number. Message content alone is NOT trusted - otherwise any
+          // client could paste the bank's format and forge a "paid" record that
+          // an admin might link to an unpaid class.
           if (type === "text" && msgBody) {
-            const bankSender = studioRow?.bankWhatsappSender
+            const bankDigits = (studioRow?.bankWhatsappSender ?? "").replace(/\D/g, "")
             const fromDigits = msg.from.replace(/\D/g, "")
-            const bankDigits = (bankSender ?? "").replace(/\D/g, "")
-            const senderAllowed =
-              !bankDigits ||
-              fromDigits === bankDigits ||
-              fromDigits.endsWith(bankDigits) ||
-              bankDigits.endsWith(fromDigits)
-            if (senderAllowed) {
+            if (bankDigits && fromDigits === bankDigits) {
               try {
-                const res = await recordBankPayment({ studioId, text: msgBody, sender: msg.from })
+                const res = await recordBankPayment({ studioId, text: msgBody, sender: msg.from, source: "wa" })
                 if (res.status !== "ignored") {
                   console.log("[whatsapp-webhook] bank payment", res.status, {
                     from: msg.from,
@@ -418,9 +417,11 @@ export async function POST(request: NextRequest) {
 
             // Ring like WhatsApp: a native push for every inbound client message
             // to the studio's admins and the assigned trainer, deep-linking into
-            // this chat (category "message"). Awaited (serverless can freeze
-            // after the response) but guarded so a push failure never 500s the
-            // webhook or blocks the cancel-bot below.
+            // this chat (category "message"). Deferred via after() so it runs
+            // AFTER the 200 to Meta - the push fan-out (Expo + FCM + web-push per
+            // recipient) used to add 2-6s to the response, which made Meta time
+            // out and RE-DELIVER the same message. Guarded so a failure is silent.
+            after(async () => {
             try {
               // Collect recipients (admin users + assigned trainer), including
               // their personal notification mode so each device gets the right
@@ -482,6 +483,7 @@ export async function POST(request: NextRequest) {
             } catch (err) {
               console.warn("[whatsapp-webhook] message push failed:", err)
             }
+            })
 
             // Auto-assigned ad lead → ping the trainer's personal WhatsApp once
             // with this first message (they have no open 24h window, so via the

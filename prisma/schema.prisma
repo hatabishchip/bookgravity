@@ -472,6 +472,9 @@ model BookingOtp {
   statusError String?
 
   @@index([studioId, phone])
+  // Delivery-status webhooks update the OTP row by waMessageId (Meta sends up to
+  // 3 statuses per outbound message) - without this it was a full-table scan.
+  @@index([waMessageId])
 }
 
 // ---------------------------------------------------------------------------
@@ -536,6 +539,7 @@ model BankPayment {
   amount          Int // IDR rupiah, whole units (no decimals in the SMS)
   reference       String? // Nomor Referensi - unique per txn, de-dup key
   channel         String   @default("QRIS") // QRIS | TRANSFER
+  source          String   @default("sms") // ingest path: "sms" (forwarder) | "wa" (WhatsApp webhook)
   sender          String? // SMS sender / bank shortcode, when the forwarder sends it
   rawText         String // full SMS text, kept for audit / re-parsing
   paidAt          DateTime // instant of payment (parsed from "Jam", Bali local)

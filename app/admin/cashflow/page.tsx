@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 
 type Method = "CASH" | "EDC" | "QR" | "TRANSFER"
-type IncomeRow = { id: string; date: string; label: string; responsible: string; method: Method; amount: number; kind: "class" | "membership" }
+type IncomeRow = { id: string; date: string; label: string; responsible: string; method: Method; amount: number; kind: "class" | "membership" | "service" }
 type ExpenseRow = { id: string; date: string; description: string; amount: number; kind: "expense" | "payout" }
 type CashFlow = {
   month: string

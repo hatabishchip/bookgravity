@@ -21,6 +21,27 @@ export function studioDateStr(d: Date, timeZone: string = BALI_TZ): string {
 /** Back-compat alias — most call sites are Bali-only. */
 export const baliDateStr = (d: Date) => studioDateStr(d)
 
+/**
+ * UTC offset like "+08:00" for a wall date in a timezone, so a studio-local
+ * "date + HH:mm" can be turned into a real instant. Bali (WITA) is a fixed
+ * +08:00 with no DST, so that path is a constant - guaranteeing zero change for
+ * the live studios; other zones are derived from Intl for the given date.
+ */
+export function tzOffset(date: string, timeZone: string = BALI_TZ): string {
+  if (timeZone === BALI_TZ) return "+08:00"
+  try {
+    const d = new Date(`${date}T12:00:00Z`)
+    const name = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" })
+      .formatToParts(d)
+      .find((p) => p.type === "timeZoneName")?.value ?? ""
+    const m = name.match(/([+-])(\d{2}):?(\d{2})/)
+    if (m) return `${m[1]}${m[2]}:${m[3]}`
+  } catch {
+    /* fall through to Bali default */
+  }
+  return "+08:00"
+}
+
 /** YYYY-MM-DD shifted by n calendar days (string math, no TZ surprises). */
 export function addDaysStr(ymd: string, n: number): string {
   const [y, m, d] = ymd.split("-").map(Number)

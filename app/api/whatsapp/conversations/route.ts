@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { phoneTail } from "@/lib/membership"
+import { baliDateStr, addDaysStr } from "@/lib/tz"
 
 // GET /api/whatsapp/conversations
 // Admin: all conversations in their studio.
@@ -55,8 +56,15 @@ export async function GET(_req: NextRequest) {
   //  - clients who only chat and never booked have nothing → null.
   // Matched by phone tail (conversations store Meta digits, bookings store a
   // formatted number).
+  // Bound to a rolling 60-day-back window (+ all future dates). status stays
+  // CONFIRMED forever, so an unbounded scan grew with the studio's entire
+  // booking history on every 30s inbox poll - the app's biggest row-read driver.
+  // The window still yields each active client's "last class" and all upcoming.
   const confirmed = await prisma.booking.findMany({
-    where: { status: "CONFIRMED", slot: { studioId: ctx.studioId } },
+    where: {
+      status: "CONFIRMED",
+      slot: { studioId: ctx.studioId, date: { gte: addDaysStr(baliDateStr(new Date()), -60) } },
+    },
     select: { clientPhone: true, slot: { select: { date: true, startTime: true, endTime: true } } },
   })
   type Slot = { date: string; startTime: string; endTime: string }
