@@ -1559,7 +1559,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 <div>
                   {/* Label row: the country + amber/green status sits right next
                       to the field (not far below), turning green with a ✓ when
-                      the number is complete. */}
+                      the number is complete. Hidden once VERIFIED - the ✓ inside
+                      the field says it all, and the freed row helps keep the
+                      whole step + Continue on one phone screen. */}
+                  {!otpVerified && (
                   <div className="flex items-center justify-between mb-1">
                     {/* WhatsApp studios confirm the booking via a WhatsApp code,
                         so the label makes explicit the number must be on WA. */}
@@ -1578,6 +1581,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       </span>
                     )}
                   </div>
+                  )}
                   <div className="relative">
                     <input
                       ref={fieldRefs.clientPhone}
@@ -1618,7 +1622,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       // and solid (24px at regular weight looked spindly). The
                       // overlay below MUST mirror size/weight/padding to align.
                       className={cn(
-                        "w-full border rounded-xl px-4 py-3 text-xl font-semibold tabular-nums focus:outline-none focus:ring-2 transition-colors",
+                        "w-full border rounded-xl px-4 font-semibold tabular-nums focus:outline-none focus:ring-2 transition-colors",
+                        // Verified number shrinks (it's a done fact, not an
+                        // input task) - part of keeping Continue on-screen.
+                        // The overlay below MUST mirror these size classes.
+                        otpVerified ? "py-2.5 text-lg" : "py-3 text-xl",
                         // While parked, no caret even if the field somehow
                         // gains focus (iOS shows a caret in readOnly fields).
                         phoneIdle ? "caret-transparent" : "caret-brand",
@@ -1631,7 +1639,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     />
                     {display && form.clientPhone && (
                       <div className={cn(
-                        "absolute inset-0 px-4 py-3 text-xl font-semibold tabular-nums flex items-center pointer-events-none whitespace-pre",
+                        "absolute inset-0 px-4 font-semibold tabular-nums flex items-center pointer-events-none whitespace-pre",
+                        otpVerified ? "py-2.5 text-lg" : "py-3 text-xl",
                         rightPad && "pr-11",
                       )}>
                         <span className="text-gray-900">{display.typed}</span>
@@ -1798,7 +1807,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 on screen. Verifying reveals the rest (the number stays editable
                 above the whole time). The "verified" signal is the ✓ inside
                 the phone field - no separate row. */}
-            {otpVerified && (<div className="space-y-4">
+            {otpVerified && (<div className="space-y-3">
             {/* Informational membership balance - one compact line (the old
                 three-line banner pushed Continue off the screen). */}
             {membershipLeft > 0 && (
@@ -1819,7 +1828,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 onChange={(e) => { setForm({ ...form, clientName: e.target.value }); clearFieldError("clientName") }}
                 placeholder="Full name"
                 className={cn(
-                  "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 placeholder:text-gray-400",
+                  "w-full border rounded-xl px-4 py-2.5 text-base focus:outline-none focus:ring-2 placeholder:text-gray-400",
                   fieldErrors.clientName
                     ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
                     : "border-gray-200 focus:ring-brand/30 focus:border-brand"
@@ -1851,7 +1860,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                   onChange={(e) => { setForm({ ...form, clientEmail: e.target.value }); clearFieldError("clientEmail") }}
                   placeholder="Email"
                   className={cn(
-                    "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 placeholder:text-gray-400",
+                    "w-full border rounded-xl px-4 py-2.5 text-base focus:outline-none focus:ring-2 placeholder:text-gray-400",
                     fieldErrors.clientEmail
                       ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
                       : "border-gray-200 focus:ring-brand/30 focus:border-brand"
@@ -1866,10 +1875,12 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
             {services.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Additional Services <span className="text-gray-400">(optional)</span></label>
-                <div className="space-y-2">
+                {/* Tiny caption instead of the full "Additional Services
+                    (optional)" label - the rows explain themselves. */}
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Add-ons</div>
+                <div className="space-y-1.5">
                   {services.map((svc) => (
-                    <label key={svc.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50">
+                    <label key={svc.id} className="flex items-center justify-between px-3 py-2 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50">
                       <div className="flex items-center gap-3">
                         <input
                           type="checkbox"
@@ -1892,53 +1903,39 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               </div>
             )}
 
-            {/* Running total */}
-            {(() => {
-              const perPerson = selectedSlot.price ?? 300000
-              const sessionTotal = perPerson * partySize
-              const chosenServices = services.filter((s) => selectedServices.includes(s.id))
-              const servicesTotal = chosenServices.reduce((sum, s) => sum + s.price, 0)
-              const total = sessionTotal + servicesTotal
-              return (
-                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 space-y-1">
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>Session{partySize > 1 ? ` × ${partySize}` : ""}</span>
-                    <span>{formatIDR(sessionTotal)}</span>
-                  </div>
-                  {chosenServices.map((s) => (
-                    <div key={s.id} className="flex justify-between text-xs text-gray-500">
-                      <span>+ {s.name}</span>
-                      <span>{formatIDR(s.price)}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between text-sm font-semibold text-gray-800 pt-1 border-t border-gray-200">
-                    <span>Total</span>
-                    <span>{formatIDR(total)}</span>
-                  </div>
-                </div>
-              )
-            })()}
-
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
                 {error}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={submitting || !otpVerified}
-              title={!otpVerified ? "Verify your WhatsApp code first" : undefined}
-              className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors"
-            >
-              {submitting ? "Booking…" : "Continue"}
-            </button>
-            {/* Cancellation policy, stated up-front — matches canCancelBooking:
-                ≥2h before class (or within 30 min of booking). Builds trust at
-                the exact moment of commitment. */}
-            <p className="text-[11px] text-gray-400 text-center leading-relaxed">
-              {(studio?.country || "").toUpperCase() === "US" ? "Booking is free; your coach sends the class link after you book. Free cancellation up to 2 hours before" : "Booking is free - you pay at the studio. Free cancellation up to 2 hours before"}
-              class{studio?.whatsappEnabled ? " via the Cancel button in your WhatsApp confirmation" : ""}.
+            {/* The price lives IN the button - the itemized total box pushed
+                Continue off-screen; one number is what the client needs at the
+                moment of commitment. */}
+            {(() => {
+              const perPerson = selectedSlot.price ?? 300000
+              const sessionTotal = perPerson * partySize
+              const servicesTotal = services
+                .filter((s) => selectedServices.includes(s.id))
+                .reduce((sum, s) => sum + s.price, 0)
+              const total = sessionTotal + servicesTotal
+              return (
+                <button
+                  type="submit"
+                  disabled={submitting || !otpVerified}
+                  title={!otpVerified ? "Verify your WhatsApp code first" : undefined}
+                  className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-colors"
+                >
+                  {submitting ? "Booking…" : <>Continue · {formatIDR(total)}</>}
+                </button>
+              )
+            })()}
+            {/* Cancellation policy - one short line (the full wording lives in
+                the WhatsApp confirmation). Matches canCancelBooking: ≥2h before. */}
+            <p className="text-[11px] text-gray-400 text-center">
+              {(studio?.country || "").toUpperCase() === "US"
+                ? "Free cancellation up to 2h before class"
+                : "Pay at the studio · free cancellation up to 2h before class"}
             </p>
             </div>)}
           </form>
