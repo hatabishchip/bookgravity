@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
-import { priceForTier } from "@/lib/payments"
-
-// Trainers earn a flat 20% commission — no fixed base salary anymore. When a
-// slot has an assistant, the main trainer's share drops by ASSISTANT_RATE and
-// the assistant earns that 5%.
-const FLAT_RATE = 20
-const ASSISTANT_RATE = 5
+import { computeSalary, FLAT_RATE } from "@/lib/salary"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAdmin()
@@ -32,22 +26,6 @@ export async function GET(request: NextRequest) {
   })
   const localPrice = studio?.localPrice ?? 200000
   const memberPrice = studio?.membershipClassPrice ?? 250000
-  const bookingAmount = (b: { priceTier?: string | null; localResident: boolean }, slotPrice: number) =>
-    priceForTier(b, { slotPrice, memberPrice, localPrice })
-
-  type Row = {
-    bookingId: string
-    date: string
-    startTime: string
-    classType: string
-    client: string
-    paymentType: string
-    tier: string | null
-    amount: number
-    rate: number
-    commission: number
-    role: "lead" | "assistant"
-  }
 
   const trainers = await prisma.trainer.findMany({
     where: { studioId: ctx.studioId },
@@ -73,48 +51,13 @@ export async function GET(request: NextRequest) {
 
   const result = trainers.map((trainer) => {
     const sessions = trainer.timeSlots.length
-    // One row per paid class so the admin can audit each line (Sveta's
-    // "Employee commissions" sheet). Totals are summed from these rows.
-    const breakdown: Row[] = []
+    // Shared commission math (one row per paid class; totals summed from rows).
+    const { breakdown, commission, totalPaid: revenue, paidBookingsCount } = computeSalary({
+      leadSlots: trainer.timeSlots,
+      assistedSlots: trainer.assistedSlots,
+      prices: { memberPrice, localPrice },
+    })
 
-    // Commission as main trainer — reduce by ASSISTANT_RATE if slot has an assistant
-    let mainCommission = 0
-    let paidBookingsCount = 0
-    let revenue = 0
-    for (const slot of trainer.timeSlots) {
-      const effectiveRate = slot.assistant ? FLAT_RATE - ASSISTANT_RATE : FLAT_RATE
-      for (const b of slot.bookings) {
-        const amount = bookingAmount(b, slot.price)
-        const commission = Math.round(amount * effectiveRate / 100)
-        mainCommission += commission
-        revenue += amount
-        breakdown.push({
-          bookingId: b.id, date: slot.date, startTime: slot.startTime, classType: slot.classType,
-          client: b.clientName, paymentType: b.paymentType, tier: b.priceTier ?? null, amount, rate: effectiveRate, commission,
-          role: "lead",
-        })
-      }
-      paidBookingsCount += slot.bookings.length
-    }
-
-    // Commission as assistant (5% per paid booking in assisted slots)
-    let assistantCommission = 0
-    for (const slot of trainer.assistedSlots) {
-      for (const b of slot.bookings) {
-        const amount = bookingAmount(b, slot.price)
-        const commission = Math.round(amount * ASSISTANT_RATE / 100)
-        assistantCommission += commission
-        breakdown.push({
-          bookingId: b.id, date: slot.date, startTime: slot.startTime, classType: slot.classType,
-          client: b.clientName, paymentType: b.paymentType, tier: b.priceTier ?? null, amount, rate: ASSISTANT_RATE, commission,
-          role: "assistant",
-        })
-      }
-    }
-
-    breakdown.sort((a, b) => (a.date === b.date ? b.startTime.localeCompare(a.startTime) : b.date.localeCompare(a.date)))
-
-    const commission = mainCommission + assistantCommission
     // kind "accrual" = a manual amount the studio owes the trainer (adds to
     // ACCRUED); kind "payout" (default) = money actually paid out.
     const adjustments = trainer.payments.filter((p) => p.kind === "accrual").reduce((sum, p) => sum + p.amount, 0)

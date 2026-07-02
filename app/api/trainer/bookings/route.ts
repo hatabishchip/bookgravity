@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getStudioMembershipBalances, getMembershipBalance, phoneTail } from "@/lib/membership"
 import { upsertConversation } from "@/lib/whatsapp-conversation"
 import { baliDateStr, addDaysStr } from "@/lib/tz"
+import { generateUniqueTicketCode } from "@/lib/tickets"
 import { z } from "zod"
 
 export async function GET(request: NextRequest) {
@@ -102,18 +103,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "You can only add a client to a class scheduled for today" }, { status: 400 })
   }
 
-  // Unique 3-digit ticket within the slot (matches the public/admin format).
-  const existing = await prisma.booking.findMany({
-    where: { slotId: slot.id, status: "CONFIRMED" },
-    select: { ticketCode: true },
-  })
-  const used = new Set(existing.map((b) => b.ticketCode))
-  let ticketCode = ""
-  for (let i = 0; i < 60 && !ticketCode; i++) {
-    const c = String(Math.floor(100 + Math.random() * 900))
-    if (!used.has(c)) ticketCode = c
-  }
-  if (!ticketCode) ticketCode = String(Date.now()).slice(-4)
+  // Unique 3-digit ticket within the slot (shared generator; 3-digit always).
+  const ticketCode = await generateUniqueTicketCode(slot.id)
 
   const booking = await prisma.booking.create({
     data: {

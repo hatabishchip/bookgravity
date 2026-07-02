@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
-import { priceForTier } from "@/lib/payments"
+import { computeSalary, FLAT_RATE, ASSISTANT_RATE } from "@/lib/salary"
 import { format, startOfMonth, endOfMonth, parse } from "date-fns"
-
-// Flat 20% commission, no fixed base salary. Assistant on a slot takes 5%,
-// reducing the main trainer's share to 15% for that slot.
-const FLAT_RATE = 20
-const ASSISTANT_RATE = 5
 
 export async function GET(request: NextRequest) {
   const ctx = await requireTrainer()
@@ -26,26 +21,6 @@ export async function GET(request: NextRequest) {
   })
   const localPrice = studio?.localPrice ?? 200000
   const memberPrice = studio?.membershipClassPrice ?? 250000
-  const bookingAmount = (b: { priceTier?: string | null; localResident: boolean }, slotPrice: number) =>
-    priceForTier(b, { slotPrice, memberPrice, localPrice })
-
-  // One transparent row per paid class - the trainer sees exactly which class
-  // earned what (Sveta's request, 21.06.2026). The headline totals are summed
-  // FROM these rows so they always reconcile with the list.
-  type Row = {
-    bookingId: string
-    date: string
-    startTime: string
-    classType: string
-    client: string
-    paymentType: string
-    tier: string | null
-    amount: number
-    rate: number
-    commission: number
-    role: "lead" | "assistant"
-  }
-  const breakdown: Row[] = []
 
   // Optional ?month=yyyy-MM. Defaults to current month.
   const { searchParams } = new URL(request.url)
@@ -85,47 +60,16 @@ export async function GET(request: NextRequest) {
     include: { bookings: { where: paidFilter } },
   })
 
-  let mainCommission = 0
-  let paidBookingsCount = 0
-  let totalPaid = 0
-  let sessionsWorked = 0
-  for (const slot of mainSlots) {
-    const effectiveRate = slot.assistant ? FLAT_RATE - ASSISTANT_RATE : FLAT_RATE
-    for (const b of slot.bookings) {
-      const amount = bookingAmount(b, slot.price)
-      const commission = Math.round(amount * effectiveRate / 100)
-      mainCommission += commission
-      totalPaid += amount
-      breakdown.push({
-        bookingId: b.id, date: slot.date, startTime: slot.startTime, classType: slot.classType,
-        client: b.clientName, paymentType: b.paymentType, tier: b.priceTier ?? null, amount, rate: effectiveRate, commission,
-        role: "lead",
-      })
-    }
-    paidBookingsCount += slot.bookings.length
-    if (slot.bookings.length > 0) sessionsWorked++
-  }
-
-  let assistantCommission = 0
-  let assistedCount = 0
-  for (const slot of assistedSlots) {
-    for (const b of slot.bookings) {
-      const amount = bookingAmount(b, slot.price)
-      const commission = Math.round(amount * ASSISTANT_RATE / 100)
-      assistantCommission += commission
-      breakdown.push({
-        bookingId: b.id, date: slot.date, startTime: slot.startTime, classType: slot.classType,
-        client: b.clientName, paymentType: b.paymentType, tier: b.priceTier ?? null, amount, rate: ASSISTANT_RATE, commission,
-        role: "assistant",
-      })
-    }
-    if (slot.bookings.length > 0) assistedCount++
-  }
-
-  // Newest class first.
-  breakdown.sort((a, b) => (a.date === b.date ? b.startTime.localeCompare(a.startTime) : b.date.localeCompare(a.date)))
-
-  const commission = mainCommission + assistantCommission
+  const {
+    breakdown,
+    mainCommission,
+    assistantCommission,
+    commission,
+    totalPaid,
+    paidBookingsCount,
+    sessionsWorked,
+    assistedCount,
+  } = computeSalary({ leadSlots: mainSlots, assistedSlots, prices: { memberPrice, localPrice } })
 
   return NextResponse.json({
     baseSalary: 0,
