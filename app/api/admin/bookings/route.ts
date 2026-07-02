@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { notifyBookingCreated } from "@/lib/booking-notify"
 import { getStudioMembershipBalances, phoneTail } from "@/lib/membership"
 import { baliDateStr, addDaysStr } from "@/lib/tz"
+import { generateUniqueTicketCodes } from "@/lib/tickets"
 import { z } from "zod"
 
 export async function GET(request: NextRequest) {
@@ -66,22 +67,6 @@ class CapacityError extends Error {
   }
 }
 
-async function generateUniqueCodes(slotId: string, count: number): Promise<string[]> {
-  const existing = await prisma.booking.findMany({
-    where: { slotId, status: "CONFIRMED" },
-    select: { ticketCode: true },
-  })
-  const used = new Set(existing.map((b) => b.ticketCode))
-  const codes: string[] = []
-  while (codes.length < count) {
-    const code = String(Math.floor(100 + Math.random() * 900))
-    if (used.has(code)) continue
-    used.add(code)
-    codes.push(code)
-  }
-  return codes
-}
-
 export async function POST(request: NextRequest) {
   const ctx = await requireAdmin()
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -118,7 +103,7 @@ export async function POST(request: NextRequest) {
   // Re-check capacity against a fresh count INSIDE the transaction so two
   // concurrent admin/public bookings can't both pass the check above and
   // overbook the class. Ticket codes pre-generated to stay distinct.
-  const ticketCodes = await generateUniqueCodes(data.slotId, data.partySize)
+  const ticketCodes = await generateUniqueTicketCodes(data.slotId, data.partySize)
   type AdminBookingRow = Awaited<ReturnType<typeof prisma.booking.create>>
   let bookings: AdminBookingRow[]
   try {
