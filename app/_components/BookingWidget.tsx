@@ -7,7 +7,19 @@ import { whatsappLink, bookingConfirmationMessage } from "@/lib/whatsapp"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { cn } from "@/lib/utils"
 // Phone country table + validation helpers: single source of truth in lib/phone.
-import { detectCountry, validatePhone, type PhoneCountry } from "@/lib/phone"
+import { detectCountry, validatePhone, subscriberDigits, type PhoneCountry } from "@/lib/phone"
+
+// Last phone this browser verified - prefilled on the details step so a
+// returning client books with zero typing. Privacy-safe: only the number the
+// person themselves typed on THIS device; name/email still come from the
+// server strictly after the trust cookie / code check.
+const LAST_PHONE_KEY = "bg_last_phone"
+function rememberLastPhone(digits: string) {
+  try { localStorage.setItem(LAST_PHONE_KEY, digits) } catch { /* private mode */ }
+}
+function recallLastPhone(): string {
+  try { return localStorage.getItem(LAST_PHONE_KEY) ?? "" } catch { return "" }
+}
 import { clientEndTime12, clientEndTime24 } from "@/lib/class-time"
 import { formatMoney } from "@/lib/format"
 
@@ -168,7 +180,7 @@ const clientEndTime = clientEndTime12
 
 export default function BookingWidget({ services, studio, studioSlug }: {
   services: Service[]
-  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null; whatsappEnabled?: boolean; currency?: string; groupPrice?: number; country?: string | null }
+  studio?: { name: string; slug: string; logoUrl: string | null; locationUrl?: string | null; whatsappEnabled?: boolean; currency?: string; groupPrice?: number; country?: string | null; whatsappDisplayPhone?: string | null }
   // Slug of the studio this widget books into. Sent as ?studio= on the
   // slots/bookings calls so the API scopes to the right studio regardless of
   // host (we serve every studio from bookgravity.com now). Falls back to the
@@ -177,6 +189,14 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 }) {
   // Query-string suffix that pins API calls to this studio.
   const studioParam = (studioSlug ?? studio?.slug) ? `studio=${encodeURIComponent(studioSlug ?? studio!.slug)}` : ""
+  // wa.me deep link to the studio's WhatsApp with a prefilled message - the
+  // escape hatch wherever online booking can't help (cutoff-closed class,
+  // empty schedule, cancelling without the confirmation message). Null when
+  // the studio has no public WhatsApp number.
+  const studioWaHref = (text: string): string | null => {
+    const digits = (studio?.whatsappDisplayPhone ?? "").replace(/\D/g, "")
+    return digits ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : null
+  }
   // Currency-aware price formatter: USD for the USA / Online studio, compact
   // IDR for the Indonesian studios. Replaces the old IDR-only formatIDR.
   const formatIDR = (amount: number) => formatMoney(amount, studio?.currency)
@@ -283,16 +303,42 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.skipped) {
+        const digits = phone.replace(/\D/g, "")
+        if (data.session) {
+          // Trusted device: the send endpoint returned the known client details
+          // (same privacy gate as a fresh code) - unlock + prefill in one go.
+          setOtpSent(false)
+          setOtpVerified(true)
+          setOtpReady(true)
+          setMembershipLeft(data.client?.membershipRemaining ?? 0)
+          setLookupState(data.client?.name || data.client?.email ? "found" : "new")
+          setForm((f) => ({ ...f, clientName: data.client?.name ?? "", clientEmail: data.client?.email ?? "" }))
+          verifiedClientsRef.current.set(digits, {
+            code: "",
+            name: data.client?.name ?? null,
+            email: data.client?.email ?? null,
+            membership: data.client?.membershipRemaining ?? 0,
+          })
+          rememberLastPhone(digits)
+          return
+        }
         // Studio has no WhatsApp / OTP turned off → no code; unlock fields.
         setOtpSent(false)
         setOtpVerified(true)
         return
       }
+      if (res.status === 429 && data.code === "rate_limited") {
+        // No code was (or will be) sent - showing the code field here created a
+        // dead loop: wait for a code that never comes, hit Resend, get 429 again.
+        setOtpSent(false)
+        setError("Too many attempts from this network. Please try again in about 30 minutes, or message us on WhatsApp.")
+        return
+      }
       if ((res.ok && data.sent) || res.status === 429) {
-        // Sent (or a fresh code already exists) → show the code field and
-        // start the 59s resend cooldown.
+        // Sent (or a fresh code already exists - "too_soon") → show the code
+        // field and start the resend cooldown (30s, matching the server rule).
         setOtpSent(true)
-        setResendIn(59)
+        setResendIn(30)
         return
       }
       // Synchronous failure — Meta refused the number outright (bad format /
@@ -341,6 +387,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           email: c?.email ?? null,
           membership: c?.membershipRemaining ?? 0,
         })
+        rememberLastPhone(form.clientPhone.replace(/\D/g, ""))
       } else {
         setOtpError(
           data.error === "expired"
@@ -402,11 +449,19 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       setForm((f) => ({ ...f, clientName: cached.name ?? "", clientEmail: cached.email ?? "" }))
       return
     }
-    // DEBOUNCE the send: fire ONE code ~800ms after the user stops typing, not at
+    // DEBOUNCE the send: fire ONE code after the user stops typing, not at
     // every valid-length prefix. Typing one number used to send a code at each
     // length (sub 8,9,10,11...), spamming incomplete numbers and burning the
     // per-IP send rate limit so even the final real number stopped arriving.
-    const t = setTimeout(async () => {
+    //
+    // Variable-length countries (Indonesia is 8-12 digits): a 1.1s pause at
+    // digit 8-9 of an 11-digit number used to FIRE a code at a truncated
+    // (possibly a stranger's) number. While the typed count is still below the
+    // country's max we wait noticeably longer; at max length the number can't
+    // grow, so the short debounce is safe.
+    const country = detectCountry(form.clientPhone)
+    const atMaxLen = !!country && subscriberDigits(form.clientPhone, country) >= country.max
+    const t = setTimeout(() => {
       sentDigitsRef.current = digits
       setOtpError("")
       setOtpCode("")
@@ -416,40 +471,27 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       setMembershipLeft(0)
       setLookupState("idle")
       setForm((f) => ({ ...f, clientName: "", clientEmail: "" }))
-      // Returning device: if this number was already verified on THIS device
-      // (long-lived trust cookie), skip the WhatsApp code entirely - unlock the
-      // fields and prefill the known details, no code sent.
-      try {
-        const r = await fetch(
-          `/api/otp/session?phone=${encodeURIComponent(form.clientPhone)}${studioParam ? `&${studioParam}` : ""}`,
-          { cache: "no-store" },
-        )
-        const d = await r.json().catch(() => ({}))
-        if (sentDigitsRef.current !== digits) return // a newer number took over while awaiting
-        if (d.verified) {
-          setOtpSent(false)
-          setOtpVerified(true)
-          setOtpReady(true)
-          setMembershipLeft(d.client?.membershipRemaining ?? 0)
-          setLookupState(d.client?.name || d.client?.email ? "found" : "new")
-          setForm((f) => ({ ...f, clientName: d.client?.name ?? "", clientEmail: d.client?.email ?? "" }))
-          verifiedClientsRef.current.set(digits, {
-            code: "",
-            name: d.client?.name ?? null,
-            email: d.client?.email ?? null,
-            membership: d.client?.membershipRemaining ?? 0,
-          })
-          return
-        }
-      } catch {
-        /* session check failed → fall through to the normal code flow */
-      }
-      if (sentDigitsRef.current !== digits) return
+      // One call does it all now: /api/otp/send checks the device-trust cookie
+      // itself and returns the known client details when trusted (the separate
+      // /api/otp/session pre-check cost every new client an extra round-trip).
       void sendOtp(form.clientPhone)
-    }, 1100)
+    }, atMaxLen ? 1100 : 2500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.clientPhone, step])
+
+  // Returning client, zero typing: when the details step opens with an empty
+  // phone, prefill the last number this device verified. The trust-cookie check
+  // then unlocks the fields on its own → date, slot, Continue = 3 taps total.
+  useEffect(() => {
+    if (step !== "details") return
+    setForm((f) => {
+      if (f.clientPhone.replace(/\D/g, "").length >= 5) return f
+      const last = recallLastPhone()
+      return last ? { ...f, clientPhone: `+${last}` } : f
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
 
   // Poll the code's WhatsApp delivery status. We only reveal the code input
   // once we're confident the number is on WhatsApp:
@@ -1125,6 +1167,22 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             >
               Book another session
             </button>
+
+            {/* Cancel affordance ON the ticket. The WhatsApp confirmation has a
+                cancel button, but when that message fails to deliver the client
+                used to hold a ticket with no cancel route at all. The bot
+                already understands a bare ticket code. */}
+            {(() => {
+              const href = studioWaHref(`${booking.ticketCode}`)
+              return href ? (
+                <p className="text-center text-xs text-gray-400 pt-1">
+                  Need to cancel?{" "}
+                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-rose-500 font-medium hover:text-rose-600 underline underline-offset-2">
+                    Message us your ticket code {booking.ticketCode}
+                  </a>
+                </p>
+              ) : null
+            })()}
           </div>
         </div>
       </div>
@@ -1224,8 +1282,20 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               <div className="text-4xl mb-3">📅</div>
               <div className="text-base font-semibold text-gray-800">No dates available for booking</div>
               <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">
-                Looks like the schedule isn&apos;t published yet. Check back soon or message us.
+                Looks like the schedule isn&apos;t published yet.
               </p>
+              {(() => {
+                // Live escape hatch instead of a dead "message us" sentence.
+                const href = studioWaHref("Hi! I'd like to book a class - the online schedule looks empty. When is the next available session?")
+                return href ? (
+                  <a href={href} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 mt-4 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-semibold hover:bg-emerald-100">
+                    💬 Message us on WhatsApp
+                  </a>
+                ) : (
+                  <p className="text-sm text-gray-500 mt-1">Check back soon or message us.</p>
+                )
+              })()}
             </div>
           ) : (
             // Calendar renders INSTANTLY (today's month) and the availability
@@ -1331,9 +1401,17 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     const withinCutoff = slot.bookable === false
                     const isFull = !slot.available
                     const canBook = slot.available && enoughForParty && !withinCutoff
+                    // Cutoff-closed but not full: the "message us to join" text
+                    // used to be dead copy - give the highest-intent visitor
+                    // (wants to come TODAY) an actual WhatsApp tap target. The
+                    // card itself is a disabled <button>, so the link lives
+                    // right under it.
+                    const joinHref = withinCutoff && !isFull
+                      ? studioWaHref(`Hi! Can I still join the ${formatTime(slot.startTime)} class today?`)
+                      : null
                     return (
+                      <div key={slot.id}>
                       <button
-                        key={slot.id}
                         onClick={() => canBook && handleSlotSelect(slot)}
                         disabled={!canBook}
                         className={cn(
@@ -1412,6 +1490,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                           </div>
                         </div>
                       </button>
+                      {joinHref && (
+                        <a href={joinHref} target="_blank" rel="noopener noreferrer"
+                          className="mt-1.5 mb-1 ml-1 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800">
+                          💬 Message us on WhatsApp to join this class
+                        </a>
+                      )}
+                      </div>
                     )
                   })}
                 </div>
@@ -1482,6 +1567,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     <input
                       ref={fieldRefs.clientPhone}
                       type="tel"
+                      autoComplete="tel"
                       autoFocus
                       value={form.clientPhone}
                       onChange={(e) => {
@@ -1692,6 +1778,40 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             {(() => {
               // Name + email stay locked until the WhatsApp code is verified
               // (privacy: a phone number alone must not reveal anyone's details).
+              // Name comes FIRST (it's the natural first question and the
+              // lighter field); email follows.
+              const phoneDone = otpVerified
+              return (
+                <div>
+                  <label className={cn(
+                    "block text-sm font-medium mb-1",
+                    phoneDone ? "text-gray-700" : "text-gray-400"
+                  )}>
+                    Full Name *
+                    {lookupState === "loading" && <span className="text-xs text-gray-400 ml-2">looking up…</span>}
+                    {lookupState === "found" && form.clientName && <span className="text-xs text-brand ml-2">welcome back ✓</span>}
+                  </label>
+                  <input
+                    ref={fieldRefs.clientName}
+                    type="text"
+                    autoComplete="name"
+                    disabled={!phoneDone}
+                    value={form.clientName}
+                    onChange={(e) => { setForm({ ...form, clientName: e.target.value }); clearFieldError("clientName") }}
+                    placeholder={phoneDone ? "Your full name" : "Verify your number first"}
+                    className={cn(
+                      "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
+                      fieldErrors.clientName
+                        ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
+                        : "border-gray-200 focus:ring-brand/30 focus:border-brand"
+                    )}
+                  />
+                  {fieldErrors.clientName && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientName}</p>}
+                </div>
+              )
+            })()}
+
+            {(() => {
               const phoneDone = otpVerified
               return (
                 <div>
@@ -1700,8 +1820,6 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     phoneDone ? "text-gray-700" : "text-gray-400"
                   )}>
                     Email *
-                    {lookupState === "loading" && <span className="text-xs text-gray-400 ml-2">looking up…</span>}
-                    {lookupState === "found" && form.clientEmail && <span className="text-xs text-brand ml-2">welcome back ✓</span>}
                   </label>
                   <input
                     ref={fieldRefs.clientEmail}
@@ -1719,44 +1837,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                         : "border-gray-200 focus:ring-brand/30 focus:border-brand"
                     )}
                   />
-                  {fieldErrors.clientEmail ? (
-                    <p className="text-xs text-red-500 mt-1">{fieldErrors.clientEmail}</p>
-                  ) : (
-                    <p className="text-xs text-gray-400 mt-1">
-                      We&apos;ll send your booking confirmation and ticket to this email
-                    </p>
-                  )}
-                </div>
-              )
-            })()}
-
-            {(() => {
-              // Name + email stay locked until the WhatsApp code is verified
-              // (privacy: a phone number alone must not reveal anyone's details).
-              const phoneDone = otpVerified
-              return (
-                <div>
-                  <label className={cn(
-                    "block text-sm font-medium mb-1",
-                    phoneDone ? "text-gray-700" : "text-gray-400"
-                  )}>
-                    Full Name *
-                  </label>
-                  <input
-                    ref={fieldRefs.clientName}
-                    type="text"
-                    disabled={!phoneDone}
-                    value={form.clientName}
-                    onChange={(e) => { setForm({ ...form, clientName: e.target.value }); clearFieldError("clientName") }}
-                    placeholder={phoneDone ? "Your full name" : "Verify your number first"}
-                    className={cn(
-                      "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
-                      fieldErrors.clientName
-                        ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
-                        : "border-gray-200 focus:ring-brand/30 focus:border-brand"
-                    )}
-                  />
-                  {fieldErrors.clientName && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientName}</p>}
+                  {/* No "we'll email your ticket" promise here - at WhatsApp
+                      studios the confirmation goes to WhatsApp, not email.
+                      The address is kept for the studio's records. */}
+                  {fieldErrors.clientEmail && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientEmail}</p>}
                 </div>
               )
             })()}

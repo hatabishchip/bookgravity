@@ -274,8 +274,10 @@ function BookModal({ client, onClose, onBooked }: {
         const nowDate = todayStr()
         const nowMin = now.getHours() * 60 + now.getMinutes()
         setSlots(
+          // Keep trainer-less classes IN the list (rendered disabled with an
+          // explanation) - silently hiding them made a class visible on the
+          // Schedule "just disappear" here, which read as a bug.
           list.filter((s) => {
-            if (!s.trainer) return false
             if (s.date < nowDate) return false
             if (s.date === nowDate) {
               const [h, m] = s.startTime.split(":").map(Number)
@@ -378,16 +380,18 @@ function BookModal({ client, onClose, onBooked }: {
                   {list.map((s) => {
                     const seatsLeft = s.maxCapacity - s._count.bookings
                     const full = seatsLeft <= 0
+                    const noTrainer = !s.trainer
                     const isSel = selected.has(s.id)
                     const result = results.get(s.id)
                     return (
                       <button
                         key={s.id}
-                        disabled={full || busy}
+                        disabled={full || noTrainer || busy}
                         onClick={() => toggle(s.id)}
+                        title={noTrainer ? "Assign a trainer to this class first (Schedule)" : undefined}
                         className={cn(
                           "w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors touch-manipulation",
-                          full
+                          full || noTrainer
                             ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
                             : isSel
                               ? "border-brand bg-brand/10"
@@ -407,7 +411,9 @@ function BookModal({ client, onClose, onBooked }: {
                             {formatTime(s.startTime)} · {s.classType === "GROUP" ? "Group" : s.classType === "KIDS" ? "Kids" : "Private"}
                           </span>
                           <span className="block text-xs text-gray-400 truncate">
-                            {s.trainer?.name} · {full ? "Full" : `${seatsLeft} spot${seatsLeft === 1 ? "" : "s"} left`}
+                            {noTrainer
+                              ? "No trainer assigned - assign one in Schedule first"
+                              : `${s.trainer?.name} · ${full ? "Full" : `${seatsLeft} spot${seatsLeft === 1 ? "" : "s"} left`}`}
                           </span>
                         </span>
                         {result === "ok" ? (

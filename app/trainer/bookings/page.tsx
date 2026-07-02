@@ -70,7 +70,10 @@ export default function TrainerBookingsPage() {
   const [updating, setUpdating] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [dayFilter, setDayFilter] = useState<DayFilter>("all")
+  // Default to TODAY - the trainer's daily question. "All" opened on two
+  // months of history sorted oldest-first, forcing a "Today class" tap every
+  // single visit.
+  const [dayFilter, setDayFilter] = useState<DayFilter>("today")
   // Manual "add a client" to one of today's own classes. The name/phone fields
   // live in the shared AddClientForm (same PhoneInput as the booking widget).
   const [addOpen, setAddOpen] = useState(false)
@@ -372,9 +375,23 @@ function BookingDetails({
 }) {
   const isMembership = booking.paymentType === "MEMBERSHIP"
   const canUseMembership = (booking.membershipRemaining ?? 0) > 0 || isMembership
+  // Same edit-lock rule as My Schedule: a PAID booking is editable until 30
+  // minutes AFTER the class ends, then it's settled. Without this gate here,
+  // the lock on the schedule roster was trivially bypassed from this tab
+  // (Undo / cancel / reschedule stayed available forever).
+  const classEndMs = Date.parse(`${booking.slot.date}T${booking.slot.endTime}:00+08:00`)
+  const editLocked =
+    booking.paymentStatus === "PAID" &&
+    Number.isFinite(classEndMs) &&
+    Date.now() >= classEndMs + 30 * 60 * 1000
 
   return (
     <div className="px-4 lg:px-6 py-5 bg-brand/[0.03] border-t border-brand/15 space-y-4">
+      {editLocked && (
+        <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs text-gray-500">
+          🔒 This class is settled (paid, ended over 30 minutes ago) - payment and booking can no longer be changed.
+        </div>
+      )}
       {/* Top meta row */}
       <div className="grid grid-cols-3 gap-2">
         <MetaCell icon={<Calendar size={13} />} label="Date" value={format(new Date(booking.slot.date), "EEE, MMM d")} />
@@ -395,14 +412,16 @@ function BookingDetails({
               <CheckCircle2 size={14} />
               Paid · {isMembership ? `Membership${typeof booking.membershipRemaining === "number" ? ` (${booking.membershipRemaining} left)` : ""}` : (PAYMENT_LABEL[booking.paymentType] ?? booking.paymentType)}
             </span>
-            <button
-              type="button"
-              disabled={isUpdating}
-              onClick={() => onUpdate({ paymentType: "PENDING", paymentStatus: "UNPAID" })}
-              className="text-[11px] text-brand/70 hover:text-brand underline disabled:opacity-50"
-            >
-              Undo
-            </button>
+            {!editLocked && (
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={() => onUpdate({ paymentType: "PENDING", paymentStatus: "UNPAID" })}
+                className="text-[11px] text-brand/70 hover:text-brand underline disabled:opacity-50"
+              >
+                Undo
+              </button>
+            )}
           </div>
         ) : (
           <div>
@@ -446,7 +465,7 @@ function BookingDetails({
           fullPrice={booking.slot.price ?? 300000}
           memberPrice={booking.memberPrice ?? 250000}
           localPrice={booking.localPrice ?? 200000}
-          disabled={isUpdating}
+          disabled={isUpdating || editLocked}
           onChange={(tier) => onUpdate({ priceTier: tier })}
         />
       )}
@@ -515,24 +534,29 @@ function BookingDetails({
       )}
 
       {/* Cancel — same side-effects as the admin cancel: the membership
-          class returns to the client and they get a WhatsApp notification. */}
-      <button
-        type="button"
-        disabled={isUpdating}
-        onClick={async () => {
-          if (!confirm(`Cancel ${booking.clientName}'s booking? The client will be notified.`)) return
-          const ok = await onUpdate({ status: "CANCELLED" })
-          if (ok !== false) onDone()
-        }}
-        className="w-full py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 touch-manipulation"
-      >
-        Cancel booking
-      </button>
+          class returns to the client and they get a WhatsApp notification.
+          Hidden once the class is settled (same lock as My Schedule). */}
+      {!editLocked && (
+        <button
+          type="button"
+          disabled={isUpdating}
+          onClick={async () => {
+            if (!confirm(`Cancel ${booking.clientName}'s booking? The client will be notified.`)) return
+            const ok = await onUpdate({ status: "CANCELLED" })
+            if (ok !== false) onDone()
+          }}
+          className="w-full py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 touch-manipulation"
+        >
+          Cancel booking
+        </button>
+      )}
 
       {/* Reschedule — move the client to another upcoming class. The client
           gets a fresh confirmation and the receiving trainer a new-booking
           ping (server side), so a cross-trainer move never lands silently. */}
-      <ReschedulePicker excludeSlotId={booking.slotId} disabled={isUpdating} onMove={(slotId) => onUpdate({ slotId })} />
+      {!editLocked && (
+        <ReschedulePicker excludeSlotId={booking.slotId} disabled={isUpdating} onMove={(slotId) => onUpdate({ slotId })} />
+      )}
 
       {/* Once payment is set (general method or, on a membership, each service
           method), a clear green "Done" button collapses this booking back to

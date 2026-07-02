@@ -2,14 +2,20 @@ import { prisma } from "@/lib/prisma"
 import { getCurrentUserStudioId } from "@/lib/studio"
 import { format } from "date-fns"
 import Link from "next/link"
-import { Calendar, Users, BookOpen, TrendingUp } from "lucide-react"
+import { Calendar, Landmark, TrendingUp, AlertCircle } from "lucide-react"
+import { baliDateStr } from "@/lib/tz"
 import SellMembershipButton from "@/app/_components/SellMembershipButton"
 
 export default async function AdminDashboard() {
-  const today = format(new Date(), "yyyy-MM-dd")
+  // Studio-local "today" (the server runs in UTC - format(new Date()) flipped
+  // the dashboard to tomorrow every evening Bali time).
+  const today = baliDateStr(new Date())
   const studioId = await getCurrentUserStudioId()
 
-  const [todaySlots, totalBookings, upcomingSlots, trainers] = await Promise.all([
+  // The old "Total Bookings (all time)" and "Trainers" cards were vanity
+  // numbers; the cards now answer the admin's actual morning questions:
+  // who hasn't paid today, and is there bank money waiting to be linked.
+  const [todaySlots, upcomingSlots, unpaidToday, bankToLink] = await Promise.all([
     prisma.timeSlot.findMany({
       where: { date: today, studioId },
       include: {
@@ -18,7 +24,6 @@ export default async function AdminDashboard() {
       },
       orderBy: { startTime: "asc" },
     }),
-    prisma.booking.count({ where: { status: "CONFIRMED", slot: { studioId } } }),
     prisma.timeSlot.findMany({
       where: { date: { gt: today }, studioId },
       include: {
@@ -28,7 +33,10 @@ export default async function AdminDashboard() {
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
       take: 5,
     }),
-    prisma.trainer.count({ where: { studioId } }),
+    prisma.booking.count({
+      where: { status: "CONFIRMED", paymentStatus: "UNPAID", slot: { studioId, date: today } },
+    }),
+    prisma.bankPayment.count({ where: { studioId, bookingId: null } }),
   ])
 
   const todayTotal = todaySlots.reduce((sum, s) => sum + s._count.bookings, 0)
@@ -47,21 +55,21 @@ export default async function AdminDashboard() {
       </div>
       <p className="text-gray-500 text-xs lg:text-sm mb-6 lg:mb-8">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
 
-      {/* Stats */}
+      {/* Stats - working numbers, each one tappable to where the work is. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-8">
         {[
-          { label: "Today's Bookings", value: todayTotal, icon: Calendar, color: "text-brand", bg: "bg-brand/10" },
-          { label: "Total Bookings", value: totalBookings, icon: BookOpen, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Trainers", value: trainers, icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
-          { label: "Sessions Today", value: todaySlots.length, icon: TrendingUp, color: "text-orange-600", bg: "bg-orange-50" },
-        ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="bg-white rounded-2xl p-4 lg:p-5 shadow-sm">
+          { label: "Today's Bookings", value: todayTotal, icon: Calendar, color: "text-brand", bg: "bg-brand/10", href: "/admin/bookings" },
+          { label: "Unpaid Today", value: unpaidToday, icon: AlertCircle, color: unpaidToday > 0 ? "text-amber-600" : "text-gray-400", bg: unpaidToday > 0 ? "bg-amber-50" : "bg-gray-50", href: "/admin/bookings?pay=unpaid" },
+          { label: "Bank to Link", value: bankToLink, icon: Landmark, color: bankToLink > 0 ? "text-emerald-600" : "text-gray-400", bg: bankToLink > 0 ? "bg-emerald-50" : "bg-gray-50", href: "/admin/payments" },
+          { label: "Sessions Today", value: todaySlots.length, icon: TrendingUp, color: "text-orange-600", bg: "bg-orange-50", href: `/admin/schedule?date=${today}` },
+        ].map(({ label, value, icon: Icon, color, bg, href }) => (
+          <Link key={label} href={href} className="bg-white rounded-2xl p-4 lg:p-5 shadow-sm hover:shadow transition-shadow">
             <div className={`w-9 h-9 lg:w-10 lg:h-10 ${bg} rounded-xl flex items-center justify-center mb-2 lg:mb-3`}>
               <Icon size={18} className={color} />
             </div>
             <div className="text-xl lg:text-2xl font-bold text-gray-900">{value}</div>
             <div className="text-xs lg:text-sm text-gray-500 mt-0.5">{label}</div>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -77,7 +85,7 @@ export default async function AdminDashboard() {
           ) : (
             <div className="space-y-3">
               {todaySlots.map((slot) => (
-                <div key={slot.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <Link key={slot.id} href={`/admin/schedule?date=${slot.date}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                   <div>
                     <div className="font-medium text-sm text-gray-800">
                       {formatTime(slot.startTime)} – {formatTime(slot.endTime)}
@@ -90,7 +98,7 @@ export default async function AdminDashboard() {
                     </div>
                     <div className="text-xs text-gray-400">booked</div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -107,7 +115,7 @@ export default async function AdminDashboard() {
           ) : (
             <div className="space-y-3">
               {upcomingSlots.map((slot) => (
-                <div key={slot.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <Link key={slot.id} href={`/admin/schedule?date=${slot.date}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                   <div>
                     <div className="font-medium text-sm text-gray-800">
                       {format(new Date(slot.date), "MMM d")} · {formatTime(slot.startTime)}
@@ -117,7 +125,7 @@ export default async function AdminDashboard() {
                   <div className="text-sm font-semibold text-brand">
                     {slot._count.bookings}/{slot.maxCapacity}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

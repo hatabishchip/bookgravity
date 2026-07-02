@@ -227,11 +227,15 @@ export default function SalaryPage() {
         <SummaryCard icon={Wallet} label="Salaries accrued" value={formatIDR(totalAccrued)} sub={`${trainers.length} trainer(s)`} color="blue" />
         <SummaryCard icon={CreditCard} label="Salaries paid" value={formatIDR(totalPaid)} sub={`Balance: ${formatIDR(totalAccrued - totalPaid)}`} color="amber" />
         <SummaryCard icon={Receipt} label="Expenses" value={formatIDR(totalExpenses)} sub={`${expenses.length} item(s)`} color="red" />
+        {/* "Operating profit" (accrual): revenue minus ACCRUED salaries and
+            expenses. Cash Flow's "Cash movement" counts actual payouts on a
+            cash basis - the two numbers can differ for the same month and
+            that's correct, not a bug. */}
         <SummaryCard
           icon={DollarSign}
-          label="Net profit"
+          label="Operating profit"
           value={formatIDR(netProfit)}
-          sub="Rev - salaries - exp"
+          sub="Accrual: rev - accrued salaries - exp"
           color={netProfit >= 0 ? "green" : "red"}
         />
       </div>

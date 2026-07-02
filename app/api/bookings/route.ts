@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { format, parseISO } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { getPublicStudioId } from "@/lib/studio"
@@ -309,7 +309,11 @@ export async function POST(request: NextRequest) {
             }),
           )
         }
-        await Promise.all(mailPromises)
+        // Emails + trainer push are staff plumbing - finish them AFTER the
+        // response so the client's ticket isn't held hostage (this block used
+        // to add 1-3s to every booking). after() keeps the serverless runtime
+        // alive until they settle.
+        after(() => Promise.allSettled(mailPromises))
       } else {
         console.warn("[bookings] could not load slot for mailing:", data.slotId)
       }
@@ -516,7 +520,11 @@ export async function POST(request: NextRequest) {
           }
         })()
 
-        await Promise.all([clientPromise, trainerPromise])
+        // Only the CLIENT confirmation blocks the response (its outcome is
+        // shown on the ticket as waConfirmationSent). The trainer/admin alerts
+        // finish after the response - the client shouldn't wait for them.
+        await clientPromise
+        after(() => trainerPromise.catch((err) => console.error("[bookings] trainer WA after() failed:", err)))
       }
     } catch (err) {
       console.error("[bookings] whatsapp block exception:", err)

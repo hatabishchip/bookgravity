@@ -69,7 +69,11 @@ export default function CashFlowPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <SummaryCard icon={TrendingUp} label="Money in" value={fmt(data.incomeTotals.total)} color="green" />
             <SummaryCard icon={TrendingDown} label="Money out" value={fmt(data.expenseTotal)} color="red" />
-            <SummaryCard icon={Wallet} label="Net" value={fmt(data.net)} color={data.net >= 0 ? "brand" : "red"} />
+            {/* "Cash movement", not "Net": this is CASH IN minus CASH OUT
+                (payouts included, membership-paid classes excluded). The
+                Salary page's "Operating profit" is accrual-based - the two
+                legitimately differ; unlabeled they looked contradictory. */}
+            <SummaryCard icon={Wallet} label="Cash movement" value={fmt(data.net)} color={data.net >= 0 ? "brand" : "red"} />
           </div>
 
           {/* INCOME */}

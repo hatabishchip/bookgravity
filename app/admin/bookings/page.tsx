@@ -6,6 +6,7 @@ import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, CheckCircle2
 import { useOpenChat } from "@/lib/use-open-chat"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 
 type Booking = {
   id: string
@@ -270,6 +271,16 @@ export default function BookingsPage() {
   // Quick date-range chips for "who's booked today / tomorrow / this week /
   // this month". Filters client-side on the class date.
   const [range, setRange] = useState<"all" | "today" | "tomorrow" | "week" | "month">("all")
+  // "Who hasn't paid?" is the admin's daily money question - a one-tap filter
+  // instead of scanning payment badges row by row. Deep-linkable from the
+  // Dashboard's "Unpaid Today" card via ?pay=unpaid.
+  const [unpaidOnly, setUnpaidOnly] = useState(false)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("pay") === "unpaid") {
+      setUnpaidOnly(true)
+      setRange("today")
+    }
+  }, [])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -294,6 +305,57 @@ export default function BookingsPage() {
   }, [dateFilter])
 
   useEffect(() => { fetchBookings() }, [fetchBookings])
+
+  // "+ New booking" - the page named Bookings could not create one; a phone
+  // call booking forced a detour through the Schedule day editor. Pick an
+  // upcoming class here, fill the same AddClientForm, done.
+  const [newOpen, setNewOpen] = useState(false)
+  type NewSlot = { id: string; date: string; startTime: string; classType: string; maxCapacity: number; trainer: { name: string } | null; _count: { bookings: number } }
+  const [newSlots, setNewSlots] = useState<NewSlot[] | null>(null)
+  const [newSlotId, setNewSlotId] = useState("")
+  const [newSaving, setNewSaving] = useState(false)
+  const [newErr, setNewErr] = useState("")
+  useEffect(() => {
+    if (!newOpen || newSlots !== null) return
+    const from = format(new Date(), "yyyy-MM-dd")
+    const to = format(addDays(new Date(), 30), "yyyy-MM-dd")
+    fetch(`/api/admin/slots?from=${from}&to=${to}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: NewSlot[]) => setNewSlots(
+        list.filter((s) => !!s.trainer && s._count.bookings < s.maxCapacity)
+      ))
+      .catch(() => setNewSlots([]))
+  }, [newOpen, newSlots])
+  const submitNewBooking = async (c: NewClient) => {
+    if (!newSlotId) { setNewErr("Pick a class first"); return }
+    setNewSaving(true)
+    setNewErr("")
+    try {
+      const res = await fetch("/api/admin/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slotId: newSlotId,
+          clientName: c.clientName,
+          clientPhone: c.clientPhone,
+          clientEmail: c.clientEmail || undefined,
+          partySize: c.partySize || 1,
+        }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        setNewErr(e.error ?? "Couldn't create the booking.")
+        return
+      }
+      setNewOpen(false)
+      setNewSlotId("")
+      fetchBookings()
+    } catch {
+      setNewErr("Network error - please try again.")
+    } finally {
+      setNewSaving(false)
+    }
+  }
 
   // Auto-refresh: surface new bookings without a manual reload. Silent (no
   // spinner) refetch every 20s and the instant the tab regains focus/visibility.
@@ -384,7 +446,8 @@ export default function BookingsPage() {
     (!search ||
       b.clientName.toLowerCase().includes(search.toLowerCase()) ||
       b.clientPhone.includes(search)) &&
-    inRange(b.slot.date)
+    inRange(b.slot.date) &&
+    (!unpaidOnly || (b.paymentStatus !== "PAID" && b.status !== "CANCELLED"))
   )
 
   const RANGES: { value: typeof range; label: string }[] = [
@@ -397,7 +460,59 @@ export default function BookingsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Bookings</h1>
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
+        <button
+          type="button"
+          onClick={() => setNewOpen(true)}
+          className="px-4 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark touch-manipulation whitespace-nowrap"
+        >
+          + New booking
+        </button>
+      </div>
+
+      {/* New booking modal: pick an upcoming class, then the shared client
+          form (phone-first with name autofill). */}
+      {newOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => !newSaving && setNewOpen(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-gray-100 flex-shrink-0">
+              <h2 className="text-lg font-semibold text-gray-800">New booking</h2>
+              <button onClick={() => !newSaving && setNewOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Close"><X size={18} /></button>
+            </div>
+            <div className="p-5 overflow-y-auto">
+              <label className="block text-xs text-gray-500 font-medium mb-1.5">Class</label>
+              {newSlots === null ? (
+                <div className="py-4"><PetalSpinner /></div>
+              ) : newSlots.length === 0 ? (
+                <p className="text-sm text-gray-400 py-2">No upcoming classes with free spots. Create one in Schedule first.</p>
+              ) : (
+                <select
+                  value={newSlotId}
+                  onChange={(e) => setNewSlotId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 mb-4"
+                >
+                  <option value="">Pick a class...</option>
+                  {newSlots.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {format(new Date(s.date + "T00:00:00"), "EEE, MMM d")} · {s.startTime} · {s.trainer?.name} ({s.maxCapacity - s._count.bookings} free)
+                    </option>
+                  ))}
+                </select>
+              )}
+              {newSlotId && (
+                <AddClientForm
+                  maxParty={Math.max(1, (newSlots?.find((s) => s.id === newSlotId)?.maxCapacity ?? 1) - (newSlots?.find((s) => s.id === newSlotId)?._count.bookings ?? 0))}
+                  submitting={newSaving}
+                  onSubmit={submitNewBooking}
+                  onCancel={() => setNewOpen(false)}
+                />
+              )}
+              {newErr && <div className="mt-2 text-xs text-red-600">{newErr}</div>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex gap-3 mb-6">
@@ -442,6 +557,19 @@ export default function BookingsPage() {
             {r.label}
           </button>
         ))}
+        <span className="w-px self-stretch bg-gray-200 mx-1" aria-hidden />
+        <button
+          type="button"
+          onClick={() => setUnpaidOnly((v) => !v)}
+          className={cn(
+            "px-3 py-1.5 rounded-lg text-sm font-medium border",
+            unpaidOnly
+              ? "bg-amber-500 text-white border-amber-500"
+              : "bg-white text-amber-700 border-amber-200 hover:border-amber-400"
+          )}
+        >
+          Unpaid
+        </button>
       </div>
 
       {/* Table */}

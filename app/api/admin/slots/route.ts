@@ -241,6 +241,11 @@ export async function PATCH(request: NextRequest) {
       // (date > current.date). Bookings block individual deletions; days that
       // can't be removed are reported back as skipped instead of failing.
       endSeries: z.boolean().optional(),
+      // When true on a slot with NO series yet: start one - create the next
+      // REPEAT_WEEKS weekly occurrences (same per-week validation as POST).
+      // Before 2026-07-02 the checkbox on an existing slot was a silent no-op:
+      // the client sent nothing and the admin believed 12 weeks were scheduled.
+      repeatWeekly: z.boolean().optional(),
     }).parse(body)
 
     // Force capacity to 1 when type becomes PRIVATE
@@ -337,10 +342,51 @@ export async function PATCH(request: NextRequest) {
       seriesEnded = { deleted, kept }
     }
 
+    // Admin ticked "Repeat weekly" on an EXISTING slot with no series: start
+    // one now - create the forward weekly occurrences with the same per-week
+    // validation the POST path uses (blocked days, day cap, min gap).
+    let seriesStarted: { created: number; skipped: { date: string; reason: string }[] } | undefined
+    if (data.repeatWeekly && !current.seriesId && !data.endSeries) {
+      const seriesId = `srs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+      const startMin = timeToMin(updated.startTime)
+      const endMin = timeToMin(updated.endTime)
+      const createdIds: string[] = []
+      const skipped: { date: string; reason: string }[] = []
+      for (let w = 1; w <= REPEAT_WEEKS; w++) {
+        const nextDate = addDaysISO(updated.date, 7 * w)
+        const blockedNext = await prisma.blockedDay.findFirst({ where: { date: nextDate, studioId: ctx.studioId } })
+        if (blockedNext) { skipped.push({ date: nextDate, reason: "day blocked" }); continue }
+        const otherSlots = await prisma.timeSlot.findMany({ where: { date: nextDate, studioId: ctx.studioId } })
+        if (otherSlots.length >= MAX_SLOTS_PER_DAY) { skipped.push({ date: nextDate, reason: "max sessions" }); continue }
+        if (otherSlots.some((s) => timeToMin(s.startTime) < endMin + MIN_GAP_MIN && startMin < timeToMin(s.endTime) + MIN_GAP_MIN)) {
+          skipped.push({ date: nextDate, reason: "time conflict" }); continue
+        }
+        const rep = await prisma.timeSlot.create({
+          data: {
+            date: nextDate,
+            startTime: updated.startTime,
+            endTime: updated.endTime,
+            classType: updated.classType,
+            publicVisible: updated.publicVisible,
+            trainerId: updated.trainerId,
+            assistantId: updated.assistantId,
+            maxCapacity: updated.maxCapacity,
+            price: updated.price,
+            studioId: ctx.studioId,
+            seriesId,
+          },
+        })
+        createdIds.push(rep.id)
+      }
+      await prisma.timeSlot.update({ where: { id: current.id }, data: { seriesId } })
+      await Promise.allSettled(createdIds.map((cid) => syncSlotToGoogle(cid)))
+      seriesStarted = { created: createdIds.length, skipped }
+    }
+
     // Reflect the edit in Google Calendar (best-effort, no-op if not connected).
     await syncSlotToGoogle(current.id).catch(() => {})
 
-    return NextResponse.json({ ...updated, _seriesEnded: seriesEnded })
+    return NextResponse.json({ ...updated, _seriesEnded: seriesEnded, _seriesStarted: seriesStarted })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues.map((e: { message: string }) => e.message).join("; ") }, { status: 400 })

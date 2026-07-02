@@ -117,8 +117,8 @@ export default function ServicesPage() {
       <div>
       <div className="flex items-center justify-between mb-6 gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Additional Services</h1>
-          <p className="text-gray-500 text-xs lg:text-sm mt-1 truncate">Tap a service to edit · Clients can add these during booking</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Prices &amp; Services</h1>
+          <p className="text-gray-500 text-xs lg:text-sm mt-1 truncate">Class &amp; membership prices, plus add-on services clients can pick during booking</p>
         </div>
         {services.filter((s) => s.active).length < 3 && (
           <button

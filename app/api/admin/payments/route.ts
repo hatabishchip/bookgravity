@@ -39,7 +39,16 @@ export async function GET(request: NextRequest) {
   const ctx = await requireAdmin()
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const filter = new URL(request.url).searchParams.get("filter") ?? "unmatched"
+  const params = new URL(request.url).searchParams
+  // Lightweight mode for the sidebar badge: just the unmatched count, no rows.
+  if (params.get("count")) {
+    const unmatchedCount = await prisma.bankPayment.count({
+      where: { studioId: ctx.studioId, bookingId: null },
+    })
+    return NextResponse.json({ unmatchedCount })
+  }
+
+  const filter = params.get("filter") ?? "unmatched"
 
   const studio = await prisma.studio.findUnique({
     where: { id: ctx.studioId },
