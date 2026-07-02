@@ -16,7 +16,10 @@ const navItems: { href: string; label: string; icon: React.ComponentType<{ size?
   { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
   { href: "/admin/clients", label: "Clients", icon: UserRound },
   { href: "/admin/trainers", label: "Trainers", icon: Users },
-  { href: "/admin/services", label: "Services", icon: Package },
+  // "Prices & Services": this page holds the CORE class/membership prices, not
+  // just add-ons - under the old "Services" label admins hunted for prices in
+  // Settings first.
+  { href: "/admin/services", label: "Prices & Services", icon: Package },
   { href: "/admin/salary", label: "Salary", icon: Banknote },
   { href: "/admin/cashflow", label: "Cash Flow", icon: ArrowLeftRight },
   { href: "/admin/payments", label: "Bank confirmations", icon: Landmark },
@@ -37,6 +40,22 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     fetch("/api/studio").then((r) => r.ok ? r.json() : null).then((d) => d && setStudio(d))
   }, [])
+
+  // Unlinked bank payments badge on the nav item - the count used to be
+  // visible only INSIDE the payments page, so unlinked payments aged until the
+  // admin happened to open it. One cheap count per navigation/focus, no interval.
+  const [bankToLink, setBankToLink] = useState(0)
+  useEffect(() => {
+    const load = () =>
+      fetch("/api/admin/payments?count=1", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d && typeof d.unmatchedCount === "number") setBankToLink(d.unmatchedCount) })
+        .catch(() => {})
+    load()
+    const onVis = () => { if (document.visibilityState === "visible") load() }
+    document.addEventListener("visibilitychange", onVis)
+    return () => document.removeEventListener("visibilitychange", onVis)
+  }, [pathname])
 
   const settingsActive = pathname === "/admin/settings" || pendingHref === "/admin/settings"
 
@@ -71,6 +90,14 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
                 )}>
                 <Icon size={18} />
                 <span className="flex-1">{label}</span>
+                {href === "/admin/payments" && bankToLink > 0 && (
+                  <span className={cn(
+                    "min-w-5 h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center",
+                    active ? "bg-white/25 text-white" : "bg-emerald-500 text-white"
+                  )}>
+                    {bankToLink}
+                  </span>
+                )}
                 {beta && (
                   <span className={cn(
                     "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded",

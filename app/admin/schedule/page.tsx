@@ -398,6 +398,26 @@ export default function SchedulePage() {
     return `${Math.round(p / 1000)}k`
   }
 
+  // Deep-link: /admin/schedule?date=YYYY-MM-DD opens that day's editor as soon
+  // as data is in (Dashboard's today-rows link here - glance → action in one
+  // tap instead of re-finding the day by hand). Plain location.search, no
+  // useSearchParams(), to avoid the Suspense-boundary requirement.
+  const deepLinkDateRef = useRef<string | null>(null)
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get("date")
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      deepLinkDateRef.current = d
+      setAnchor(new Date(d + "T00:00:00"))
+    }
+  }, [])
+  useEffect(() => {
+    if (!slotsLoaded || !deepLinkDateRef.current) return
+    const d = deepLinkDateRef.current
+    deepLinkDateRef.current = null
+    openCreate(d)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotsLoaded])
+
   const openCreate = (date: string) => {
     const bd = blockedDays.find((b) => b.date === date)
     if (bd) return
@@ -489,13 +509,17 @@ export default function SchedulePage() {
       // User unchecked "Repeat weekly" on a slot that's part of a series →
       // tell the server to remove future occurrences from this series.
       const endSeries = !!slot.seriesId && !a.repeatWeekly
+      // User CHECKED "Repeat weekly" on an existing slot with no series →
+      // tell the server to start one (used to be silently dropped: the admin
+      // believed 12 weeks were scheduled while nothing happened).
+      const startSeries = !slot.seriesId && !!a.repeatWeekly
       const fieldChanged =
         a.trainerId !== currentTrainer ||
         a.assistantId !== currentAssistant ||
         a.classType !== currentType ||
         a.publicVisible !== currentVis ||
         desiredCap !== currentCap
-      if (fieldChanged || endSeries) {
+      if (fieldChanged || endSeries || startSeries) {
         const tr = a.trainerId ? trainers.find((x) => x.id === a.trainerId) : null
         const as = a.assistantId ? trainers.find((x) => x.id === a.assistantId) : null
         optimisticUpdates.set(slot.id, {
@@ -519,6 +543,7 @@ export default function SchedulePage() {
             maxCapacity: desiredCap,
             price: priceForType(a.classType),
             ...(endSeries ? { endSeries: true } : {}),
+            ...(startSeries ? { repeatWeekly: true } : {}),
           },
         })
       }
@@ -725,7 +750,10 @@ export default function SchedulePage() {
   }
 
   const openCopyModal = async () => {
-    const sourceStart = startOfWeek(new Date(), { weekStartsOn: 1 })
+    // Copy the week the admin is LOOKING AT, not the current real-world week -
+    // otherwise browsing to a good template week and hitting Copy silently
+    // copied the wrong (current) week.
+    const sourceStart = startOfWeek(anchor, { weekStartsOn: 1 })
     const sourceEnd = addDays(sourceStart, 6)
     setCopyModal({ sourceStart, sourceSlots: [], weeksAhead: 1, plans: [], loading: true, running: false })
     const srcRes = await fetch(`/api/admin/slots?from=${format(sourceStart, "yyyy-MM-dd")}&to=${format(sourceEnd, "yyyy-MM-dd")}`)
@@ -757,6 +785,10 @@ export default function SchedulePage() {
             assistantId: s.assistant?.id ?? null,
             maxCapacity: s.maxCapacity,
             price: s.price,
+            // Preserve what the source class IS - without these the API
+            // defaulted a copied Private/Kids class to a PUBLIC Group one.
+            classType: s.classType,
+            publicVisible: s.publicVisible,
           }),
         })
       }
@@ -1092,7 +1124,25 @@ export default function SchedulePage() {
                 <h2 className="text-lg font-semibold text-gray-800">{slots.some((s) => s.date === form.date) ? "Manage day's sessions" : "Add Session"}</h2>
                 <p className="text-sm text-gray-400 mt-0.5">{format(new Date(form.date + "T00:00:00"), "EEEE, MMMM d")}</p>
               </div>
-              <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+              <div className="flex items-center gap-1.5">
+                {/* Block-day used to hide behind a hover-only lock icon -
+                    unreachable on touch. Explicit affordance where days are
+                    actually managed. */}
+                <button
+                  type="button"
+                  onClick={(e) => { const d = form.date; closeModal(); openBlockModal(e, d) }}
+                  title={blockedDays.some((b) => b.date === form.date) ? "This day is blocked - tap to unblock" : "Block this day (no classes can be scheduled)"}
+                  className={cn(
+                    "px-2.5 py-1.5 rounded-lg text-xs font-semibold border touch-manipulation whitespace-nowrap",
+                    blockedDays.some((b) => b.date === form.date)
+                      ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
+                      : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50",
+                  )}
+                >
+                  {blockedDays.some((b) => b.date === form.date) ? "🔒 Blocked" : "Block day"}
+                </button>
+                <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+              </div>
             </div>
 
             <form
@@ -1317,6 +1367,25 @@ export default function SchedulePage() {
                                         {!hasClients && <option value="">Unassigned</option>}
                                         {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
                                       </select>
+                                      {/* One tap instead of re-picking the same trainer in every
+                                          row - the typical day is one trainer for all sessions. */}
+                                      {assignment.trainerId && form.startTimes.length > 1 &&
+                                        form.startTimes.some((ot) => (form.assignments[ot]?.trainerId ?? "") !== assignment.trainerId) && (
+                                        <button type="button"
+                                          onClick={() => {
+                                            setForm((prev) => {
+                                              const next = { ...prev.assignments }
+                                              for (const ot of prev.startTimes) {
+                                                const cur = next[ot] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
+                                                next[ot] = { ...cur, trainerId: assignment.trainerId, assistantId: cur.assistantId === assignment.trainerId ? "" : cur.assistantId }
+                                              }
+                                              return { ...prev, assignments: next }
+                                            })
+                                          }}
+                                          title="Apply this trainer to all sessions on this day"
+                                          className="flex-shrink-0 text-[11px] font-semibold px-2 py-1 rounded-md border border-brand/40 text-brand bg-white hover:bg-brand/5 touch-manipulation whitespace-nowrap"
+                                        >→ all</button>
+                                      )}
                                       {assignment.trainerId && (
                                         <select
                                           value={assignment.assistantId}

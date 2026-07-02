@@ -136,6 +136,9 @@ export default function TrainerSchedulePage() {
   // rapid taps (cash → EDC → cash) don't make the buttons blink.
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set())
   const reqSeqRef = useRef<Record<string, number>>({})
+  // Debounce timers for per-booking note saves (save-as-you-type; blur-only
+  // saving silently lost a note when the modal was closed before blur fired).
+  const noteTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const [services, setServices] = useState<Service[]>([])
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   // Manual "add a client" form (today's own class only). The fields live in the
@@ -150,6 +153,10 @@ export default function TrainerSchedulePage() {
   // method — that felt jumpy). Already-paid bookings open collapsed; the pencil
   // re-expands them for editing (allowed for 30 min after payment).
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
+  // Per-booking "More" fold: Notes/Reschedule/Cancel are rare actions - kept
+  // behind one row so marking 6 clients paid doesn't mean scrolling past them
+  // 6 times (each unpaid card used to render ~2 phone screens tall).
+  const [moreOpenIds, setMoreOpenIds] = useState<Set<string>>(new Set())
   const [isMobile, setIsMobile] = useState(false)
   // When a class just ended with unpaid clients, the cabinet opens straight
   // into that class's payment list and can't be closed until everyone is paid.
@@ -212,24 +219,48 @@ export default function TrainerSchedulePage() {
     if (res.ok) setSalary(await res.json())
   }, [])
 
+  // TODAY's roster shown right on the class cards (names + paid ticks) - the
+  // trainer's #1 morning question used to cost a tap-open + tap-close per
+  // class just to see who's coming.
+  const [todayRoster, setTodayRoster] = useState<Record<string, { name: string; paid: boolean }[]>>({})
+  const fetchTodayRoster = useCallback(async () => {
+    try {
+      const res = await fetch("/api/trainer/bookings")
+      if (!res.ok) return
+      const all = (await res.json()) as { slotId?: string; slot?: { id?: string; date?: string }; clientName: string; paymentStatus: string }[]
+      const today = baliDateStr(new Date())
+      const map: Record<string, { name: string; paid: boolean }[]> = {}
+      for (const b of all) {
+        if (b.slot?.date !== today) continue
+        const sid = b.slotId ?? b.slot?.id
+        if (!sid) continue
+        ;(map[sid] ??= []).push({
+          name: (b.clientName ?? "").replace(/\s*\(\d+\/\d+\)$/, "").split(/\s+/)[0] || "Client",
+          paid: b.paymentStatus === "PAID",
+        })
+      }
+      setTodayRoster(map)
+    } catch { /* card names are a nicety - never break the schedule */ }
+  }, [])
+
   const fetchServices = useCallback(async () => {
     const res = await fetch("/api/trainer/services")
     if (res.ok) setServices(await res.json())
   }, [])
 
-  useEffect(() => { fetchSlots() }, [fetchSlots])
+  useEffect(() => { fetchSlots(); fetchTodayRoster() }, [fetchSlots, fetchTodayRoster])
   // Live booking counts: re-fetch the schedule every 20s (and the moment the
   // tab becomes visible again) so the "booked/capacity" numbers update on the
   // trainer's phone in real time without a manual reload. No spinner on these
   // refreshes — slotsLoaded stays true.
   useEffect(() => {
-    const tick = () => { if (document.visibilityState === "visible") fetchSlots() }
+    const tick = () => { if (document.visibilityState === "visible") { fetchSlots(); fetchTodayRoster() } }
     // 60s (was 30s) to trim Vercel Fluid Active CPU - booking counts don't need
     // 30s freshness; the tab-visible re-fetch still gives an instant update.
     const t = setInterval(tick, 60_000)
     document.addEventListener("visibilitychange", tick)
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick) }
-  }, [fetchSlots])
+  }, [fetchSlots, fetchTodayRoster])
   useEffect(() => {
     Promise.all([fetchSalary(), fetchServices()])
   }, [fetchSalary, fetchServices])
@@ -423,8 +454,10 @@ export default function TrainerSchedulePage() {
       // Only the latest tap applies the authoritative server fields — stale
       // responses are dropped so the optimistic (last-tapped) state stays put.
       if (stale) return
-      // Payment state changed → recount the bell's unpaid tasks.
+      // Payment state changed → recount the bell's unpaid tasks and refresh
+      // the paid-ticks shown on today's class cards.
       refreshPending()
+      fetchTodayRoster()
       setSavedToast(Date.now())
       setTimeout(() => setSavedToast((t) => (Date.now() - t >= 1400 ? 0 : t)), 1500)
       const saved = await res.json()
@@ -998,13 +1031,17 @@ export default function TrainerSchedulePage() {
                       // Mine — full interactive card
                       const isSelected = selectedSlot?.id === slot.id
                       const hasBookings = (slot._count?.bookings ?? 0) > 0
+                      // TODAY's card carries the roster inline: first names +
+                      // paid ticks (✓ paid · • not yet). Seeing the day used
+                      // to require opening and closing every class.
+                      const roster = slot.date === baliDateStr(new Date()) ? (todayRoster[slot.id] ?? []) : []
                       return (
                       <button
                         key={slot.id}
                         onClick={() => handleSlotClick(slot)}
                         className={cn(
                           "w-full text-left rounded-lg border-2 touch-manipulation transition-colors",
-                          view === "2weeks" ? "p-3 flex items-center justify-between gap-2" : "p-2",
+                          view === "2weeks" ? "p-3 flex flex-wrap items-center justify-between gap-2" : "p-2",
                           // Class with a booked client → bright (vivid) green.
                           // Class with no bookings yet → pale green.
                           hasBookings
@@ -1030,6 +1067,20 @@ export default function TrainerSchedulePage() {
                           <Users size={view === "2weeks" ? 14 : 10} />
                           {slot._count?.bookings ?? 0}/{slot.maxCapacity ?? 0}
                         </div>
+                        {roster.length > 0 && (
+                          <div className={cn(
+                            "basis-full leading-snug",
+                            view === "2weeks" ? "text-xs mt-0.5" : "text-[10px] mt-1",
+                            hasBookings ? "text-white/90" : "text-brand/80"
+                          )}>
+                            {roster.map((r, i) => (
+                              <span key={i} className="whitespace-nowrap">
+                                {i > 0 && <span className={hasBookings ? "text-white/50" : "text-brand/40"}> · </span>}
+                                {r.name} {r.paid ? "✓" : "•"}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </button>
                       )
                     })}
@@ -1163,6 +1214,16 @@ export default function TrainerSchedulePage() {
                   const paymentLabel = b.paymentType === "MEMBERSHIP"
                     ? "Membership"
                     : (PAYMENT_METHODS.find((p) => p.value === b.paymentType)?.label ?? b.paymentType)
+                  // Show the tier on the collapsed line too - a wrong/forgotten
+                  // tier (= wrong 20% commission base) used to be invisible once
+                  // the card collapsed, surfacing only in month-end salary.
+                  const tierLabel = b.paymentType === "MEMBERSHIP"
+                    ? ""
+                    : b.priceTier === "MEMBER"
+                      ? " · Member"
+                      : b.priceTier === "LOCAL" || (!b.priceTier && b.localResident)
+                        ? " · Local"
+                        : ""
 
                   if (collapsed) {
                     return (
@@ -1175,7 +1236,7 @@ export default function TrainerSchedulePage() {
                           {b.bankConfirmed ? (
                             <span className="text-[10px] font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full whitespace-nowrap" title="Payment confirmed by bank">✓ bank</span>
                           ) : null}
-                          <span className="text-xs font-semibold text-brand whitespace-nowrap">✓ Paid · {paymentLabel}</span>
+                          <span className="text-xs font-semibold text-brand whitespace-nowrap">✓ Paid · {paymentLabel}{tierLabel}</span>
                           <button
                             type="button"
                             onClick={() => openChat(b.clientPhone, b.clientName)}
@@ -1382,20 +1443,48 @@ export default function TrainerSchedulePage() {
                         </div>
                       )}
 
-                      {/* Total to charge — bigger and prominent */}
+                      {/* Total to charge — bigger and prominent. Respects the
+                          marked tier (Local 200k / Member 250k, not the 300k
+                          drop-in) and a MEMBERSHIP payment (class covered by
+                          the pass → only extra services are owed). It used to
+                          always show slot price + services, telling the
+                          trainer to collect the wrong amount at the till. */}
                       {(() => {
-                        const sessionPrice = selectedSlot?.price ?? 0
+                        const sessionPrice =
+                          b.paymentType === "MEMBERSHIP"
+                            ? 0
+                            : b.priceTier === "MEMBER"
+                              ? (b.memberPrice ?? 250000)
+                              : b.priceTier === "LOCAL" || (!b.priceTier && b.localResident)
+                                ? (b.localPrice ?? 200000)
+                                : (selectedSlot?.price ?? 0)
                         const servicesTotal = b.services.reduce((sum, s) => sum + s.service.price, 0)
                         const total = sessionPrice + servicesTotal
                         if (total === 0) return null
                         return (
                           <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                            <span className="text-sm text-gray-500 font-medium">Total to charge</span>
+                            <span className="text-sm text-gray-500 font-medium">
+                              {b.paymentType === "MEMBERSHIP" ? "Total to charge (services only)" : "Total to charge"}
+                            </span>
                             <span className="text-lg font-bold text-gray-900">{formatIDR(total)}</span>
                           </div>
                         )
                       })()}
 
+                      {/* Rare actions live behind ONE row - the busiest flow
+                          (mark 6 clients paid) shouldn't scroll past Notes/
+                          Reschedule/Cancel on every card. Auto-open when the
+                          booking already has a note so it isn't hidden. */}
+                      {!(moreOpenIds.has(b.id) || !!b.notes) ? (
+                        <button
+                          type="button"
+                          onClick={() => setMoreOpenIds((prev) => new Set(prev).add(b.id))}
+                          className="mt-4 w-full py-2 rounded-lg border border-dashed border-gray-200 text-gray-400 text-xs font-medium hover:text-gray-600 hover:border-gray-300 touch-manipulation"
+                        >
+                          ⋯ More (notes · reschedule · cancel)
+                        </button>
+                      ) : (
+                      <>
                       {/* Notes — bigger input */}
                       <div className="mt-4">
                         <label className="block text-xs text-gray-500 font-medium mb-2">Notes</label>
@@ -1403,7 +1492,18 @@ export default function TrainerSchedulePage() {
                           type="text"
                           defaultValue={b.notes ?? ""}
                           disabled={isUpdating}
+                          onChange={(e) => {
+                            // Save as you type (debounced) - blur-only saving
+                            // lost the note when the card/modal was closed
+                            // before the field ever blurred.
+                            const v = e.target.value
+                            clearTimeout(noteTimersRef.current[b.id])
+                            noteTimersRef.current[b.id] = setTimeout(() => {
+                              if (v !== (b.notes ?? "")) updateBooking(b.id, { notes: v })
+                            }, 800)
+                          }}
                           onBlur={(e) => {
+                            clearTimeout(noteTimersRef.current[b.id])
                             if (e.target.value !== (b.notes ?? "")) {
                               updateBooking(b.id, { notes: e.target.value })
                             }
@@ -1435,6 +1535,8 @@ export default function TrainerSchedulePage() {
                       >
                         Cancel booking
                       </button>
+                      </>
+                      )}
 
                       {/* Once a payment method is picked, a clear "Done" button
                           appears — tapping it collapses this client to a compact

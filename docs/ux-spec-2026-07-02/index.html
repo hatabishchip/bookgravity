@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bookgravity - спека упрощений UX (02.07.2026)</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
+    --ink:#e8eaed; --muted:#9aa3b2; --dim:#6b7280;
+    --brand:#22c55e; --brand-d:#16a34a; --amber:#f59e0b; --rose:#f43f5e; --sky:#38bdf8;
+    --before:#3a2130; --after:#12301f;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  a{color:var(--sky);text-decoration:none}
+  header.top{position:sticky;top:0;z-index:50;background:rgba(15,17,21,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:14px 22px}
+  header.top h1{margin:0;font-size:17px;font-weight:700}
+  header.top .sub{color:var(--muted);font-size:13px;margin-top:2px}
+  .wrap{max-width:1120px;margin:0 auto;padding:26px 22px 120px}
+  .lead{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin-bottom:26px}
+  .lead p{margin:8px 0;color:var(--muted)}
+  .lead b{color:var(--ink)}
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .toc a{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--ink)}
+  .toc a:hover{border-color:var(--brand)}
+  h2.pkg{font-size:20px;margin:40px 0 4px;padding-top:10px;display:flex;align-items:center;gap:10px}
+  h2.pkg .em{font-size:24px}
+  .pkg-desc{color:var(--muted);margin:0 0 16px;font-size:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin:16px 0}
+  .card h3{margin:0 0 4px;font-size:16px}
+  .card .num{color:var(--dim);font-weight:700;margin-right:8px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
+  .chip{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .chip.eff{color:#a7f3d0;border-color:#14532d;background:#0b1f16}
+  .chip.effort{color:#fde68a;border-color:#78350f;background:#1f1608}
+  .chip.role{color:#bae6fd;border-color:#0c4a6e;background:#08131c}
+  .chip.bug{color:#fecdd3;border-color:#881337;background:#1f0b12}
+  .what{margin:10px 0 14px;color:var(--ink)}
+  .what .why{color:var(--muted);font-size:14px;margin-top:6px}
+  .ba{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+  @media(max-width:720px){.ba{grid-template-columns:1fr}}
+  .col{border-radius:12px;padding:12px;border:1px solid var(--line)}
+  .col.before{background:var(--before)}
+  .col.after{background:var(--after)}
+  .col .tag{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px;opacity:.85}
+  .col.before .tag{color:#fca5a5}
+  .col.after .tag{color:#86efac}
+  /* mini phone mockups */
+  .phone{background:#fff;color:#111827;border-radius:14px;padding:12px;font-size:13px;box-shadow:0 1px 0 rgba(0,0,0,.2)}
+  .phone.dk{background:#0b0e13;color:#e5e7eb;border:1px solid #232833}
+  .phone .fld{border:1px solid #d1d5db;border-radius:9px;padding:8px 10px;margin:6px 0;color:#374151;background:#fff;display:flex;justify-content:space-between;align-items:center}
+  .phone .fld.dis{background:#f3f4f6;color:#9ca3af}
+  .phone .btn{background:var(--brand-d);color:#fff;text-align:center;border-radius:10px;padding:9px;margin-top:8px;font-weight:600}
+  .phone .btn.ghost{background:#e5f7ee;color:#065f46}
+  .phone .lbl{font-size:11px;color:#6b7280;margin:8px 0 2px}
+  .phone .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
+  .phone .pill.a{background:#fffbeb;color:#b45309;border-color:#fde68a}
+  .phone .pill.r{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+  .phone .row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #e5e7eb;border-radius:10px;margin:6px 0}
+  .phone .muted{color:#9ca3af}
+  .phone .wait{background:#f9fafb;border:1px dashed #d1d5db;border-radius:9px;padding:8px 10px;color:#6b7280;font-size:12px;margin:6px 0;text-align:center}
+  .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:#0c0f14;border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:#c7d2fe;white-space:pre-wrap;overflow:auto}
+  .code .del{color:#fca5a5}
+  .code .add{color:#86efac}
+  .steps{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px;margin-top:6px}
+  .steps b{color:var(--brand)}
+  .note{font-size:13px;color:var(--muted);margin-top:10px;border-left:3px solid var(--line);padding-left:10px}
+  .appendix{opacity:.85}
+  .footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  kbd{background:#0c0f14;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:12px}
+  /* interactive controls injected per card */
+  .ctl{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+  .ctl label.take{display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;color:var(--ink);user-select:none}
+  .ctl input[type=checkbox]{width:20px;height:20px;accent-color:var(--brand);cursor:pointer}
+  .ctl textarea{width:100%;margin-top:10px;background:#0c0f14;border:1px solid var(--line);border-radius:9px;color:var(--ink);font:14px/1.5 inherit;padding:9px 11px;resize:vertical;min-height:44px}
+  .ctl textarea::placeholder{color:var(--dim)}
+  .card.picked{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand-d) inset}
+  .card.picked .ctl label.take{color:var(--brand)}
+  .actionbar{position:fixed;left:0;right:0;bottom:0;z-index:60;background:rgba(15,17,21,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:12px 22px;display:flex;align-items:center;gap:14px;justify-content:center;flex-wrap:wrap}
+  .actionbar .count{font-weight:700}
+  .actionbar button{background:var(--brand-d);color:#fff;border:0;border-radius:10px;padding:11px 20px;font-size:15px;font-weight:700;cursor:pointer}
+  .actionbar button.sec{background:var(--panel2);color:var(--ink);border:1px solid var(--line);font-weight:600}
+  .actionbar .saved{color:var(--muted);font-size:13px}
+  .selall{background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:6px 12px;font-size:13px;cursor:pointer;margin-left:10px}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>bookgravity - спека упрощений UX</h1>
+  <div class="sub">30 правок по трём ролям. Составлено 02.07.2026 из аудита кода тремя трассировщиками. Отметь галочками что брать и допиши правки в полях. Код ещё НЕ трогал.</div>
+</header>
+
+<div class="wrap">
+  <div class="lead">
+    <p><b>Что это.</b> Три агента прошли реальный код и трассировали путь <b>клиента</b> (виджет брони), <b>тренера</b> (кабинет) и <b>админа</b> (админка), посчитали тапы/поля/ожидания и нашли трение. Ниже - конкретные упрощения, сгруппированные в 8 пакетов, которые ты выбрал.</p>
+    <p><b>Как читать.</b> Каждая правка: простыми словами <b>что значит</b> → блок <b>Как есть</b> (точная реконструкция текущего экрана по коду) → <b>Как станет</b> (макет) → эффект и объём работы. Панели «Как есть» - это верные реконструкции на настоящих текстах/цветах из кода (не живые скриншоты; можешь сверить с bookgravity.com).</p>
+    <p><b>Осознанные решения не трогаю</b> (WhatsApp-OTP гейт, 2-значный код, авто-отправка кода после паузы, «90 минут» для клиента при слоте 2ч, ручная отметка оплаты, 3-значный код у двери, 20%/5% комиссия, абонемент 5 классов). Их только делаю удобнее/незаметнее, не убираю.</p>
+    <p style="color:#fde68a"><b>Действие от тебя:</b> прочитай, скажи что берём/убираем/правим. Как одобришь - беру в работу тем же порядком (build → деплой → проверка на проде), как утром с техчастью.</p>
+    <div class="toc">
+      <a href="#p1">🐛 Баги расписания</a>
+      <a href="#p2">⚡ Скорость и тупики</a>
+      <a href="#p3">⌨️ Меньше печати</a>
+      <a href="#p4">💬 WhatsApp-мосты</a>
+      <a href="#p5">👀 Тренер: день взглядом</a>
+      <a href="#p6">💵 Тренер: касса</a>
+      <a href="#p7">🧭 Админ: утренний экран</a>
+      <a href="#p8">🛠️ Админ: мелочи</a>
+    </div>
+  </div>
+
+  <!-- ============ PACKAGE 1 : BUGS ============ -->
+  <h2 class="pkg" id="p1"><span class="em">🐛</span> Пакет 1 - Баги расписания</h2>
+  <p class="pkg-desc">Это не UX-хотелки, а настоящие ошибки в главной еженедельной задаче админа. Их стоит закрыть в первую очередь - они тихо портят расписание и деньги.</p>
+
+  <div class="card">
+    <h3><span class="num">1.1</span>«Copy week» теряет тип класса и видимость</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip bug">Баг · порча данных</span><span class="chip eff">Эффект: скрытые/приватные классы не ломаются</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Когда админ копирует неделю расписания вперёд, копия <b>не переносит</b> тип класса (Group/Kids/Private) и флаг «скрыт от клиентов». Сервер подставляет по умолчанию Group и «виден всем».
+      <div class="why">Итог: скрытый Private-класс копируется вперёд как <b>видимый Group по приватной цене</b>; Kids превращается в Group. Публичное расписание и цены становятся неверными, и это замечают не сразу.</div>
+    </div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div>
+        <div class="phone dk">
+          <div>Копирую неделю →</div>
+          <div class="row" style="border-color:#3a2b12">Private 17:00 <span class="pill a" style="background:#3a2b12;color:#fbbf24;border-color:#78530f">стал Group · 300k · виден</span></div>
+          <div class="muted" style="color:#9ca3af">тип и «скрыт» потерялись</div>
+        </div>
+      </div>
+      <div class="col after"><div class="tag">Как станет</div>
+        <div class="phone dk">
+          <div>Копирую неделю →</div>
+          <div class="row" style="border-color:#14532d">Private 17:00 <span class="pill" style="background:#0b1f16;color:#86efac;border-color:#14532d">Private · 800k · скрыт</span></div>
+          <div class="muted" style="color:#9ca3af">тип и видимость сохранены</div>
+        </div>
+      </div>
+    </div>
+    <div class="note">Технически: добавить <span class="code" style="display:inline;padding:1px 6px">classType, publicVisible</span> в тело копирования (<b>app/admin/schedule/page.tsx</b>). Правка на пару строк.</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">1.2</span>«Copy week» копирует не ту неделю, что на экране</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip bug">Баг</span><span class="chip eff">Эффект: копируется именно то, что видишь</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Кнопка всегда копирует <b>текущую календарную неделю</b>, а не ту, что открыта на экране. Админ листает на хорошую неделю-образец, жмёт «копировать» - а копируется совсем другая.
+      <div class="why">Источник копии берётся от «сегодня», а не от просматриваемой недели.</div>
+    </div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div>Смотрю неделю <b>14-20 июля</b></div><div class="btn" style="background:#7f1d1d">Копировать → взялась неделя 30 июня</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div>Смотрю неделю <b>14-20 июля</b></div><div class="btn">Копировать неделю 14-20 июля</div><div class="muted" style="color:#9ca3af;text-align:center;margin-top:4px">на кнопке прямо написан диапазон-источник</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">1.3</span>«Повторять еженедельно» на существующем классе - тихо ничего не делает</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip bug">Баг · фантом</span><span class="chip eff">Эффект: нет пустых расписаний-сюрпризов</span><span class="chip effort">Труд: M</span></div>
+    <div class="what">Галочка «повторять каждую неделю» работает <b>только при создании</b> класса. Если поставить её на уже существующем классе - сохранение уходит впустую, а UI делает вид, что сработало.
+      <div class="why">Админ уверен, что 12 недель запланированы; на деле - нет, и это всплывает через неделю пустым расписанием.</div>
+    </div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><label>☑ Повторять каждую неделю</label><div class="btn" style="background:#3a3f4b">Сохранить (галочка проигнорирована)</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><label>☑ Повторять каждую неделю</label><div class="btn">Сохранить → создаю 12 недель вперёд</div><div class="muted" style="color:#9ca3af;text-align:center;margin-top:4px">либо галочка честно скрыта у существующих</div></div></div>
+    </div>
+    <div class="note">Вариант реализации на выбор при внедрении: (а) заставить работать (создавать серию вперёд), либо (б) прятать галочку у существующих слотов с честной подписью. Рекомендую (а).</div>
+  </div>
+
+  <!-- ============ PACKAGE 2 : SPEED ============ -->
+  <h2 class="pkg" id="p2"><span class="em">⚡</span> Пакет 2 - Скорость и тупики (клиент)</h2>
+  <p class="pkg-desc">Убираем медленные моменты и «мёртвые петли» в брони - там, где клиент ждёт зря или застревает.</p>
+
+  <div class="card">
+    <h3><span class="num">2.1</span>Кнопка «Booking…» висит 2-6 секунд</h3>
+    <div class="chips"><span class="chip role">Клиент</span><span class="chip eff">Эффект: билет за 1-2с вместо 2-6с, каждая бронь</span><span class="chip effort">Труд: M</span></div>
+    <div class="what">После нажатия «Continue» сервер <b>ждёт отправки всех уведомлений</b> (2-3 письма + пуш тренеру + WhatsApp тренеру/админу), и только потом показывает клиенту билет. Клиент смотрит на спиннер, пока работает «служебная» рассылка.
+      <div class="why">Билет клиента не должен зависеть от плумбинга тренера/админа.</div>
+    </div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone"><div class="wait">⏳ Booking… (2-6 сек)</div><div class="muted">ждём письма + пуши + WhatsApp тренеру</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone"><div class="wait" style="border-style:solid;border-color:#a7f3d0;color:#047857">✓ Готово (1-2 сек)</div><div class="muted">билет сразу; уведомления уходят фоном</div></div></div>
+    </div>
+    <div class="note">Тот же приём, что утром применили в вебхуке: тяжёлое - в <span class="code" style="display:inline;padding:1px 6px">after()</span> после ответа. Клиент-WhatsApp-подтверждение остаётся синхронным (нужно для честного статуса), остальное - фоном.</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">2.2</span>Rate-limit = мёртвая петля «жди код, которого не будет»</h3>
+    <div class="chips"><span class="chip role">Клиент</span><span class="chip bug">Тупик</span><span class="chip eff">Эффект: убран полный тупик на общем wi-fi студии</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Если сработал лимит запросов (много броней с одного IP - студийный wi-fi), виджет всё равно показывает поле для кода. Кода нет и не будет; клиент ждёт, жмёт «Resend», снова упирается в лимит - и так по кругу.
+      <div class="why">Виджет считает любой «429» за «код отправлен».</div>
+    </div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone"><div class="lbl">Код из WhatsApp</div><div class="fld">_ _</div><div class="wait">Ждём код… (вечно)</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone"><div class="wait" style="border-style:solid;border-color:#fecaca;color:#b91c1c">Слишком много попыток с этой сети. Попробуйте через 30 минут или напишите нам в WhatsApp.</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">2.3</span>«Resend code» ждёт 59с, хотя сервер разрешает 30с</h3>
+    <div class="chips"><span class="chip role">Клиент</span><span class="chip eff">Эффект: −29с в худшем случае «код не пришёл»</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Когда код реально не пришёл (единственный случай, когда «Resend» важен), клиент смотрит на таймер вдвое длиннее необходимого.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone"><div class="fld dis">Resend code — 59с</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone"><div class="fld dis">Resend code — 30с</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">2.4</span>Лишний сетевой запрос перед отправкой кода</h3>
+    <div class="chips"><span class="chip role">Клиент</span><span class="chip eff">Эффект: −0.3-0.8с к ожиданию кода у каждого нового клиента</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Виджет сначала отдельно проверяет «доверенное ли устройство», потом отдельно шлёт код - а отправка кода <b>сама делает</b> ту же проверку. Клиент платит один лишний круг до того, как код вообще поедет.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone"><div class="row muted">1) проверка сессии</div><div class="row muted">2) отправка кода</div><div class="muted">два круга к серверу</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone"><div class="row">1) отправка кода (проверка внутри)</div><div class="muted">один круг</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">2.5</span>Код улетает на недобранный номер</h3>
+    <div class="chips"><span class="chip role">Клиент</span><span class="chip eff">Эффект: меньше «код пришёл и поле пропало», меньше лимит-локов на главном рынке</span><span class="chip effort">Труд: S/M</span></div>
+    <div class="what">Индонезийский номер - 10-12 цифр, но минимум для страны стоит 8. Если клиент на секунду задумался на 8-9 цифре, код авто-уходит на обрезанный (возможно, чужой) номер; клиент допечатывает - состояние сбрасывается, летит второй код. Это жжёт лимиты и даёт эффект «код пришёл, потом поле кода исчезло».
+      <div class="why">Дебаунс срабатывает на «минимально валидной» длине, а не на реальной.</div>
+    </div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone"><div class="fld">+6281234<span class="muted">|</span> <span class="pill a">шлём код (8 цифр)</span></div><div class="muted">номер ещё не дописан</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone"><div class="fld">+6281234567 89 <span class="pill">шлём код</span></div><div class="muted">ждём полную длину / паузу подольше</div></div></div>
+    </div>
+  </div>
+
+  <!-- ============ PACKAGE 3 : LESS TYPING ============ -->
+  <h2 class="pkg" id="p3"><span class="em">⌨️</span> Пакет 3 - Меньше печати (клиент)</h2>
+  <p class="pkg-desc">Печатать на телефоне - самое дорогое. Цель: у нового клиента меньше полей, у возвращающегося - <b>3 тапа и ноль печати</b>.</p>
+
+  <div class="card">
+    <h3><span class="num">3.1</span>Email обязателен, но письмо клиенту не приходит</h3>
+    <div class="chips"><span class="chip role">Клиент</span><span class="chip eff">Эффект: минус самое тяжёлое поле; минус точка отвала в финале</span><span class="chip effort">Труд: S (текст) / M (сделать опциональным)</span></div>
+    <div class="what">На WhatsApp-студии (основной поток Чангу) подтверждение уходит в WhatsApp, а <b>письмо клиенту не отправляется вообще</b>. Но поле Email обязательно, с проверкой формата, и подпись обещает «пришлём билет на почту» - что неправда. ~20 нажатий самой неудобной мобильной печати ради поля, которое идёт только в базу.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone"><div class="lbl">Email *</div><div class="fld">you@email.com</div><div class="muted" style="font-size:11px">«Пришлём подтверждение и билет на почту» (не приходит)</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone"><div class="lbl">Email <span class="muted">(необязательно - для ваших записей)</span></div><div class="fld dis">можно пропустить</div></div></div>
+    </div>
+    <div class="note">Клиентские тексты меняю только с твоим «БЫЛО→СТАНЕТ»-подтверждением (правило шаблонов). Точные формулировки покажу перед правкой.</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">3.2</span>Возвращающийся клиент каждый раз печатает весь номер заново</h3>
+    <div class="chips"><span class="chip role">Клиент</span><span class="chip eff">Эффект: повторная бронь = 3 тапа, 0 печати (сильнейший repeat-UX)</span><span class="chip effort">Труд: S/M</span></div>
+    <div class="what">Куку доверия устройства (400 дней) мы используем «в последний момент»: клиент уже всё напечатал, и только тогда его узнают. Плюс браузер мог бы подставить номер сам, но не хватает служебных атрибутов autofill.
+      <div class="why">Приватность не меняется: имя/почта всё так же приходят с сервера только после куки/кода. Меняется лишь то, что номер предзаполняется локально.</div>
+    </div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть · возвращающийся</div><div class="phone"><div class="lbl">Телефон</div><div class="fld">+ <span class="muted">печатать 10-12 цифр заново</span></div><div class="steps">дата · слот · <b>печать номера</b> · код? · Continue</div></div></div>
+      <div class="col after"><div class="tag">Как станет · возвращающийся</div><div class="phone"><div class="lbl">Телефон</div><div class="fld">+62 812-3456-789 <span class="pill">✓ это вы</span></div><div class="steps">дата · слот · <b>Continue</b> = <b>3 тапа</b></div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">3.3</span>Порядок полей: сначала Email, потом Имя</h3>
+    <div class="chips"><span class="chip role">Клиент</span><span class="chip eff">Эффект: форма ощущается легче; лучше автоподстановка</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Сейчас после проверки номера открывается сначала Email, затем Имя. По-человечески и для автозаполнения логичнее наоборот - имя первым, самое тяжёлое (email) последним.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone"><div class="lbl">Email *</div><div class="fld">…</div><div class="lbl">Имя *</div><div class="fld">…</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone"><div class="lbl">Имя *</div><div class="fld">…</div><div class="lbl">Email (необязательно)</div><div class="fld">…</div></div></div>
+    </div>
+  </div>
+
+  <!-- ============ PACKAGE 4 : WHATSAPP BRIDGES ============ -->
+  <h2 class="pkg" id="p4"><span class="em">💬</span> Пакет 4 - WhatsApp-мосты (клиент)</h2>
+  <p class="pkg-desc">Два места, где клиент упирается в текст без действия. Даём живую кнопку в WhatsApp - там, где интерес максимальный.</p>
+
+  <div class="card">
+    <h3><span class="num">4.1</span>«Напишите нам, чтобы записаться» - это просто текст</h3>
+    <div class="chips"><span class="chip role">Клиент</span><span class="chip bug">Тупик</span><span class="chip eff">Эффект: ловим самый горячий спрос (хочет ПРИЙТИ сегодня)</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Когда класс уже в 2-часовом окне отсечки или расписание пусто, клиент видит «Online booking closed - message us to join» / «message us» - <b>без ссылки и кнопки</b>. На телефоне это тупик для самого мотивированного посетителя.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone"><div class="row muted">11:00 · Online booking closed - message us to join</div><div class="muted">просто текст, некуда нажать</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone"><div class="row">11:00 · запись онлайн закрыта</div><div class="btn ghost">💬 Написать в WhatsApp «Можно на 11:00 сегодня?»</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">4.2</span>На билете нет кнопки отмены</h3>
+    <div class="chips"><span class="chip role">Клиент</span><span class="chip eff">Эффект: закрыта дыра, когда WhatsApp-подтверждение не дошло</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Отменить можно только из WhatsApp-подтверждения. Если оно не доставилось (Meta отклонила) - клиент держит билет и не имеет способа отмены, кроме как вручную написать сообщение.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone"><div style="text-align:center;font-weight:700;font-size:22px">457</div><div class="btn ghost">В календарь</div><div class="btn ghost">Ещё бронь</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone"><div style="text-align:center;font-weight:700;font-size:22px">457</div><div class="btn ghost">В календарь</div><div style="text-align:center;margin-top:8px"><a href="#" style="color:#b91c1c">Нужно отменить?</a> → WhatsApp с кодом 457</div></div></div>
+    </div>
+  </div>
+
+  <!-- ============ PACKAGE 5 : TRAINER GLANCE ============ -->
+  <h2 class="pkg" id="p5"><span class="em">👀</span> Пакет 5 - Тренер: день одним взглядом</h2>
+  <p class="pkg-desc">Главный вопрос тренера утром - «кто у меня сегодня». Сейчас это стоит ~6 тапов. Делаем видимым сразу.</p>
+
+  <div class="card">
+    <h3><span class="num">5.1</span>Имена и статус оплаты - прямо на карточке СЕГОДНЯ</h3>
+    <div class="chips"><span class="chip role">Тренер</span><span class="chip eff">Эффект: ~4-6 тапов/день долой, день виден за 2 секунды</span><span class="chip effort">Труд: M</span></div>
+    <div class="what">Сейчас карточка класса показывает только время и «3/6». Чтобы увидеть, кто записан и кто оплатил, нужно открыть каждый класс (тап) и закрыть (тап). 3 класса = 6 тапов только чтобы осмотреть день.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div class="row" style="border-color:#14532d;background:#0b1f16">11:00 Group <b>3/6</b> ›</div><div class="row" style="border-color:#14532d;background:#0b1f16">17:00 Group <b>5/6</b> ›</div><div class="muted" style="color:#9ca3af">имена/оплата - только внутри</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div class="row" style="border-color:#14532d;background:#0b1f16;display:block"><div>11:00 Group · 3/6</div><div style="font-size:12px;margin-top:4px">Anna ✓ · Budi ✓ · Sofia •</div></div><div class="row" style="border-color:#14532d;background:#0b1f16;display:block"><div>17:00 Group · 5/6</div><div style="font-size:12px;margin-top:4px">Rai ✓ · Mei • · Tom • · Lia ✓ · Nik •</div></div><div class="muted" style="color:#9ca3af">✓ оплатил · • ждёт</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">5.2</span>«Все мои брони» открываются на позавчерашних</h3>
+    <div class="chips"><span class="chip role">Тренер</span><span class="chip eff">Эффект: −1 тап + минус дезориентация каждый вход</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Раздел «All My Bookings» открывается на фильтре «Все» = 60 дней назад + будущее, сортировка от старых. Первый экран - двухмесячная история; тренер каждый раз жмёт «Today class».</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div class="muted" style="color:#9ca3af">Открылось на 2 мая…</div><div class="row" style="border-color:#232833">02 мая · старая бронь</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div>Фильтр «Сегодня» по умолчанию</div><div class="row" style="border-color:#14532d;background:#0b1f16">Сегодня 11:00 · Anna</div></div></div>
+    </div>
+  </div>
+
+  <!-- ============ PACKAGE 6 : TRAINER TILL ============ -->
+  <h2 class="pkg" id="p6"><span class="em">💵</span> Пакет 6 - Тренер: касса (отметка оплаты)</h2>
+  <p class="pkg-desc">Приём оплаты у 6 клиентов - самый частый и «скролльный» поток. Чиним подсчёт суммы и упрощаем карточку.</p>
+
+  <div class="card">
+    <h3><span class="num">6.1</span>«Total to charge» показывает неверную сумму</h3>
+    <div class="chips"><span class="chip role">Тренер</span><span class="chip bug">Неверные деньги у кассы</span><span class="chip eff">Эффект: убраны ошибки «взял не ту сумму», несколько/день</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Итог к оплате берёт полную цену слота (300k) + услуги, <b>игнорируя тир</b> (Local 200k / Member 250k) и абонемент. Тренеру показывают «взять 300k» с локального клиента, который платит 200k, или полную сумму с абонементного клиента, который должен только за коврик.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div>Клиент: Local</div><div class="row" style="border-color:#3a2130;background:#2a1620">К оплате: <b>Rp 300,000</b> ✗</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div>Клиент: Local</div><div class="row" style="border-color:#14532d;background:#0b1f16">К оплате: <b>Rp 200,000</b> ✓</div><div class="muted" style="color:#9ca3af">абонемент → только услуги</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">6.2</span>На свёрнутой оплаченной карточке не видно тир</h3>
+    <div class="chips"><span class="chip role">Тренер</span><span class="chip eff">Эффект: неверный тир (=неверная база 20%) ловится сразу, не в конце месяца</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">После оплаты карточка сворачивается в «✓ Paid · Cash» без тира. Забытый/неверный тир невидим до зарплаты в конце месяца, где всплывают споры.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div class="row" style="border-color:#14532d;background:#0b1f16">Sofia <span class="pill">✓ Paid · Cash</span></div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div class="row" style="border-color:#14532d;background:#0b1f16">Sofia <span class="pill">✓ Paid · Cash · Local</span></div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">6.3</span>Карточка клиента слишком длинная - скроллишь мимо лишнего ×6</h3>
+    <div class="chips"><span class="chip role">Тренер</span><span class="chip eff">Эффект: главный поток дня становится компактным</span><span class="chip effort">Труд: M</span></div>
+    <div class="what">Каждая неоплаченная карточка развёрнута целиком: оплата + тир + услуги + сумма + заметки + Перенести + Отменить + Готово (~2 экрана). Отметить 6 клиентов = 6 раз проскроллить мимо редких «Перенести/Отменить/Заметки».</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div class="lbl" style="color:#9ca3af">Anna</div><div class="row" style="border-color:#232833">Cash·EDC·QR·Transfer</div><div class="row" style="border-color:#232833">Тир: Full/Member/Local</div><div class="row" style="border-color:#232833">Услуги…</div><div class="row" style="border-color:#232833">Заметки…</div><div class="row" style="border-color:#232833">Перенести</div><div class="row" style="border-color:#232833">Отменить</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div class="lbl" style="color:#9ca3af">Anna</div><div class="row" style="border-color:#232833">Cash·EDC·QR·Transfer · тир</div><div class="row" style="border-color:#232833">К оплате: Rp 250,000</div><div class="row muted" style="border-color:#232833;color:#9ca3af">⋯ Ещё (заметки · перенос · отмена)</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">6.4</span>Заметка сохраняется только при потере фокуса - и теряется</h3>
+    <div class="chips"><span class="chip role">Тренер</span><span class="chip eff">Эффект: заметки не пропадают</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Заметка о клиенте сохраняется только когда поле теряет фокус. Напечатал заметку → закрыл карточку крестиком/назад до потери фокуса → заметка молча пропала.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div class="row" style="border-color:#232833">Заметка: «болит колено» → закрыл → <span style="color:#fca5a5">пропала</span></div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div class="row" style="border-color:#14532d;background:#0b1f16">Заметка сохраняется по ходу ввода <span class="pill">✓ Saved</span></div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">6.5</span>30-минутный лок правок обходится через другую вкладку</h3>
+    <div class="chips"><span class="chip role">Тренер</span><span class="chip eff">Эффект: правило блокировки реально работает; единый смысл</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Замок «нельзя править позже 30 мин после класса» есть только в расписании. В «Все мои брони» ту же бронь можно отменить/перенести бесконечно. И путает: «здесь заблокировано, там нет».</div>
+    <div class="note">Само правило 30 минут не меняем (твоё решение) - просто применяем его одинаково в обоих местах.</div>
+  </div>
+
+  <!-- ============ PACKAGE 7 : ADMIN MORNING ============ -->
+  <h2 class="pkg" id="p7"><span class="em">🧭</span> Пакет 7 - Админ: утренний экран</h2>
+  <p class="pkg-desc">Сейчас утренние вопросы («кто не оплатил? есть банк-платежи на привязку?») требуют обхода 4 экранов, а Dashboard наполовину из витринных цифр. Собираем «день одним взглядом».</p>
+
+  <div class="card">
+    <h3><span class="num">7.1</span>Dashboard: заменить витринные цифры на рабочие</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip eff">Эффект: Dashboard становится реальным утренним экраном</span><span class="chip effort">Труд: M</span></div>
+    <div class="what">Сейчас 2 из 4 карточек - «всего броней за всё время» и «число тренеров» (витрина). Ежедневные вопросы не отвечены. Все данные уже есть в API - это агрегация, не новые данные.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div class="row" style="border-color:#232833">Броней сегодня: 12</div><div class="row muted" style="border-color:#232833;color:#9ca3af">Всего броней: 3480</div><div class="row muted" style="border-color:#232833;color:#9ca3af">Тренеров: 8</div><div class="row" style="border-color:#232833">Классов сегодня: 3</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div class="row" style="border-color:#232833">Броней сегодня: 12</div><div class="row" style="border-color:#3a2b12;background:#251a08">Не оплачено сегодня: <b>4</b> ›</div><div class="row" style="border-color:#0c4a6e;background:#08131c">Банк-платежи на привязку: <b>2</b> ›</div><div class="row" style="border-color:#232833">Собрано сегодня: Rp 1,8M</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">7.2</span>Счётчик непривязанных банк-платежей - в меню</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip eff">Эффект: видно, что есть работа, без захода на страницу</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Число непривязанных платежей видно только внутри самой страницы «Bank confirmations». Админ должен ритуально открыть её, чтобы узнать, есть ли работа. Даём бейдж на пункте меню (как у инбокса).</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div class="row" style="border-color:#232833">Bank confirmations</div><div class="muted" style="color:#9ca3af">счётчик только внутри</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div class="row" style="border-color:#232833">Bank confirmations <span class="pill r">2</span></div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">7.3</span>Фильтр «Не оплачено» в списке броней</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip eff">Эффект: мгновенный ответ на дневной денежный вопрос</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Сейчас в «Bookings» есть только фильтры по датам (Все/Сегодня/…). «Кто не оплатил?» требует глазами сканировать бейджи по строкам. Данные уже на клиенте.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div>Фильтры: Все · Сегодня · Завтра</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div>Фильтры: Все · Сегодня · Завтра · <span class="pill a">Не оплачено</span></div></div></div>
+    </div>
+  </div>
+
+  <!-- ============ PACKAGE 8 : ADMIN SMALL ============ -->
+  <h2 class="pkg" id="p8"><span class="em">🛠️</span> Пакет 8 - Админ: мелочи с большим эффектом</h2>
+  <p class="pkg-desc">Небольшие правки, каждая убирает конкретное дневное трение или «фичу, которую не найти».</p>
+
+  <div class="card">
+    <h3><span class="num">8.1</span>«Один тренер на весь день» при сборке расписания</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip eff">Эффект: ~40% меньше тапов при сборке недели с нуля</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Тренер выбирается отдельно для каждого класса. Типичный день - один тренер на все классы; 4 класса = 4 выпадающих списка. Даём «применить этого тренера ко всем классам дня».</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">8.2</span>Кнопка «Заблокировать день» в редакторе дня</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip eff">Эффект: функция становится находимой на телефоне</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Блокировка дня спрятана в иконку, видимую только по наведению мыши (на телефоне hover нет) и только в некоторых видах. Фактически недоступна с телефона. Добавляем явную кнопку в модалку дня.</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">8.3</span>Цены классов - под понятным названием</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip eff">Эффект: цены находятся с первого раза</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Основные цены классов и абонемента живут на странице с заголовком «Additional Services» (дополнительные услуги). Админ ищет их в Настройках. Переименовываем пункт в «Цены и услуги».</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div class="row" style="border-color:#232833">Меню: Services → «Additional Services»</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div class="row" style="border-color:#232833">Меню: Цены и услуги</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">8.4</span>Два разных «Net» за один месяц без пояснения</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip eff">Эффект: денежные страницы визуально сходятся, доверие</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Cash Flow показывает «Net = приход − расход» (кассовый), Salary показывает «Net profit = выручка − начислено − расходы» (начисленный). Цифры за один месяц не совпадают, без объяснения - и обе вызывают недоверие. Даём честные подписи + строку-пояснение.</div>
+    <div class="ba">
+      <div class="col before"><div class="tag">Как есть</div><div class="phone dk"><div class="row" style="border-color:#232833">Cash Flow · Net: 40M</div><div class="row" style="border-color:#232833">Salary · Net: 32M</div><div class="muted" style="color:#9ca3af">почему разные?</div></div></div>
+      <div class="col after"><div class="tag">Как станет</div><div class="phone dk"><div class="row" style="border-color:#232833">Движение денег (касса): 40M</div><div class="row" style="border-color:#232833">Операционная прибыль: 32M</div><div class="muted" style="color:#9ca3af">разные базы - подпись объясняет</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">8.5</span>Классы без тренера молча пропадают из выбора при брони клиента</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip eff">Эффект: «пропавший класс» объяснён, а не выглядит багом</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Когда админ бронирует клиента из карточки клиента, классы без назначенного тренера просто не показываются в списке - выглядит как баг «класс есть в расписании, а тут его нет». Показываем такой класс неактивным с подписью «сначала назначьте тренера».</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">8.6</span>Строки классов на Dashboard - кликабельные</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip eff">Эффект: взгляд → действие в 1 тап вместо 2+ переходов</span><span class="chip effort">Труд: S</span></div>
+    <div class="what">Список сегодняшних классов на Dashboard - неактивные строки. Увидел «11:00 · 4/6» - и всё равно надо заново искать этот день в Расписании. Делаем строку ссылкой на день в расписании.</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">8.7</span>Кнопка «+ Новая бронь» на странице броней</h3>
+    <div class="chips"><span class="chip role">Админ</span><span class="chip eff">Эффект: частая задача «звонок → добавить бронь» в 3 тапа откуда угодно</span><span class="chip effort">Труд: M</span></div>
+    <div class="what">Страница называется «Bookings», но создать бронь на ней нельзя - для брони по телефону админ идёт кружным путём через редактор дня в Расписании. Добавляем «+ Новая бронь» (переиспользуем готовую форму с автоподстановкой имени по телефону).</div>
+  </div>
+
+  <div class="footer">
+    <p>Итого: <b>8 пакетов, 30 правок</b>. Труд суммарно небольшой (в основном S, несколько M). Пороговые решения (деньги/тексты клиенту) внедряю только с отдельным твоим подтверждением по ходу.</p>
+    <p><b>Не входит в этот заход</b> (из аудита, но вне выбранных пакетов): текстовые шаблоны тренерам в закрытом 24ч-окне чата, кросс-девайс бейджи «новых броней», замена системных al() на стайл-шит, развилка расписаний schedule vs beta (нужно отдельное твоё решение), перенос региона Turso, валюта в кабинетах для не-IDR студии. Могу взять отдельно.</p>
+    <p style="color:#fde68a">Скажи в чате: берём всё как есть / что-то убрать / что-то поправить. После твоего «да» - внедряю.</p>
+  </div>
+</div>
+
+<div class="actionbar">
+  <span class="count" id="count">Выбрано 0 из 30</span>
+  <button class="sec" id="selBugs">Отметить только баги</button>
+  <button id="download">⬇︎ Скачать мой выбор</button>
+  <button class="sec" id="copy">Скопировать текст</button>
+  <span class="saved" id="saved"></span>
+</div>
+
+<script>
+(function(){
+  var KEY = "bookgravity-ux-spec-2026-07-02";
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".card"));
+  var items = [];
+
+  cards.forEach(function(card){
+    var numEl = card.querySelector(".num");
+    if(!numEl) return;
+    var id = numEl.textContent.trim();
+    var h3 = card.querySelector("h3");
+    var title = h3 ? h3.textContent.replace(id,"").trim() : id;
+    card.setAttribute("data-id", id);
+
+    var ctl = document.createElement("div");
+    ctl.className = "ctl";
+    ctl.innerHTML =
+      '<label class="take"><input type="checkbox" data-take="'+id+'"> Взять в работу</label>'+
+      '<textarea data-note="'+id+'" placeholder="Правки / что подкорректировать по этому пункту (необязательно)"></textarea>';
+    card.appendChild(ctl);
+
+    items.push({id:id, title:title, card:card,
+      chk:ctl.querySelector("input"), note:ctl.querySelector("textarea")});
+  });
+
+  function load(){
+    try{
+      var s = JSON.parse(localStorage.getItem(KEY)||"{}");
+      items.forEach(function(it){
+        var v = s[it.id];
+        if(v){ it.chk.checked = !!v.take; it.note.value = v.note||""; }
+        it.card.classList.toggle("picked", it.chk.checked);
+      });
+    }catch(e){}
+  }
+  function save(){
+    var s = {};
+    items.forEach(function(it){ s[it.id] = {take:it.chk.checked, note:it.note.value}; });
+    localStorage.setItem(KEY, JSON.stringify(s));
+    var n = items.filter(function(it){return it.chk.checked;}).length;
+    document.getElementById("count").textContent = "Выбрано "+n+" из "+items.length;
+    var sv = document.getElementById("saved");
+    sv.textContent = "✓ сохранено в браузере";
+    clearTimeout(window.__svt); window.__svt = setTimeout(function(){sv.textContent="";}, 1500);
+  }
+  items.forEach(function(it){
+    it.chk.addEventListener("change", function(){ it.card.classList.toggle("picked", it.chk.checked); save(); });
+    it.note.addEventListener("input", save);
+  });
+
+  function payload(){
+    return items.map(function(it){
+      return {id:it.id, title:it.title, take:it.chk.checked, note:it.note.value.trim()};
+    });
+  }
+  function asText(){
+    var d = payload();
+    var lines = ["bookgravity UX spec - выбор владельца ("+new Date().toISOString().slice(0,16).replace('T',' ')+")",""];
+    d.forEach(function(x){
+      lines.push((x.take?"[x]":"[ ]")+" "+x.id+" "+x.title + (x.note?("\n     ПРАВКА: "+x.note):""));
+    });
+    var taken = d.filter(function(x){return x.take;}).length;
+    lines.push("", "Итого отмечено: "+taken+"/"+d.length);
+    return lines.join("\n");
+  }
+
+  document.getElementById("download").addEventListener("click", function(){
+    var blob = new Blob([JSON.stringify(payload(),null,2)], {type:"application/json"});
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "bookgravity-ux-selection.json";
+    document.body.appendChild(a); a.click(); a.remove();
+    document.getElementById("saved").textContent = "✓ файл в Downloads - напиши в чат «готово»";
+  });
+  document.getElementById("copy").addEventListener("click", function(){
+    var t = asText();
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject())
+      .then(function(){ document.getElementById("saved").textContent="✓ скопировано - вставь в чат"; })
+      .catch(function(){
+        var ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select();
+        try{document.execCommand("copy");}catch(e){} ta.remove();
+        document.getElementById("saved").textContent="✓ скопировано - вставь в чат";
+      });
+  });
+  document.getElementById("selBugs").addEventListener("click", function(){
+    items.forEach(function(it){
+      if(/^1\./.test(it.id)){ it.chk.checked=true; it.card.classList.add("picked"); }
+    });
+    save();
+  });
+
+  load(); save();
+})();
+</script>
+</body>
+</html>
