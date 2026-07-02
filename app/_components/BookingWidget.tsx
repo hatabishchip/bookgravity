@@ -485,6 +485,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // tap re-enables editing with the caret AFTER the last digit. A new client's
   // empty field keeps the normal autofocus+type flow.
   const [phoneIdle, setPhoneIdle] = useState(false)
+  // Returning client's email renders as a small one-line "change" affordance
+  // instead of a full field; tapping it expands the real input.
+  const [emailExpanded, setEmailExpanded] = useState(false)
 
   // Returning client, zero typing: when the details step opens with an empty
   // phone, prefill the last number this device verified. The trust-cookie check
@@ -1524,7 +1527,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             <ChevronLeft size={16} /> Back
           </button>
 
-          <div className="bg-brand/5 rounded-xl p-4 mb-6">
+          <div className="bg-brand/5 rounded-xl p-4 mb-4">
             <div className="font-semibold text-gray-800">
               {selectedDate && format(parseISO(selectedDate), "EEEE, MMMM d")}
             </div>
@@ -1545,11 +1548,12 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               // Right-side adornments inside the phone field: a spinner while
               // sending, a green WhatsApp badge once the code is delivered (so
               // it's obvious the code went to WhatsApp), or a ⚠️ if not on WA.
-              const showWaBadge = otpSent && otpReady && otpDelivery !== "failed"
+              const showWaBadge = otpSent && otpReady && otpDelivery !== "failed" && !otpVerified
               const rightPad =
                 otpSending ||
                 (otpSent && !otpReady && otpDelivery !== "failed") ||
                 showWaBadge ||
+                otpVerified ||
                 (otpDelivery === "failed" && !otpVerified)
               return (
                 <div>
@@ -1644,6 +1648,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     {otpDelivery === "failed" && !otpVerified && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none" aria-label="Not on WhatsApp">
                         <span className="text-lg">⚠️</span>
+                      </div>
+                    )}
+                    {/* Verified = a small check inside the field. Replaces the
+                        old full-width "✓ Number verified" row (screen space). */}
+                    {otpVerified && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none w-6 h-6 rounded-full bg-brand text-white flex items-center justify-center text-sm font-bold" aria-label="Number verified">
+                        ✓
                       </div>
                     )}
                     {/* Code delivered → WhatsApp badge so it's obvious the code
@@ -1782,97 +1793,76 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 </button>
               </div>
             )}
-            {otpVerified && (
-              <div className="rounded-xl border border-brand/30 bg-brand/5 px-4 py-2.5 text-sm font-medium text-brand flex items-center gap-2">
-                <span>✓</span> Number verified
-              </div>
-            )}
-
             {/* Everything below stays hidden until the WhatsApp code is
                 verified — so while entering the code only the phone + code are
                 on screen. Verifying reveals the rest (the number stays editable
-                above the whole time). */}
+                above the whole time). The "verified" signal is the ✓ inside
+                the phone field - no separate row. */}
             {otpVerified && (<div className="space-y-4">
-            {/* Informational membership balance — clients can't spend a class
-                here; a trainer deducts it at the studio. Shown once the code is
-                verified and the client has an active pass at this studio. */}
+            {/* Informational membership balance - one compact line (the old
+                three-line banner pushed Continue off the screen). */}
             {membershipLeft > 0 && (
-              <div className="rounded-xl border border-brand/30 bg-brand/5 px-4 py-3 text-sm text-brand">
-                🎟️ You have <span className="font-semibold">{membershipLeft}</span>{" "}
-                {membershipLeft === 1 ? "class" : "classes"} left on your membership.{" "}
-                <span className="text-brand/70">Your trainer will check you in at the studio.</span>
+              <div className="rounded-xl border border-brand/30 bg-brand/5 px-4 py-2 text-sm text-brand truncate" title="Your trainer will check you in at the studio">
+                🎟️ <span className="font-semibold">{membershipLeft}</span> {membershipLeft === 1 ? "class" : "classes"} left on your membership
               </div>
             )}
 
-            {(() => {
-              // Name + email stay locked until the WhatsApp code is verified
-              // (privacy: a phone number alone must not reveal anyone's details).
-              // Name comes FIRST (it's the natural first question and the
-              // lighter field); email follows.
-              const phoneDone = otpVerified
-              return (
-                <div>
-                  <label className={cn(
-                    "block text-sm font-medium mb-1",
-                    phoneDone ? "text-gray-700" : "text-gray-400"
-                  )}>
-                    Full Name *
-                    {lookupState === "loading" && <span className="text-xs text-gray-400 ml-2">looking up…</span>}
-                    {lookupState === "found" && form.clientName && <span className="text-xs text-brand ml-2">welcome back ✓</span>}
-                  </label>
-                  <input
-                    ref={fieldRefs.clientName}
-                    type="text"
-                    autoComplete="name"
-                    disabled={!phoneDone}
-                    value={form.clientName}
-                    onChange={(e) => { setForm({ ...form, clientName: e.target.value }); clearFieldError("clientName") }}
-                    placeholder={phoneDone ? "Your full name" : "Verify your number first"}
-                    className={cn(
-                      "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
-                      fieldErrors.clientName
-                        ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
-                        : "border-gray-200 focus:ring-brand/30 focus:border-brand"
-                    )}
-                  />
-                  {fieldErrors.clientName && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientName}</p>}
-                </div>
-              )
-            })()}
+            {/* Name - no outer label; the placeholder IS the label (grey
+                "Full name", gone the moment they type). Keeps the step short
+                enough that Continue fits on one phone screen. */}
+            <div>
+              <input
+                ref={fieldRefs.clientName}
+                type="text"
+                autoComplete="name"
+                value={form.clientName}
+                onChange={(e) => { setForm({ ...form, clientName: e.target.value }); clearFieldError("clientName") }}
+                placeholder="Full name"
+                className={cn(
+                  "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 placeholder:text-gray-400",
+                  fieldErrors.clientName
+                    ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
+                    : "border-gray-200 focus:ring-brand/30 focus:border-brand"
+                )}
+              />
+              {fieldErrors.clientName && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientName}</p>}
+            </div>
 
-            {(() => {
-              const phoneDone = otpVerified
-              return (
-                <div>
-                  <label className={cn(
-                    "block text-sm font-medium mb-1",
-                    phoneDone ? "text-gray-700" : "text-gray-400"
-                  )}>
-                    Email *
-                  </label>
-                  <input
-                    ref={fieldRefs.clientEmail}
-                    type="email"
-                    autoComplete="email"
-                    inputMode="email"
-                    disabled={!phoneDone}
-                    value={form.clientEmail}
-                    onChange={(e) => { setForm({ ...form, clientEmail: e.target.value }); clearFieldError("clientEmail") }}
-                    placeholder={phoneDone ? "name@example.com" : "Verify your number first"}
-                    className={cn(
-                      "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed",
-                      fieldErrors.clientEmail
-                        ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
-                        : "border-gray-200 focus:ring-brand/30 focus:border-brand"
-                    )}
-                  />
-                  {/* No "we'll email your ticket" promise here - at WhatsApp
-                      studios the confirmation goes to WhatsApp, not email.
-                      The address is kept for the studio's records. */}
-                  {fieldErrors.clientEmail && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientEmail}</p>}
-                </div>
-              )
-            })()}
+            {/* Email. Returning client (details came from the server): shown
+                as one small grey line with a "change" tap - a full-size field
+                for a value they almost never edit was the biggest stretch on
+                this screen. New client: a normal field, placeholder as label. */}
+            {lookupState === "found" && form.clientEmail && !emailExpanded && !fieldErrors.clientEmail ? (
+              <button
+                type="button"
+                onClick={() => setEmailExpanded(true)}
+                className="w-full text-left text-xs text-gray-400 px-1 -mt-1 hover:text-gray-600"
+              >
+                ✉️ {form.clientEmail} <span className="underline underline-offset-2">change</span>
+              </button>
+            ) : (
+              <div>
+                <input
+                  ref={fieldRefs.clientEmail}
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  value={form.clientEmail}
+                  onChange={(e) => { setForm({ ...form, clientEmail: e.target.value }); clearFieldError("clientEmail") }}
+                  placeholder="Email"
+                  className={cn(
+                    "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 placeholder:text-gray-400",
+                    fieldErrors.clientEmail
+                      ? "border-red-400 focus:ring-red-200 focus:border-red-400 bg-red-50"
+                      : "border-gray-200 focus:ring-brand/30 focus:border-brand"
+                  )}
+                />
+                {/* No "we'll email your ticket" promise here - at WhatsApp
+                    studios the confirmation goes to WhatsApp, not email.
+                    The address is kept for the studio's records. */}
+                {fieldErrors.clientEmail && <p className="text-xs text-red-500 mt-1">{fieldErrors.clientEmail}</p>}
+              </div>
+            )}
 
             {services.length > 0 && (
               <div>
