@@ -106,11 +106,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             where: { id: data.slotId! },
             select: { maxCapacity: true },
           })
-          const count = await tx.booking.count({
+          const others = await tx.booking.findMany({
             where: { slotId: data.slotId!, status: "CONFIRMED" },
+            select: { ticketCode: true },
           })
-          if (target && count >= target.maxCapacity) throw new Error("TARGET_FULL")
-          return tx.booking.update({ where: { id: existing.id }, data: updateData, include: bookingInclude })
+          if (target && others.length >= target.maxCapacity) throw new Error("TARGET_FULL")
+          // A moved booking keeps its old 3-digit code, which may collide in
+          // the target class - regenerate on collision (mirrors the trainer
+          // move path; the re-sent confirmation carries the new code).
+          const taken = new Set(others.map((b) => b.ticketCode))
+          let codePatch: { ticketCode?: string } = {}
+          if (taken.has(existing.ticketCode)) {
+            let c = existing.ticketCode
+            do { c = String(Math.floor(100 + Math.random() * 900)) } while (taken.has(c))
+            codePatch = { ticketCode: c }
+          }
+          return tx.booking.update({ where: { id: existing.id }, data: { ...updateData, ...codePatch }, include: bookingInclude })
         })
         .catch((e) => (e instanceof Error && e.message === "TARGET_FULL" ? null : Promise.reject(e)))
     : await prisma.booking.update({ where: { id: existing.id }, data: updateData, include: bookingInclude })

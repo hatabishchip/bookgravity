@@ -30,14 +30,20 @@ export async function POST(request: NextRequest) {
       : null
     const otpRequired = enabled && studio?.requireBookingOtp !== false
 
-    if (otpRequired) {
-      const res = await verifyBookingOtp({ studioId, phone, code })
-      if (!res.ok) {
-        return NextResponse.json({ ok: false, error: res.error, remaining: res.remaining }, { status: 401 })
-      }
+    // No code gate on this studio → nothing was PROVEN about number ownership,
+    // so no details may be returned (this unauthenticated route would otherwise
+    // let anyone enumerate name/email by phone on OTP-off studios). The widget
+    // never calls verify in no-OTP mode, so nothing legitimate loses data.
+    if (!otpRequired) {
+      return NextResponse.json({ ok: true, client: null })
     }
 
-    // Verified (or OTP not required) → privacy-safe lookup of last-used details.
+    const res0 = await verifyBookingOtp({ studioId, phone, code })
+    if (!res0.ok) {
+      return NextResponse.json({ ok: false, error: res0.error, remaining: res0.remaining }, { status: 401 })
+    }
+
+    // Code proven → privacy-safe lookup of last-used details.
     const client = await getVerifiedClientDetails({ studioId, phone })
 
     // Remember the verified number on this device (signed httpOnly cookie, up to

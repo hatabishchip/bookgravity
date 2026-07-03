@@ -117,13 +117,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             where: { id: data.slotId! },
             select: { maxCapacity: true },
           })
-          const count = await tx.booking.count({
+          const others = await tx.booking.findMany({
             where: { slotId: data.slotId!, status: "CONFIRMED" },
+            select: { ticketCode: true },
           })
-          if (target && count >= target.maxCapacity) throw new Error("TARGET_FULL")
+          if (target && others.length >= target.maxCapacity) throw new Error("TARGET_FULL")
+          // Ticket codes are unique per SLOT at creation only - a moved booking
+          // carries its old code, which may already exist in the target class
+          // (two clients, one door code = check-in/cancel-bot ambiguity).
+          // Regenerate on collision; the re-sent confirmation carries the new one.
+          const taken = new Set(others.map((b) => b.ticketCode))
+          let codePatch: { ticketCode?: string } = {}
+          if (taken.has(booking.ticketCode)) {
+            let c = booking.ticketCode
+            do { c = String(Math.floor(100 + Math.random() * 900)) } while (taken.has(c))
+            codePatch = { ticketCode: c }
+          }
           return tx.booking.update({
             where: { id },
-            data: updateData,
+            data: { ...updateData, ...codePatch },
             include: { slot: true, services: { include: { service: true } } },
           })
         })

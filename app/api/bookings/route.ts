@@ -55,19 +55,27 @@ class CapacityError extends Error {
 // even though the in-flight rows aren't yet committed/visible to a read.
 export async function POST(request: NextRequest) {
   try {
-    // Abuse brake (audit 2026-06-12): nothing stopped scripted slot-filling.
-    const rl = await rateLimit({ scope: "book-ip", subject: clientIp(request), limit: 12, windowSec: 3600 })
-    if (!rl.ok) {
-      return NextResponse.json(
-        { error: "Too many booking attempts - please try again later." },
-        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
-      )
-    }
-
     const body = await request.json()
     const data = BookingSchema.parse(body)
 
     const studioId = await getPublicStudioId(new URL(request.url).searchParams.get("studio"))
+
+    // Logged-in staff of THIS studio (checked once, reused below): they skip
+    // the anonymous per-IP brake (they share the studio wifi's IP with clients
+    // and their session IS the anti-abuse credential), skip the OTP code, and
+    // never get a client-phone trust cookie minted on their device.
+    const isStaff = await isStaffOfStudio(studioId)
+
+    // Abuse brake (audit 2026-06-12): nothing stopped scripted slot-filling.
+    if (!isStaff) {
+      const rl = await rateLimit({ scope: "book-ip", subject: clientIp(request), limit: 12, windowSec: 3600 })
+      if (!rl.ok) {
+        return NextResponse.json(
+          { error: "Too many booking attempts - please try again later." },
+          { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+        )
+      }
+    }
     const slot = await prisma.timeSlot.findFirst({
       where: { id: data.slotId, studioId, trainerId: { not: null }, publicVisible: true },
       include: {
@@ -141,7 +149,7 @@ export async function POST(request: NextRequest) {
     // (mirrors the skip in /api/otp/send). Anything else goes through the
     // normal code check.
     const sessionOk = hasOtpSession(request, { phone: data.clientPhone, studioId })
-    const staffOk = !sessionOk && (await isStaffOfStudio(studioId))
+    const staffOk = isStaff
     if (studioWaOn && confirmWhatsapp && !sessionOk && !staffOk) {
       const otp = await verifyBookingOtp({
         studioId,
@@ -528,8 +536,12 @@ export async function POST(request: NextRequest) {
         // Only the CLIENT confirmation blocks the response (its outcome is
         // shown on the ticket as waConfirmationSent). The trainer/admin alerts
         // finish after the response - the client shouldn't wait for them.
-        await clientPromise
+        // after() is registered BEFORE the await: if clientPromise threw, the
+        // outer catch would swallow it and an unregistered trainerPromise
+        // (with its waNotifyTrainerStatus DB writes) could be frozen by
+        // serverless teardown mid-flight.
         after(() => trainerPromise.catch((err) => console.error("[bookings] trainer WA after() failed:", err)))
+        await clientPromise
       }
     } catch (err) {
       console.error("[bookings] whatsapp block exception:", err)
@@ -541,9 +553,11 @@ export async function POST(request: NextRequest) {
     // waConfirmationSent: false → the widget shows a "WhatsApp didn't go
     // through, message us" warning on the ticket instead of silent success.
     const created = NextResponse.json({ ...bookings[0], waConfirmationSent: waClientSent }, { status: 201 })
-    // Don't mint a device-trust cookie on a STAFF member's browser - it would
-    // fill their device's trusted-numbers list (max 8) with clients' phones.
-    if (studioWaOn && confirmWhatsapp && !staffOk) {
+    // Don't mint OR renew a device-trust cookie on a STAFF member's browser -
+    // it would fill their device's trusted-numbers list (max 8) with clients'
+    // phones. Guarded by isStaff (not staffOk) so a staff device that happens
+    // to hold an old trust entry for a client's phone doesn't keep renewing it.
+    if (studioWaOn && confirmWhatsapp && !isStaff) {
       attachOtpSession(request, created, { phone: data.clientPhone, studioId })
     }
     return created
