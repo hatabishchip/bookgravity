@@ -6,13 +6,34 @@ import { Ticket as TicketIcon, ChevronRight } from "lucide-react-native"
 import { spacing, radius } from "@/lib/theme"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
+import { Button } from "@/components/ui/Button"
+import { useAuth } from "@/lib/auth"
 import { useMyBookings } from "@/hooks/useMyBookings"
 import type { Booking } from "@shared/types"
 
 export default function BookingsTab() {
   const { theme } = useTheme()
-  const { data: bookings = [], isLoading, refetch, isRefetching } = useMyBookings()
   const router = useRouter()
+  const user = useAuth((s) => s.user)
+  const { data: bookings = [], isLoading, refetch, isRefetching } = useMyBookings(!!user)
+
+  // Guests book without an account, so booking history lives behind sign-in.
+  if (!user) {
+    return (
+      <SafeAreaView style={{ flex: 1, padding: spacing.lg, gap: spacing.lg }} edges={["top"]}>
+        <Text variant="title2" tone="primary">Your tickets</Text>
+        <View style={[styles.empty, { backgroundColor: theme.bg.card, borderColor: theme.border.subtle }]}>
+          <TicketIcon size={32} color={theme.brand.primary} />
+          <Text variant="headline" tone="primary" style={{ marginTop: spacing.sm }}>Sign in to see your tickets</Text>
+          <Text variant="footnote" tone="muted" style={{ marginTop: spacing.xs, textAlign: "center" }}>
+            After you book, your QR ticket is shown right away. Sign in to keep your booking history here.
+          </Text>
+          <View style={{ height: spacing.md }} />
+          <Button title="Sign in" onPress={() => router.push("/(auth)/login")} />
+        </View>
+      </SafeAreaView>
+    )
+  }
 
   const today = startOfDay(new Date())
   const upcoming = bookings.filter((b) => b.status === "CONFIRMED" && isAfter(parseISO(b.slot.date), today) || (b.status === "CONFIRMED" && parseISO(b.slot.date).toDateString() === today.toDateString()))

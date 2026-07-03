@@ -101,9 +101,18 @@ export default function RootLayout() {
     if (!bootstrapped) return
     SplashScreen.hideAsync().catch(() => {})
 
-    const inAuthGroup = segments[0] === "(auth)"
-    if (!user && !inAuthGroup) {
-      router.replace("/(auth)/login")
+    const group = segments[0]
+    const inAuthGroup = group === "(auth)"
+    const inStaffGroup = group === "(trainer)" || group === "(admin)"
+    if (!user) {
+      // Guests can browse the schedule and book without an account - the
+      // /api/slots and /api/bookings endpoints are public, exactly like the
+      // web booking flow. Only the trainer/admin surfaces need a sign-in.
+      if (inStaffGroup) {
+        router.replace("/(auth)/login")
+      } else if (group !== "(client)" && !inAuthGroup) {
+        router.replace("/(client)")
+      }
       return
     }
     if (user && inAuthGroup) {

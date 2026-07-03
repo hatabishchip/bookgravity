@@ -94,6 +94,12 @@ export default function LoginScreen() {
         <Text variant="footnote" tone="muted" style={styles.disclaimer}>
           Use the same email and password as the web admin / trainer dashboard.
         </Text>
+
+        <View style={{ height: spacing.lg }} />
+        <Button title="Continue as guest" variant="secondary" onPress={() => router.replace("/(client)")} />
+        <Text variant="footnote" tone="muted" style={[styles.disclaimer, { marginTop: spacing.sm }]}>
+          You can browse the schedule and book a class without signing in.
+        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   )
