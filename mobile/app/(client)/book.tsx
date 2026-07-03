@@ -35,6 +35,13 @@ export default function BookScreen() {
   const [partySize, setPartySize] = useState(1)
   const [done, setDone] = useState<{ ticketCode: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // WhatsApp confirmation code step. `codeSent` reveals the code input; the
+  // code is passed straight to /api/bookings (the server re-verifies it), so
+  // no cookie persistence is needed on the device. Studios with the code turned
+  // off (or a signed-in staff Bearer) return {skipped} and we book directly.
+  const [codeSent, setCodeSent] = useState(false)
+  const [code, setCode] = useState("")
+  const [otpBusy, setOtpBusy] = useState(false)
 
   // Fetch the slot to render its date/time + class type in the sheet.
   // No dedicated endpoint exists yet, so we look it up in the month feed.
@@ -46,7 +53,7 @@ export default function BookScreen() {
   const slot = slotsQuery.data?.find((s) => s.id === slotId) as SlotDetail | undefined
 
   const book = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (otpCode?: string) => {
       return api<{ id: string; ticketCode: string }>("/api/bookings", {
         method: "POST",
         body: {
@@ -55,6 +62,7 @@ export default function BookScreen() {
           clientPhone: phone.trim(),
           clientEmail: email.trim(),
           partySize,
+          ...(otpCode ? { otpCode } : {}),
         },
       })
     },
@@ -66,16 +74,78 @@ export default function BookScreen() {
     },
     onError: (err) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      // A 401 here = the WhatsApp code was wrong/expired. Keep the code field
+      // open so the client can re-enter or resend instead of dead-ending.
+      if (err instanceof ApiError && err.status === 401) {
+        setCodeSent(true)
+        setError("That code is incorrect or expired. Re-enter it or tap Resend.")
+        return
+      }
       setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Booking failed")
     },
   })
 
-  const submit = () => {
+  // Ask the server to send (or resend) the WhatsApp code. Returns "skip" when
+  // no code is needed (studio has it off, or a signed-in staff Bearer), "sent"
+  // when a code is on its way, or throws with a user-facing message.
+  const requestCode = async (): Promise<"skip" | "sent"> => {
+    try {
+      const r = await api<{ sent?: boolean; skipped?: boolean }>("/api/otp/send", {
+        method: "POST",
+        body: { phone: phone.trim() },
+      })
+      return r.skipped ? "skip" : "sent"
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const b = (err.body ?? {}) as { code?: string }
+        if (err.status === 429 && b.code === "too_soon") return "sent" // a fresh code already exists
+        if (err.status === 429 && b.code === "rate_limited") throw new Error("Too many attempts from this network. Please try again later, or ask the studio to add you.")
+        if (err.status === 502) throw new Error("We couldn't send a code to that number. Check it's correct and has WhatsApp.")
+      }
+      throw new Error("Couldn't send the confirmation code. Check the number and try again.")
+    }
+  }
+
+  const submit = async () => {
     setError(null)
     if (name.trim().length < 2) { setError("Enter your full name"); return }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError("Enter a valid email"); return }
     if (phone.trim().length < 7) { setError("Enter your phone with country code (e.g. +62 …)"); return }
-    book.mutate()
+
+    // Already have the code on screen → book with it.
+    if (codeSent) {
+      if (code.trim().length < 1) { setError("Enter the code from WhatsApp"); return }
+      book.mutate(code.trim())
+      return
+    }
+
+    // First tap: ask for a code (or skip straight to booking).
+    setOtpBusy(true)
+    try {
+      const outcome = await requestCode()
+      if (outcome === "skip") {
+        book.mutate(undefined)
+      } else {
+        setCodeSent(true)
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't send the code.")
+    } finally {
+      setOtpBusy(false)
+    }
+  }
+
+  const resendCode = async () => {
+    setError(null)
+    setOtpBusy(true)
+    try {
+      await requestCode()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't resend the code.")
+    } finally {
+      setOtpBusy(false)
+    }
   }
 
   if (done) {
@@ -135,12 +205,32 @@ export default function BookScreen() {
         <Input
           label="Phone (with country code)"
           value={phone}
-          onChangeText={setPhone}
+          onChangeText={(v) => { setPhone(v); if (codeSent) { setCodeSent(false); setCode("") } }}
           keyboardType="phone-pad"
           autoComplete="tel"
           textContentType="telephoneNumber"
           placeholder="+62 812 3456 7890"
+          hint="We send a quick confirmation code to this WhatsApp."
         />
+
+        {/* WhatsApp code step - appears after the first Confirm tap. */}
+        {codeSent && (
+          <View style={{ gap: spacing.sm }}>
+            <Input
+              label="WhatsApp code"
+              value={code}
+              onChangeText={setCode}
+              keyboardType="number-pad"
+              autoComplete="one-time-code"
+              textContentType="oneTimeCode"
+              placeholder="Enter the code we sent"
+              hint="Check the WhatsApp messages on this number."
+            />
+            <Pressable onPress={resendCode} disabled={otpBusy} hitSlop={8}>
+              <Text variant="footnote" tone="brand">{otpBusy ? "Sending…" : "Resend code"}</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Party size stepper */}
         <View>
@@ -172,7 +262,11 @@ export default function BookScreen() {
           </View>
         )}
 
-        <Button title="Confirm booking" onPress={submit} loading={book.isPending} />
+        <Button
+          title={codeSent ? "Confirm booking" : "Continue"}
+          onPress={submit}
+          loading={book.isPending || otpBusy}
+        />
       </ScrollView>
     </SafeAreaView>
   )
@@ -187,7 +281,7 @@ function SuccessScreen({ ticketCode, onClose }: { ticketCode: string; onClose: (
       </View>
       <Text variant="title2" tone="primary">You&apos;re booked!</Text>
       <Text variant="subhead" tone="muted" style={{ textAlign: "center" }}>
-        Your ticket code is below. We&apos;ve emailed you the full receipt.
+        Your ticket code is below. Show it to your trainer at the studio.
       </Text>
       <View style={[styles.ticketBlock, { backgroundColor: theme.bg.card, borderColor: theme.brand.primary }]}>
         <Text variant="caption" tone="muted">TICKET CODE</Text>
