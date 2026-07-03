@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { View } from "react-native"
 import { Tabs } from "expo-router"
-import { CalendarDays, ScanLine, Banknote, MessageSquare, User } from "lucide-react-native"
+import { CalendarDays, ScanLine, MessageSquare, User } from "lucide-react-native"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
 import { api } from "@/lib/api"
@@ -63,13 +63,6 @@ export default function TrainerTabsLayout() {
         options={{
           title: "Check-in",
           tabBarIcon: ({ color, size }) => <ScanLine color={color} size={size ?? 22} />,
-        }}
-      />
-      <Tabs.Screen
-        name="salary"
-        options={{
-          title: "Salary",
-          tabBarIcon: ({ color, size }) => <Banknote color={color} size={size ?? 22} />,
         }}
       />
       <Tabs.Screen
