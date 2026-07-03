@@ -7,6 +7,7 @@ import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { sendBookingOtp } from "@/lib/otp"
 import { hasOtpSession, attachOtpSession } from "@/lib/otp-session"
 import { getVerifiedClientDetails } from "@/lib/client-lookup"
+import { isStaffOfStudio } from "@/lib/auth-helpers"
 import { rateLimit, clientIp } from "@/lib/rate-limit"
 
 // POST /api/otp/send  body: { phone, name? }  query: ?studio=<slug>
@@ -39,6 +40,14 @@ export async function POST(request: NextRequest) {
     }
     const config = getConfigFor(studio)
     if (!config) return NextResponse.json({ skipped: true })
+
+    // Logged-in staff booking ON A CLIENT'S BEHALF from the public page: no
+    // code. The gate exists against strangers, not the studio's own team -
+    // the code would go to the CLIENT's WhatsApp and the admin would be stuck
+    // waiting for a reply (Yacinta, 2026-07-03).
+    if (await isStaffOfStudio(studioId)) {
+      return NextResponse.json({ skipped: true, staff: true })
+    }
 
     // Trusted device (long-lived signed cookie for this phone+studio)? Skip the
     // code AND return the client's known details, exactly like /api/otp/session

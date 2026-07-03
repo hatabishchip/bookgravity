@@ -17,6 +17,7 @@ import {
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { verifyBookingOtp } from "@/lib/otp"
+import { isStaffOfStudio } from "@/lib/auth-helpers"
 import { hasOtpSession, attachOtpSession } from "@/lib/otp-session"
 import { rateLimit, clientIp } from "@/lib/rate-limit"
 import { clientClassRange } from "@/lib/class-time"
@@ -135,9 +136,13 @@ export async function POST(request: NextRequest) {
     const adminEmail = otpStudio?.users?.[0]?.email ?? null
     // A number verified in the last 2h (signed httpOnly cookie) books without
     // re-entering a WhatsApp code — the session is as strong as the code it
-    // was minted from. Anything else goes through the normal code check.
+    // was minted from. Logged-in staff of this studio also skip the code:
+    // they book on a client's behalf and can't receive the client's code
+    // (mirrors the skip in /api/otp/send). Anything else goes through the
+    // normal code check.
     const sessionOk = hasOtpSession(request, { phone: data.clientPhone, studioId })
-    if (studioWaOn && confirmWhatsapp && !sessionOk) {
+    const staffOk = !sessionOk && (await isStaffOfStudio(studioId))
+    if (studioWaOn && confirmWhatsapp && !sessionOk && !staffOk) {
       const otp = await verifyBookingOtp({
         studioId,
         phone: data.clientPhone,
@@ -536,7 +541,9 @@ export async function POST(request: NextRequest) {
     // waConfirmationSent: false → the widget shows a "WhatsApp didn't go
     // through, message us" warning on the ticket instead of silent success.
     const created = NextResponse.json({ ...bookings[0], waConfirmationSent: waClientSent }, { status: 201 })
-    if (studioWaOn && confirmWhatsapp) {
+    // Don't mint a device-trust cookie on a STAFF member's browser - it would
+    // fill their device's trusted-numbers list (max 8) with clients' phones.
+    if (studioWaOn && confirmWhatsapp && !staffOk) {
       attachOtpSession(request, created, { phone: data.clientPhone, studioId })
     }
     return created

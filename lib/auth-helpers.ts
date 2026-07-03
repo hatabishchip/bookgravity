@@ -93,3 +93,22 @@ export async function requireAuth(): Promise<SessionContext | null> {
   const studioId = await studioForSession(session)
   return { userId: session.user.id, studioId, role: session.user.role as UserRole }
 }
+
+/**
+ * Is the caller a logged-in ADMIN/TRAINER (or SUPER_ADMIN) of THIS studio?
+ * Used by the PUBLIC booking flow to skip the WhatsApp confirmation code when
+ * a staff member books on a client's behalf - the anti-spam gate exists to
+ * stop strangers, not the studio's own team (Yacinta's case 2026-07-03: she
+ * booked a client via the public page and got stuck waiting for the CLIENT's
+ * code). Best-effort: returns false rather than throwing.
+ */
+export async function isStaffOfStudio(studioId: string): Promise<boolean> {
+  try {
+    const ctx = await requireAuth()
+    if (!ctx) return false
+    if (ctx.role === "STAFF") return false // cleaning staff can't book clients
+    return ctx.role === "SUPER_ADMIN" || ctx.studioId === studioId
+  } catch {
+    return false
+  }
+}
