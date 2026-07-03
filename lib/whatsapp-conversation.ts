@@ -228,6 +228,21 @@ export async function markBookingPreview(conversationId: string, preview: string
   })
 }
 
+/**
+ * Mark a conversation as HANDLED by staff: clear BOTH unread counters and the
+ * booking preview. A reply from any staff member (trainer OR admin) means the
+ * chat has been attended to, so it should stop showing as unread for the admin
+ * too - previously a trainer's reply left unreadAdmin untouched, so the admin
+ * saw "unread" on chats a trainer had already answered. A later inbound message
+ * re-increments the counters, so genuinely-new messages still surface.
+ */
+export async function markConversationHandled(conversationId: string) {
+  await prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: { unreadAdmin: 0, unreadTrainer: 0, bookingPreview: null },
+  })
+}
+
 /** Reset unread counter for a given viewer. Also clears bookingPreview. */
 export async function markConversationRead(
   conversationId: string,

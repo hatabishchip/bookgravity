@@ -7,6 +7,7 @@ import {
   appendOutboundMessage,
   isInsideCustomerWindow,
   trainerHasAccess,
+  markConversationHandled,
 } from "@/lib/whatsapp-conversation"
 import { translateAndDetect } from "@/lib/translate"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
@@ -127,6 +128,9 @@ export async function POST(
       }
     }
 
+    // Staff replied → the chat is handled: clear unread for admin + trainer.
+    if (res.ok) await markConversationHandled(convo.id)
+
     return NextResponse.json(
       { message: saved, sendResult: res },
       { status: res.ok ? 201 : 502 },
@@ -213,6 +217,7 @@ export async function POST(
       errorDetail: res.ok ? null : res.error,
       fromTrainerId,
     })
+    if (res.ok) await markConversationHandled(convo.id)
     return NextResponse.json(
       { message: saved, sendResult: res },
       { status: res.ok ? 201 : 502 },
@@ -232,6 +237,7 @@ export async function POST(
     errorDetail: res.ok ? null : res.error,
     fromTrainerId,
   })
+  if (res.ok) await markConversationHandled(convo.id)
   return NextResponse.json(
     { message: saved, sendResult: res },
     { status: res.ok ? 201 : 502 },
