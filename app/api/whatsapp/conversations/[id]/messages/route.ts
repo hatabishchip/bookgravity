@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/auth-helpers"
+import { requireAuth, isAdminRole } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { sendWhatsAppText, sendWhatsAppTemplate, getConfigFor } from "@/lib/whatsapp-cloud"
@@ -145,7 +145,7 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
   }
   const windowOpen = isInsideCustomerWindow(convo.lastInboundAt)
-  if (!windowOpen && ctx.role !== "ADMIN") {
+  if (!windowOpen && !isAdminRole(ctx.role)) {
     return NextResponse.json(
       {
         error:
@@ -188,7 +188,7 @@ export async function POST(
   // Closed-window template fallback for admins. Wraps the admin's (already
   // translated, if applicable) text as the {{2}} variable of `admin_message`,
   // and uses the client's name as {{1}} (fallback: "there").
-  if (!windowOpen && ctx.role === "ADMIN") {
+  if (!windowOpen && isAdminRole(ctx.role)) {
     const adminTemplate =
       process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message"
     const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"

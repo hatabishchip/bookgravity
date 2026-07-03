@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/auth-helpers"
+import { requireAuth, isAdminRole } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { markConversationRead, trainerHasAccess } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
@@ -56,8 +56,10 @@ export async function GET(
     include: { fromTrainer: { select: { id: true, name: true } } },
   })
 
-  // Mark read for the viewer.
-  await markConversationRead(convo.id, ctx.role === "ADMIN" ? "admin" : "trainer")
+  // Mark read for the viewer. SUPER_ADMIN counts as the admin side - the bare
+  // "ADMIN" check used to reset the TRAINER counter for a super-admin, so
+  // unreadAdmin never cleared and the admin badge accumulated a backlog.
+  await markConversationRead(convo.id, isAdminRole(ctx.role) ? "admin" : "trainer")
 
   // Send Meta "read" receipts for any inbound messages we haven't ack'd yet
   // so the client sees blue double-checks on their side. Done in the
@@ -107,7 +109,7 @@ export async function PATCH(
   const r = await loadConvoForUser(id)
   if ("error" in r) return r.error
   const { ctx, convo } = r
-  if (ctx.role !== "ADMIN") return NextResponse.json({ error: "Admin only" }, { status: 403 })
+  if (!isAdminRole(ctx.role)) return NextResponse.json({ error: "Admin only" }, { status: 403 })
 
   const { assignedTrainerId } = (await req.json()) as { assignedTrainerId: string | null }
   if (assignedTrainerId) {

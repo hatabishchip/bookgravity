@@ -240,3 +240,16 @@ export async function markConversationRead(
       : { unreadTrainer: 0, bookingPreview: null },
   })
 }
+
+/**
+ * Clear the ADMIN unread counter across a whole studio in one go ("mark all
+ * read"). Lets an admin zero a historical backlog instead of opening dozens of
+ * old chats one by one. Returns how many rows were cleared.
+ */
+export async function markAllConversationsReadForAdmin(studioId: string): Promise<number> {
+  const res = await prisma.whatsAppConversation.updateMany({
+    where: { studioId, unreadAdmin: { gt: 0 } },
+    data: { unreadAdmin: 0 },
+  })
+  return res.count
+}

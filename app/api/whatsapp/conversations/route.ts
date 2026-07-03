@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/auth-helpers"
+import { requireAuth, isAdminRole } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { phoneTail } from "@/lib/membership"
@@ -110,7 +110,7 @@ export async function GET(_req: NextRequest) {
       accessTrainers: c.access.map((a) => a.trainer),
       lastMessageAt: c.lastMessageAt,
       lastInboundAt: c.lastInboundAt,
-      unread: ctx.role === "ADMIN" ? c.unreadAdmin : c.unreadTrainer,
+      unread: isAdminRole(ctx.role) ? c.unreadAdmin : c.unreadTrainer,
       bookingPreview: c.bookingPreview ?? null,
       lastMessage: c.messages[0]
         ? {

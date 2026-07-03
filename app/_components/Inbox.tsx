@@ -834,6 +834,19 @@ export default function Inbox({
       if (r.ok) setConvos(await r.json())
     } catch {}
   }, [])
+
+  // "Mark all read": zero the admin unread backlog in one tap, then refresh so
+  // the list + the app-icon badge (both read unreadAdmin) drop to zero.
+  const [markingAll, setMarkingAll] = useState(false)
+  const markAllRead = useCallback(async () => {
+    setMarkingAll(true)
+    try {
+      await fetch("/api/whatsapp/conversations/read-all", { method: "POST" })
+      await refreshList()
+    } catch {} finally {
+      setMarkingAll(false)
+    }
+  }, [refreshList])
   useEffect(() => {
     refreshList()
     // Visible-tab only (CPU guard 2026-06-12) — cabinets stay open 24/7.
@@ -1596,6 +1609,16 @@ export default function Inbox({
               </button>
             )
           })}
+          {/* Clear the whole admin unread backlog at once (badge = unreadAdmin). */}
+          {role === "ADMIN" && convos.some((c) => c.unread > 0) && (
+            <button
+              onClick={markAllRead}
+              disabled={markingAll}
+              className="ml-auto px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap text-brand hover:bg-brand/5 disabled:opacity-50"
+            >
+              {markingAll ? "…" : "Mark all read"}
+            </button>
+          )}
         </div>
       )}
 

@@ -5,6 +5,15 @@ import type { Session } from "next-auth"
 
 export type UserRole = "ADMIN" | "TRAINER" | "SUPER_ADMIN" | "STAFF"
 
+// A SUPER_ADMIN is an admin everywhere in the product (they manage a studio +
+// the platform). Several WhatsApp-inbox checks used a bare `role === "ADMIN"`,
+// which silently treated a super-admin as a trainer: they saw the trainer's
+// unread counter, and opening a chat reset unreadTrainer instead of unreadAdmin
+// (so the admin badge never cleared and a 49-chat backlog piled up). Use this
+// everywhere the "admin side" is meant.
+export const isAdminRole = (role: string | null | undefined): boolean =>
+  role === "ADMIN" || role === "SUPER_ADMIN"
+
 export type SessionContext = {
   userId: string
   studioId: string
