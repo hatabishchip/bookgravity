@@ -129,7 +129,15 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
             <Settings size={18} />
             Settings
           </Link>
-          <button onClick={() => signOut({ callbackUrl: `${window.location.origin}/` })}
+          <button onClick={() => {
+              // Inside the native app WebView, redirect to a sentinel the app
+              // detects (native_signout=1) so it ALSO clears the native session
+              // - otherwise the app re-bridges from the still-valid native token
+              // and the logout is instantly undone. Plain web logout stays as-is.
+              const nativeApp = typeof window !== "undefined" && (window as { __GS_NATIVE__?: boolean }).__GS_NATIVE__
+              const base = window.location.origin
+              signOut({ callbackUrl: nativeApp ? `${base}/login?native_signout=1` : `${base}/` })
+            }}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5 w-full">
             <LogOut size={18} />
             Sign Out

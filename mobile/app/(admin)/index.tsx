@@ -2,11 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { ActivityIndicator, View, StyleSheet, Pressable, Linking } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView } from "react-native-webview"
-import { useLocalSearchParams } from "expo-router"
+import { useLocalSearchParams, useRouter } from "expo-router"
 import { api, API_BASE } from "@/lib/api"
+import { useAuth } from "@/lib/auth"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
 import { PULL_TO_REFRESH_JS } from "@/lib/webview-pull-refresh"
+
+// Marks the embedded web session as "running inside the native app" so the web
+// Sign Out button routes to the native-signout sentinel (see onNav).
+const NATIVE_FLAG_JS = "window.__GS_NATIVE__ = true; true;"
 
 // Admin home: the full web admin embedded in a WebView. We mint a short-lived
 // bridge token from the native session and open /native-bridge, which signs the
@@ -14,6 +19,7 @@ import { PULL_TO_REFRESH_JS } from "@/lib/webview-pull-refresh"
 // falls back to /login (web cookie expired), we silently re-bridge.
 export default function AdminWebView() {
   const { theme } = useTheme()
+  const router = useRouter()
   const params = useLocalSearchParams<{ next?: string }>()
   const next = typeof params.next === "string" && params.next ? params.next : "/admin"
 
@@ -34,11 +40,19 @@ export default function AdminWebView() {
 
   useEffect(() => { bridge() }, [bridge])
 
-  // If the WebView lands on the web login (session lost), re-bridge so the admin
-  // never has to type a password again.
+  // Distinguish "user tapped Sign Out" from "web session merely expired":
+  //  - sentinel /login?native_signout=1 → the user chose to leave: clear the
+  //    NATIVE session too and go to the native login. Do NOT re-bridge (that
+  //    would instantly log them back in from the still-valid native token).
+  //  - any other /login → session expired → re-bridge silently for convenience.
   const onNav = useCallback((navState: { url: string }) => {
+    if (/[?&]native_signout=1/.test(navState.url)) {
+      useAuth.getState().signOut().catch(() => {})
+      router.replace("/(auth)/login")
+      return
+    }
     if (/\/login(\?|$)/.test(navState.url)) bridge()
-  }, [bridge])
+  }, [bridge, router])
 
   // Google OAuth (e.g. "Connect Google Calendar") can't run inside an embedded
   // WebView - Google blocks it ("disallowed_useragent"). So when the WebView
@@ -83,6 +97,7 @@ export default function AdminWebView() {
           onNavigationStateChange={onNav}
           onShouldStartLoadWithRequest={onShouldStart}
           onError={() => setError("Could not load the admin. Pull to retry.")}
+          injectedJavaScriptBeforeContentLoaded={NATIVE_FLAG_JS}
           startInLoadingState
           renderLoading={() => (
             <View style={[styles.center, StyleSheet.absoluteFill]}><ActivityIndicator color={theme.brand.primary} /></View>

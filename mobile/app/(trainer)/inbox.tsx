@@ -3,16 +3,21 @@ import { ActivityIndicator, View, StyleSheet, Pressable } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView } from "react-native-webview"
 import * as Notifications from "expo-notifications"
+import { useRouter } from "expo-router"
 import { api, API_BASE } from "@/lib/api"
+import { useAuth } from "@/lib/auth"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
 import { PULL_TO_REFRESH_JS } from "@/lib/webview-pull-refresh"
+
+const NATIVE_FLAG_JS = "window.__GS_NATIVE__ = true; true;"
 
 // Trainer inbox: the web /trainer/inbox embedded in a WebView with a
 // bridge token so the trainer stays logged in. Resets the app badge to 0
 // on open (the user has come to read their messages).
 export default function TrainerInboxWebView() {
   const { theme } = useTheme()
+  const router = useRouter()
   const [uri, setUri] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const webRef = useRef<WebView>(null)
@@ -47,8 +52,14 @@ export default function TrainerInboxWebView() {
   }, [bridge])
 
   const onNav = useCallback((navState: { url: string }) => {
+    // Sentinel = user tapped Sign Out → clear the native session, don't re-bridge.
+    if (/[?&]native_signout=1/.test(navState.url)) {
+      useAuth.getState().signOut().catch(() => {})
+      router.replace("/(auth)/login")
+      return
+    }
     if (/\/login(\?|$)/.test(navState.url)) bridge()
-  }, [bridge])
+  }, [bridge, router])
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg.card }} edges={["top"]}>
@@ -64,6 +75,7 @@ export default function TrainerInboxWebView() {
           source={{ uri }}
           onNavigationStateChange={onNav}
           onError={() => setError("Could not load inbox. Tap to retry.")}
+          injectedJavaScriptBeforeContentLoaded={NATIVE_FLAG_JS}
           startInLoadingState
           renderLoading={() => (
             <View style={[styles.center, StyleSheet.absoluteFill]}>

@@ -195,7 +195,13 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           <KeyRound size={18} />
           Change Password
         </button>
-        <button onClick={() => signOut({ callbackUrl: `${window.location.origin}/` })}
+        <button onClick={() => {
+            // See admin layout: sentinel logout so the native app clears its
+            // own session instead of re-bridging back in.
+            const nativeApp = typeof window !== "undefined" && (window as { __GS_NATIVE__?: boolean }).__GS_NATIVE__
+            const base = window.location.origin
+            signOut({ callbackUrl: nativeApp ? `${base}/login?native_signout=1` : `${base}/` })
+          }}
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 w-full transition-colors">
           <LogOut size={18} />
           Sign Out
