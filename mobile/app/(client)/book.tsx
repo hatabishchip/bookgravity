@@ -35,13 +35,18 @@ export default function BookScreen() {
   const [partySize, setPartySize] = useState(1)
   const [done, setDone] = useState<{ ticketCode: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // WhatsApp confirmation code step. `codeSent` reveals the code input; the
-  // code is passed straight to /api/bookings (the server re-verifies it), so
-  // no cookie persistence is needed on the device. Studios with the code turned
-  // off (or a signed-in staff Bearer) return {skipped} and we book directly.
+  // Phone-first flow (mirrors the web widget): the client proves the number
+  // via a WhatsApp code, THEN the name/email fields appear pre-filled from the
+  // server (a returning client types nothing). `unlocked` reveals those fields;
+  // `codeSent` reveals the code input; `membership` shows the informational
+  // pass balance. The verified `code` is passed to /api/bookings (the server
+  // re-verifies it, no cookie persistence needed on the device).
   const [codeSent, setCodeSent] = useState(false)
   const [code, setCode] = useState("")
   const [otpBusy, setOtpBusy] = useState(false)
+  const [unlocked, setUnlocked] = useState(false)
+  const [verifiedCode, setVerifiedCode] = useState<string | undefined>(undefined)
+  const [membership, setMembership] = useState<number | null>(null)
 
   // Fetch the slot to render its date/time + class type in the sheet.
   // No dedicated endpoint exists yet, so we look it up in the month feed.
@@ -52,8 +57,19 @@ export default function BookScreen() {
   })
   const slot = slotsQuery.data?.find((s) => s.id === slotId) as SlotDetail | undefined
 
+  type ClientDetails = { name?: string | null; email?: string | null; membershipRemaining?: number | null }
+  // Pre-fill the returning client's known details WITHOUT clobbering anything
+  // they've already typed (privacy: these only ever arrive after the code /
+  // trusted device, matching the server's gate).
+  const applyClient = (c?: ClientDetails | null) => {
+    if (!c) return
+    if (c.name) setName((n) => n || c.name!.trim())
+    if (c.email) setEmail((e) => e || c.email!.trim())
+    if (typeof c.membershipRemaining === "number") setMembership(c.membershipRemaining)
+  }
+
   const book = useMutation({
-    mutationFn: async (otpCode?: string) => {
+    mutationFn: async () => {
       return api<{ id: string; ticketCode: string }>("/api/bookings", {
         method: "POST",
         body: {
@@ -62,7 +78,7 @@ export default function BookScreen() {
           clientPhone: phone.trim(),
           clientEmail: email.trim(),
           partySize,
-          ...(otpCode ? { otpCode } : {}),
+          ...(verifiedCode ? { otpCode: verifiedCode } : {}),
         },
       })
     },
@@ -74,27 +90,36 @@ export default function BookScreen() {
     },
     onError: (err) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-      // A 401 here = the WhatsApp code was wrong/expired. Keep the code field
-      // open so the client can re-enter or resend instead of dead-ending.
+      // 401 = the code expired between verify and booking (rare). Re-arm the
+      // code step instead of dead-ending.
       if (err instanceof ApiError && err.status === 401) {
+        setUnlocked(false)
         setCodeSent(true)
-        setError("That code is incorrect or expired. Re-enter it or tap Resend.")
+        setVerifiedCode(undefined)
+        setError("Your code expired. Please re-enter the code from WhatsApp.")
         return
       }
       setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Booking failed")
     },
   })
 
-  // Ask the server to send (or resend) the WhatsApp code. Returns "skip" when
-  // no code is needed (studio has it off, or a signed-in staff Bearer), "sent"
-  // when a code is on its way, or throws with a user-facing message.
-  const requestCode = async (): Promise<"skip" | "sent"> => {
+  // Ask the server to send (or resend) the WhatsApp code. When no code is
+  // needed - the studio has it off, a signed-in staff Bearer, OR (browsers
+  // only) a trusted-device cookie - the response carries {skipped} and, for
+  // the trusted-device case, the client's details; we unlock immediately.
+  // Otherwise a code is on its way. Throws with a user-facing message on error.
+  const requestCode = async (): Promise<"unlocked" | "sent"> => {
     try {
-      const r = await api<{ sent?: boolean; skipped?: boolean }>("/api/otp/send", {
-        method: "POST",
-        body: { phone: phone.trim() },
-      })
-      return r.skipped ? "skip" : "sent"
+      const r = await api<{ sent?: boolean; skipped?: boolean; session?: boolean; client?: ClientDetails }>(
+        "/api/otp/send",
+        { method: "POST", body: { phone: phone.trim() } },
+      )
+      if (r.skipped) {
+        applyClient(r.client) // present on the trusted-device (session) branch
+        setUnlocked(true)
+        return "unlocked"
+      }
+      return "sent"
     } catch (err) {
       if (err instanceof ApiError) {
         const b = (err.body ?? {}) as { code?: string }
@@ -106,34 +131,54 @@ export default function BookScreen() {
     }
   }
 
-  const submit = async () => {
+  // Step 1: phone entered → send a code (or unlock straight away).
+  const sendCode = async () => {
     setError(null)
-    if (name.trim().length < 2) { setError("Enter your full name"); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError("Enter a valid email"); return }
     if (phone.trim().length < 7) { setError("Enter your phone with country code (e.g. +62 …)"); return }
-
-    // Already have the code on screen → book with it.
-    if (codeSent) {
-      if (code.trim().length < 1) { setError("Enter the code from WhatsApp"); return }
-      book.mutate(code.trim())
-      return
-    }
-
-    // First tap: ask for a code (or skip straight to booking).
     setOtpBusy(true)
     try {
       const outcome = await requestCode()
-      if (outcome === "skip") {
-        book.mutate(undefined)
-      } else {
-        setCodeSent(true)
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-      }
+      if (outcome === "sent") { setCodeSent(true); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success) }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't send the code.")
     } finally {
       setOtpBusy(false)
     }
+  }
+
+  // Step 2: verify the code → reveal + pre-fill name/email from the server.
+  const verifyCode = async () => {
+    setError(null)
+    if (code.trim().length < 1) { setError("Enter the code from WhatsApp"); return }
+    setOtpBusy(true)
+    try {
+      const v = await api<{ ok: boolean; client?: ClientDetails }>("/api/otp/verify", {
+        method: "POST",
+        body: { phone: phone.trim(), code: code.trim() },
+      })
+      applyClient(v.client)
+      setVerifiedCode(code.trim())
+      setUnlocked(true)
+      setCodeSent(false)
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    } catch (err) {
+      const msg = err instanceof ApiError
+        ? (((err.body ?? {}) as { remaining?: number }).remaining != null
+            ? `Wrong code - ${((err.body as { remaining?: number }).remaining)} tries left.`
+            : "That code is incorrect or expired. Re-enter it or tap Resend.")
+        : "Couldn't verify the code. Please try again."
+      setError(msg)
+    } finally {
+      setOtpBusy(false)
+    }
+  }
+
+  // Step 3: create the booking.
+  const confirmBooking = () => {
+    setError(null)
+    if (name.trim().length < 2) { setError("Enter your full name"); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError("Enter a valid email"); return }
+    book.mutate()
   }
 
   const resendCode = async () => {
@@ -182,30 +227,15 @@ export default function BookScreen() {
           <ActivityIndicator color={theme.brand.primary} />
         )}
 
-        <Input
-          label="Full name"
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words"
-          autoComplete="name"
-          textContentType="name"
-          placeholder="Alex Diachuk"
-        />
-        <Input
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoComplete="email"
-          textContentType="emailAddress"
-          keyboardType="email-address"
-          placeholder="you@example.com"
-          hint="We'll send your ticket and reminders here."
-        />
+        {/* Phone first. Editing it after starting resets the verified state so
+            a new number gets its own code. */}
         <Input
           label="Phone (with country code)"
           value={phone}
-          onChangeText={(v) => { setPhone(v); if (codeSent) { setCodeSent(false); setCode("") } }}
+          onChangeText={(v) => {
+            setPhone(v)
+            if (codeSent || unlocked) { setCodeSent(false); setUnlocked(false); setCode(""); setVerifiedCode(undefined); setMembership(null) }
+          }}
           keyboardType="phone-pad"
           autoComplete="tel"
           textContentType="telephoneNumber"
@@ -213,8 +243,8 @@ export default function BookScreen() {
           hint="We send a quick confirmation code to this WhatsApp."
         />
 
-        {/* WhatsApp code step - appears after the first Confirm tap. */}
-        {codeSent && (
+        {/* Step 2: WhatsApp code (until verified). */}
+        {codeSent && !unlocked && (
           <View style={{ gap: spacing.sm }}>
             <Input
               label="WhatsApp code"
@@ -230,6 +260,39 @@ export default function BookScreen() {
               <Text variant="footnote" tone="brand">{otpBusy ? "Sending…" : "Resend code"}</Text>
             </Pressable>
           </View>
+        )}
+
+        {/* Step 3: name + email, revealed and pre-filled after verification.
+            A returning client sees their own details already in place. */}
+        {unlocked && (
+          <>
+            {membership != null && membership > 0 && (
+              <View style={[styles.recap, { backgroundColor: theme.brand.primarySoft, paddingVertical: spacing.md }]}>
+                <Text variant="footnote" tone="brand">
+                  🎟️ {membership} {membership === 1 ? "class" : "classes"} left on your membership
+                </Text>
+              </View>
+            )}
+            <Input
+              label="Full name"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+              autoComplete="name"
+              textContentType="name"
+              placeholder="Alex Diachuk"
+            />
+            <Input
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
+              keyboardType="email-address"
+              placeholder="you@example.com"
+            />
+          </>
         )}
 
         {/* Party size stepper */}
@@ -263,8 +326,8 @@ export default function BookScreen() {
         )}
 
         <Button
-          title={codeSent ? "Confirm booking" : "Continue"}
-          onPress={submit}
+          title={unlocked ? "Confirm booking" : codeSent ? "Verify code" : "Continue"}
+          onPress={unlocked ? confirmBooking : codeSent ? verifyCode : sendCode}
           loading={book.isPending || otpBusy}
         />
       </ScrollView>
