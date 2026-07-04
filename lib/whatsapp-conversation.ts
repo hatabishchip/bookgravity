@@ -214,17 +214,15 @@ export async function updateMessageStatus(opts: {
 }
 
 /**
- * Mark a booking in the conversation as an unread item for admin and trainer.
- * Sets a preview line visible in the inbox list; cleared when either opens the chat.
+ * Set the "new booking" preview line on a conversation. Owner rule (2026-07-03):
+ * the red unread number is ONLY for unanswered client messages, so a booking no
+ * longer bumps unreadAdmin/unreadTrainer - it just shows this preview line
+ * (cleared when the chat is opened). The client's own push covers the alert.
  */
 export async function markBookingPreview(conversationId: string, preview: string) {
   await prisma.whatsAppConversation.update({
     where: { id: conversationId },
-    data: {
-      bookingPreview: preview,
-      unreadAdmin: { increment: 1 },
-      unreadTrainer: { increment: 1 },
-    },
+    data: { bookingPreview: preview },
   })
 }
 

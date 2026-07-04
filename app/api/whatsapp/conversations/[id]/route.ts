@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth, isAdminRole } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
-import { markConversationRead, trainerHasAccess } from "@/lib/whatsapp-conversation"
+import { trainerHasAccess } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { markMessageRead, getConfigFor } from "@/lib/whatsapp-cloud"
 
@@ -56,10 +56,14 @@ export async function GET(
     include: { fromTrainer: { select: { id: true, name: true } } },
   })
 
-  // Mark read for the viewer. SUPER_ADMIN counts as the admin side - the bare
-  // "ADMIN" check used to reset the TRAINER counter for a super-admin, so
-  // unreadAdmin never cleared and the admin badge accumulated a backlog.
-  await markConversationRead(convo.id, isAdminRole(ctx.role) ? "admin" : "trainer")
+  // Owner rule (2026-07-03): the red unread number means "a client message
+  // nobody answered", so merely OPENING a chat must NOT clear it - it clears
+  // only on a staff reply or reaction. We still clear the informational booking
+  // preview note on open, and still send Meta "read" receipts (blue ticks)
+  // below - those are independent of our internal "answered" state.
+  await prisma.whatsAppConversation
+    .update({ where: { id: convo.id }, data: { bookingPreview: null } })
+    .catch(() => {})
 
   // Send Meta "read" receipts for any inbound messages we haven't ack'd yet
   // so the client sees blue double-checks on their side. Done in the

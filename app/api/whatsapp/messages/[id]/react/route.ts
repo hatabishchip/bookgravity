@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
-import { trainerHasAccess, isInsideCustomerWindow } from "@/lib/whatsapp-conversation"
+import { trainerHasAccess, isInsideCustomerWindow, markConversationHandled } from "@/lib/whatsapp-conversation"
 import { sendWhatsAppReaction, getConfigFor } from "@/lib/whatsapp-cloud"
 import { z } from "zod"
 
@@ -62,6 +62,11 @@ export async function POST(
     where: { id: message.id },
     data: { reaction: emoji || null },
   })
+
+  // A staff reaction/like on the client's message counts as answered (owner
+  // rule 2026-07-03) - clear the unread for admin + trainer, same as a reply.
+  // Clearing the reaction (empty emoji) does not re-open it.
+  if (emoji) await markConversationHandled(message.conversation.id)
 
   // Mirror to the client when possible. Reactions, like free-form text, only
   // work inside the 24h window and need the original message's wamid.
