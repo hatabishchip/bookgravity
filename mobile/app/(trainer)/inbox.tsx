@@ -35,9 +35,11 @@ export default function TrainerInboxWebView() {
 
   useEffect(() => {
     bridge()
-    // Opening the inbox = the user is reading their messages. Clear the chat
-    // notifications from the tray (so the Android icon badge, which counts tray
-    // notifications, doesn't keep showing a stale number) and reset the badge.
+    // Opening the inbox clears the stale tray notifications (so the Android icon
+    // badge, which counts tray items, doesn't show a wrong number) - but the
+    // icon badge is then set to the REAL unanswered-conversation count, NOT 0.
+    // Owner rule (2026-07-03): merely opening the inbox must not zero the count;
+    // it drops only when a message is actually answered.
     ;(async () => {
       try {
         const presented = await Notifications.getPresentedNotificationsAsync()
@@ -47,7 +49,12 @@ export default function TrainerInboxWebView() {
             .map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {})),
         )
       } catch { /* best-effort */ }
-      Notifications.setBadgeCountAsync(0).catch(() => {})
+      try {
+        const res = await api<{ unread: number }>("/api/push/unread")
+        await Notifications.setBadgeCountAsync(res.unread)
+      } catch {
+        Notifications.setBadgeCountAsync(0).catch(() => {})
+      }
     })()
   }, [bridge])
 
