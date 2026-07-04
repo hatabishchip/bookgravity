@@ -397,11 +397,13 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               autoCorrect={desktop ? "on" : "off"}
               autoCapitalize={desktop ? "sentences" : "off"}
               spellCheck={desktop}
-              placeholder={windowOpen ? "Message" : role === "TRAINER" ? "Window closed — tap 👋" : "Window closed — use a template"}
-              // Block typing entirely when the 24h window is closed — free text
-              // can't reach the client, so the field is inactive until a client
-              // message re-opens the window.
-              disabled={sending || !windowOpen}
+              placeholder={windowOpen ? "Message" : "Message (sent as a template)"}
+              // Staff (admin + trainer) can type even when the 24h window is
+              // closed - the server delivers it via the approved admin_message
+              // template (free-form can't reach a cold chat, a template can).
+              // This is the fix for the "coach sick, must tell today's students"
+              // case (owner 2026-07-04) - trainers were stuck with just the wave.
+              disabled={sending}
               rows={1}
               className={cn(
                 // Bright brand-green caret so it's obvious where the cursor is

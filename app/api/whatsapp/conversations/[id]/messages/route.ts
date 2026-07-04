@@ -138,18 +138,25 @@ export async function POST(
   }
 
   // ---------- Text path ----------
-  // Admins can message a client at ANY time. When the 24h customer-service
-  // window is closed we auto-fall back to the approved "admin_message"
-  // template (see scripts/create-admin-message-template.ts), wrapping the
-  // admin's typed text as variable {{2}}. Trainers still hit the 409 when
-  // the window is closed — by design, they're not supposed to start new
-  // conversations.
+  // Staff (admin AND trainer of this studio) can message a client at ANY time.
+  // When the 24h customer-service window is closed we auto-fall back to the
+  // approved "admin_message" template (see scripts/create-admin-message-template.ts),
+  // wrapping the typed text as variable {{2}}.
+  //
+  // Trainers used to hit a 409 when the window was closed - but that blocked the
+  // exact case that matters (owner 2026-07-04, Coach Dita sick): a trainer needs
+  // to tell TODAY's students the class is cancelled/moved, and those students
+  // are usually outside the window (they got a reminder but didn't reply). Since
+  // this goes via an approved template (never free-form), letting trainers use
+  // it is safe. Trainers are already access-gated to their own conversations
+  // above (trainerHasAccess). STAFF (cleaning) is still not a messaging role.
+  const staffCanMessage = isAdminRole(ctx.role) || ctx.role === "TRAINER"
   const parsed = TextSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
   }
   const windowOpen = isInsideCustomerWindow(convo.lastInboundAt)
-  if (!windowOpen && !isAdminRole(ctx.role)) {
+  if (!windowOpen && !staffCanMessage) {
     return NextResponse.json(
       {
         error:
@@ -189,10 +196,10 @@ export async function POST(
     }
   }
 
-  // Closed-window template fallback for admins. Wraps the admin's (already
-  // translated, if applicable) text as the {{2}} variable of `admin_message`,
-  // and uses the client's name as {{1}} (fallback: "there").
-  if (!windowOpen && isAdminRole(ctx.role)) {
+  // Closed-window template fallback for staff (admin + trainer). Wraps the
+  // typed (already translated, if applicable) text as the {{2}} variable of
+  // `admin_message`, with the client's name as {{1}} (fallback: "there").
+  if (!windowOpen && staffCanMessage) {
     const adminTemplate =
       process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message"
     const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
