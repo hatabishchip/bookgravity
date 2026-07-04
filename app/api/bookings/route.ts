@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       }
     }
     const slot = await prisma.timeSlot.findFirst({
-      where: { id: data.slotId, studioId, trainerId: { not: null }, publicVisible: true },
+      where: { id: data.slotId, studioId, trainerId: { not: null }, publicVisible: true, cancelledAt: null },
       include: {
         _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
         studio: { select: { timezone: true } },
@@ -203,10 +203,13 @@ export async function POST(request: NextRequest) {
         where: { id: data.slotId },
         select: {
           maxCapacity: true,
+          cancelledAt: true,
           _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
         },
       })
-      if (!fresh) throw new CapacityError(0, data.partySize)
+      // Slot vanished OR was cancelled between the availability gate above and
+      // this transaction (trainer pressed "can't teach" mid-booking).
+      if (!fresh || fresh.cancelledAt) throw new CapacityError(0, data.partySize)
       const freshSeatsLeft = fresh.maxCapacity - fresh._count.bookings
       if (freshSeatsLeft < data.partySize) {
         throw new CapacityError(freshSeatsLeft, data.partySize)

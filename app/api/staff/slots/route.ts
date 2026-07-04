@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
     where: {
       studioId: ctx.studioId,
       date: { gte: from, lte: to },
+      // Cleaning staff plan around classes that HAPPEN — hide cancelled ones.
+      cancelledAt: null,
     },
     orderBy: [{ date: "asc" }, { startTime: "asc" }],
     // INTENTIONAL minimal projection — no trainer, no classType, no maxCapacity,

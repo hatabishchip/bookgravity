@@ -31,6 +31,8 @@ export async function GET(_req: NextRequest) {
       // trainer-less slot would reassign their chat to nobody and the
       // "new booking" ping would reach no one.
       trainerId: { not: null },
+      // A cancelled class is not a valid destination.
+      cancelledAt: null,
     },
     include: {
       trainer: { select: { name: true } },

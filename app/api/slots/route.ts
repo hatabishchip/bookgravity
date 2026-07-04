@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
         studioId,
         date: { gte: monthStartStr, lte: maxStr },
         trainerId: { not: null }, publicVisible: true,
+        cancelledAt: null,
       },
       include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
   }
 
   const slots = await prisma.timeSlot.findMany({
-    where: { studioId, date, trainerId: { not: null }, publicVisible: true },
+    where: { studioId, date, trainerId: { not: null }, publicVisible: true, cancelledAt: null },
     include: {
       _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
       trainer: { select: { name: true } },

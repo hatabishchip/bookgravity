@@ -114,7 +114,7 @@ export async function handleCancelBotMessage(opts: {
     }
     const updated = await prisma.booking.update({
       where: { id: booking.id },
-      data: { status: "CANCELLED" },
+      data: { status: "CANCELLED", cancelledAt: new Date(), cancelledByRole: "client" },
       select: { id: true, status: true, slot: { select: { date: true, startTime: true } } },
     })
     // Give the class back to the membership if it was paid from one.
@@ -133,6 +133,87 @@ export async function handleCancelBotMessage(opts: {
       cancelledBy: "client",
     }).catch(() => {})
     await reply("Booking canceled 😔\n\nHope to see you another time 💫")
+    return
+  }
+
+  // --- Class-moved template buttons → payloads "KEEP:<ticket>" / "DROP:<ticket>" ---
+  // Sent with the class-moved template (T2): the studio moved a whole class,
+  // each client can confirm the new time in one tap or decline it. NOTE: no
+  // approved template carries these payloads yet — the handlers ship dark and
+  // only become reachable once T2 (with these buttons) is approved by the
+  // owner + Meta. Both are idempotent: a double tap re-sends the same reply.
+  const keepDrop = text.match(/^(KEEP|DROP):(\d{3})$/i)
+  if (keepDrop) {
+    const verb = keepDrop[1].toUpperCase()
+    const ticket = keepDrop[2]
+    const tail = phoneTail(opts.clientPhone)
+    if (tail.length < 6) return
+    const candidates = await prisma.booking.findMany({
+      where: { ticketCode: ticket, slot: { studioId: opts.studioId } },
+      include: { slot: true },
+      orderBy: { createdAt: "desc" },
+    })
+    const own = candidates.filter((b) => phoneTail(b.clientPhone) === tail)
+    if (own.length === 0) return // not our payload — bail silently
+    const active = own.find((b) => b.status === "CONFIRMED")
+
+    if (verb === "KEEP") {
+      if (active) {
+        await reply(
+          `Great, your spot on ${active.slot.date} at ${active.slot.startTime} is saved. See you there! 🙏`
+        )
+      } else {
+        // They dropped earlier (or it was cancelled) and now tapped "I'll be
+        // there" — be honest instead of faking a confirmation.
+        await reply(
+          "This booking was already cancelled. If you'd like to come, please book again - we'd love to see you!"
+        )
+      }
+      return
+    }
+
+    // DROP — the studio moved the class, so the client keeps a full right to
+    // decline: no 2-hour-window check, the pass always comes back.
+    if (!active) {
+      await reply("Booking canceled 😔\n\nHope to see you another time 💫")
+      return
+    }
+    // The whole party on this phone declines together (same rule as CANCELALL).
+    const mine = (
+      await prisma.booking.findMany({ where: { slotId: active.slotId, status: "CONFIRMED" } })
+    ).filter((b) => phoneTail(b.clientPhone) === tail)
+    let restored = 0
+    for (const b of mine) {
+      await prisma.booking.update({
+        where: { id: b.id },
+        data: { status: "CANCELLED", cancelledAt: new Date(), cancelledByRole: "client" },
+      })
+      if (b.membershipId) {
+        await restoreMembershipClass(b.membershipId)
+        restored++
+      }
+    }
+    console.log("[cancel-bot] declined moved class via payload", {
+      ticket,
+      count: mine.length,
+      slotId: active.slotId,
+      phone: opts.clientPhone,
+    })
+    void notifyStaffOfCancellation({
+      studioId: opts.studioId,
+      slotId: active.slotId,
+      clientName: active.clientName.replace(/\s*\(\d+\/\d+\)$/, ""),
+      cancelledBy: "client",
+    }).catch(() => {})
+    const passNote = restored > 0
+      ? (restored > 1 ? " Your classes are back on your pass." : " Your class is back on your pass.")
+      : ""
+    await reply(
+      (mine.length > 1
+        ? `All ${mine.length} bookings canceled 😔${passNote}`
+        : `Booking canceled 😔${passNote}`) +
+        "\n\nBook any time that suits you - hope to see you soon 💫"
+    )
     return
   }
 
@@ -170,7 +251,10 @@ export async function handleCancelBotMessage(opts: {
       return
     }
     for (const b of mine) {
-      await prisma.booking.update({ where: { id: b.id }, data: { status: "CANCELLED" } })
+      await prisma.booking.update({
+        where: { id: b.id },
+        data: { status: "CANCELLED", cancelledAt: new Date(), cancelledByRole: "client" },
+      })
       if (b.membershipId) await restoreMembershipClass(b.membershipId)
     }
     console.log("[cancel-bot] cancelled party via payload", {
@@ -224,7 +308,7 @@ export async function handleCancelBotMessage(opts: {
       }
       const updated = await prisma.booking.update({
         where: { id: active.id },
-        data: { status: "CANCELLED" },
+        data: { status: "CANCELLED", cancelledAt: new Date(), cancelledByRole: "client" },
         select: { id: true, status: true, slot: { select: { date: true, startTime: true } } },
       })
       if (active.membershipId) await restoreMembershipClass(active.membershipId)

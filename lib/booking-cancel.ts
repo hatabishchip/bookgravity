@@ -13,8 +13,8 @@ import { upsertConversation, appendOutboundMessage } from "@/lib/whatsapp-conver
 // (see scripts/create-booking-canceled-template.ts). Template messages work
 // outside the 24h customer-service window, so the client is reachable even
 // if they never texted us.
-const CANCELLED_TEMPLATE = "booking_canceled"
-const CANCELLED_TEXT =
+export const CANCELLED_TEMPLATE = "booking_canceled"
+export const CANCELLED_TEXT =
   "Done 😊 Your booking has been canceled. " +
   "We'd love to welcome you back on any day that's convenient for you!"
 
@@ -112,6 +112,10 @@ export async function afterStaffCancellation(booking: {
   membershipId: string | null
   slotId?: string
   slot: { studioId: string }
+  /** Trainer.id when a trainer did the cancel — recorded as the author of the
+   *  outbound inbox message so the team can see who acted (the 04.07 incident
+   *  was unattributable because this was always empty). */
+  cancelledByTrainerId?: string | null
 }): Promise<void> {
   try {
     if (booking.membershipId) {
@@ -157,6 +161,7 @@ export async function afterStaffCancellation(booking: {
       conversationId: convo.id,
       type: "template",
       body: CANCELLED_TEXT,
+      fromTrainerId: booking.cancelledByTrainerId ?? null,
     })
   } catch (err) {
     console.error("[booking-cancel] notify failed:", err)

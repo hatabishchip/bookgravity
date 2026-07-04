@@ -80,7 +80,7 @@ export default async function StudioBookingPage({
     // Real upcoming prices feed the content block + schema, so the page never
     // advertises a number the calendar doesn't actually offer.
     prisma.timeSlot.findMany({
-      where: { studioId: studio.id, publicVisible: true, date: { gte: todayStr }, price: { gt: 0 } },
+      where: { studioId: studio.id, publicVisible: true, date: { gte: todayStr }, price: { gt: 0 }, cancelledAt: null },
       select: { classType: true, price: true },
     }),
   ])

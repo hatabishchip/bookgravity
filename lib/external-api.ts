@@ -40,7 +40,9 @@ export type BusyWindow = { date: string; startTime: string; endTime: string; kin
 export async function studioOccupancy(studioId: string, from: string, to: string): Promise<BusyWindow[]> {
   const [slots, blocks] = await Promise.all([
     prisma.timeSlot.findMany({
-      where: { studioId, date: { gte: from, lte: to } },
+      // A cancelled class no longer occupies the room — the window is free
+      // for sublets again.
+      where: { studioId, date: { gte: from, lte: to }, cancelledAt: null },
       select: { date: true, startTime: true, endTime: true, classType: true },
     }),
     prisma.studioBlock.findMany({

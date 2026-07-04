@@ -450,6 +450,11 @@ export async function sendWhatsAppTemplate(opts: {
    *  taps the button, letting us tie the tap to an exact record (e.g. a
    *  specific booking) instead of guessing from text. */
   buttonPayload?: string
+  /** Payloads for templates with SEVERAL quick-reply buttons (index-mapped:
+   *  payloads[0] → button 0, payloads[1] → button 1, ...). Used by the
+   *  class-moved template's "I'll be there" / "Can't make it" pair. Takes
+   *  precedence over `buttonPayload` when both are set. */
+  buttonPayloads?: string[]
   config?: CloudConfig | null
 }): Promise<SendResult> {
   const cfg = opts.config ?? getConfig()
@@ -473,14 +478,19 @@ export async function sendWhatsAppTemplate(opts: {
       parameters: opts.variables.map((v) => ({ type: "text", text: v })),
     })
   }
-  if (opts.buttonPayload) {
+  const payloads = opts.buttonPayloads?.length
+    ? opts.buttonPayloads
+    : opts.buttonPayload
+      ? [opts.buttonPayload]
+      : []
+  payloads.forEach((payload, index) => {
     components.push({
       type: "button",
       sub_type: "quick_reply",
-      index: 0,
-      parameters: [{ type: "payload", payload: opts.buttonPayload }],
+      index,
+      parameters: [{ type: "payload", payload }],
     })
-  }
+  })
 
   return postMessage(cfg, {
     messaging_product: "whatsapp",

@@ -352,6 +352,20 @@ model TimeSlot {
   // Google Calendar event id (when the studio has Google sync connected), so
   // we can update/delete the matching event.
   googleEventId String?
+  // Class-level cancellation ("trainer can't teach this class"). cancelledAt is
+  // the single source of truth: null = active, set = cancelled. A cancelled slot
+  // is hidden from public booking / reschedule / handover targets but stays in
+  // the DB as a tombstone (staff schedule shows it struck through) — we never
+  // hard-delete a slot that had bookings, so history and audit survive (the
+  // 04.07 incident erased a booking via cascade delete and left no trace).
+  cancelledAt       DateTime?
+  cancelledByUserId String?
+  // Why staff cancelled: "sick" | "emergency" | "other". Staff-facing only —
+  // clients always get the approved warm template, never the raw reason.
+  cancelReason      String?
+  // When the class was MOVED instead of cancelled: the slot the group was
+  // rebooked onto. The old slot stays as a cancelled tombstone pointing here.
+  movedToSlotId     String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -415,6 +429,12 @@ model Booking {
   // was sent — ~2.5h before the class. Null = not yet. Guards the frequent
   // today-reminder cron against double-sending.
   todayReminderSentAt DateTime?
+  // Cancellation attribution — who flipped this booking to CANCELLED and when.
+  // The 04.07 incident could not name the actor because nothing recorded it.
+  // cancelledByRole: "client" | "trainer" | "admin" | "system".
+  cancelledAt        DateTime?
+  cancelledByUserId  String?
+  cancelledByRole    String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 

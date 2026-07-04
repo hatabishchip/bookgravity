@@ -9,6 +9,7 @@ import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { useTrainerBell } from "@/app/trainer/layout"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
+import { ClassActionSheet } from "@/app/_components/ClassActionSheet"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import PriceTierSelect from "@/app/_components/PriceTierSelect"
 import { PRICE_TIER_LABEL } from "@/lib/payments"
@@ -27,6 +28,9 @@ type Slot = {
   _count?: { bookings: number }
   // "assisting" only: the lead trainer running the class I help with.
   mainTrainerName?: string | null
+  // Set when the whole class was cancelled ("can't teach") — shown as a
+  // struck-through tombstone, no actions.
+  cancelledAt?: string | null
 }
 
 type Service = { id: string; name: string; price: number }
@@ -352,6 +356,8 @@ export default function TrainerSchedulePage() {
   }, [])
   // Hand-over modal: which of my slots is being offered.
   const [handoverFor, setHandoverFor] = useState<Slot | null>(null)
+  // "Can't teach this class" → cancel/move the whole class with client notices.
+  const [classActionFor, setClassActionFor] = useState<Slot | null>(null)
   const refreshPending = useCallback(async (openGate = false) => {
     try {
       const r = await fetch("/api/trainer/pending-payments")
@@ -1028,6 +1034,25 @@ export default function TrainerSchedulePage() {
                           </div>
                         )
                       }
+                      // Mine but cancelled — struck-through tombstone, no actions.
+                      if (slot.cancelledAt) {
+                        return (
+                          <div
+                            key={slot.id}
+                            className={cn(
+                              "w-full text-left rounded-lg border-2 border-gray-200 bg-gray-50",
+                              view === "2weeks" ? "p-3" : "p-2"
+                            )}
+                          >
+                            <div className={cn("font-semibold text-gray-400 line-through", view === "2weeks" ? "text-base" : "text-xs")}>
+                              {formatTime(slot.startTime)}
+                            </div>
+                            <div className={cn("text-gray-400", view === "2weeks" ? "text-sm" : "text-[10px] mt-0.5")}>
+                              Cancelled
+                            </div>
+                          </div>
+                        )
+                      }
                       // Mine — full interactive card
                       const isSelected = selectedSlot?.id === slot.id
                       const hasBookings = (slot._count?.bookings ?? 0) > 0
@@ -1134,6 +1159,15 @@ export default function TrainerSchedulePage() {
                       className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 text-gray-600 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 active:scale-95 transition touch-manipulation"
                     >
                       Hand over
+                    </button>
+                    {/* Whole-class cancel/move — the tool Dita didn't have on
+                        04.07. Notifies every booked client via template. */}
+                    <button
+                      type="button"
+                      onClick={() => setClassActionFor(selectedSlot)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 text-rose-600 px-3 py-1.5 text-xs font-medium hover:bg-rose-50 active:scale-95 transition touch-manipulation"
+                    >
+                      Can&apos;t teach
                     </button>
                   </div>
                 )}
@@ -1566,6 +1600,22 @@ export default function TrainerSchedulePage() {
           slot={handoverFor}
           onClose={() => setHandoverFor(null)}
           onSent={() => { setHandoverFor(null); refreshHandovers() }}
+        />
+      )}
+
+      {/* "Can't teach this class" — cancel or move the whole class. */}
+      {classActionFor && (
+        <ClassActionSheet
+          slot={{
+            id: classActionFor.id,
+            date: classActionFor.date,
+            startTime: classActionFor.startTime,
+            endTime: classActionFor.endTime,
+            bookedCount: classActionFor._count?.bookings ?? 0,
+          }}
+          role="trainer"
+          onClose={() => { setClassActionFor(null); setSelectedSlot(null); fetchSlots() }}
+          onDone={() => { fetchSlots() }}
         />
       )}
 

@@ -46,7 +46,11 @@ export async function GET(request: NextRequest) {
   //  - unassigned: no trainer set, expose bookings/capacity so the trainer
   //    can ask the admin to be assigned
   //  - other: another trainer is assigned, just an "Occupied" placeholder
-  const sanitized = slots.map((s) => {
+  const sanitized = slots
+    // A cancelled class stays visible ONLY to its own trainer (struck-through
+    // "Cancelled" card); for everyone else it's not occupying the room.
+    .filter((s) => !s.cancelledAt || s.trainerId === trainer.id)
+    .map((s) => {
     if (s.trainerId === trainer.id) return { ...s, state: "mine" as const }
     if (s.assistantId === trainer.id) {
       return {

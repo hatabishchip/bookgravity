@@ -51,7 +51,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // an admin move onto a past / trainer-less slot confirmed a class that can't run).
   if (data.slotId && data.slotId !== existing.slotId) {
     const target = await prisma.timeSlot.findFirst({
-      where: { id: data.slotId, studioId: ctx.studioId },
+      // cancelledAt: a cancelled class is not a valid destination.
+      where: { id: data.slotId, studioId: ctx.studioId, cancelledAt: null },
       include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
     })
     if (!target) return NextResponse.json({ error: "Target class not found" }, { status: 400 })
@@ -72,6 +73,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // Keep the legacy localResident flag in lockstep with the tier.
   if (data.priceTier !== undefined) {
     updateData.localResident = data.priceTier === "LOCAL"
+  }
+  // Cancellation attribution: record who flipped it and when (the 04.07
+  // incident could not name the actor because nothing wrote this down).
+  if (data.status === "CANCELLED" && existing.status !== "CANCELLED") {
+    updateData.cancelledAt = new Date()
+    updateData.cancelledByUserId = ctx.userId
+    updateData.cancelledByRole = "admin"
   }
   if (data.paymentType !== undefined) {
     const sw = await applyPaymentSwitch({

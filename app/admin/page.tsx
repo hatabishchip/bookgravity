@@ -17,7 +17,7 @@ export default async function AdminDashboard() {
   // who hasn't paid today, and is there bank money waiting to be linked.
   const [todaySlots, upcomingSlots, unpaidToday, bankToLink] = await Promise.all([
     prisma.timeSlot.findMany({
-      where: { date: today, studioId },
+      where: { date: today, studioId, cancelledAt: null },
       include: {
         trainer: { select: { name: true } },
         _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
@@ -25,7 +25,7 @@ export default async function AdminDashboard() {
       orderBy: { startTime: "asc" },
     }),
     prisma.timeSlot.findMany({
-      where: { date: { gt: today }, studioId },
+      where: { date: { gt: today }, studioId, cancelledAt: null },
       include: {
         trainer: { select: { name: true } },
         _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },

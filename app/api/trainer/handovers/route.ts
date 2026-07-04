@@ -102,7 +102,8 @@ export async function POST(request: NextRequest) {
   const data = CreateSchema.parse(await request.json())
 
   const slot = await prisma.timeSlot.findFirst({
-    where: { id: data.slotId, studioId: ctx.studioId },
+    // A cancelled class can't be handed over — there's nothing to teach.
+    where: { id: data.slotId, studioId: ctx.studioId, cancelledAt: null },
   })
   if (!slot || slot.trainerId !== trainer.id) {
     return NextResponse.json({ error: "Not your class" }, { status: 403 })

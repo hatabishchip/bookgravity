@@ -89,6 +89,10 @@ export async function GET(request: NextRequest) {
     where: {
       studioId: ctx.studioId,
       ...(from && to ? { date: { gte: from, lte: to } } : {}),
+      // Cancelled classes are tombstones — hiding them here keeps the
+      // day-editor's per-time rows consistent and lets the admin create a
+      // replacement class at the same time.
+      cancelledAt: null,
     },
     include: slotInclude,
     orderBy: [{ date: "asc" }, { startTime: "asc" }],
@@ -324,7 +328,9 @@ export async function PATCH(request: NextRequest) {
           seriesId: current.seriesId,
           date: { gt: current.date },
         },
-        include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
+        // ANY booking rows (incl. CANCELLED) = history worth keeping — hard
+        // delete would cascade those rows away and erase the audit trail.
+        include: { _count: { select: { bookings: true } } },
       })
       let deleted = 0, kept = 0
       for (const f of futures) {
@@ -403,16 +409,19 @@ export async function DELETE(request: NextRequest) {
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-  // Block delete if the slot has confirmed bookings — FK would crash anyway,
-  // and silently swallowing it would lose data. Surface a friendly 409.
+  // Block delete if the slot has ANY booking history. Deleting used to cascade
+  // away even CANCELLED rows — that's how the 04.07 incident erased a booking
+  // without a trace. A class that had clients is cancelled (kept as a
+  // tombstone with notifications + refunds), never deleted; only never-booked
+  // slots can be removed outright.
   const slot = await prisma.timeSlot.findFirst({
     where: { id, studioId: ctx.studioId },
-    include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
+    include: { _count: { select: { bookings: true } } },
   })
   if (!slot) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (slot._count.bookings > 0) {
     return NextResponse.json(
-      { error: `Cannot delete: ${slot._count.bookings} booking${slot._count.bookings === 1 ? "" : "s"}. Cancel them first, or hide the session from clients instead.` },
+      { error: "This class has booking history. Use \"Cancel class\" instead - clients get notified, passes are returned and the class stays in the records." },
       { status: 409 },
     )
   }

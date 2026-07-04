@@ -9,6 +9,7 @@ import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import { QueuedClients } from "@/app/_components/QueuedClients"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { ClassActionSheet } from "@/app/_components/ClassActionSheet"
 import { useOpenChat } from "@/lib/use-open-chat"
 
 type View = "week" | "2weeks" | "month"
@@ -278,6 +279,10 @@ export default function SchedulePage() {
   const [studioPrices, setStudioPrices] = useState<{ groupPrice: number; kidsPrice: number; privatePrice: number } | null>(null)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [modal, setModal] = useState<null | "create" | Slot>(null)
+  // "Can't run this class" — cancel/move a whole class with client notices.
+  const [classActionFor, setClassActionFor] = useState<{
+    id: string; date: string; startTime: string; endTime: string; bookedCount: number
+  } | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState("")
   const [syncError, setSyncError] = useState<string | null>(null)
@@ -1332,6 +1337,24 @@ export default function SchedulePage() {
                                             : <EyeOff size={14} strokeWidth={2.25} />}
                                         </button>
                                       </>
+                                      {/* Whole-class cancel/move (clients notified, passes returned).
+                                          The humane path for a class that can't run — replaces the
+                                          old "cancel bookings one by one, then delete" routine. */}
+                                      {isExisting && hasBookings && existingSlot && (
+                                        <button type="button"
+                                          onClick={() => setClassActionFor({
+                                            id: existingSlot.id,
+                                            date: existingSlot.date,
+                                            startTime: existingSlot.startTime,
+                                            endTime: existingSlot.endTime,
+                                            bookedCount: bookingCount,
+                                          })}
+                                          title="Cancel or move this class - every booked client gets a WhatsApp message"
+                                          className="flex-shrink-0 text-[11px] font-semibold px-2 py-1 rounded-md border border-rose-200 text-rose-600 bg-white hover:bg-rose-50 touch-manipulation whitespace-nowrap"
+                                        >
+                                          Can&apos;t run
+                                        </button>
+                                      )}
                                       {/* Remove session — inline at the end of the time row so it
                                           doesn't reserve a wasted vertical strip down the card. */}
                                       <button type="button"
@@ -1658,6 +1681,24 @@ export default function SchedulePage() {
           </div>
         )
       })()}
+
+      {/* "Can't run this class" — whole-class cancel/move with client notices. */}
+      {classActionFor && (
+        <ClassActionSheet
+          slot={classActionFor}
+          role="admin"
+          trainers={trainers.map((t) => ({ id: t.id, name: t.name }))}
+          onClose={() => {
+            setClassActionFor(null)
+            // The day editor's rows were built from the pre-action slot list —
+            // close it and refetch so a cancelled class doesn't linger as an
+            // editable row.
+            setModal(null)
+            fetchSlots()
+          }}
+          onDone={() => { fetchSlots() }}
+        />
+      )}
     </div>
   )
 }
