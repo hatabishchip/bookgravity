@@ -111,6 +111,11 @@ export async function GET(_req: NextRequest) {
       lastMessageAt: c.lastMessageAt,
       lastInboundAt: c.lastInboundAt,
       unread: isAdminRole(ctx.role) ? c.unreadAdmin : c.unreadTrainer,
+      // "The client is still waiting for an answer" — unreadTrainer counts
+      // exactly the inbound messages no staff reply/reaction has covered, so
+      // a non-zero value IS the awaiting-reply signal. Powers the admin's
+      // Awaiting-reply filter tab (the admin's own red number clears on view).
+      awaitingReply: c.unreadTrainer > 0,
       bookingPreview: c.bookingPreview ?? null,
       lastMessage: c.messages[0]
         ? {

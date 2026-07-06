@@ -45,6 +45,9 @@ type ConversationListItem = {
    *  Drives the Today / Tomorrow chat-list filter. */
   bookedToday?: boolean
   bookedTomorrow?: boolean
+  /** The client's latest message has no staff reply/reaction yet — powers the
+   *  admin's "Awaiting reply" filter tab. */
+  awaitingReply?: boolean
   bookingPreview: string | null
   lastMessage: {
     id: string
@@ -730,7 +733,7 @@ export default function Inbox({
   const [convos, setConvos] = useState<ConversationListItem[] | null>(null)
   const [search, setSearch] = useState("")
   // Chat-list filter by booking day: all chats / booked today / booked tomorrow.
-  const [dateFilter, setDateFilter] = useState<"all" | "today" | "tomorrow">("all")
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "tomorrow" | "awaiting">("all")
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
   // Mobile WhatsApp-style keyboard: hidden until the user taps the input;
   // scrolling the thread hides it again. Desktop ignores this (real keyboard).
@@ -1513,6 +1516,8 @@ export default function Inbox({
     // Day filter: only clients booked today / tomorrow.
     if (dateFilter === "today") list = list.filter((c) => c.bookedToday)
     else if (dateFilter === "tomorrow") list = list.filter((c) => c.bookedTomorrow)
+    // Clients whose latest message nobody replied to or reacted on yet.
+    else if (dateFilter === "awaiting") list = list.filter((c) => c.awaitingReply)
     // Name / phone search.
     if (searchQ) {
       list = list.filter(
@@ -1582,11 +1587,17 @@ export default function Inbox({
 
       {/* Day filter: All / Today / Tomorrow — by the client's booking date. */}
       {convos && convos.length > 0 && (
-        <div className="px-3 pb-2 flex-shrink-0 flex items-center gap-1.5">
+        <div className="px-3 pb-2 flex-shrink-0 flex items-center gap-1.5 flex-wrap">
           {([
             { key: "all", label: "All chats", count: convos.length },
             { key: "today", label: "Today's class", count: convos.filter((c) => c.bookedToday).length },
             { key: "tomorrow", label: "Tomorrow's class", count: convos.filter((c) => c.bookedTomorrow).length },
+            // Admin's control list: clients whose latest message has no staff
+            // reply/reaction yet. The admin red number clears on view, so THIS
+            // tab is where "nobody answered" lives now.
+            ...(role === "ADMIN"
+              ? ([{ key: "awaiting", label: "Awaiting reply", count: convos.filter((c) => c.awaitingReply).length }] as const)
+              : []),
           ] as const).map((f) => {
             const active = dateFilter === f.key
             return (
@@ -1622,13 +1633,14 @@ export default function Inbox({
         </div>
       )}
 
-      {/* The red numbers changed meaning (owner rule 03.07): they count chats
-          WAITING FOR A REPLY, and opening a chat no longer clears them - only
-          replying (or a reaction) does. Without this line staff read the
-          sticky badge as a bug ("doesn't reset for days" - Sveta, 06.07). */}
-      {role === "ADMIN" && convos && convos.some((c) => c.unread > 0) && (
+      {/* Role-specific counter semantics (owner rule 06.07):
+          admin numbers clear on view; trainer numbers clear only on a
+          reply/reaction. One line each so a sticky badge never reads as a bug. */}
+      {convos && convos.some((c) => c.unread > 0) && (
         <div className="px-4 pb-2 flex-shrink-0 text-[11px] leading-snug text-gray-400 dark:text-[#6B7C85]">
-          Red numbers = chats waiting for a reply. They clear when someone replies (or reacts) - not when you open the chat. &quot;Mark all read&quot; clears them all.
+          {role === "ADMIN"
+            ? "Red numbers = messages nobody has seen yet - opening a chat clears them. Clients still waiting for an answer live in the Awaiting reply tab."
+            : "Red numbers = clients waiting for a reply. They clear when someone replies (or reacts) - not when you open the chat."}
         </div>
       )}
 

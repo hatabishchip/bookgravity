@@ -56,13 +56,17 @@ export async function GET(
     include: { fromTrainer: { select: { id: true, name: true } } },
   })
 
-  // Owner rule (2026-07-03): the red unread number means "a client message
-  // nobody answered", so merely OPENING a chat must NOT clear it - it clears
-  // only on a staff reply or reaction. We still clear the informational booking
-  // preview note on open, and still send Meta "read" receipts (blue ticks)
-  // below - those are independent of our internal "answered" state.
+  // Owner rule (2026-07-06, supersedes 03.07 for the ADMIN counter) - the two
+  // counters now mean different things:
+  //   unreadAdmin   = "a client message NOBODY has even seen" → opening the
+  //                   chat by ANY staff member (admin or trainer) clears it.
+  //   unreadTrainer = "a client message nobody ANSWERED" → viewing never
+  //                   clears it; only a staff reply or reaction does
+  //                   (markConversationHandled).
+  // The admin's "who is still waiting for an answer" control moved to the
+  // Awaiting-reply filter tab, so the red number can calm down on view.
   await prisma.whatsAppConversation
-    .update({ where: { id: convo.id }, data: { bookingPreview: null } })
+    .update({ where: { id: convo.id }, data: { unreadAdmin: 0, bookingPreview: null } })
     .catch(() => {})
 
   // Send Meta "read" receipts for any inbound messages we haven't ack'd yet
