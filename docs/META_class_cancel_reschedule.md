@@ -83,6 +83,27 @@ Vercel (push в main), БД Turso. Тексты клиентам - только 
 - Обработчики `KEEP:`/`DROP:` добавляются в `lib/cancel-bot.ts` рядом с существующими
   `CANCEL:`/`CANCELALL:` (идемпотентно: повторный тап = повтор того же ответа).
 
+## 6a. Финальные черновики текстов (05.07, показаны владельцу; в Meta НЕ поданы - ждём решения)
+
+После правки владельца: убраны все фразы про деньги/абонемент (предоплаты нет,
+клиент бронирует без оплаты). Про возврат абонемента говорит только точечный
+ответ бота реальному владельцу абонемента.
+
+- **T1 `class_cancelled_v1`** ({{1}} имя, {{2}} класс; URL-кнопка "Book another day"):
+  "Hi {{1}} 🙏 So sorry - your class on {{2}} has to be cancelled. The trainer
+  can't make it and we couldn't find a cover. We'd really love to see you
+  another day - tap below and pick any time that suits you. Thank you for
+  understanding 🌿"
+- **T2 `class_moved_v1`** ({{1}} имя, {{2}} старое, {{3}} новое; quick-reply
+  "I'll be there" / "Can't make the new time" → payload KEEP:/DROP:):
+  "Hi {{1}} 🙏 A small change: your class on {{2}} is moving to {{3}}. Same
+  studio, your spot is saved. Can you make the new time? Just tap a button
+  below - and if the new time doesn't work, no worries, you can pick any other
+  day. Thank you! 🌿"
+- **`booking_canceled_v2`** ({{1}} имя, {{2}} класс; URL-кнопка):
+  "Hi {{1}} 🙏 Your booking on {{2}} has been cancelled. Book again any time
+  that suits you - we'd love to see you 🌿"
+
 ## 6. Тексты (ветка ждёт Андрея и Свету)
 
 - Рабочие заготовки: T1-alt (короткий тёплый, выбран владельцем ранее) и T2 - в хендовере.
