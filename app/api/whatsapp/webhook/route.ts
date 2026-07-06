@@ -89,6 +89,16 @@ type WAMessage = {
   // Quick-reply button tap from a template (e.g. the booking confirmation's
   // "Cancel booking" button). Arrives as type "button".
   button?: { text?: string; payload?: string }
+  // CTWA (Click-to-WhatsApp) ad attribution. Present on the FIRST message a
+  // client sends after tapping a paid ad. source_id = the Meta ad id.
+  referral?: {
+    source_url?: string
+    source_id?: string
+    source_type?: string // "ad" | "post"
+    headline?: string
+    body?: string
+    ctwa_clid?: string
+  }
   timestamp: string
 }
 type WAContact = { wa_id: string; profile?: { name?: string } }
@@ -399,6 +409,36 @@ export async function POST(request: NextRequest) {
               clientName: contactName ?? recentBooking?.clientName ?? null,
               assignedTrainerId,
             })
+
+            // CTWA ad attribution (FIRST-TOUCH). When this inbound carries a
+            // `referral` object the client tapped a paid Click-to-WhatsApp ad.
+            // Stamp the conversation once (never overwrite an earlier ad-touch)
+            // so we can later join this lead's clientPhone to bookings and know
+            // which bookings/revenue the ad produced. Best-effort: a failure
+            // here must never drop the message.
+            if (msg.referral?.source_id && !convo.adSourceId) {
+              try {
+                await prisma.whatsAppConversation.update({
+                  where: { id: convo.id },
+                  data: {
+                    adSourceType: msg.referral.source_type ?? null,
+                    adSourceId: msg.referral.source_id,
+                    adCtwaClid: msg.referral.ctwa_clid ?? null,
+                    adHeadline: msg.referral.headline ?? null,
+                    adSourceUrl: msg.referral.source_url ?? null,
+                    adReferralAt: receivedAt,
+                  },
+                })
+                console.log("[whatsapp-webhook] CTWA ad referral captured:", {
+                  from: phone,
+                  adId: msg.referral.source_id,
+                  ctwaClid: msg.referral.ctwa_clid,
+                })
+              } catch (err) {
+                console.error("[whatsapp-webhook] ad referral capture failed:", err)
+              }
+            }
+
             const saved = await appendInboundMessage({
               conversationId: convo.id,
               type,
