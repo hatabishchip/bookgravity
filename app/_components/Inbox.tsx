@@ -87,7 +87,8 @@ type MessageRow = {
 }
 
 // Emoji the team can react with (long-press a message).
-const REACTIONS = ["❤️", "👍", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌"] as const
+// 🙏 added 06.07 - Sveta asked for a "thank you" hands option (business politeness).
+const REACTIONS = ["❤️", "👍", "🙏", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌"] as const
 
 type ConversationDetail = {
   id: string

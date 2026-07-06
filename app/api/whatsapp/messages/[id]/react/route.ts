@@ -6,7 +6,8 @@ import { sendWhatsAppReaction, getConfigFor } from "@/lib/whatsapp-cloud"
 import { z } from "zod"
 
 // Reactions the team can put on a message (WhatsApp-style). Empty string clears.
-const ALLOWED = ["❤️", "👍", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌", ""]
+// 🙏 added 06.07 - Sveta asked for a "thank you" hands option (business politeness).
+const ALLOWED = ["❤️", "👍", "🙏", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌", ""]
 const Schema = z.object({ emoji: z.string() })
 
 // POST /api/whatsapp/messages/[id]/react  body: { emoji }
