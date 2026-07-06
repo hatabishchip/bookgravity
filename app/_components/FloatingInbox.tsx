@@ -275,10 +275,10 @@ export default function FloatingInbox({ role }: { role: "ADMIN" | "TRAINER" }) {
         style={{ bottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
         aria-label={
           unreadChats > 0
-            ? `Open inbox (${unreadChats} unread chat${unreadChats === 1 ? "" : "s"})`
+            ? `Open inbox (${unreadChats} chat${unreadChats === 1 ? "" : "s"} waiting for a reply)`
             : "Open inbox"
         }
-        title="Inbox"
+        title={unreadChats > 0 ? `Inbox - ${unreadChats} chat${unreadChats === 1 ? "" : "s"} waiting for a reply` : "Inbox"}
       >
         <MessageSquare size={24} strokeWidth={2.2} />
         {unreadChats > 0 && (

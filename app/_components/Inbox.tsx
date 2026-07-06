@@ -1622,6 +1622,16 @@ export default function Inbox({
         </div>
       )}
 
+      {/* The red numbers changed meaning (owner rule 03.07): they count chats
+          WAITING FOR A REPLY, and opening a chat no longer clears them - only
+          replying (or a reaction) does. Without this line staff read the
+          sticky badge as a bug ("doesn't reset for days" - Sveta, 06.07). */}
+      {role === "ADMIN" && convos && convos.some((c) => c.unread > 0) && (
+        <div className="px-4 pb-2 flex-shrink-0 text-[11px] leading-snug text-gray-400 dark:text-[#6B7C85]">
+          Red numbers = chats waiting for a reply. They clear when someone replies (or reacts) - not when you open the chat. &quot;Mark all read&quot; clears them all.
+        </div>
+      )}
+
       {!convos ? (
         <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
           <Loader2 size={16} className="animate-spin mr-2" /> Loading...

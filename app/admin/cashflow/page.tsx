@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { format, addMonths, subMonths } from "date-fns"
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Wallet } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, TrendingUp, TrendingDown, Wallet } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { AddExpenseModal } from "@/app/_components/AddExpenseModal"
 
 type Method = "CASH" | "EDC" | "QR" | "TRANSFER"
 type IncomeRow = { id: string; date: string; label: string; responsible: string; method: Method; amount: number; kind: "class" | "membership" | "service" }
@@ -32,6 +33,8 @@ export default function CashFlowPage() {
   const [anchor, setAnchor] = useState(new Date())
   const [data, setData] = useState<CashFlow | null>(null)
   const [loading, setLoading] = useState(true)
+  // "Add expense" right on this page (Sveta looked for it here, not on Salary).
+  const [showExpense, setShowExpense] = useState(false)
 
   const fetchData = useCallback(async (date: Date) => {
     setLoading(true)
@@ -109,7 +112,13 @@ export default function CashFlowPage() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-gray-50 font-bold text-gray-900">
-                    <td className="px-4 py-2.5" colSpan={3}>TOTAL · {fmt(data.incomeTotals.total)}</td>
+                    {/* The "By" column is hidden on mobile, so the label cell
+                        must NOT span it there - a fixed colSpan={3} pushed
+                        every method total one column to the right (Sveta's
+                        "cash shows under EDC" report). Mirror the header:
+                        span 2 always + one extra cell that hides with "By". */}
+                    <td className="px-4 py-2.5" colSpan={2}>TOTAL · {fmt(data.incomeTotals.total)}</td>
+                    <td className="hidden sm:table-cell" />
                     {METHOD_COLS.map((m) => <td key={m.key} className="px-4 py-2.5 text-right tabular-nums">{fmtCell(data.incomeTotals[m.key])}</td>)}
                   </tr>
                 </tfoot>
@@ -119,9 +128,17 @@ export default function CashFlowPage() {
 
           {/* EXPENSES */}
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
               <span className="font-semibold text-gray-800">Money out</span>
-              <span className="text-xs text-gray-400">{data.expenseRows.length} entries</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400">{data.expenseRows.length} entries</span>
+                <button
+                  onClick={() => setShowExpense(true)}
+                  className="inline-flex items-center gap-1 rounded-full bg-brand/10 text-brand px-3 py-1.5 text-xs font-semibold hover:bg-brand/15 active:scale-95 transition touch-manipulation"
+                >
+                  <Plus size={13} /> Add expense
+                </button>
+              </div>
             </div>
             <table className="w-full text-sm">
               <thead>
@@ -156,10 +173,14 @@ export default function CashFlowPage() {
 
           <p className="text-xs text-gray-400 px-2">
             Money in = per-class payments (cash, EDC, QRIS, transfer) plus pass sales. Classes paid from a
-            pass are not counted again here. Money out = expenses (from Salary &amp; Expenses) plus salary payouts.
-            Expenses are added on the Salary page.
+            pass are not counted again here. Money out = expenses (add them here or on the Salary page)
+            plus salary payouts.
           </p>
         </div>
+      )}
+
+      {showExpense && (
+        <AddExpenseModal onClose={() => setShowExpense(false)} onSaved={() => fetchData(anchor)} />
       )}
     </div>
   )
