@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getPublicStudioId } from "@/lib/studio"
 import { isSlotBookableWithAttendees } from "@/lib/booking-cutoff"
 import { generateUniqueTicketCodes } from "@/lib/tickets"
+import { syncSlotToGoogle } from "@/lib/google-calendar"
 import { sendTrainerBookingNotification, sendClientBookingConfirmation } from "@/lib/mailer"
 import { sendPush } from "@/lib/expo-push"
 import {
@@ -236,6 +237,11 @@ export async function POST(request: NextRequest) {
       }
       return rows
     })
+
+    // Google Calendar shows only classes with live bookings (Sveta's rule) -
+    // this may be the slot's first booking, materialising the event. after()
+    // keeps the serverless runtime alive without delaying the client's ticket.
+    after(() => syncSlotToGoogle(data.slotId).catch(() => {}))
 
     // Send confirmation emails to the client AND notify the assigned trainer.
     // Awaiting both so the serverless function doesn't terminate before the

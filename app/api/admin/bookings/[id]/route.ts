@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { afterStaffCancellation } from "@/lib/booking-cancel"
 import { notifyBookingCreated } from "@/lib/booking-notify"
+import { syncSlotToGoogle } from "@/lib/google-calendar"
 import { applyPaymentSwitch } from "@/lib/booking-payment"
 import { zBookingPaymentType, zPaymentStatus, zBookingStatus, zPriceTier } from "@/lib/payments"
 import { getMembershipBalance } from "@/lib/membership"
@@ -157,6 +158,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // confirmation (new date/time/trainer) to the client and pings the NEW
   // trainer — otherwise both keep acting on the stale schedule.
   if (data.slotId && data.slotId !== existing.slotId && booking.status === "CONFIRMED") {
+    // The OLD slot may now be empty - drop its Google Calendar event (the
+    // target slot's event is handled inside notifyBookingCreated).
+    void syncSlotToGoogle(existing.slotId).catch(() => {})
     await notifyBookingCreated({
       studioId: ctx.studioId,
       slotId: data.slotId,

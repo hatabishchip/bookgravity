@@ -10,6 +10,7 @@ import {
   appendOutboundMessage,
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
+import { syncSlotToGoogle } from "@/lib/google-calendar"
 
 /**
  * Best-effort WhatsApp side effects for a freshly-created booking. Shared by
@@ -39,6 +40,11 @@ export async function notifyBookingCreated(opts: {
   /** When true, skip the admin booking-alert copy (the admin just made it). */
   skipAdminAlert?: boolean
 }): Promise<void> {
+  // Google Calendar shows only classes with live bookings (Sveta's rule,
+  // 06.07) - this booking may be the slot's first, materialising the event.
+  // Runs regardless of the WhatsApp gate below; best-effort.
+  void syncSlotToGoogle(opts.slotId).catch(() => {})
+
   try {
     if (!(await isStudioWhatsAppEnabled(opts.studioId))) {
       console.log("[booking-notify] WA disabled for this studio — skip")

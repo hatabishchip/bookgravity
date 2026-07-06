@@ -8,6 +8,7 @@ import { restoreMembershipClass } from "@/lib/membership"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { getConfigFor, sendWhatsAppTemplate } from "@/lib/whatsapp-cloud"
 import { upsertConversation, appendOutboundMessage } from "@/lib/whatsapp-conversation"
+import { syncSlotToGoogle } from "@/lib/google-calendar"
 
 // Mirrors the approved no-variable UTILITY template `booking_canceled`
 // (see scripts/create-booking-canceled-template.ts). Template messages work
@@ -176,6 +177,10 @@ export async function afterStaffCancellation(booking: {
       clientName: booking.clientName,
       cancelledBy: "staff",
     })
+    // Google Calendar shows only classes with live bookings (Sveta's rule) -
+    // if this was the last one, the event disappears. Awaited (not void) so a
+    // serverless runtime can't terminate before the Calendar call lands.
+    await syncSlotToGoogle(booking.slotId).catch(() => {})
   }
 }
 

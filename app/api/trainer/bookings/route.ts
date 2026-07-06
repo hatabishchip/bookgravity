@@ -5,6 +5,7 @@ import { getStudioMembershipBalances, getMembershipBalance, phoneTail } from "@/
 import { upsertConversation } from "@/lib/whatsapp-conversation"
 import { baliDateStr, addDaysStr } from "@/lib/tz"
 import { generateUniqueTicketCode } from "@/lib/tickets"
+import { syncSlotToGoogle } from "@/lib/google-calendar"
 import { z } from "zod"
 
 export async function GET(request: NextRequest) {
@@ -127,6 +128,11 @@ export async function POST(request: NextRequest) {
       assignedTrainerId: trainer.id,
     })
   } catch { /* non-fatal: the booking still stands */ }
+
+  // Google Calendar shows only classes with live bookings (Sveta's rule) -
+  // this may be the slot's first booking, materialising the event. Awaited so
+  // the serverless runtime can't terminate before the Calendar call lands.
+  await syncSlotToGoogle(slot.id).catch(() => {})
 
   // Return the client's membership balance so the cabinet can immediately offer
   // "pay from membership" for the new booking.

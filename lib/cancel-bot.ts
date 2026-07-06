@@ -16,6 +16,7 @@ import { appendOutboundMessage } from "@/lib/whatsapp-conversation"
 import { restoreMembershipClass, phoneTail } from "@/lib/membership"
 import { slotStartMs } from "@/lib/booking-cutoff"
 import { notifyStaffOfCancellation } from "@/lib/booking-cancel"
+import { syncSlotToGoogle } from "@/lib/google-calendar"
 
 // A pending "1/0" confirmation is only honoured for 15 minutes.
 const PENDING_TTL_MS = 15 * 60 * 1000
@@ -132,6 +133,8 @@ export async function handleCancelBotMessage(opts: {
       clientName: booking.clientName,
       cancelledBy: "client",
     }).catch(() => {})
+    // Last booking gone → the class leaves Google Calendar (Sveta's rule).
+    void syncSlotToGoogle(booking.slotId).catch(() => {})
     await reply("Booking canceled 😔\n\nHope to see you another time 💫")
     return
   }
@@ -205,6 +208,7 @@ export async function handleCancelBotMessage(opts: {
       clientName: active.clientName.replace(/\s*\(\d+\/\d+\)$/, ""),
       cancelledBy: "client",
     }).catch(() => {})
+    void syncSlotToGoogle(active.slotId).catch(() => {})
     const passNote = restored > 0
       ? (restored > 1 ? " Your classes are back on your pass." : " Your class is back on your pass.")
       : ""
@@ -269,6 +273,7 @@ export async function handleCancelBotMessage(opts: {
       clientName: lead.clientName.replace(/\s*\(\d+\/\d+\)$/, ""),
       cancelledBy: "client",
     }).catch(() => {})
+    void syncSlotToGoogle(lead.slotId).catch(() => {})
     await reply(
       mine.length > 1
         ? `All ${mine.length} bookings canceled 😔\n\nHope to see you another time 💫`
@@ -325,6 +330,7 @@ export async function handleCancelBotMessage(opts: {
         clientName: active.clientName,
         cancelledBy: "client",
       }).catch(() => {})
+      void syncSlotToGoogle(active.slotId).catch(() => {})
       await reply("Booking canceled 😔\n\nHope to see you another time 💫")
       return
     }

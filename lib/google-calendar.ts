@@ -194,17 +194,42 @@ export async function deleteSlotEvent(opts: {
 // All no-op instantly when Google isn't configured or the studio isn't
 // connected, so they're safe to call on every slot change.
 
-/** Create/update the Google event for a slot and persist its event id. */
+/**
+ * Create/update the Google event for a slot and persist its event id.
+ *
+ * Sveta's rule (06.07.2026): the calendar answers "is the studio BUSY?", so an
+ * event exists ONLY while the class has at least one CONFIRMED booking. An
+ * empty (or cancelled) slot must not sit in Google Calendar - it used to dump
+ * every empty template cell into her calendar and drown the real busy times.
+ * This is enforced HERE so every caller (slot CRUD, booking create/cancel/
+ * move) gets the rule for free: empty → delete the event, booked → upsert.
+ */
 export async function syncSlotToGoogle(slotId: string): Promise<void> {
   if (!googleConfigured()) return
   const slot = await prisma.timeSlot.findUnique({
     where: { id: slotId },
     select: {
       date: true, startTime: true, endTime: true, classType: true, googleEventId: true,
+      cancelledAt: true,
+      _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
       studio: { select: { name: true, country: true, googleRefreshToken: true, googleCalendarId: true } },
     },
   })
   if (!slot || !slot.studio.googleRefreshToken) return
+
+  // Empty or cancelled class = the studio is NOT busy - no event.
+  if (slot.cancelledAt || slot._count.bookings === 0) {
+    if (slot.googleEventId) {
+      await deleteSlotEvent({
+        refreshToken: slot.studio.googleRefreshToken,
+        calendarId: slot.studio.googleCalendarId,
+        eventId: slot.googleEventId,
+      })
+      await prisma.timeSlot.update({ where: { id: slotId }, data: { googleEventId: null } }).catch(() => {})
+    }
+    return
+  }
+
   const eventId = await upsertSlotEvent({
     refreshToken: slot.studio.googleRefreshToken,
     calendarId: slot.studio.googleCalendarId,
@@ -231,4 +256,6 @@ export async function unsyncSlotFromGoogle(slotId: string): Promise<void> {
     calendarId: slot.studio.googleCalendarId,
     eventId: slot.googleEventId,
   })
+  // Clear the stale id so a later re-sync can't try to update a dead event.
+  await prisma.timeSlot.update({ where: { id: slotId }, data: { googleEventId: null } }).catch(() => {})
 }

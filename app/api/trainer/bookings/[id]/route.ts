@@ -6,6 +6,7 @@ import { getMembershipBalance } from "@/lib/membership"
 import { applyPaymentSwitch } from "@/lib/booking-payment"
 import { zBookingPaymentType, zPaymentStatus, zBookingStatus, zPriceTier } from "@/lib/payments"
 import { notifyBookingCreated } from "@/lib/booking-notify"
+import { syncSlotToGoogle } from "@/lib/google-calendar"
 import { afterStaffCancellation } from "@/lib/booking-cancel"
 import { baliDateStr } from "@/lib/tz"
 
@@ -177,6 +178,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // Reschedule side-effects: re-send the booking confirmation (new date/time/
   // trainer) to the client and ping the receiving trainer.
   if (data.slotId && data.slotId !== booking.slotId && updated.status === "CONFIRMED") {
+    // The OLD slot may now be empty - drop its Google Calendar event (the
+    // target slot's event is handled inside notifyBookingCreated).
+    void syncSlotToGoogle(booking.slotId).catch(() => {})
     await notifyBookingCreated({
       studioId: ctx.studioId,
       slotId: data.slotId,
