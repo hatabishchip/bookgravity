@@ -38,6 +38,13 @@ export default function ClientTabsLayout() {
           tabBarIcon: ({ color, size }) => <User color={color} size={size ?? 22} />,
         }}
       />
+      {/* Detail screens reached via router.push (index→slots→book, bookings→
+          ticket). Expo Router auto-makes a tab per file, so hide these from
+          the tab bar with href:null - the routes stay pushable, the bar shows
+          only Book · Tickets · Profile. */}
+      <Tabs.Screen name="slots" options={{ href: null }} />
+      <Tabs.Screen name="book" options={{ href: null }} />
+      <Tabs.Screen name="ticket" options={{ href: null }} />
     </Tabs>
   )
 }
