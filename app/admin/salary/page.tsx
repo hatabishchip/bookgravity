@@ -457,7 +457,7 @@ export default function SalaryPage() {
                   type="number"
                   required
                   min="1"
-                  step="1000"
+                  step="any"
                   value={payAmount}
                   onChange={(e) => setPayAmount(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
@@ -522,7 +522,7 @@ export default function SalaryPage() {
                     type="number"
                     required
                     min="1"
-                    step="1000"
+                    step="any"
                     value={expForm.amount}
                     onChange={(e) => setExpForm({ ...expForm, amount: e.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"

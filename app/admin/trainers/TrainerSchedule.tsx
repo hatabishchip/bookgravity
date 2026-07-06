@@ -574,7 +574,7 @@ export default function TrainerSchedule({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Price (IDR)</label>
                   <input
-                    type="number" min="0" step="1000" required
+                    type="number" min="0" step="any" required
                     value={createForm.price}
                     onChange={(e) => setCreateForm({ ...createForm, price: Number(e.target.value) })}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"

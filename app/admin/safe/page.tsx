@@ -199,7 +199,7 @@ export default function SafePage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Amount taken (IDR)</label>
                   <input
-                    type="number" required min="1" step="1000" value={opAmount}
+                    type="number" required min="1" step="any" value={opAmount}
                     onChange={(e) => setOpAmount(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                     placeholder="0"
@@ -209,7 +209,7 @@ export default function SafePage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">The safe actually holds (IDR)</label>
                   <input
-                    type="number" required min="0" step="1000" value={opActual}
+                    type="number" required min="0" step="any" value={opActual}
                     onChange={(e) => setOpActual(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                     placeholder="Counted amount"

@@ -62,7 +62,7 @@ export function AddExpenseModal({ onClose, onSaved }: { onClose: () => void; onS
                 type="number"
                 required
                 min="1"
-                step="1000"
+                step="any"
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
