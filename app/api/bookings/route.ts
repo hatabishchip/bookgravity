@@ -17,7 +17,7 @@ import {
   markBookingPreview,
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
-import { verifyBookingOtp } from "@/lib/otp"
+import { verifyBookingOtp, normalizeOtpPhone } from "@/lib/otp"
 import { isStaffOfStudio } from "@/lib/auth-helpers"
 import { hasOtpSession, attachOtpSession } from "@/lib/otp-session"
 import { rateLimit, clientIp } from "@/lib/rate-limit"
@@ -151,6 +151,10 @@ export async function POST(request: NextRequest) {
     // normal code check.
     const sessionOk = hasOtpSession(request, { phone: data.clientPhone, studioId })
     const staffOk = isStaff
+    // Set when we let a client through WITHOUT a valid code because WhatsApp
+    // could not deliver one to their number (e.g. Chinese numbers not on
+    // WhatsApp). The booking is flagged so staff know to double-check contact.
+    let phoneUnverified = false
     if (studioWaOn && confirmWhatsapp && !sessionOk && !staffOk) {
       const otp = await verifyBookingOtp({
         studioId,
@@ -158,14 +162,28 @@ export async function POST(request: NextRequest) {
         code: data.otpCode ?? "",
       })
       if (!otp.ok) {
-        return NextResponse.json(
-          {
-            error: "Confirmation code is incorrect or expired. Please re-enter the code from WhatsApp.",
-            otpError: otp.error,
-            otpRemaining: otp.remaining,
-          },
-          { status: 401 },
-        )
+        // Fallback: if the last code we sent to this number came back as
+        // undeliverable (status "failed" - number isn't on WhatsApp), the client
+        // can never receive a code. Rather than trap them, let the booking
+        // through and mark it phone-unverified. The per-IP rate limit still caps
+        // abuse, and staff see the badge. Owner decision 06.07.2026.
+        const lastOtp = await prisma.bookingOtp.findFirst({
+          where: { studioId, phone: normalizeOtpPhone(data.clientPhone) },
+          orderBy: { createdAt: "desc" },
+          select: { status: true },
+        })
+        if (lastOtp?.status === "failed") {
+          phoneUnverified = true
+        } else {
+          return NextResponse.json(
+            {
+              error: "Confirmation code is incorrect or expired. Please re-enter the code from WhatsApp.",
+              otpError: otp.error,
+              otpRemaining: otp.remaining,
+            },
+            { status: 401 },
+          )
+        }
       }
     }
 
@@ -224,6 +242,7 @@ export async function POST(request: NextRequest) {
             clientEmail: data.clientEmail,
             clientPhone: data.clientPhone,
             ticketCode: ticketCodes[i],
+            phoneUnverified,
             services: data.serviceIds?.length
               ? { create: data.serviceIds.map((sid) => ({ serviceId: sid })) }
               : undefined,

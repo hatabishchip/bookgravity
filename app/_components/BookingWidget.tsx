@@ -1707,9 +1707,21 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 "failed" wins over "ready": even if the ready-fallback fired before
                 the failed status arrived, we still show this and hide the code. */}
             {otpSent && !otpVerified && otpDelivery === "failed" && (
-              <div className="rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                <span className="font-semibold">⚠️ This number isn&apos;t on WhatsApp.</span>{" "}
-                Please change the number above to one that has WhatsApp — then we&apos;ll send the code.
+              <div className="rounded-xl border-2 border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                <div>
+                  <span className="font-semibold">⚠️ This number isn&apos;t on WhatsApp.</span>{" "}
+                  Change it above to a WhatsApp number and we&apos;ll send the code - or continue without confirmation.
+                </div>
+                {/* Escape hatch: a client whose number genuinely has no WhatsApp
+                    (e.g. some Chinese numbers) can still book. The booking is
+                    flagged phone-unverified so staff double-check contact. */}
+                <button
+                  type="button"
+                  onClick={() => { setOtpVerified(true); setOtpError("") }}
+                  className="mt-2 inline-flex items-center rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
+                >
+                  Continue without WhatsApp confirmation
+                </button>
               </div>
             )}
 

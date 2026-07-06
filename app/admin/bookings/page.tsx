@@ -31,6 +31,9 @@ type Booking = {
   membershipId?: string | null
   // Staff-only "confirmed by bank" flag (a linked BankPayment).
   bankConfirmed?: boolean
+  // Booked without a WhatsApp code (number couldn't receive one) - flag so the
+  // admin double-checks contact details.
+  phoneUnverified?: boolean
 }
 
 function formatTime(time: string) {
@@ -612,7 +615,12 @@ export default function BookingsPage() {
                     onClick={() => setExpandedId(isExpanded ? null : b.id)}
                   >
                     <div className="min-w-0">
-                      <div className="font-medium text-sm text-gray-800 truncate">{b.clientName}</div>
+                      <div className="font-medium text-sm text-gray-800 truncate">
+                        {b.clientName}
+                        {b.phoneUnverified && (
+                          <span className="ml-1.5 align-middle text-[9px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full whitespace-nowrap" title="Phone not confirmed on WhatsApp">unverified</span>
+                        )}
+                      </div>
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm text-gray-800">

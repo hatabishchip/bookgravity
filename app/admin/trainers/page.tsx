@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Plus, Trash2, X, User, CalendarDays, Pencil, Check, Mail } from "lucide-react"
+import { Plus, Trash2, X, User, CalendarDays, Pencil, Check, Mail, CalendarPlus, CalendarCog } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import TrainerSchedule from "./TrainerSchedule"
@@ -57,6 +57,9 @@ type Trainer = {
   /** Booking-notification channels for this trainer. */
   notifyEmail: boolean
   notifyWhatsapp: boolean
+  /** Delegated admin rights the studio admin grants per trainer. */
+  permBookAnyClass?: boolean
+  permManageBookings?: boolean
   /** Whether this studio has WhatsApp connected (gates the WhatsApp toggle). */
   studioWhatsAppEnabled?: boolean
 }
@@ -210,9 +213,9 @@ export default function TrainersPage() {
   // Single "edit mode" per trainer card. Clicking the pencil flips the card
   // into a draft where all three fields (name / email / WhatsApp) become
   // editable at once; one Save patches them all in one PATCH call.
-  type EditDraft = { name: string; email: string; whatsapp: string; notifyEmail: boolean; notifyWhatsapp: boolean }
+  type EditDraft = { name: string; email: string; whatsapp: string; notifyEmail: boolean; notifyWhatsapp: boolean; permBookAnyClass: boolean; permManageBookings: boolean }
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<EditDraft>({ name: "", email: "", whatsapp: "", notifyEmail: true, notifyWhatsapp: false })
+  const [draft, setDraft] = useState<EditDraft>({ name: "", email: "", whatsapp: "", notifyEmail: true, notifyWhatsapp: false, permBookAnyClass: false, permManageBookings: false })
   const [editError, setEditError] = useState<string | null>(null)
 
   const startEdit = (t: Trainer) => {
@@ -223,6 +226,8 @@ export default function TrainersPage() {
       whatsapp: t.whatsapp ?? "",
       notifyEmail: t.notifyEmail ?? true,
       notifyWhatsapp: t.notifyWhatsapp ?? false,
+      permBookAnyClass: t.permBookAnyClass ?? false,
+      permManageBookings: t.permManageBookings ?? false,
     })
     setEditError(null)
   }
@@ -245,7 +250,7 @@ export default function TrainersPage() {
       if (v.kind !== "ok") { setEditError("Invalid WhatsApp number"); return }
     }
 
-    const body = { name, email, whatsapp, notifyEmail: draft.notifyEmail, notifyWhatsapp: draft.notifyWhatsapp }
+    const body = { name, email, whatsapp, notifyEmail: draft.notifyEmail, notifyWhatsapp: draft.notifyWhatsapp, permBookAnyClass: draft.permBookAnyClass, permManageBookings: draft.permManageBookings }
     const res = await fetch(`/api/admin/trainers?id=${editingId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -413,6 +418,37 @@ export default function TrainersPage() {
                             <span className="text-[10px] text-gray-400">Connect WhatsApp to enable</span>
                           </div>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Delegated rights: the admin lets a trainer act on the
+                        whole studio (Sveta 06.07.2026). Off by default. */}
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">Delegated rights</label>
+                      <div className="space-y-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setDraft((p) => ({ ...p, permBookAnyClass: !p.permBookAnyClass }))}
+                          className="w-full flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm text-left"
+                        >
+                          <span className="flex items-center gap-2 text-gray-700"><CalendarPlus size={15} /> Book into any class</span>
+                          <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0", draft.permBookAnyClass ? "bg-brand" : "bg-gray-300")}>
+                            <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", draft.permBookAnyClass ? "left-[18px]" : "left-0.5")} />
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDraft((p) => ({ ...p, permManageBookings: !p.permManageBookings }))}
+                          className="w-full flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm text-left"
+                        >
+                          <span className="flex items-center gap-2 text-gray-700"><CalendarCog size={15} /> Reschedule / cancel bookings</span>
+                          <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0", draft.permManageBookings ? "bg-brand" : "bg-gray-300")}>
+                            <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", draft.permManageBookings ? "left-[18px]" : "left-0.5")} />
+                          </span>
+                        </button>
+                        <p className="text-[11px] text-gray-400 leading-snug">
+                          The schedule itself (creating or editing classes) stays admin-only.
+                        </p>
                       </div>
                     </div>
 

@@ -46,6 +46,9 @@ export async function GET(request: NextRequest) {
   //  - unassigned: no trainer set, expose bookings/capacity so the trainer
   //    can ask the admin to be assigned
   //  - other: another trainer is assigned, just an "Occupied" placeholder
+  //    (unless the trainer has permBookAnyClass → full details + state
+  //    "other-bookable" so the cabinet can add a client to it)
+  const canBookAny = trainer.permBookAnyClass
   const sanitized = slots
     // A cancelled class stays visible ONLY to its own trainer (struck-through
     // "Cancelled" card); for everyone else it's not occupying the room.
@@ -76,6 +79,15 @@ export async function GET(request: NextRequest) {
         state: "unassigned" as const,
       }
     }
+    // Another trainer's class. With permBookAnyClass the delegate sees it in
+    // full and can add clients to it; without, it stays an opaque "Occupied".
+    if (canBookAny) {
+      return {
+        ...s,
+        mainTrainerName: s.trainer?.name ?? null,
+        state: "other-bookable" as const,
+      }
+    }
     return {
       id: s.id,
       date: s.date,
@@ -85,5 +97,11 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  return NextResponse.json(sanitized)
+  return NextResponse.json({
+    slots: sanitized,
+    perms: {
+      bookAnyClass: trainer.permBookAnyClass,
+      manageBookings: trainer.permManageBookings,
+    },
+  })
 }

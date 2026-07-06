@@ -22,12 +22,16 @@ type Slot = {
   date: string
   startTime: string
   endTime: string
-  state: "mine" | "unassigned" | "other" | "assisting"
+  // "other-bookable": another trainer's class the delegate (permBookAnyClass)
+  // may add clients to - full details, unlike the opaque "other".
+  state: "mine" | "unassigned" | "other" | "other-bookable" | "assisting"
   maxCapacity?: number
   price?: number
   _count?: { bookings: number }
-  // "assisting" only: the lead trainer running the class I help with.
+  // For "assisting" and "other-bookable": the lead trainer of the class.
   mainTrainerName?: string | null
+  // Populated on "other-bookable" so the delegate can label whose class it is.
+  trainer?: { name?: string } | null
   // Set when the whole class was cancelled ("can't teach") — shown as a
   // struck-through tombstone, no actions.
   cancelledAt?: string | null
@@ -46,6 +50,9 @@ type Booking = {
   status?: string
   checkedIn: boolean
   notes?: string
+  // Booked without a WhatsApp code because the number couldn't receive one
+  // (e.g. not on WhatsApp) - staff should double-check contact details.
+  phoneUnverified?: boolean
   // Last change time — used to allow editing a paid booking for 30 minutes.
   updatedAt?: string
   services: { service: Service; paymentType?: string | null }[]
@@ -128,6 +135,9 @@ export default function TrainerSchedulePage() {
   const [monthAnchor, setMonthAnchor] = useState(startOfMonth(today))
   const todayCellRef = useRef<HTMLDivElement>(null)
   const [slots, setSlots] = useState<Slot[]>([])
+  // Delegated rights the admin granted this trainer (default: none). Drives
+  // whether the cabinet lets them book into / manage other trainers' classes.
+  const [perms, setPerms] = useState<{ bookAnyClass: boolean; manageBookings: boolean }>({ bookAnyClass: false, manageBookings: false })
   // False until the first schedule fetch resolves — so we show the petal
   // spinner instead of flashing "No classes" on refresh.
   const [slotsLoaded, setSlotsLoaded] = useState(false)
@@ -214,7 +224,14 @@ export default function TrainerSchedulePage() {
 
   const fetchSlots = useCallback(async () => {
     const res = await fetch(`/api/trainer/schedule?from=${from}&to=${to}`)
-    setSlots(await res.json())
+    const json = await res.json()
+    // Endpoint returns { slots, perms }; tolerate the old bare array too.
+    if (Array.isArray(json)) {
+      setSlots(json)
+    } else {
+      setSlots(json?.slots ?? [])
+      if (json?.perms) setPerms({ bookAnyClass: !!json.perms.bookAnyClass, manageBookings: !!json.perms.manageBookings })
+    }
     setSlotsLoaded(true)
   }, [from, to])
 
@@ -638,11 +655,13 @@ export default function TrainerSchedulePage() {
   const slotsForDay = (date: string) => slots.filter((s) => s.date === date)
 
   // In the 2-week view, show ONLY the days the trainer is actually involved in -
-  // their own classes ("mine") or ones they assist; empty days are hidden. Month
-  // keeps the full calendar.
+  // their own classes ("mine"), ones they assist, or (for a delegate) any class
+  // they may book into; empty days are hidden. Month keeps the full calendar.
   const visibleDays = view === "2weeks"
     ? range.days.filter((d) =>
-        slotsForDay(format(d, "yyyy-MM-dd")).some((s) => s.state === "mine" || s.state === "assisting"),
+        slotsForDay(format(d, "yyyy-MM-dd")).some(
+          (s) => s.state === "mine" || s.state === "assisting" || s.state === "other-bookable",
+        ),
       )
     : range.days
 
@@ -992,6 +1011,30 @@ export default function TrainerSchedulePage() {
                           </div>
                         )
                       }
+                      // Another trainer's class the delegate MAY book into
+                      // (permBookAnyClass): interactive card, tappable to open
+                      // the roster and add a client. Distinguished by the lead
+                      // trainer's name + a subtle indigo tint (not "mine" green).
+                      if (slot.state === "other-bookable") {
+                        const leadName = slot.mainTrainerName ?? slot.trainer?.name ?? null
+                        return (
+                          <button
+                            key={slot.id}
+                            onClick={() => handleSlotClick(slot)}
+                            className={cn(
+                              "w-full text-left rounded-lg border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 touch-manipulation transition-colors",
+                              view === "2weeks" ? "p-3 flex flex-wrap items-center justify-between gap-2" : "p-2"
+                            )}
+                          >
+                            <div className={cn("font-semibold text-indigo-700", view === "2weeks" ? "text-base" : "text-xs")}>
+                              {formatTime(slot.startTime)}
+                            </div>
+                            <div className={cn("text-indigo-500 leading-tight", view === "2weeks" ? "text-xs" : "text-[10px] mt-0.5")}>
+                              {leadName ? `${leadName} · ` : ""}{slot._count?.bookings ?? 0}/{slot.maxCapacity ?? 0}
+                            </div>
+                          </button>
+                        )
+                      }
                       // Another trainer's slot — gray "occupied" placeholder, no details
                       if (slot.state === "other") {
                         return (
@@ -1144,7 +1187,10 @@ export default function TrainerSchedulePage() {
                     (today + future) is the quiet secondary. */}
                 {selectedSlot.date >= baliDateStr(new Date()) && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {selectedSlot.date === baliDateStr(new Date()) && (
+                    {/* Add a client. Own class: today only (a quiet same-day
+                        record). Delegate (permBookAnyClass) on any class: any
+                        upcoming date - a real forward booking with confirmation. */}
+                    {(selectedSlot.state === "other-bookable" || selectedSlot.date === baliDateStr(new Date())) && (
                       <button
                         type="button"
                         onClick={() => { setAddErr(null); setAddOpen(true) }}
@@ -1153,22 +1199,27 @@ export default function TrainerSchedulePage() {
                         <UserPlus size={13} /> Add a client
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setHandoverFor(selectedSlot)}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 text-gray-600 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 active:scale-95 transition touch-manipulation"
-                    >
-                      Hand over
-                    </button>
-                    {/* Whole-class cancel/move — the tool Dita didn't have on
-                        04.07. Notifies every booked client via template. */}
-                    <button
-                      type="button"
-                      onClick={() => setClassActionFor(selectedSlot)}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 text-rose-600 px-3 py-1.5 text-xs font-medium hover:bg-rose-50 active:scale-95 transition touch-manipulation"
-                    >
-                      Can&apos;t teach
-                    </button>
+                    {/* Hand over / Can't teach belong to the class's OWN trainer -
+                        a delegate booking into someone else's class doesn't get
+                        these (they touch the schedule, which stays admin-owned). */}
+                    {selectedSlot.state !== "other-bookable" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setHandoverFor(selectedSlot)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 text-gray-600 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 active:scale-95 transition touch-manipulation"
+                        >
+                          Hand over
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setClassActionFor(selectedSlot)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 text-rose-600 px-3 py-1.5 text-xs font-medium hover:bg-rose-50 active:scale-95 transition touch-manipulation"
+                        >
+                          Can&apos;t teach
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1232,6 +1283,41 @@ export default function TrainerSchedulePage() {
             ) : (
               <div className="space-y-3">
                 {bookings.map((b, idx) => {
+                  // Another coach's class opened by a delegate: a compact card -
+                  // name, phone, unverified flag, and (with permManageBookings)
+                  // reschedule/cancel. Payment/services stay with the class's own
+                  // coach, so the full payment card is not shown here.
+                  if (selectedSlot?.state === "other-bookable") {
+                    return (
+                      <div key={b.id} className="rounded-xl px-4 py-3 border border-gray-200 bg-white flex flex-col gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                          <span className="font-semibold text-gray-900 truncate">{b.clientName}</span>
+                          {b.phoneUnverified && (
+                            <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap" title="Phone not confirmed on WhatsApp">phone unverified</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">{b.clientPhone}</div>
+                        {perms.manageBookings && (
+                          <div className="flex flex-col gap-2 pt-1">
+                            <ReschedulePicker
+                              excludeSlotId={b.slot.id}
+                              disabled={syncingIds.has(b.id)}
+                              onMove={(slotId) => moveBooking(b.id, slotId)}
+                            />
+                            <button
+                              type="button"
+                              disabled={syncingIds.has(b.id)}
+                              onClick={() => cancelBooking(b)}
+                              className="w-full py-2 rounded-xl border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 touch-manipulation"
+                            >
+                              Cancel booking
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
                   const isPaid = b.paymentStatus === "PAID"
                   const isUpdating = updating === b.id
                   // Once paid, the card collapses to a single "Paid" line. The
@@ -1302,6 +1388,7 @@ export default function TrainerSchedulePage() {
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
                           <div className="font-semibold text-gray-900">{b.clientName}</div>
+                          {b.phoneUnverified && <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap" title="Phone not confirmed on WhatsApp">phone unverified</span>}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {b.bankConfirmed && <span className="text-[10px] font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full" title="Payment confirmed by bank">✓ bank</span>}

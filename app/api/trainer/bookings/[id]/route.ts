@@ -43,12 +43,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     where: { id, slot: { studioId: ctx.studioId } },
     include: { slot: true },
   })
-  if (!booking || booking.slot.trainerId !== trainer.id) {
+  // A trainer manages bookings in their OWN class by default. permManageBookings
+  // (delegated by the admin) extends this to ANY class in the studio - reschedule
+  // or cancel a client from a colleague's class too (Sveta 06.07.2026).
+  if (!booking) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (booking.slot.trainerId !== trainer.id && !trainer.permManageBookings) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
   const body = await request.json()
   const data = UpdateSchema.parse(body)
+
+  // Cross-class delegate (permManageBookings on someone else's class): may only
+  // RESCHEDULE (slotId), CANCEL (status) or note - NOT touch payment/tier, which
+  // decides the class trainer's commission and whose cash safe the money lands
+  // in. Payment stays with the coach who actually runs the class.
+  const isOwnClass = booking.slot.trainerId === trainer.id
+  if (!isOwnClass && (data.paymentType !== undefined || data.paymentStatus !== undefined || data.priceTier !== undefined || data.localResident !== undefined)) {
+    return NextResponse.json({ error: "You can reschedule or cancel this booking, but only its own coach can record its payment." }, { status: 403 })
+  }
 
   // A cancelled booking is settled - block payment-type edits on it, otherwise
   // switching it away from MEMBERSHIP would restore a class that afterStaff-

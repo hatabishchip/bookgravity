@@ -289,6 +289,16 @@ model Trainer {
   notifyWhatsapp Boolean          @default(true)
   // In the round-robin pool for auto-assigned WhatsApp leads (Studio.autoAssignLeads).
   inLeadRotation Boolean          @default(false)
+  // Delegated admin rights (Sveta 06.07.2026: delegate PART of the admin role,
+  // per trainer, at the admin's discretion). The schedule itself (create/edit/
+  // cancel classes) stays admin-only.
+  //   permBookAnyClass   — see the FULL studio schedule and add clients to ANY
+  //                        trainer's class on any upcoming date (default: only
+  //                        their own class, today).
+  //   permManageBookings — reschedule a client's booking to another class and
+  //                        cancel client bookings.
+  permBookAnyClass   Boolean      @default(false)
+  permManageBookings Boolean      @default(false)
   payments       TrainerPayment[]
   safeOperations SafeOperation[]
   assignedConversations WhatsAppConversation[] @relation("ConversationAssignedTrainer")
@@ -436,6 +446,10 @@ model Booking {
   priceTier      String?
   ticketCode     String           @default("")
   checkedIn      Boolean          @default(false)
+  // Client self-booked WITHOUT entering the WhatsApp code because Meta reported
+  // the code as undeliverable (number not on WhatsApp — e.g. Chinese numbers).
+  // Shown as a "phone unverified" badge to staff so they double-check contact.
+  phoneUnverified Boolean         @default(false)
   notes          String?
   services       BookingService[]
   // When a trainer marks this class as paid out of the client's membership

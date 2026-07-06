@@ -98,10 +98,16 @@ export default function TrainerBookingsPage() {
     try {
       const today = baliDateStr(new Date())
       const res = await fetch(`/api/trainer/schedule?from=${today}&to=${today}`)
-      const slots = (await res.json()) as { id: string; startTime: string; endTime: string; state: string }[]
-      const mine = Array.isArray(slots) ? slots.filter((s) => s.state === "mine") : []
-      setTodayClasses(mine)
-      if (mine.length === 1) setAddSlotId(mine[0].id)
+      const json = await res.json()
+      // Endpoint now returns { slots, perms }; tolerate the old bare array too.
+      const slots = (Array.isArray(json) ? json : json?.slots ?? []) as { id: string; startTime: string; endTime: string; state: string }[]
+      // With permBookAnyClass the delegate can add clients to any class today,
+      // not only their own - offer those slots too.
+      const bookable = Array.isArray(slots)
+        ? slots.filter((s) => s.state === "mine" || s.state === "other-bookable")
+        : []
+      setTodayClasses(bookable)
+      if (bookable.length === 1) setAddSlotId(bookable[0].id)
     } catch {
       setTodayClasses([])
     }
