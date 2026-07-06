@@ -57,6 +57,11 @@ model Studio {
   // While false, the FloatingInbox FAB / /admin/inbox / /trainer/inbox
   // pages stay hidden and the inbox API rejects requests for this studio.
   whatsappEnabled Boolean @default(false)
+  // Per-trainer cash-safe tracking ("сейф тренера"): cash a trainer collects
+  // goes into THEIR safe box; balances show to the admin (all safes) and to
+  // each trainer (their own). Super-admin toggle, off by default — while
+  // false, the safe pages/API are hidden for this studio.
+  safeEnabled Boolean @default(false)
   // Auto-assign incoming WhatsApp leads (a first message from an unknown number
   // with no booking) to trainers in a round-robin. Off by default; the admin UI
   // disables the toggle while whatsappEnabled is false. The rotation pool is the
@@ -142,6 +147,7 @@ model Studio {
   blockedDays  BlockedDay[]
   studioBlocks StudioBlock[]
   payments     TrainerPayment[]
+  safeOperations SafeOperation[]
   expenses     Expense[]
   services     AdditionalService[]
   memberships  Membership[]
@@ -284,6 +290,7 @@ model Trainer {
   // In the round-robin pool for auto-assigned WhatsApp leads (Studio.autoAssignLeads).
   inLeadRotation Boolean          @default(false)
   payments       TrainerPayment[]
+  safeOperations SafeOperation[]
   assignedConversations WhatsAppConversation[] @relation("ConversationAssignedTrainer")
   conversationAccess    WhatsAppConversationAccess[] @relation("TrainerConversationAccess")
   sentMessages          WhatsAppMessage[]      @relation("MessageFromTrainer")
@@ -300,6 +307,35 @@ model BlockedDay {
   createdAt DateTime @default(now())
 
   @@unique([studioId, date])
+}
+
+// Manual movements of a trainer's cash safe. Cash INFLOW is never written
+// here — it is computed live from CASH payment records (bookings, passes,
+// services), so the balance can't drift from double entry. Rows only record
+// what leaves (or corrects) the physical box:
+//   withdrawal — the owner/admin took cash out of this trainer's safe
+//   salary     — a salary payout handed out of this safe (tied to a
+//                TrainerPayment via paymentId)
+//   correction — recount result ("the safe actually holds Y"), signed either
+//                way, note required. Also used for the enable-day baseline.
+model SafeOperation {
+  id              String   @id @default(cuid())
+  studioId        String
+  studio          Studio   @relation(fields: [studioId], references: [id])
+  trainerId       String
+  trainer         Trainer  @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  kind            String // "withdrawal" | "salary" | "correction"
+  // Signed delta applied to the safe balance: withdrawals/salary are stored
+  // NEGATIVE (money leaves the box); a correction may go either way.
+  amount          Float
+  note            String?
+  // TrainerPayment this salary operation belongs to (kind = "salary").
+  paymentId       String?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  @@index([studioId, trainerId])
+  @@index([createdAt])
 }
 
 model TrainerPayment {
@@ -435,6 +471,11 @@ model Booking {
   cancelledAt        DateTime?
   cancelledByUserId  String?
   cancelledByRole    String?
+  // Who recorded the payment (tapped "Paid" in the cabinet). For a CASH
+  // payment this is whose SAFE the money goes into — the person who
+  // physically took the bills. Null on history; the safe engine falls back
+  // to the slot's lead trainer for those.
+  paymentMarkedByUserId String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -627,6 +668,16 @@ model WhatsAppConversation {
   // Shown as a preview line in the inbox list so staff see "New booking · Class · Date"
   // without any WA message needed.
   bookingPreview    String?
+  // CTWA (Click-to-WhatsApp) ad attribution, FIRST-TOUCH. Set from an inbound
+  // message's `referral` object when the client arrived by tapping a paid ad.
+  // Lets us join this lead (clientPhone) to bookings and compute real ad ROI.
+  // Forward-only: conversations that started before capture keep these null.
+  adSourceType   String?   // referral.source_type - "ad" | "post"
+  adSourceId     String?   // referral.source_id - the Meta ad id
+  adCtwaClid     String?   // referral.ctwa_clid - unique click id
+  adHeadline     String?   // referral.headline - the ad title shown to the user
+  adSourceUrl    String?   // referral.source_url
+  adReferralAt   DateTime? // when the ad-referred first inbound arrived
   messages          WhatsAppMessage[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -634,6 +685,8 @@ model WhatsAppConversation {
   @@unique([studioId, clientPhone])
   @@index([studioId, lastMessageAt])
   @@index([assignedTrainerId])
+  @@index([adSourceId])
+  @@index([adReferralAt])
 }
 
 // Join table for "this trainer can see this conversation". One row per

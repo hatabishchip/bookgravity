@@ -31,6 +31,9 @@ export async function GET(request: NextRequest) {
         // Per-studio feature flag for the WhatsApp inbox. False studios
         // hide the FAB and the /admin|/trainer/inbox pages entirely.
         whatsappEnabled: true,
+        // Per-studio trainer cash-safe tracking — gates the "Safes" admin
+        // page, the salary "pay from safe" checkbox and the trainer card.
+        safeEnabled: true,
       },
     })
     if (!studio) return NextResponse.json({ error: "Not found" }, { status: 404 })

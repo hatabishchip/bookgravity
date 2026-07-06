@@ -8,6 +8,9 @@ const PaymentSchema = z.object({
   amount: z.number().positive(),
   month: z.string(),
   note: z.string().optional(),
+  // Salary handed out of the trainer's cash safe (safe feature): records a
+  // matching SafeOperation in the same transaction so the box balance drops.
+  fromSafe: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -16,7 +19,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const data = PaymentSchema.parse(body)
+    const { fromSafe, ...data } = PaymentSchema.parse(body)
 
     // Verify trainer belongs to this studio
     const trainer = await prisma.trainer.findFirst({
@@ -24,8 +27,24 @@ export async function POST(request: NextRequest) {
     })
     if (!trainer) return NextResponse.json({ error: "Trainer not found" }, { status: 404 })
 
-    const payment = await prisma.trainerPayment.create({
-      data: { ...data, studioId: ctx.studioId },
+    const payment = await prisma.$transaction(async (tx) => {
+      const p = await tx.trainerPayment.create({
+        data: { ...data, studioId: ctx.studioId },
+      })
+      if (fromSafe) {
+        await tx.safeOperation.create({
+          data: {
+            studioId: ctx.studioId,
+            trainerId: data.trainerId,
+            kind: "salary",
+            amount: -data.amount,
+            note: data.note ?? `Salary ${data.month}`,
+            paymentId: p.id,
+            createdByUserId: ctx.userId,
+          },
+        })
+      }
+      return p
     })
     return NextResponse.json(payment, { status: 201 })
   } catch (err) {
@@ -46,5 +65,8 @@ export async function DELETE(request: NextRequest) {
 
   const result = await prisma.trainerPayment.deleteMany({ where: { id, studioId: ctx.studioId } })
   if (result.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  // A deleted payment takes its paid-from-safe record with it, or the box
+  // balance would stay reduced by a payout that never happened.
+  await prisma.safeOperation.deleteMany({ where: { paymentId: id, studioId: ctx.studioId } })
   return NextResponse.json({ success: true })
 }

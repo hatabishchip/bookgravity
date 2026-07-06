@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Landmark, Settings, ExternalLink, X, Menu } from "lucide-react"
+import { Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Landmark, Settings, ExternalLink, X, Menu, Megaphone, PiggyBank } from "lucide-react"
 import { cn } from "@/lib/utils"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 import WebPushManager from "@/app/_components/WebPushManager"
@@ -22,12 +22,13 @@ const navItems: { href: string; label: string; icon: React.ComponentType<{ size?
   { href: "/admin/services", label: "Prices & Services", icon: Package },
   { href: "/admin/salary", label: "Salary", icon: Banknote },
   { href: "/admin/cashflow", label: "Cash Flow", icon: ArrowLeftRight },
+  { href: "/admin/ad-analytics", label: "Ad ROI", icon: Megaphone },
   { href: "/admin/payments", label: "Bank confirmations", icon: Landmark },
 ]
 
 function SidebarContent({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
-  const [studio, setStudio] = useState<{ name: string; slug: string; isDefault: boolean } | null>(null)
+  const [studio, setStudio] = useState<{ name: string; slug: string; isDefault: boolean; safeEnabled?: boolean } | null>(null)
   // The just-tapped item lights up INSTANTLY (before the route resolves); the
   // mobile drawer closes a beat later so you actually see where you landed.
   const [pendingHref, setPendingHref] = useState<string | null>(null)
@@ -76,7 +77,20 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           Sign Out is always reachable even behind Android system navigation. */}
       <div className="flex-1 overflow-y-auto">
         <nav className="p-4 space-y-1">
-          {navItems.map(({ href, label, icon: Icon, beta }) => {
+          {/* "Safes" shows only when the super-admin enabled cash-safe
+              tracking for this studio — slotted right after Cash Flow. */}
+          {(studio?.safeEnabled
+            ? (() => {
+                const items = [...navItems]
+                items.splice(items.findIndex((i) => i.href === "/admin/cashflow") + 1, 0, {
+                  href: "/admin/safe",
+                  label: "Safes",
+                  icon: PiggyBank,
+                })
+                return items
+              })()
+            : navItems
+          ).map(({ href, label, icon: Icon, beta }) => {
             const active = pathname === href || pendingHref === href
             return (
               <Link key={href} href={href}

@@ -95,6 +95,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     updateData.cancelledByUserId = ctx.userId
     updateData.cancelledByRole = "trainer"
   }
+  // Payment attribution: whoever records the payment took the money — for a
+  // CASH payment this decides whose safe the bills are counted in.
+  if (data.paymentType !== undefined || data.paymentStatus !== undefined) {
+    updateData.paymentMarkedByUserId = ctx.userId
+  }
   if (data.paymentType !== undefined) {
     const sw = await applyPaymentSwitch({
       studioId: ctx.studioId,

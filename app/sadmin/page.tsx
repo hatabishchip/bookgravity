@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import {
   Plus, X, MessageCircle, CheckCircle2, AlertCircle,
-  ExternalLink, Eye, EyeOff, Pencil, Building2, Users, Calendar, KeyRound, Mail, Check,
+  ExternalLink, Eye, EyeOff, Pencil, Building2, Users, Calendar, KeyRound, Mail, Check, Banknote,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -17,6 +17,7 @@ type StudioRow = {
   city: string | null
   isDefault: boolean
   publicVisible: boolean
+  safeEnabled: boolean
   logoUrl: string | null
   createdAt: string
   counts: { users: number; trainers: number; timeSlots: number; whatsappConversations: number }
@@ -182,6 +183,23 @@ function StudioCard({ studio, onChanged }: {
     }
   }
 
+  // Trainer cash-safe tracking: per-studio feature (default off). While on,
+  // the studio's admin gets the "Safes" page and trainers see their safe card.
+  const [togglingSafe, setTogglingSafe] = useState(false)
+  const toggleSafe = async () => {
+    setTogglingSafe(true)
+    try {
+      await fetch("/api/sadmin/studios", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: studio.id, safeEnabled: !studio.safeEnabled }),
+      })
+      onChanged()
+    } finally {
+      setTogglingSafe(false)
+    }
+  }
+
   const resetAdminPassword = async () => {
     if (!studioAdmin) return
     setResetting(true)
@@ -251,6 +269,26 @@ function StudioCard({ studio, onChanged }: {
             >
               {studio.publicVisible ? <Eye size={13} /> : <EyeOff size={13} />}
               {studio.publicVisible ? "Visible" : "Hidden"}
+            </button>
+            <button
+              type="button"
+              onClick={toggleSafe}
+              disabled={togglingSafe}
+              aria-label={studio.safeEnabled ? "Disable cash-safe tracking" : "Enable cash-safe tracking"}
+              title={
+                studio.safeEnabled
+                  ? "Trainer cash safes ON - the admin has a Safes page, trainers see their safe balance. Click to turn off."
+                  : "Trainer cash safes OFF - click to enable per-trainer cash tracking for this studio."
+              }
+              className={cn(
+                "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium disabled:opacity-50",
+                studio.safeEnabled
+                  ? "text-emerald-600 hover:bg-emerald-50"
+                  : "text-gray-400 hover:bg-gray-100",
+              )}
+            >
+              <Banknote size={13} />
+              {studio.safeEnabled ? "Safes on" : "Safes off"}
             </button>
           </div>
           {/* Path-based now — every studio lives at bookgravity.com/<slug>.

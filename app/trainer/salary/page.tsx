@@ -47,10 +47,24 @@ const fmtFull = (n: number) => "Rp " + n.toLocaleString("en-US")
 // formatIDR now lives in lib/format (formatIDRCompact) — the local copy
 // carried the toFixed(1) bug that rendered 1.35M as "1.4M".
 
+type SafeInfo = {
+  balance: number
+  operations: { id: string; kind: string; amount: number; note: string | null; createdAt: string }[]
+}
+
 export default function TrainerSalaryPage() {
   const [anchor, setAnchor] = useState(startOfMonth(new Date()))
   const [salary, setSalary] = useState<Salary | null>(null)
   const [loading, setLoading] = useState(true)
+  // Cash-safe card (safe feature). null = feature off for this studio (404).
+  const [safe, setSafe] = useState<SafeInfo | null>(null)
+
+  useEffect(() => {
+    fetch("/api/trainer/safe", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setSafe(d))
+      .catch(() => {})
+  }, [])
 
   const fetchSalary = useCallback(async (date: Date) => {
     setLoading(true)
@@ -126,6 +140,39 @@ export default function TrainerSalaryPage() {
                 : `${salary.sessionsWorked} class${salary.sessionsWorked === 1 ? "" : "es"}${salary.assistedCount > 0 ? ` · ${salary.assistedCount} assisted` : ""}`}
             </div>
           </div>
+
+          {/* Cash in my safe (safe feature; hidden while off for the studio).
+              The number must match the bills in the trainer's physical box. */}
+          {safe !== null && (
+            <div className="bg-white rounded-2xl shadow-sm p-5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Banknote size={16} className="text-brand" />
+                  <span className="text-xs uppercase tracking-wider font-semibold">Cash in my safe</span>
+                </div>
+                <span className="text-xl font-bold text-gray-900">Rp {formatIDR(safe.balance)}</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1.5">
+                Should match the cash in your safe box - tell the admin if it doesn&apos;t.
+              </p>
+              {safe.operations.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  {safe.operations.slice(0, 5).map((o) => (
+                    <div key={o.id} className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500 truncate">
+                        {o.kind === "salary" ? "Salary from safe" : o.kind === "withdrawal" ? "Taken by studio" : "Correction"}
+                        {o.note ? ` - ${o.note}` : ""}
+                        <span className="text-gray-300"> · {formatDate(parseISO(o.createdAt), "MMM d")}</span>
+                      </span>
+                      <span className={cn("font-semibold tabular-nums flex-shrink-0", o.amount < 0 ? "text-red-500" : "text-green-600")}>
+                        {o.amount < 0 ? "-" : "+"}Rp {formatIDR(Math.abs(o.amount))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Breakdown */}
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">

@@ -99,6 +99,10 @@ export default function SalaryPage() {
   const [payAmount, setPayAmount] = useState("")
   const [payNote, setPayNote] = useState("")
   const [paying, setPaying] = useState(false)
+  // Trainer cash-safe balances (safe feature). null = feature off for this
+  // studio (the endpoint 404s), so the "pay from safe" checkbox never shows.
+  const [safeBalances, setSafeBalances] = useState<Map<string, number> | null>(null)
+  const [payFromSafe, setPayFromSafe] = useState(false)
 
   const [showExpenseForm, setShowExpenseForm] = useState(false)
   const [expForm, setExpForm] = useState({
@@ -124,6 +128,15 @@ export default function SalaryPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  useEffect(() => {
+    fetch("/api/admin/safe", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { balances: { trainerId: string; balance: number }[] } | null) => {
+        if (d) setSafeBalances(new Map(d.balances.map((b) => [b.trainerId, b.balance])))
+      })
+      .catch(() => {})
+  }, [])
+
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!payModal) return
@@ -136,12 +149,23 @@ export default function SalaryPage() {
         amount: Number(payAmount),
         month,
         note: payNote || undefined,
+        ...(payFromSafe ? { fromSafe: true } : {}),
       }),
     })
     await fetchData()
+    if (payFromSafe) {
+      // The safe balance just dropped — refresh so the next modal shows it.
+      fetch("/api/admin/safe", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { balances: { trainerId: string; balance: number }[] } | null) => {
+          if (d) setSafeBalances(new Map(d.balances.map((b) => [b.trainerId, b.balance])))
+        })
+        .catch(() => {})
+    }
     setPayModal(null)
     setPayAmount("")
     setPayNote("")
+    setPayFromSafe(false)
     setPaying(false)
   }
 
@@ -262,7 +286,7 @@ export default function SalaryPage() {
                     <div className="text-xs text-gray-400 mt-0.5">{t.commissionRate}% commission · {t.sessions} sessions</div>
                   </div>
                   <button
-                    onClick={() => { setPayModal(t); setPayAmount(String(t.balance > 0 ? t.balance : "")) }}
+                    onClick={() => { setPayModal(t); setPayAmount(String(t.balance > 0 ? t.balance : "")); setPayFromSafe(false) }}
                     disabled={t.balance <= 0}
                     className="px-3 py-2 bg-brand text-white text-xs font-medium rounded-lg hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                   >
@@ -450,6 +474,24 @@ export default function SalaryPage() {
                   placeholder="e.g. Cash, transfer #123"
                 />
               </div>
+              {/* Safe feature: hand the salary straight out of the trainer's
+                  cash box — the safe balance drops by the paid amount. */}
+              {safeBalances !== null && (safeBalances.get(payModal.id) ?? 0) > 0 && (
+                <label className="flex items-start gap-2.5 rounded-xl border border-gray-200 px-3.5 py-2.5 cursor-pointer hover:border-brand/40">
+                  <input
+                    type="checkbox"
+                    checked={payFromSafe}
+                    onChange={(e) => setPayFromSafe(e.target.checked)}
+                    className="mt-0.5 accent-[var(--brand,#4f46e5)]"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Pay from {payModal.name.split(/\s+/)[0]}&apos;s safe
+                    <span className="block text-xs text-gray-400 mt-0.5">
+                      {formatIDR(safeBalances.get(payModal.id) ?? 0)} cash available in the safe
+                    </span>
+                  </span>
+                </label>
+              )}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setPayModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
                 <button type="submit" disabled={paying} className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
