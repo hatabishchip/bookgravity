@@ -70,6 +70,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: "Cannot change payment on a cancelled booking" }, { status: 400 })
   }
 
+  // Sveta 06.07.2026: a trainer RECORDS a payment once, but must not RE-EDIT an
+  // already-recorded one - a wrong method/tier is corrected by the admin only
+  // (keeps the cash-register books honest; trainers can't quietly reclassify
+  // money after the fact). The first entry (booking still UNPAID) is allowed;
+  // once PAID, changing method/tier/local is admin-only.
+  const alreadyPaid = booking.paymentStatus === "PAID"
+  const touchesPayment =
+    data.paymentType !== undefined || data.priceTier !== undefined || data.localResident !== undefined
+  if (alreadyPaid && touchesPayment) {
+    return NextResponse.json(
+      { error: "This payment is already recorded - ask an admin to correct it." },
+      { status: 403 },
+    )
+  }
+
   // Moving to another class: the target must be a future slot in this studio
   // (any class type) with a free spot and an assigned trainer. Cross-trainer
   // targets are fine — the receiving trainer is pinged below.

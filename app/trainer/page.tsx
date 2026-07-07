@@ -1414,13 +1414,19 @@ export default function TrainerSchedulePage() {
                           white) and turn green only when chosen, so it's clear
                           what to tap. */}
                       <div className="mt-4">
-                        <div className="text-xs text-gray-500 font-medium mb-2">Payment method</div>
-                        <div className="rounded-xl border border-gray-200 p-2 space-y-1.5">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-xs text-gray-500 font-medium">Payment method</div>
+                          {/* Sveta 06.07: once recorded, a trainer can't re-edit
+                              the payment - an admin corrects mistakes. */}
+                          {isPaid && <span className="text-[11px] text-gray-400">recorded - admin can change</span>}
+                        </div>
+                        <div className={cn("rounded-xl border border-gray-200 p-2 space-y-1.5", isPaid && "opacity-60 pointer-events-none")}>
                           {/* Pay from membership — only when the client has a pass
                               with classes left (or this booking already used one). */}
                           {((b.membershipRemaining ?? 0) > 0 || b.paymentType === "MEMBERSHIP") && (
                             <button
                               type="button"
+                              disabled={isPaid}
                               onClick={() => handlePaymentMethod(b, "MEMBERSHIP")}
                               className={cn(
                                 "w-full py-2.5 rounded-lg text-sm font-semibold border touch-manipulation flex items-center justify-center gap-2",
@@ -1475,6 +1481,7 @@ export default function TrainerSchedulePage() {
                               memberPrice={b.memberPrice ?? 250000}
                               localPrice={b.localPrice ?? 200000}
                               onChange={(tier) => setTier(b, tier)}
+                              disabled={isPaid}
                             />
                           </div>
                         )}

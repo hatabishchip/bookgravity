@@ -418,16 +418,9 @@ function BookingDetails({
               <CheckCircle2 size={14} />
               Paid · {isMembership ? `Membership${typeof booking.membershipRemaining === "number" ? ` (${booking.membershipRemaining} left)` : ""}` : (PAYMENT_LABEL[booking.paymentType] ?? booking.paymentType)}
             </span>
-            {!editLocked && (
-              <button
-                type="button"
-                disabled={isUpdating}
-                onClick={() => onUpdate({ paymentType: "PENDING", paymentStatus: "UNPAID" })}
-                className="text-[11px] text-brand/70 hover:text-brand underline disabled:opacity-50"
-              >
-                Undo
-              </button>
-            )}
+            {/* Sveta 06.07: a trainer records a payment once and can't re-edit
+                it - a wrong method/tier is fixed by an admin. So no Undo here. */}
+            <span className="text-[11px] text-gray-400">admin can change</span>
           </div>
         ) : (
           <div>
@@ -471,7 +464,7 @@ function BookingDetails({
           fullPrice={booking.slot.price ?? 300000}
           memberPrice={booking.memberPrice ?? 250000}
           localPrice={booking.localPrice ?? 200000}
-          disabled={isUpdating || editLocked}
+          disabled={isUpdating || editLocked || booking.paymentStatus === "PAID"}
           onChange={(tier) => onUpdate({ priceTier: tier })}
         />
       )}
