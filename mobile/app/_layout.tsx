@@ -11,6 +11,7 @@ import * as Updates from "expo-updates"
 import { useAuth, homeRouteFor } from "@/lib/auth"
 import { useTheme } from "@/hooks/useTheme"
 import { api } from "@/lib/api"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 // Hide the native splash until we've at least read the secure store, so
 // the user never sees a flash of "Sign in" before the cached session
@@ -214,13 +215,17 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <StatusBar style="auto" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: theme.bg.page },
-              animation: "fade",
-            }}
-          />
+          {/* Turns any screen-render crash into a readable message + reload
+              instead of a blank white screen (07.07 trainer white-screen). */}
+          <ErrorBoundary>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: theme.bg.page },
+                animation: "fade",
+              }}
+            />
+          </ErrorBoundary>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
