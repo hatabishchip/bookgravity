@@ -171,6 +171,26 @@ export default function TrainersPage() {
     await fetchTrainers(); setDeleting(null)
   }
 
+  // Reset a trainer's / staff member's login password to a fresh 4-digit PIN
+  // (Sveta 07.07: a trainer added before this system had no known password and
+  // no self-serve reset). Shows the new PIN once so it can be handed over.
+  const [resetting, setResetting] = useState<string | null>(null)
+  const [resetPin, setResetPin] = useState<Record<string, string>>({})
+  const handleResetPassword = async (id: string, kind: "TRAINER" | "STAFF", label: string) => {
+    if (!confirm(`Reset the password for "${label}"? A new one is generated and shown once.`)) return
+    setResetting(id)
+    const res = await fetch("/api/admin/trainers/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, kind }),
+    })
+    setResetting(null)
+    if (!res.ok) { alert("Couldn't reset the password - try again."); return }
+    const data = await res.json()
+    setResetPin((prev) => ({ ...prev, [id]: data.password }))
+    fetchTrainers()
+  }
+
   // Staff have no history, so removal is a real delete (not an archive).
   const handleDeleteStaff = async (id: string, label: string) => {
     if (!confirm(`Delete staff "${label}"? This removes their login for good.`)) return
@@ -305,10 +325,20 @@ export default function TrainersPage() {
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-shrink-0">Staff</span>
                 </div>
                 <div className="text-sm text-gray-500 mt-0.5 truncate">login: {trainer.user.email}</div>
-                <div className="text-xs mt-0.5">
-                  {trainer.user.initialPassword
-                    ? <span className="text-gray-500">password: <span className="font-mono font-semibold text-gray-700">{trainer.user.initialPassword}</span></span>
-                    : <span className="text-gray-400">{trainer.lastActiveAt ? `last active ${formatDistanceToNow(new Date(trainer.lastActiveAt), { addSuffix: true })}` : "hasn't signed in yet"}</span>}
+                <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap">
+                  {resetPin[trainer.id]
+                    ? <span className="text-gray-500">new password: <span className="font-mono font-semibold text-brand">{resetPin[trainer.id]}</span></span>
+                    : trainer.user.initialPassword
+                      ? <span className="text-gray-500">password: <span className="font-mono font-semibold text-gray-700">{trainer.user.initialPassword}</span></span>
+                      : <span className="text-gray-400">{trainer.lastActiveAt ? `last active ${formatDistanceToNow(new Date(trainer.lastActiveAt), { addSuffix: true })}` : "hasn't signed in yet"}</span>}
+                  <button
+                    type="button"
+                    onClick={() => handleResetPassword(trainer.id, "STAFF", trainer.name || trainer.user.email)}
+                    disabled={resetting === trainer.id}
+                    className="text-brand/70 hover:text-brand underline disabled:opacity-50"
+                  >
+                    {resetting === trainer.id ? "resetting…" : "reset password"}
+                  </button>
                 </div>
               </div>
             </div>
@@ -479,17 +509,27 @@ export default function TrainersPage() {
                       <span className="truncate">{trainer.name}</span>
                     </div>
                     <div className="text-sm text-gray-500 mt-0.5 truncate">{trainer.user.email}</div>
-                    <div className="text-xs mt-0.5">
-                      {trainer.user.initialPassword
-                        ? <span className="text-gray-500">password: <span className="font-mono font-semibold text-gray-700">{trainer.user.initialPassword}</span></span>
-                        : (
-                          // Password changed → don't show stars; show last login instead.
-                          <span className="text-gray-400">
-                            {trainer.lastActiveAt
-                              ? `last active ${formatDistanceToNow(new Date(trainer.lastActiveAt), { addSuffix: true })}`
-                              : "hasn't signed in yet"}
-                          </span>
-                        )}
+                    <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap">
+                      {resetPin[trainer.id]
+                        ? <span className="text-gray-500">new password: <span className="font-mono font-semibold text-brand">{resetPin[trainer.id]}</span></span>
+                        : trainer.user.initialPassword
+                          ? <span className="text-gray-500">password: <span className="font-mono font-semibold text-gray-700">{trainer.user.initialPassword}</span></span>
+                          : (
+                            // Password changed → don't show stars; show last login instead.
+                            <span className="text-gray-400">
+                              {trainer.lastActiveAt
+                                ? `last active ${formatDistanceToNow(new Date(trainer.lastActiveAt), { addSuffix: true })}`
+                                : "hasn't signed in yet"}
+                            </span>
+                          )}
+                      <button
+                        type="button"
+                        onClick={() => handleResetPassword(trainer.id, "TRAINER", trainer.name)}
+                        disabled={resetting === trainer.id}
+                        className="text-brand/70 hover:text-brand underline disabled:opacity-50"
+                      >
+                        {resetting === trainer.id ? "resetting…" : "reset password"}
+                      </button>
                     </div>
                     <div className="mt-1.5">
                       {(() => {
