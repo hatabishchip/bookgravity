@@ -156,6 +156,45 @@ export async function GET(request: NextRequest) {
   expenseRows.sort((a, b) => a.date.localeCompare(b.date))
   const expenseTotal = expenseRows.reduce((s, r) => s + r.amount, 0)
 
+  // ---- CASH ON HAND (register) - RUNNING, all-time (Sveta 06.07) ----
+  // "How much cash is in the register right now" = all CASH received minus all
+  // CASH paid out, over the studio's whole history (not the month). Only the
+  // CASH method counts: EDC / QR / Transfer never touch the drawer, and rent
+  // paid by transfer must not reduce it. Reconciled against the physical cash.
+  const [allCashBookings, allCashMemberships, allCashServices, allCashExpenses, allCashPayouts] =
+    await Promise.all([
+      prisma.booking.findMany({
+        where: { status: "CONFIRMED", paymentStatus: "PAID", paymentType: "CASH", slot: { studioId: ctx.studioId } },
+        select: { priceTier: true, localResident: true, slot: { select: { price: true } } },
+      }),
+      prisma.membership.findMany({
+        where: { studioId: ctx.studioId, paymentType: "CASH" },
+        select: { classPrice: true, totalClasses: true },
+      }),
+      prisma.bookingService.findMany({
+        where: { paymentType: "CASH", booking: { status: "CONFIRMED", slot: { studioId: ctx.studioId } } },
+        select: { service: { select: { price: true } } },
+      }),
+      prisma.expense.aggregate({
+        where: { studioId: ctx.studioId, method: "CASH" },
+        _sum: { amount: true },
+      }),
+      prisma.trainerPayment.aggregate({
+        where: { studioId: ctx.studioId, method: "CASH", kind: { not: "accrual" } },
+        _sum: { amount: true },
+      }),
+    ])
+  const cashInBookings = allCashBookings.reduce(
+    (s, b) => s + priceForTier(b, { slotPrice: b.slot.price, memberPrice: fallbackClassPrice, localPrice }),
+    0,
+  )
+  const cashInPasses = allCashMemberships.reduce((s, m) => s + (m.classPrice ?? fallbackClassPrice) * m.totalClasses, 0)
+  const cashInServices = allCashServices.reduce((s, sv) => s + sv.service.price, 0)
+  const cashInAllTime = cashInBookings + cashInPasses + cashInServices
+  const cashExpensesAllTime = allCashExpenses._sum.amount ?? 0
+  const cashPayoutsAllTime = allCashPayouts._sum.amount ?? 0
+  const cashOnHand = cashInAllTime - cashExpensesAllTime - cashPayoutsAllTime
+
   return NextResponse.json({
     month,
     monthLabel: new Date(year, mon - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" }),
@@ -164,5 +203,10 @@ export async function GET(request: NextRequest) {
     expenseRows,
     expenseTotal,
     net: incomeTotals.total - expenseTotal,
+    // Running cash-in-register reconciliation (all-time, CASH only).
+    cashOnHand,
+    cashInAllTime,
+    cashExpensesAllTime,
+    cashPayoutsAllTime,
   })
 }

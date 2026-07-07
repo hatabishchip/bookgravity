@@ -10,11 +10,18 @@ import { X } from "lucide-react"
 // nothing to tap). Posts to /api/admin/expenses and lets the parent refetch.
 
 const EXPENSE_CATEGORIES = ["Rent", "Utilities", "Equipment", "Marketing", "Staff", "Supplies", "Other"]
+const PAY_METHODS = [
+  { value: "CASH", label: "Cash" },
+  { value: "TRANSFER", label: "Transfer" },
+  { value: "EDC", label: "Card" },
+  { value: "QR", label: "QRIS" },
+]
 
 export function AddExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     amount: "",
     category: "Rent",
+    method: "CASH",
     description: "",
     date: format(new Date(), "yyyy-MM-dd"),
   })
@@ -31,6 +38,7 @@ export function AddExpenseModal({ onClose, onSaved }: { onClose: () => void; onS
       body: JSON.stringify({
         amount: Number(form.amount),
         category: form.category,
+        method: form.method,
         description: form.description || undefined,
         date: form.date,
       }),
@@ -80,17 +88,33 @@ export function AddExpenseModal({ onClose, onSaved }: { onClose: () => void; onS
               />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <select
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-            >
-              {EXPENSE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <select
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+              >
+                {EXPENSE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              {/* Only CASH expenses come out of the register (drives Cash Flow
+                  "cash on hand"). Default Cash; rent etc. → Transfer. */}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Paid with</label>
+              <select
+                value={form.method}
+                onChange={(e) => setForm({ ...form, method: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+              >
+                {PAY_METHODS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>

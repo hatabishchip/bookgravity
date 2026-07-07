@@ -18,6 +18,11 @@ type CashFlow = {
   expenseRows: ExpenseRow[]
   expenseTotal: number
   net: number
+  // Running (all-time, CASH only) register reconciliation.
+  cashOnHand: number
+  cashInAllTime: number
+  cashExpensesAllTime: number
+  cashPayoutsAllTime: number
 }
 
 const fmt = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID")
@@ -68,15 +73,32 @@ export default function CashFlowPage() {
         <div className="bg-white rounded-2xl shadow-sm"><PetalSpinner /></div>
       ) : (
         <div className="space-y-5">
-          {/* Summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <SummaryCard icon={TrendingUp} label="Money in" value={fmt(data.incomeTotals.total)} color="green" />
-            <SummaryCard icon={TrendingDown} label="Money out" value={fmt(data.expenseTotal)} color="red" />
-            {/* "Cash movement", not "Net": this is CASH IN minus CASH OUT
-                (payouts included, membership-paid classes excluded). The
-                Salary page's "Operating profit" is accrual-based - the two
-                legitimately differ; unlabeled they looked contradictory. */}
-            <SummaryCard icon={Wallet} label="Cash movement" value={fmt(data.net)} color={data.net >= 0 ? "brand" : "red"} />
+          {/* Summary — the month's money in / out (all methods). */}
+          <div className="grid grid-cols-2 gap-3">
+            <SummaryCard icon={TrendingUp} label={`Money in · ${data.monthLabel}`} value={fmt(data.incomeTotals.total)} color="green" />
+            <SummaryCard icon={TrendingDown} label={`Money out · ${data.monthLabel}`} value={fmt(data.expenseTotal)} color="red" />
+          </div>
+
+          {/* CASH IN REGISTER — running, all-time, CASH only (Sveta 06.07).
+              Transparent reconciliation so the number can be checked against
+              the physical cash drawer. */}
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-8 h-8 rounded-lg bg-brand/10 text-brand flex items-center justify-center"><Wallet size={16} /></span>
+              <span className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Cash in register (now)</span>
+            </div>
+            <div className="text-sm space-y-1.5">
+              <div className="flex justify-between gap-3"><span className="text-gray-500">Cash received (all time)</span><span className="font-medium tabular-nums text-green-600">+{fmt(data.cashInAllTime)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">Cash expenses</span><span className="font-medium tabular-nums text-red-500">−{fmt(data.cashExpensesAllTime)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">Cash salary paid</span><span className="font-medium tabular-nums text-red-500">−{fmt(data.cashPayoutsAllTime)}</span></div>
+              <div className="flex justify-between gap-3 border-t border-gray-200 pt-2 mt-1">
+                <span className="font-semibold text-gray-800">In the drawer now</span>
+                <span className={cn("font-bold tabular-nums text-lg", data.cashOnHand < 0 ? "text-red-500" : "text-gray-900")}>{fmt(data.cashOnHand)}</span>
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-2 leading-snug">
+              Only cash payments count here - card, QRIS and transfers never touch the drawer. Compare with the money you physically hold.
+            </p>
           </div>
 
           {/* INCOME */}

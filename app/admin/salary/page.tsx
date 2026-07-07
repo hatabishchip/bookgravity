@@ -98,6 +98,7 @@ export default function SalaryPage() {
   const [payModal, setPayModal] = useState<TrainerSalary | null>(null)
   const [payAmount, setPayAmount] = useState("")
   const [payNote, setPayNote] = useState("")
+  const [payMethod, setPayMethod] = useState("CASH")
   const [paying, setPaying] = useState(false)
   // Trainer cash-safe balances (safe feature). null = feature off for this
   // studio (the endpoint 404s), so the "pay from safe" checkbox never shows.
@@ -108,6 +109,7 @@ export default function SalaryPage() {
   const [expForm, setExpForm] = useState({
     amount: "",
     category: "Rent",
+    method: "CASH",
     description: "",
     date: format(new Date(), "yyyy-MM-dd"),
   })
@@ -149,6 +151,8 @@ export default function SalaryPage() {
         amount: Number(payAmount),
         month,
         note: payNote || undefined,
+        // Paying from the safe is cash by definition; else use the picked method.
+        method: payFromSafe ? "CASH" : payMethod,
         ...(payFromSafe ? { fromSafe: true } : {}),
       }),
     })
@@ -165,6 +169,7 @@ export default function SalaryPage() {
     setPayModal(null)
     setPayAmount("")
     setPayNote("")
+    setPayMethod("CASH")
     setPayFromSafe(false)
     setPaying(false)
   }
@@ -186,13 +191,14 @@ export default function SalaryPage() {
       body: JSON.stringify({
         amount: Number(expForm.amount),
         category: expForm.category,
+        method: expForm.method,
         description: expForm.description || undefined,
         date: expForm.date,
       }),
     })
     await fetchData()
     setShowExpenseForm(false)
-    setExpForm({ amount: "", category: "Rent", description: "", date: format(new Date(), "yyyy-MM-dd") })
+    setExpForm({ amount: "", category: "Rent", method: "CASH", description: "", date: format(new Date(), "yyyy-MM-dd") })
     setSavingExp(false)
   }
 
@@ -286,7 +292,7 @@ export default function SalaryPage() {
                     <div className="text-xs text-gray-400 mt-0.5">{t.commissionRate}% commission · {t.sessions} sessions</div>
                   </div>
                   <button
-                    onClick={() => { setPayModal(t); setPayAmount(String(t.balance > 0 ? t.balance : "")); setPayFromSafe(false) }}
+                    onClick={() => { setPayModal(t); setPayAmount(String(t.balance > 0 ? t.balance : "")); setPayFromSafe(false); setPayMethod("CASH") }}
                     disabled={t.balance <= 0}
                     className="px-3 py-2 bg-brand text-white text-xs font-medium rounded-lg hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                   >
@@ -464,6 +470,24 @@ export default function SalaryPage() {
                   placeholder="Enter amount"
                 />
               </div>
+              {/* Payment method drives the Cash Flow "cash on hand" (only CASH
+                  leaves the register). Hidden when paying from the safe - that
+                  is cash by definition. */}
+              {!payFromSafe && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Paid with</label>
+                  <select
+                    value={payMethod}
+                    onChange={(e) => setPayMethod(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="TRANSFER">Transfer</option>
+                    <option value="EDC">Card</option>
+                    <option value="QR">QRIS</option>
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Note (optional)</label>
                 <input
@@ -540,17 +564,34 @@ export default function SalaryPage() {
                   />
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select
-                  value={expForm.category}
-                  onChange={(e) => setExpForm({ ...expForm, category: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                >
-                  {EXPENSE_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    value={expForm.category}
+                    onChange={(e) => setExpForm({ ...expForm, category: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                  >
+                    {EXPENSE_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  {/* Only CASH expenses reduce the register (Cash Flow "cash on
+                      hand"); rent etc. paid by transfer must not. */}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Paid with</label>
+                  <select
+                    value={expForm.method}
+                    onChange={(e) => setExpForm({ ...expForm, method: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="TRANSFER">Transfer</option>
+                    <option value="EDC">Card</option>
+                    <option value="QR">QRIS</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>

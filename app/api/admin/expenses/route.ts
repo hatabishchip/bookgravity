@@ -8,6 +8,8 @@ const ExpenseSchema = z.object({
   category: z.string().min(1),
   description: z.string().optional(),
   date: z.string(),
+  // How it was paid — drives the Cash Flow "cash on hand" (only CASH counts).
+  method: z.enum(["CASH", "EDC", "QR", "TRANSFER"]).default("CASH"),
 })
 
 export async function GET(request: NextRequest) {

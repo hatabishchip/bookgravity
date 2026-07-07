@@ -361,6 +361,10 @@ model TrainerPayment {
   // "accrual" = a manual amount the studio owes the trainer (e.g. a no-show
   // comp) — adds to ACCRUED / balance. Always a positive amount either way.
   kind      String   @default("payout")
+  // How a payout was PAID: "CASH" | "EDC" | "QR" | "TRANSFER". Only CASH
+  // payouts leave the register, so the Cash Flow "cash on hand" subtracts only
+  // these. A payout "from safe" is always cash. Default CASH for old rows.
+  method    String   @default("CASH")
   createdAt DateTime @default(now())
 }
 
@@ -370,6 +374,11 @@ model Expense {
   category    String
   description String?
   date        String
+  // How the expense was PAID: "CASH" | "EDC" | "QR" | "TRANSFER". Only CASH
+  // expenses come out of the register, so the Cash Flow "cash on hand" figure
+  // subtracts only these (Sveta 06.07: rent is paid by transfer, must NOT
+  // reduce the drawer). Default CASH keeps older rows behaving as before.
+  method      String   @default("CASH")
   studioId    String
   studio      Studio   @relation(fields: [studioId], references: [id])
   createdAt   DateTime @default(now())

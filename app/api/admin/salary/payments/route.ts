@@ -8,6 +8,9 @@ const PaymentSchema = z.object({
   amount: z.number().positive(),
   month: z.string(),
   note: z.string().optional(),
+  // How the salary was paid — drives the Cash Flow "cash on hand" (only CASH
+  // leaves the register). A payout "from safe" is always cash.
+  method: z.enum(["CASH", "EDC", "QR", "TRANSFER"]).default("CASH"),
   // Salary handed out of the trainer's cash safe (safe feature): records a
   // matching SafeOperation in the same transaction so the box balance drops.
   fromSafe: z.boolean().optional(),
@@ -20,6 +23,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { fromSafe, ...data } = PaymentSchema.parse(body)
+    // Paying out of the trainer's cash safe is by definition a cash payout.
+    if (fromSafe) data.method = "CASH"
 
     // Verify trainer belongs to this studio
     const trainer = await prisma.trainer.findFirst({
