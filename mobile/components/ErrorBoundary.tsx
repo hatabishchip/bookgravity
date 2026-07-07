@@ -1,6 +1,9 @@
 import { Component, type ReactNode } from "react"
-import { View, Text, Pressable, ScrollView } from "react-native"
+import { View, Text, Pressable, ScrollView, Platform } from "react-native"
 import * as Updates from "expo-updates"
+import Constants from "expo-constants"
+import { API_BASE } from "@/lib/api"
+import { useAuth } from "@/lib/auth"
 
 // App-wide crash guard. A render error anywhere below (a screen throwing while
 // it renders) used to leave a blank WHITE SCREEN with no clue - a trainer hit
@@ -22,6 +25,26 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
     // Surface it in Metro / logcat / Xcode console for diagnosis.
     console.error("[ErrorBoundary] render crash:", error?.message, error?.stack, info?.componentStack)
+    // Also report to the server so a crash lands in our logs automatically -
+    // no need for the user to screenshot the message. Best-effort, never awaited.
+    try {
+      const user = useAuth.getState().user
+      fetch(`${API_BASE}/api/native/log-crash`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: error?.message,
+          stack: error?.stack,
+          componentStack: info?.componentStack,
+          platform: Platform.OS,
+          appVersion: Constants.expoConfig?.version,
+          role: user?.role,
+          studioSlug: user?.studioSlug,
+        }),
+      }).catch(() => {})
+    } catch {
+      /* reporting must never throw */
+    }
   }
 
   reload = () => {
