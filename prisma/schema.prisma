@@ -153,6 +153,7 @@ model Studio {
   memberships  Membership[]
   whatsappConversations WhatsAppConversation[]
   bankPayments BankPayment[]
+  cashCounts   CashCount[]
 }
 
 // A time-range the studio room is occupied by something OTHER than a class -
@@ -346,6 +347,30 @@ model SafeOperation {
 
   @@index([studioId, trainerId])
   @@index([createdAt])
+}
+
+// A physical cash-drawer recount for the studio (Sveta's control function).
+// The Cash Flow "expected in drawer" = all-time cash-in − cash-out − Σ(these
+// differences). Counting sets a new baseline: difference = expected − counted
+// is stored (positive = money MISSING from the drawer) and "absorbed" so the
+// expected figure lands on the counted amount. Legit outflows (bank deposits,
+// owner takes cash) and pre-launch test data all show up as a difference the
+// admin explains in the note - that's the anti-"приписки" audit trail.
+model CashCount {
+  id              String   @id @default(cuid())
+  studioId        String
+  studio          Studio   @relation(fields: [studioId], references: [id])
+  // What the admin physically counted in the drawer.
+  counted         Float
+  // What the system expected at that moment (before this count).
+  expected        Float
+  // expected - counted. Positive = shortage (missing cash), negative = surplus.
+  difference      Float
+  note            String?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  @@index([studioId, createdAt])
 }
 
 model TrainerPayment {

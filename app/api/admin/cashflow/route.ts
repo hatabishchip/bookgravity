@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { priceForTier } from "@/lib/payments"
 import { studioDateStr } from "@/lib/tz"
+import { cashNetAllTime } from "@/lib/cash"
 
 // Cash-flow report = the studio's daily money ledger, auto-built from data the
 // app already holds, mirroring the owner's "2026 Cash flow" sheet:
@@ -157,43 +158,27 @@ export async function GET(request: NextRequest) {
   const expenseTotal = expenseRows.reduce((s, r) => s + r.amount, 0)
 
   // ---- CASH ON HAND (register) - RUNNING, all-time (Sveta 06.07) ----
-  // "How much cash is in the register right now" = all CASH received minus all
-  // CASH paid out, over the studio's whole history (not the month). Only the
-  // CASH method counts: EDC / QR / Transfer never touch the drawer, and rent
-  // paid by transfer must not reduce it. Reconciled against the physical cash.
-  const [allCashBookings, allCashMemberships, allCashServices, allCashExpenses, allCashPayouts] =
-    await Promise.all([
-      prisma.booking.findMany({
-        where: { status: "CONFIRMED", paymentStatus: "PAID", paymentType: "CASH", slot: { studioId: ctx.studioId } },
-        select: { priceTier: true, localResident: true, slot: { select: { price: true } } },
-      }),
-      prisma.membership.findMany({
-        where: { studioId: ctx.studioId, paymentType: "CASH" },
-        select: { classPrice: true, totalClasses: true },
-      }),
-      prisma.bookingService.findMany({
-        where: { paymentType: "CASH", booking: { status: "CONFIRMED", slot: { studioId: ctx.studioId } } },
-        select: { service: { select: { price: true } } },
-      }),
-      prisma.expense.aggregate({
-        where: { studioId: ctx.studioId, method: "CASH" },
-        _sum: { amount: true },
-      }),
-      prisma.trainerPayment.aggregate({
-        where: { studioId: ctx.studioId, method: "CASH", kind: { not: "accrual" } },
-        _sum: { amount: true },
-      }),
-    ])
-  const cashInBookings = allCashBookings.reduce(
-    (s, b) => s + priceForTier(b, { slotPrice: b.slot.price, memberPrice: fallbackClassPrice, localPrice }),
-    0,
-  )
-  const cashInPasses = allCashMemberships.reduce((s, m) => s + (m.classPrice ?? fallbackClassPrice) * m.totalClasses, 0)
-  const cashInServices = allCashServices.reduce((s, sv) => s + sv.service.price, 0)
-  const cashInAllTime = cashInBookings + cashInPasses + cashInServices
-  const cashExpensesAllTime = allCashExpenses._sum.amount ?? 0
-  const cashPayoutsAllTime = allCashPayouts._sum.amount ?? 0
-  const cashOnHand = cashInAllTime - cashExpensesAllTime - cashPayoutsAllTime
+  // Only CASH counts (card / QRIS / transfer never touch the drawer). Shared
+  // helper so the recount endpoint agrees to the rupiah.
+  const { cashIn: cashInAllTime, cashExpenses: cashExpensesAllTime, cashPayouts: cashPayoutsAllTime, net: cashNet } =
+    await cashNetAllTime(ctx.studioId)
+
+  // Physical recounts absorb everything that left the drawer without a record
+  // (bank deposits, owner taking cash) plus pre-launch test rows: each count
+  // stored difference = expected − counted, and the running "expected" is the
+  // net minus the sum of those differences, so right after a count it equals
+  // what was counted. This is Sveta's control figure - compare to the drawer.
+  const [countAgg, recentCounts] = await Promise.all([
+    prisma.cashCount.aggregate({ where: { studioId: ctx.studioId }, _sum: { difference: true } }),
+    prisma.cashCount.findMany({
+      where: { studioId: ctx.studioId },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+    }),
+  ])
+  const absorbed = countAgg._sum.difference ?? 0
+  const expectedInDrawer = cashNet - absorbed
+  const lastCount = recentCounts[0] ?? null
 
   return NextResponse.json({
     month,
@@ -204,9 +189,16 @@ export async function GET(request: NextRequest) {
     expenseTotal,
     net: incomeTotals.total - expenseTotal,
     // Running cash-in-register reconciliation (all-time, CASH only).
-    cashOnHand,
     cashInAllTime,
     cashExpensesAllTime,
     cashPayoutsAllTime,
+    // Control figure: what should be in the drawer now, after past recounts.
+    expectedInDrawer,
+    lastCount: lastCount
+      ? { counted: lastCount.counted, difference: lastCount.difference, note: lastCount.note, createdAt: lastCount.createdAt }
+      : null,
+    counts: recentCounts.map((c) => ({
+      id: c.id, counted: c.counted, expected: c.expected, difference: c.difference, note: c.note, createdAt: c.createdAt,
+    })),
   })
 }

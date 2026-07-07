@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { format, addMonths, subMonths } from "date-fns"
-import { ChevronLeft, ChevronRight, Plus, TrendingUp, TrendingDown, Wallet } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, TrendingUp, TrendingDown, Wallet, ClipboardCheck, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { AddExpenseModal } from "@/app/_components/AddExpenseModal"
@@ -10,6 +10,7 @@ import { AddExpenseModal } from "@/app/_components/AddExpenseModal"
 type Method = "CASH" | "EDC" | "QR" | "TRANSFER"
 type IncomeRow = { id: string; date: string; label: string; responsible: string; method: Method; amount: number; kind: "class" | "membership" | "service" }
 type ExpenseRow = { id: string; date: string; description: string; amount: number; kind: "expense" | "payout" }
+type CashCount = { id: string; counted: number; expected: number; difference: number; note: string | null; createdAt: string }
 type CashFlow = {
   month: string
   monthLabel: string
@@ -19,10 +20,12 @@ type CashFlow = {
   expenseTotal: number
   net: number
   // Running (all-time, CASH only) register reconciliation.
-  cashOnHand: number
   cashInAllTime: number
   cashExpensesAllTime: number
   cashPayoutsAllTime: number
+  expectedInDrawer: number
+  lastCount: { counted: number; difference: number; note: string | null; createdAt: string } | null
+  counts: CashCount[]
 }
 
 const fmt = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID")
@@ -40,6 +43,12 @@ export default function CashFlowPage() {
   const [loading, setLoading] = useState(true)
   // "Add expense" right on this page (Sveta looked for it here, not on Salary).
   const [showExpense, setShowExpense] = useState(false)
+  // Cash recount / reconcile control.
+  const [showCount, setShowCount] = useState(false)
+  const [countAmount, setCountAmount] = useState("")
+  const [countNote, setCountNote] = useState("")
+  const [counting, setCounting] = useState(false)
+  const [countError, setCountError] = useState<string | null>(null)
 
   const fetchData = useCallback(async (date: Date) => {
     setLoading(true)
@@ -47,6 +56,27 @@ export default function CashFlowPage() {
     if (res.ok) setData(await res.json())
     setLoading(false)
   }, [])
+
+  const submitCount = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setCounting(true)
+    setCountError(null)
+    const res = await fetch("/api/admin/cash-count", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ counted: Number(countAmount), note: countNote || undefined }),
+    })
+    setCounting(false)
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      setCountError(j.error ?? "Couldn't save - try again.")
+      return
+    }
+    setShowCount(false)
+    setCountAmount("")
+    setCountNote("")
+    fetchData(anchor)
+  }
 
   useEffect(() => { fetchData(anchor) }, [anchor, fetchData])
 
@@ -79,26 +109,57 @@ export default function CashFlowPage() {
             <SummaryCard icon={TrendingDown} label={`Money out · ${data.monthLabel}`} value={fmt(data.expenseTotal)} color="red" />
           </div>
 
-          {/* CASH IN REGISTER — running, all-time, CASH only (Sveta 06.07).
-              Transparent reconciliation so the number can be checked against
-              the physical cash drawer. */}
+          {/* CASH IN REGISTER — control figure (Sveta 06.07). "Expected" is
+              built from cash-in − cash-out − past recount differences; count
+              the drawer to reconcile. Only CASH counts. */}
           <div className="bg-white rounded-2xl shadow-sm p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-8 h-8 rounded-lg bg-brand/10 text-brand flex items-center justify-center"><Wallet size={16} /></span>
-              <span className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Cash in register (now)</span>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-brand/10 text-brand flex items-center justify-center"><Wallet size={16} /></span>
+                <span className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Cash register control</span>
+              </div>
+              <button
+                onClick={() => { setCountAmount(""); setCountNote(""); setCountError(null); setShowCount(true) }}
+                className="inline-flex items-center gap-1 rounded-full bg-brand/10 text-brand px-3 py-1.5 text-xs font-semibold hover:bg-brand/15 active:scale-95 transition touch-manipulation"
+              >
+                <ClipboardCheck size={13} /> Count cash
+              </button>
             </div>
             <div className="text-sm space-y-1.5">
               <div className="flex justify-between gap-3"><span className="text-gray-500">Cash received (all time)</span><span className="font-medium tabular-nums text-green-600">+{fmt(data.cashInAllTime)}</span></div>
               <div className="flex justify-between gap-3"><span className="text-gray-500">Cash expenses</span><span className="font-medium tabular-nums text-red-500">−{fmt(data.cashExpensesAllTime)}</span></div>
               <div className="flex justify-between gap-3"><span className="text-gray-500">Cash salary paid</span><span className="font-medium tabular-nums text-red-500">−{fmt(data.cashPayoutsAllTime)}</span></div>
+              {data.lastCount && (
+                <div className="flex justify-between gap-3"><span className="text-gray-500">Since last count</span><span className="font-medium tabular-nums text-gray-400">baseline {fmt(data.lastCount.counted)}</span></div>
+              )}
               <div className="flex justify-between gap-3 border-t border-gray-200 pt-2 mt-1">
-                <span className="font-semibold text-gray-800">In the drawer now</span>
-                <span className={cn("font-bold tabular-nums text-lg", data.cashOnHand < 0 ? "text-red-500" : "text-gray-900")}>{fmt(data.cashOnHand)}</span>
+                <span className="font-semibold text-gray-800">Should be in the drawer</span>
+                <span className={cn("font-bold tabular-nums text-lg", data.expectedInDrawer < 0 ? "text-red-500" : "text-gray-900")}>{fmt(data.expectedInDrawer)}</span>
               </div>
             </div>
             <p className="text-[11px] text-gray-400 mt-2 leading-snug">
-              Only cash payments count here - card, QRIS and transfers never touch the drawer. Compare with the money you physically hold.
+              Only cash payments count - card, QRIS and transfers never touch the drawer. Count the drawer and tap &quot;Count cash&quot; to reconcile: any gap is logged.
             </p>
+
+            {data.counts.length > 0 && (
+              <div className="mt-3 border-t border-gray-100 pt-2">
+                <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1.5">Recounts</div>
+                <div className="space-y-1.5">
+                  {data.counts.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-gray-500 min-w-0 truncate">
+                        {format(new Date(c.createdAt), "MMM d, HH:mm")} · counted {fmt(c.counted)}
+                        {c.note ? <span className="text-gray-400"> - {c.note}</span> : null}
+                      </span>
+                      <span className={cn("font-semibold tabular-nums flex-shrink-0",
+                        c.difference > 0 ? "text-red-500" : c.difference < 0 ? "text-amber-600" : "text-green-600")}>
+                        {c.difference === 0 ? "matched" : c.difference > 0 ? `short ${fmt(c.difference)}` : `over ${fmt(-c.difference)}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* INCOME */}
@@ -203,6 +264,57 @@ export default function CashFlowPage() {
 
       {showExpense && (
         <AddExpenseModal onClose={() => setShowExpense(false)} onSaved={() => fetchData(anchor)} />
+      )}
+
+      {/* Cash recount / reconcile */}
+      {showCount && data && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 w-full max-w-sm shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Count the drawer</h2>
+              <button onClick={() => setShowCount(false)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Close"><X size={18} /></button>
+            </div>
+            <div className="bg-gray-50 rounded-xl px-4 py-3 mb-4 text-sm flex justify-between">
+              <span className="text-gray-500">System expects</span>
+              <span className="font-semibold tabular-nums">{fmt(data.expectedInDrawer)}</span>
+            </div>
+            <form onSubmit={submitCount} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Actually counted (IDR)</label>
+                <input
+                  type="number" required min="0" step="any" value={countAmount}
+                  onChange={(e) => setCountAmount(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                  placeholder="0"
+                />
+                {countAmount !== "" && (() => {
+                  const diff = data.expectedInDrawer - Number(countAmount)
+                  return (
+                    <p className={cn("text-xs mt-1 font-medium", diff > 0 ? "text-red-500" : diff < 0 ? "text-amber-600" : "text-green-600")}>
+                      {diff === 0 ? "Matches the system exactly." : diff > 0 ? `Short by ${fmt(diff)} - missing from the drawer.` : `Over by ${fmt(-diff)} - more than expected.`}
+                    </p>
+                  )
+                })()}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note (e.g. deposited to bank)</label>
+                <input
+                  type="text" value={countNote}
+                  onChange={(e) => setCountNote(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                  placeholder="Optional - explain any gap"
+                />
+              </div>
+              {countError && <div className="text-xs text-red-500">{countError}</div>}
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowCount(false)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
+                <button type="submit" disabled={counting} className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
+                  {counting ? "Saving..." : "Save count"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )
