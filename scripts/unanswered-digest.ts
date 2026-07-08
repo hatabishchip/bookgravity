@@ -16,6 +16,9 @@ import { join } from "path"
 import "dotenv/config"
 
 const WINDOW_H = Number(process.env.DIGEST_WINDOW_HOURS || 72) // "recent" cutoff
+// Owner's OWN studio only. Ubud (and USA/Almaty) are other people's studios -
+// the owner relays reminders to his Canggu coaches only. Override via env.
+const STUDIO_ID = process.env.DIGEST_STUDIO_ID || "studio_canggu_1778764028263" // Gravity Stretching Canggu
 const SEND = !process.argv.includes("--print")
 
 const c = createClient({ url: process.env.DATABASE_URL!, authToken: process.env.TURSO_AUTH_TOKEN })
@@ -31,12 +34,16 @@ function ago(d: string, now: number): string {
 async function build(): Promise<string> {
   // Stable "now" for the whole run (Date.now once).
   const now = Date.now()
-  const trainers = await c.execute("SELECT id, name FROM Trainer WHERE archived = 0")
+  const trainers = await c.execute({
+    sql: "SELECT id, name FROM Trainer WHERE archived = 0 AND studioId = ?",
+    args: [STUDIO_ID],
+  })
   const name = new Map((trainers.rows as { id: string; name: string }[]).map((t) => [t.id, t.name]))
 
-  const conv = await c.execute(
-    "SELECT clientName, clientPhone, assignedTrainerId, lastInboundAt, lastMessageAt, adSourceId FROM WhatsAppConversation WHERE lastInboundAt IS NOT NULL",
-  )
+  const conv = await c.execute({
+    sql: "SELECT clientName, clientPhone, assignedTrainerId, lastInboundAt, lastMessageAt, adSourceId FROM WhatsAppConversation WHERE studioId = ? AND lastInboundAt IS NOT NULL",
+    args: [STUDIO_ID],
+  })
   type Row = { clientName: string | null; clientPhone: string; assignedTrainerId: string | null; lastInboundAt: string; lastMessageAt: string | null; adSourceId: string | null }
   // Waiting = client had the last word (no outbound after the last inbound).
   const waiting = (conv.rows as unknown as Row[]).filter(
