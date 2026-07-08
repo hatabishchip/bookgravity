@@ -15,9 +15,12 @@ export async function GET(request: NextRequest) {
   }
   const user = await prisma.user.findUnique({
     where: { id: payload.sub },
-    include: { studio: { select: { slug: true } } },
+    include: { studio: { select: { slug: true, logoUrl: true } } },
   })
   if (!user) return NextResponse.json({ error: "User no longer exists" }, { status: 401 })
+  // Mirror the /native/login user shape exactly - the app REPLACES its cached
+  // user with this object on cold start, so a missing field here would erase
+  // it from the cache (lightweight logo URL, never the base64 data URL).
   return NextResponse.json({
     user: {
       id: user.id,
@@ -25,6 +28,7 @@ export async function GET(request: NextRequest) {
       role: user.role,
       studioId: user.studioId,
       studioSlug: user.studio.slug,
+      studioLogoUrl: user.studio.logoUrl ? `/api/logo?s=${user.studio.slug}` : null,
     },
   })
 }

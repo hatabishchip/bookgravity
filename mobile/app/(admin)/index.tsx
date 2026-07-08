@@ -87,6 +87,18 @@ export default function AdminWebView() {
       {error ? (
         <Pressable style={styles.center} onPress={() => bridge()}>
           <Text tone="muted" variant="body" style={{ textAlign: "center" }}>{error}</Text>
+          {/* Escape hatch: this screen has no tab bar, so without a sign-out a
+              dead session (or a mis-routed role) traps the user in a retry
+              loop that 401s forever. */}
+          <Pressable
+            onPress={() => {
+              useAuth.getState().signOut().catch(() => {})
+              router.replace("/(auth)/login")
+            }}
+            style={{ marginTop: 20, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, backgroundColor: theme.brand.primary }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600" }}>Sign out</Text>
+          </Pressable>
         </Pressable>
       ) : !uri ? (
         <View style={styles.center}><ActivityIndicator color={theme.brand.primary} /></View>

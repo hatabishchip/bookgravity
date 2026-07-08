@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import * as SecureStore from "expo-secure-store"
-import { api, clearTokens, setTokens } from "@/lib/api"
+import { api, clearTokens, setTokens, setAuthFailureHandler } from "@/lib/api"
 import { registerPushToken, deregisterPushToken } from "@/lib/push"
 import type { NativeLoginResponse, UserRole } from "@shared/types"
 
@@ -58,6 +58,19 @@ export const useAuth = create<AuthState>((set) => ({
         // Re-register the push token on every cold start so token rotations
         // (Expo can rotate, user toggled permissions, OS reinstall) propagate.
         registerPushToken().catch(() => {})
+        // The cached user is only a snapshot from the last sign-in; the role
+        // can change server-side (a coach demoted from admin kept landing on
+        // the admin surface forever, 08.07). Revalidate in the background and
+        // let the router re-route if anything changed. api() transparently
+        // refreshes an expired access token; a dead session triggers the
+        // auth-failure handler below instead.
+        api<{ user: AuthUser }>("/api/auth/native/me")
+          .then(async ({ user: fresh }) => {
+            if (!fresh?.role) return
+            await SecureStore.setItemAsync(USER_KEY, JSON.stringify(fresh))
+            set({ user: fresh })
+          })
+          .catch(() => { /* offline - keep the cached snapshot */ })
         return
       }
     } catch {
@@ -66,6 +79,16 @@ export const useAuth = create<AuthState>((set) => ({
     set({ user: null, bootstrapped: true })
   },
 }))
+
+// A 401 that survived a token refresh = the session is dead for good. Clear
+// the local session so the root router sends the person to the login screen -
+// without this, a stale-cached role could trap them on a surface where every
+// request 401s and no sign-out button is reachable (Andrey's case, 08.07).
+setAuthFailureHandler(() => {
+  clearTokens().catch(() => {})
+  SecureStore.deleteItemAsync(USER_KEY).catch(() => {})
+  useAuth.setState({ user: null, bootstrapped: true })
+})
 
 // Helper for screens that need to decide where to land after auth resolves.
 export function homeRouteFor(role: UserRole | undefined): "/(auth)/login" | "/(client)" | "/(trainer)" | "/(admin)" {

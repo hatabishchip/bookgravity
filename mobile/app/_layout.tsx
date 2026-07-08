@@ -124,7 +124,13 @@ export default function RootLayout() {
       }
       return
     }
-    if (user && inAuthGroup) {
+    // Leaving the auth screen after sign-in, OR standing on a surface that no
+    // longer matches the (re-validated) role - e.g. a coach whose cached role
+    // said ADMIN was stuck on the admin WebView where every request 401s.
+    const wrongSurface =
+      (group === "(admin)" && user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") ||
+      (group === "(trainer)" && user.role !== "TRAINER")
+    if (inAuthGroup || wrongSurface) {
       router.replace(homeRouteFor(user.role))
     }
   }, [bootstrapped, user, segments, router])

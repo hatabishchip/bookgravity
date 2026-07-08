@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     // (e.g., admin promoted to super-admin) without forcing a full logout.
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      include: { studio: { select: { slug: true } } },
+      include: { studio: { select: { slug: true, logoUrl: true } } },
     })
     if (!user) return NextResponse.json({ error: "User no longer exists" }, { status: 401 })
 
@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
         role: user.role,
         studioId: user.studioId,
         studioSlug: user.studio.slug,
+        studioLogoUrl: user.studio.logoUrl ? `/api/logo?s=${user.studio.slug}` : null,
       },
     })
   } catch (err) {
