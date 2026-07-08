@@ -9,6 +9,7 @@ import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import PriceTierSelect from "@/app/_components/PriceTierSelect"
+import { SellMembershipModal } from "@/app/_components/SellMembershipButton"
 
 type Booking = {
   id: string
@@ -381,6 +382,9 @@ function BookingDetails({
 }) {
   const isMembership = booking.paymentType === "MEMBERSHIP"
   const canUseMembership = (booking.membershipRemaining ?? 0) > 0 || isMembership
+  // No balance → sell a pass right here (pre-filled) and mark the booking
+  // paid from it in one flow (Sveta 07.07).
+  const [sellingPass, setSellingPass] = useState(false)
   // Same edit-lock rule as My Schedule: a PAID booking is editable until 30
   // minutes AFTER the class ends, then it's settled. Without this gate here,
   // the lock on the schedule roster was trivially bypassed from this tab
@@ -425,15 +429,29 @@ function BookingDetails({
         ) : (
           <div>
             <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">Mark as paid with</label>
-            {canUseMembership && (
-              <button
-                type="button"
-                disabled={isUpdating}
-                onClick={() => onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })}
-                className="w-full mb-1.5 px-2 py-2 rounded-lg text-xs font-semibold border text-center touch-manipulation bg-white text-gray-700 border-gray-200 hover:border-brand/40 flex items-center justify-center gap-1.5 disabled:opacity-50"
-              >
-                🎟️ Membership ({booking.membershipRemaining ?? 0} left)
-              </button>
+            {/* Always visible: with a balance it pays from the pass; without
+                one it opens the sell-pass modal pre-filled with this client
+                and marks the booking paid right after the sale. */}
+            <button
+              type="button"
+              disabled={isUpdating}
+              onClick={() => {
+                if (canUseMembership) onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })
+                else setSellingPass(true)
+              }}
+              className="w-full mb-1.5 px-2 py-2 rounded-lg text-xs font-semibold border text-center touch-manipulation bg-white text-gray-700 border-gray-200 hover:border-brand/40 flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              🎟️ {canUseMembership
+                ? `Membership (${booking.membershipRemaining ?? 0} left)`
+                : "Membership / Prepaid - sell a pass"}
+            </button>
+            {sellingPass && (
+              <SellMembershipModal
+                initialPhone={booking.clientPhone}
+                initialName={booking.clientName}
+                onClose={() => setSellingPass(false)}
+                onSold={() => onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })}
+              />
             )}
             <div className="grid grid-cols-4 gap-1.5">
               {PAYMENT_METHODS.map((pm) => (

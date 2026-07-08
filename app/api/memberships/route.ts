@@ -10,6 +10,9 @@ const CreateSchema = z.object({
   clientPhone: z.string().min(5).transform((p) => p.replace(/\D/g, "")),
   clientName: z.string().trim().optional(),
   paymentType: z.enum(["CASH", "EDC", "QR", "TRANSFER"]).default("CASH"),
+  // Pass size — the studio sells exactly two products (owner 07.07): a small
+  // 5-class pass and a big 10-class one. No free-form sizes on purpose.
+  totalClasses: z.union([z.literal(5), z.literal(10)]).default(5),
   note: z.string().trim().optional(),
 })
 
@@ -142,8 +145,8 @@ export async function POST(request: NextRequest) {
       studioId: ctx.studioId,
       clientPhone: data.clientPhone,
       clientName: data.clientName || null,
-      totalClasses: MEMBERSHIP_CLASSES,
-      remainingClasses: MEMBERSHIP_CLASSES,
+      totalClasses: data.totalClasses,
+      remainingClasses: data.totalClasses,
       classPrice: studio?.membershipClassPrice ?? 250000,
       paymentType: data.paymentType,
       soldByUserId: ctx.userId,
