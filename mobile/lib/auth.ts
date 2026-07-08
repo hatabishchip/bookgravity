@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import * as SecureStore from "expo-secure-store"
-import { api, clearTokens, setTokens, setAuthFailureHandler } from "@/lib/api"
+import { api, ApiError, clearTokens, setTokens, setAuthFailureHandler } from "@/lib/api"
 import { registerPushToken, deregisterPushToken } from "@/lib/push"
 import type { NativeLoginResponse, UserRole } from "@shared/types"
 
@@ -53,25 +53,53 @@ export const useAuth = create<AuthState>((set) => ({
     try {
       const cached = await SecureStore.getItemAsync(USER_KEY)
       if (cached) {
-        const user = JSON.parse(cached) as AuthUser
-        set({ user, bootstrapped: true })
+        const cachedUser = JSON.parse(cached) as AuthUser
         // Re-register the push token on every cold start so token rotations
         // (Expo can rotate, user toggled permissions, OS reinstall) propagate.
         registerPushToken().catch(() => {})
-        // The cached user is only a snapshot from the last sign-in; the role
-        // can change server-side (a coach demoted from admin kept landing on
-        // the admin surface forever, 08.07). Revalidate in the background and
-        // let the router re-route if anything changed. api() transparently
-        // refreshes an expired access token; a dead session triggers the
-        // auth-failure handler below instead.
-        api<{ user: AuthUser }>("/api/auth/native/me")
-          .then(async ({ user: fresh }) => {
-            if (!fresh?.role) return
-            await SecureStore.setItemAsync(USER_KEY, JSON.stringify(fresh))
-            set({ user: fresh })
-          })
-          .catch(() => { /* offline - keep the cached snapshot */ })
-        return
+
+        // SESSION-REPAIR GATE (owner metaprompt 09.07: "opened once and it
+        // works"). The cached user is only a sign-in snapshot; routing by it
+        // put a coach whose role had changed onto the admin WebView where
+        // every request 401s. So BEFORE the router picks a surface, ask the
+        // server who this user is now and route by THAT. api() transparently
+        // rotates an expired access token; only a dead session 401s through.
+        // The splash screen stays up while we wait (root layout hides it on
+        // bootstrapped), capped at 2.5s so a slow network never blocks launch.
+        const gate = api<{ user: AuthUser }>("/api/auth/native/me")
+        const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 2500))
+        try {
+          const result = await Promise.race([gate, timeout])
+          if (result !== "timeout" && result?.user?.role) {
+            await SecureStore.setItemAsync(USER_KEY, JSON.stringify(result.user))
+            set({ user: result.user, bootstrapped: true })
+            return
+          }
+          // Slow network: launch on the cached snapshot now and let the
+          // in-flight /me finish the repair in the background (the router
+          // evicts from a wrong surface when the fresh role lands).
+          set({ user: cachedUser, bootstrapped: true })
+          gate
+            .then(async ({ user: fresh }) => {
+              if (!fresh?.role) return
+              await SecureStore.setItemAsync(USER_KEY, JSON.stringify(fresh))
+              set({ user: fresh })
+            })
+            .catch(() => { /* 401 → auth-failure handler signed us out; else offline */ })
+          return
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 401) {
+            // Dead session (refresh failed too) - the auth-failure handler
+            // already wiped tokens and user; land on the login screen.
+            set({ user: null, bootstrapped: true })
+            return
+          }
+          // Offline / 5xx: NEVER sign out on infrastructure errors - keep the
+          // cached session and retry the revalidation shortly.
+          set({ user: cachedUser, bootstrapped: true })
+          scheduleRevalidate()
+          return
+        }
       }
     } catch {
       /* fall through */
@@ -79,6 +107,28 @@ export const useAuth = create<AuthState>((set) => ({
     set({ user: null, bootstrapped: true })
   },
 }))
+
+// Re-fetch the canonical user and re-persist it; used by the offline retry
+// path of the session-repair gate above.
+async function revalidateUser(): Promise<void> {
+  const { user: fresh } = await api<{ user: AuthUser }>("/api/auth/native/me")
+  if (!fresh?.role) return
+  await SecureStore.setItemAsync(USER_KEY, JSON.stringify(fresh))
+  useAuth.setState({ user: fresh })
+}
+
+function scheduleRevalidate(delays: number[] = [15_000, 60_000]) {
+  const [next, ...rest] = delays
+  if (next == null) return
+  setTimeout(() => {
+    revalidateUser().catch((err) => {
+      // A definitive 401 already signed us out via the auth-failure handler;
+      // anything else (still offline) just tries again later.
+      if (err instanceof ApiError && err.status === 401) return
+      scheduleRevalidate(rest)
+    })
+  }, next)
+}
 
 // A 401 that survived a token refresh = the session is dead for good. Clear
 // the local session so the root router sends the person to the login screen -
