@@ -22,26 +22,38 @@ export async function GET(request: NextRequest) {
 
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN"
 
-  let count: number
+  // Return the unread conversation IDS too (not just the count): the app uses
+  // them to dismiss tray notifications for chats that are no longer unread
+  // (viewed by the admin / answered), so the Android icon number can never go
+  // stale-high - launchers count tray items, not our programmatic badge.
+  let ids: string[]
   if (isAdmin) {
-    count = await prisma.whatsAppConversation.count({
-      where: { studioId: user.studioId, unreadAdmin: { gt: 0 } },
-    })
+    ids = (
+      await prisma.whatsAppConversation.findMany({
+        where: { studioId: user.studioId, unreadAdmin: { gt: 0 } },
+        select: { id: true },
+        take: 500,
+      })
+    ).map((c) => c.id)
   } else {
     const trainerId = user.trainer?.id
-    if (!trainerId) return NextResponse.json({ unread: 0 })
+    if (!trainerId) return NextResponse.json({ unread: 0, conversationIds: [] })
 
-    count = await prisma.whatsAppConversation.count({
-      where: {
-        studioId: user.studioId,
-        unreadTrainer: { gt: 0 },
-        OR: [
-          { assignedTrainerId: trainerId },
-          { access: { some: { trainerId } } },
-        ],
-      },
-    })
+    ids = (
+      await prisma.whatsAppConversation.findMany({
+        where: {
+          studioId: user.studioId,
+          unreadTrainer: { gt: 0 },
+          OR: [
+            { assignedTrainerId: trainerId },
+            { access: { some: { trainerId } } },
+          ],
+        },
+        select: { id: true },
+        take: 500,
+      })
+    ).map((c) => c.id)
   }
 
-  return NextResponse.json({ unread: count })
+  return NextResponse.json({ unread: ids.length, conversationIds: ids })
 }

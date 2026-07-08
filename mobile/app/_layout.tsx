@@ -48,9 +48,12 @@ if (Platform.OS === "android") {
 // launchers render the app-icon badge as the number of notifications sitting
 // in the tray, so 8 messages in a single chat read as "8" on the icon while the
 // inbox correctly counts "1" conversation. Keeping only the newest notification
-// per conversationId makes the tray count match the conversation count. Run on
-// foreground and whenever a message arrives while the app is running.
-async function reconcileChatNotifications(): Promise<void> {
+// per conversationId makes the tray count match the conversation count. And
+// when `stillUnread` is passed (owner rule 07.07): a notification whose chat
+// is NO LONGER unread (the admin viewed it / someone answered - maybe from a
+// laptop) is dismissed entirely, so the icon number can never go stale-high.
+// Run on foreground and whenever a message arrives while the app is running.
+async function reconcileChatNotifications(stillUnread?: Set<string>): Promise<void> {
   try {
     const presented = await Notifications.getPresentedNotificationsAsync()
     const byConvo = new Map<string, string[]>()
@@ -58,6 +61,11 @@ async function reconcileChatNotifications(): Promise<void> {
       const d = n.request.content.data as { category?: string; conversationId?: string } | undefined
       if (d?.category !== "message") continue
       const cid = d.conversationId ?? "_"
+      // Chat already handled → its notification has nothing to tell anymore.
+      if (stillUnread && cid !== "_" && !stillUnread.has(cid)) {
+        await Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {})
+        continue
+      }
       const ids = byConvo.get(cid) ?? []
       ids.push(n.request.identifier)
       byConvo.set(cid, ids)
@@ -132,10 +140,11 @@ export default function RootLayout() {
     }
     const refresh = async () => {
       try {
-        // Collapse stacked chat notifications first so the tray (and therefore
-        // the Android icon badge) reflects conversations, not raw message count.
-        await reconcileChatNotifications()
-        const res = await api<{ unread: number }>("/api/push/unread")
+        // Fetch which conversations are STILL unread, then reconcile the tray:
+        // collapse duplicates per chat AND dismiss notifications for chats
+        // already handled - the icon count follows the cabinet, never stale.
+        const res = await api<{ unread: number; conversationIds?: string[] }>("/api/push/unread")
+        await reconcileChatNotifications(res.conversationIds ? new Set(res.conversationIds) : undefined)
         await Notifications.setBadgeCountAsync(res.unread)
       } catch { /* no-op: offline or token expired */ }
     }
@@ -154,9 +163,11 @@ export default function RootLayout() {
       // Small delay so the just-arrived notification is in the tray before we
       // dedupe, then re-sync the badge to the conversation count.
       setTimeout(() => {
-        reconcileChatNotifications()
-          .then(() => api<{ unread: number }>("/api/push/unread"))
-          .then((res) => Notifications.setBadgeCountAsync(res.unread))
+        api<{ unread: number; conversationIds?: string[] }>("/api/push/unread")
+          .then(async (res) => {
+            await reconcileChatNotifications(res.conversationIds ? new Set(res.conversationIds) : undefined)
+            await Notifications.setBadgeCountAsync(res.unread)
+          })
           .catch(() => {})
       }, 500)
     })
