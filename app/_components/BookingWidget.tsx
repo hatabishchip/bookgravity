@@ -1272,10 +1272,12 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               (duration, capacity, per-person) repeat on the slot cards below,
               so they don't need a second home up here. */}
           <div className="bg-brand/[0.07] border border-brand/15 rounded-xl mb-2 px-3 py-2 flex items-center justify-between gap-3">
+            {/* Price follows the stepper (owner 09.07: "/ PERSON" read
+                robotic): "300k IDR for 1 person" -> "600k IDR for 2 people". */}
             <div className="min-w-0 flex items-baseline gap-2 flex-wrap">
               <span className="text-[13px] font-semibold text-brand leading-none">Group class</span>
-              <span className="text-lg font-bold text-brand leading-none tabular-nums">{formatIDR(studio?.groupPrice ?? 300000)}</span>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wide leading-none">/ person</span>
+              <span className="text-lg font-bold text-brand leading-none tabular-nums">{formatIDR((studio?.groupPrice ?? 300000) * partySize)}</span>
+              <span className="text-[11px] text-gray-500 leading-none">for {partySize} {partySize === 1 ? "person" : "people"}</span>
             </div>
             <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-full p-0.5 shadow-sm flex-shrink-0" aria-label="How many people">
               <button
