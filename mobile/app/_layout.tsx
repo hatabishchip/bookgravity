@@ -10,6 +10,7 @@ import * as Notifications from "expo-notifications"
 import * as Updates from "expo-updates"
 import { useAuth, homeRouteFor } from "@/lib/auth"
 import { useTheme } from "@/hooks/useTheme"
+import { useThemePref } from "@/lib/theme-preference"
 import { api } from "@/lib/api"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 
@@ -95,15 +96,16 @@ const queryClient = new QueryClient({
 })
 
 export default function RootLayout() {
-  const { theme } = useTheme()
+  const { theme, mode } = useTheme()
   const hydrate = useAuth((s) => s.hydrate)
   const user = useAuth((s) => s.user)
   const bootstrapped = useAuth((s) => s.bootstrapped)
   const router = useRouter()
   const segments = useSegments()
 
-  // 1. One-shot: read SecureStore on cold start.
+  // 1. One-shot: read SecureStore on cold start (session + theme preference).
   useEffect(() => { hydrate() }, [hydrate])
+  useEffect(() => { void useThemePref.getState().hydratePref() }, [])
 
   // 2. Once we know who they are, redirect to the right surface.
   useEffect(() => {
@@ -180,26 +182,30 @@ export default function RootLayout() {
     return () => sub.remove()
   }, [user])
 
-  // 4. Notification tap handler. The backend sends data.category="booking"
-  //    with data.slotId so we can deep-link into the trainer's class screen
-  //    when they tap a "new booking" push. For "message" taps, open the inbox
-  //    in the right WebView depending on role.
+  // 4. Notification tap handler. Both staff surfaces are full web cabinets in
+  //    a WebView now, so every tap deep-links via the `next` param: "message"
+  //    opens the role's inbox page, "booking" opens the schedule/cabinet home
+  //    (the web trainer page shows the day's classes with the new booking).
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
       const data = resp.notification.request.content.data as
         | { category?: string; slotId?: string; conversationId?: string }
         | undefined
       if (!data) return
-      if (data.category === "booking" && data.slotId) {
-        router.push({ pathname: "/(trainer)/class", params: { slotId: data.slotId } })
+      const role = useAuth.getState().user?.role
+      const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN"
+      if (data.category === "booking") {
+        router.push(
+          isAdmin
+            ? { pathname: "/(admin)", params: { next: "/admin" } }
+            : { pathname: "/(trainer)", params: { next: "/trainer" } },
+        )
       } else if (data.category === "message") {
-        const role = useAuth.getState().user?.role
-        if (role === "ADMIN" || role === "SUPER_ADMIN") {
-          router.push({ pathname: "/(admin)", params: { next: "/admin/inbox" } })
-        } else {
-          // Trainer: open their inbox WebView (tab index 4, "Messages").
-          router.push("/(trainer)/inbox")
-        }
+        router.push(
+          isAdmin
+            ? { pathname: "/(admin)", params: { next: "/admin/inbox" } }
+            : { pathname: "/(trainer)", params: { next: "/trainer/inbox" } },
+        )
       }
     })
     return () => sub.remove()
@@ -231,7 +237,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.bg.page }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <StatusBar style="auto" />
+          {/* Follow the APP theme, not the phone: "auto" would draw light
+              icons over our light-by-default screens on dark phones. */}
+          <StatusBar style={mode === "dark" ? "light" : "dark"} />
           {/* Turns any screen-render crash into a readable message + reload
               instead of a blank white screen (07.07 trainer white-screen). */}
           <ErrorBoundary>
