@@ -14,6 +14,10 @@ type AuthState = {
   user: AuthUser | null
   bootstrapped: boolean
   signIn: (email: string, password: string) => Promise<AuthUser>
+  /** The app is the mobile web 1:1 (09.07): people sign in with the WEB form
+   *  inside the WebView, and the page hands us a native token pair via
+   *  postMessage so push notifications work. This adopts that session. */
+  adoptWebLogin: (payload: { token: string; refreshToken: string; user: AuthUser }) => Promise<void>
   signOut: () => Promise<void>
   hydrate: () => Promise<void>
 }
@@ -38,6 +42,14 @@ export const useAuth = create<AuthState>((set) => ({
     // sees booking notifications. Awaiting here would block the redirect.
     registerPushToken().catch(() => {})
     return res.user
+  },
+
+  async adoptWebLogin({ token, refreshToken, user }) {
+    if (!token || !refreshToken || !user?.id) return
+    await setTokens(token, refreshToken)
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user))
+    set({ user, bootstrapped: true })
+    registerPushToken().catch(() => {})
   },
 
   async signOut() {
@@ -140,10 +152,10 @@ setAuthFailureHandler(() => {
   useAuth.setState({ user: null, bootstrapped: true })
 })
 
-// Helper for screens that need to decide where to land after auth resolves.
-export function homeRouteFor(role: UserRole | undefined): "/(auth)/login" | "/(client)" | "/(trainer)" | "/(admin)" {
-  if (role === "TRAINER") return "/(trainer)"
-  if (role === "ADMIN" || role === "SUPER_ADMIN") return "/(admin)"
-  if (role === "CLIENT") return "/(client)"
-  return "/(auth)/login"
+// The app is one WebView; this maps a role to its WEB home path (used as the
+// bridge `next` target). Guests and clients live on the public site.
+export function webHomeFor(role: UserRole | undefined): string {
+  if (role === "TRAINER") return "/trainer"
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return "/admin"
+  return "/"
 }

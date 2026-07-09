@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import * as SplashScreen from "expo-splash-screen"
 import * as Notifications from "expo-notifications"
 import * as Updates from "expo-updates"
-import { useAuth, homeRouteFor } from "@/lib/auth"
+import { useAuth, webHomeFor } from "@/lib/auth"
 import { useTheme } from "@/hooks/useTheme"
 import { useThemePref } from "@/lib/theme-preference"
 import { api } from "@/lib/api"
@@ -107,35 +107,13 @@ export default function RootLayout() {
   useEffect(() => { hydrate() }, [hydrate])
   useEffect(() => { void useThemePref.getState().hydratePref() }, [])
 
-  // 2. Once we know who they are, redirect to the right surface.
+  // 2. The whole app is ONE WebView surface (the mobile web 1:1, 09.07):
+  //    guests and every role land on /(web); the web decides what to show.
   useEffect(() => {
     if (!bootstrapped) return
     SplashScreen.hideAsync().catch(() => {})
-
-    const group = segments[0]
-    const inAuthGroup = group === "(auth)"
-    const inStaffGroup = group === "(trainer)" || group === "(admin)"
-    if (!user) {
-      // Guests can browse the schedule and book without an account - the
-      // /api/slots and /api/bookings endpoints are public, exactly like the
-      // web booking flow. Only the trainer/admin surfaces need a sign-in.
-      if (inStaffGroup) {
-        router.replace("/(auth)/login")
-      } else if (group !== "(client)" && !inAuthGroup) {
-        router.replace("/(client)")
-      }
-      return
-    }
-    // Leaving the auth screen after sign-in, OR standing on a surface that no
-    // longer matches the (re-validated) role - e.g. a coach whose cached role
-    // said ADMIN was stuck on the admin WebView where every request 401s.
-    const wrongSurface =
-      (group === "(admin)" && user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") ||
-      (group === "(trainer)" && user.role !== "TRAINER")
-    if (inAuthGroup || wrongSurface) {
-      router.replace(homeRouteFor(user.role))
-    }
-  }, [bootstrapped, user, segments, router])
+    if (segments[0] !== "(web)") router.replace("/(web)")
+  }, [bootstrapped, segments, router])
 
   // 3. Badge: fetch unread chat count and sync it to the app icon badge.
   //    Runs on startup (when user is known) and every time the app comes
@@ -182,10 +160,9 @@ export default function RootLayout() {
     return () => sub.remove()
   }, [user])
 
-  // 4. Notification tap handler. Both staff surfaces are full web cabinets in
-  //    a WebView now, so every tap deep-links via the `next` param: "message"
-  //    opens the role's inbox page, "booking" opens the schedule/cabinet home
-  //    (the web trainer page shows the day's classes with the new booking).
+  // 4. Notification tap handler. The app is one WebView, so every tap
+  //    deep-links via the `next` param: "message" opens the role's inbox
+  //    page, "booking" the cabinet home (its schedule shows the new booking).
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
       const data = resp.notification.request.content.data as
@@ -193,19 +170,11 @@ export default function RootLayout() {
         | undefined
       if (!data) return
       const role = useAuth.getState().user?.role
-      const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN"
+      const home = webHomeFor(role)
       if (data.category === "booking") {
-        router.push(
-          isAdmin
-            ? { pathname: "/(admin)", params: { next: "/admin" } }
-            : { pathname: "/(trainer)", params: { next: "/trainer" } },
-        )
+        router.push({ pathname: "/(web)", params: { next: home } })
       } else if (data.category === "message") {
-        router.push(
-          isAdmin
-            ? { pathname: "/(admin)", params: { next: "/admin/inbox" } }
-            : { pathname: "/(trainer)", params: { next: "/trainer/inbox" } },
-        )
+        router.push({ pathname: "/(web)", params: { next: home === "/" ? "/" : `${home}/inbox` } })
       }
     })
     return () => sub.remove()

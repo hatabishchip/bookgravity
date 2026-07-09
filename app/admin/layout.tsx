@@ -8,6 +8,7 @@ import { Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut,
 import { cn } from "@/lib/utils"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 import WebPushManager from "@/app/_components/WebPushManager"
+import { NativeAuthBridge, NativeNotificationSettingsLink } from "@/app/_components/NativeAppBridge"
 
 const navItems: { href: string; label: string; icon: React.ComponentType<{ size?: number }>; beta?: boolean }[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -143,6 +144,8 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
             <Settings size={18} />
             Settings
           </Link>
+          {/* Native-app-only: opens the app's notification permission screen. */}
+          <NativeNotificationSettingsLink />
           <button onClick={() => {
               // Inside the native app WebView, redirect to a sentinel the app
               // detects (native_signout=1) so it ALSO clears the native session
@@ -217,6 +220,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <SessionProvider>
+      {/* Inside the native app: hand the shell its token pair for push. */}
+      <NativeAuthBridge />
       <div className="flex min-h-screen bg-sand dark:bg-[#0c0f14]">
         <aside
           className={cn(

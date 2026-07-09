@@ -10,6 +10,7 @@ import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { useVisualViewport } from "@/lib/use-visual-viewport"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 import WebPushManager from "@/app/_components/WebPushManager"
+import { NativeAuthBridge, NativeNotificationSettingsLink } from "@/app/_components/NativeAppBridge"
 import { formatIDRCompact as formatIDR } from "@/lib/format"
 
 const navItems = [
@@ -195,6 +196,8 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           <KeyRound size={18} />
           Change Password
         </button>
+        {/* Native-app-only: opens the app's notification permission screen. */}
+        <NativeNotificationSettingsLink />
         <button onClick={() => {
             // See admin layout: sentinel logout so the native app clears its
             // own session instead of re-bridging back in.
@@ -266,6 +269,8 @@ export default function TrainerLayout({ children }: { children: React.ReactNode 
 
   return (
     <SessionProvider>
+     {/* Inside the native app: hand the shell its token pair for push. */}
+     <NativeAuthBridge />
      <BellCtx.Provider value={{ total: bellTotal, setTotal: setBellTotal, open: bellOpen, setOpen: setBellOpen, active: bellActive, setActive: setBellActive }}>
       <div className="flex min-h-screen bg-sand">
         <aside
