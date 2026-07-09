@@ -1447,7 +1447,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                         onClick={() => canBook && handleSlotSelect(slot)}
                         disabled={!canBook}
                         className={cn(
-                          "w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border-2 transition-all text-left relative",
+                          "w-full flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2.5 rounded-xl border-2 transition-all text-left relative",
                           canBook
                             ? "border-gray-100 hover:border-brand hover:bg-brand/5 cursor-pointer"
                             : withinCutoff
@@ -1485,7 +1485,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                             )}
                           </div>
                         </div>
-                        <div className="text-right flex-shrink-0">
+                        <div className="text-right flex-shrink-0 ml-auto">
                           {withinCutoff ? (
                             <span className={cn(
                               "inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide leading-none",
