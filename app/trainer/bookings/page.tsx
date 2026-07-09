@@ -9,7 +9,6 @@ import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import PriceTierSelect from "@/app/_components/PriceTierSelect"
-import { SellMembershipModal } from "@/app/_components/SellMembershipButton"
 
 type Booking = {
   id: string
@@ -381,10 +380,6 @@ function BookingDetails({
   onDone: () => void
 }) {
   const isMembership = booking.paymentType === "MEMBERSHIP"
-  const canUseMembership = (booking.membershipRemaining ?? 0) > 0 || isMembership
-  // No balance → sell a pass right here (pre-filled) and mark the booking
-  // paid from it in one flow (Sveta 07.07).
-  const [sellingPass, setSellingPass] = useState(false)
   // Same edit-lock rule as My Schedule: a PAID booking is editable until 30
   // minutes AFTER the class ends, then it's settled. Without this gate here,
   // the lock on the schedule roster was trivially bypassed from this tab
@@ -420,7 +415,7 @@ function BookingDetails({
           <div className="flex items-center justify-between gap-2 bg-brand/5 border border-brand/20 rounded-lg px-3 py-2">
             <span className="flex items-center gap-1.5 text-sm font-medium text-brand">
               <CheckCircle2 size={14} />
-              Paid · {isMembership ? `Membership${typeof booking.membershipRemaining === "number" ? ` (${booking.membershipRemaining} left)` : ""}` : (PAYMENT_LABEL[booking.paymentType] ?? booking.paymentType)}
+              Paid · {isMembership ? `Member card${typeof booking.membershipRemaining === "number" ? ` (${booking.membershipRemaining} left)` : ""}` : (PAYMENT_LABEL[booking.paymentType] ?? booking.paymentType)}
             </span>
             {/* Sveta 06.07: a trainer records a payment once and can't re-edit
                 it - a wrong method/tier is fixed by an admin. So no Undo here. */}
@@ -429,30 +424,18 @@ function BookingDetails({
         ) : (
           <div>
             <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">Mark as paid with</label>
-            {/* Always visible: with a balance it pays from the pass; without
-                one it opens the sell-pass modal pre-filled with this client
-                and marks the booking paid right after the sale. */}
+            {/* Member card = a payment method (Sveta 10.07): one tap marks the
+                class paid from the card. With a card in the system it debits
+                one class; without one it records the member payment (zero
+                cash - the paper punch card is the ledger). */}
             <button
               type="button"
               disabled={isUpdating}
-              onClick={() => {
-                if (canUseMembership) onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })
-                else setSellingPass(true)
-              }}
+              onClick={() => onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })}
               className="w-full mb-1.5 px-2 py-2 rounded-lg text-xs font-semibold border text-center touch-manipulation bg-white text-gray-700 border-gray-200 hover:border-brand/40 flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
-              🎟️ {canUseMembership
-                ? `Membership (${booking.membershipRemaining ?? 0} left)`
-                : "Membership / Prepaid - sell a pass"}
+              🎟️ Member card{(booking.membershipRemaining ?? 0) > 0 ? ` · ${booking.membershipRemaining} left` : ""}
             </button>
-            {sellingPass && (
-              <SellMembershipModal
-                initialPhone={booking.clientPhone}
-                initialName={booking.clientName}
-                onClose={() => setSellingPass(false)}
-                onSold={() => onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })}
-              />
-            )}
             <div className="grid grid-cols-4 gap-1.5">
               {PAYMENT_METHODS.map((pm) => (
                 <button

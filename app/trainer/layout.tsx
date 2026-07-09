@@ -16,7 +16,7 @@ import { formatIDRCompact as formatIDR } from "@/lib/format"
 const navItems = [
   { href: "/trainer", label: "My Schedule", icon: Calendar },
   { href: "/trainer/bookings", label: "Bookings", icon: BookOpen },
-  { href: "/trainer/memberships", label: "Membership", icon: Ticket },
+  { href: "/trainer/memberships", label: "Member cards", icon: Ticket },
   { href: "/trainer/instruction", label: "How to start", icon: GraduationCap },
   { href: "/trainer/salary", label: "Salary", icon: Banknote },
 ]

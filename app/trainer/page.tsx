@@ -10,7 +10,6 @@ import { useTrainerBell } from "@/app/trainer/layout"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ReschedulePicker } from "@/app/_components/ReschedulePicker"
 import { ClassActionSheet } from "@/app/_components/ClassActionSheet"
-import { SellMembershipModal } from "@/app/_components/SellMembershipButton"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
 import PriceTierSelect from "@/app/_components/PriceTierSelect"
 import { PRICE_TIER_LABEL } from "@/lib/payments"
@@ -376,9 +375,7 @@ export default function TrainerSchedulePage() {
   const [handoverFor, setHandoverFor] = useState<Slot | null>(null)
   // "Can't teach this class" → cancel/move the whole class with client notices.
   const [classActionFor, setClassActionFor] = useState<Slot | null>(null)
-  // "Membership / Prepaid" tapped on a client with no pass → sell one here
   // (pre-filled) and mark that booking paid from it right after.
-  const [sellPassFor, setSellPassFor] = useState<Booking | null>(null)
   const refreshPending = useCallback(async (openGate = false) => {
     try {
       const r = await fetch("/api/trainer/pending-payments")
@@ -1425,21 +1422,15 @@ export default function TrainerSchedulePage() {
                           {isPaid && <span className="text-[11px] text-gray-400">recorded - admin can change</span>}
                         </div>
                         <div className={cn("rounded-xl border border-gray-200 p-2 space-y-1.5", isPaid && "opacity-60 pointer-events-none")}>
-                          {/* Pay from membership — ALWAYS visible: with a
-                              balance it pays from the pass; without one it
-                              opens the sell-pass modal pre-filled with this
-                              client and marks the booking paid right after
-                              the sale (Sveta 07.07). */}
+                          {/* Member card = a payment method (Sveta 10.07):
+                              one tap marks the class paid from the card. With
+                              a card in the system it debits one class; without
+                              one it records the member payment (zero cash -
+                              the paper punch card is the ledger). */}
                           <button
                             type="button"
                             disabled={isPaid}
-                            onClick={() => {
-                              if ((b.membershipRemaining ?? 0) > 0 || b.paymentType === "MEMBERSHIP") {
-                                handlePaymentMethod(b, "MEMBERSHIP")
-                              } else {
-                                setSellPassFor(b)
-                              }
-                            }}
+                            onClick={() => handlePaymentMethod(b, "MEMBERSHIP")}
                             className={cn(
                               "w-full py-2.5 rounded-lg text-sm font-semibold border touch-manipulation flex items-center justify-center gap-2",
                               b.paymentType === "MEMBERSHIP"
@@ -1453,10 +1444,8 @@ export default function TrainerSchedulePage() {
                               <>
                                 🎟️
                                 {b.paymentType === "MEMBERSHIP"
-                                  ? `Paid from membership · ${b.membershipRemaining ?? 0} left`
-                                  : (b.membershipRemaining ?? 0) > 0
-                                    ? `Membership (${b.membershipRemaining ?? 0} left)`
-                                    : "Membership / Prepaid - sell a pass"}
+                                  ? `Paid · Member card${(b.membershipRemaining ?? 0) > 0 ? ` · ${b.membershipRemaining} left` : ""}`
+                                  : `Member card${(b.membershipRemaining ?? 0) > 0 ? ` · ${b.membershipRemaining} left` : ""}`}
                               </>
                             )}
                           </button>
@@ -1707,16 +1696,6 @@ export default function TrainerSchedulePage() {
           slot={handoverFor}
           onClose={() => setHandoverFor(null)}
           onSent={() => { setHandoverFor(null); refreshHandovers() }}
-        />
-      )}
-
-      {/* Sell a pass straight from a booking card, then pay this class from it. */}
-      {sellPassFor && (
-        <SellMembershipModal
-          initialPhone={sellPassFor.clientPhone}
-          initialName={sellPassFor.clientName}
-          onClose={() => setSellPassFor(null)}
-          onSold={() => updateBooking(sellPassFor.id, { paymentType: "MEMBERSHIP", paymentStatus: "PAID" })}
         />
       )}
 

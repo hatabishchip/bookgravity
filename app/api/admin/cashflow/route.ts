@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     income.push({
       id: m.id,
       date: studioDateStr(m.createdAt),
-      label: `${m.clientName ?? "Membership"} (${m.totalClasses}-class pass)`,
+      label: `${m.clientName ?? "Member card"} (Member card · ${m.totalClasses} classes)`,
       responsible: m.soldByName ?? "",
       method: m.paymentType,
       amount: (m.classPrice ?? fallbackClassPrice) * m.totalClasses,

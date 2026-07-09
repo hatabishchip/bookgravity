@@ -10,9 +10,11 @@ const CreateSchema = z.object({
   clientPhone: z.string().min(5).transform((p) => p.replace(/\D/g, "")),
   clientName: z.string().trim().optional(),
   paymentType: z.enum(["CASH", "EDC", "QR", "TRANSFER"]).default("CASH"),
-  // Pass size — the studio sells exactly two products (owner 07.07): a small
-  // 5-class pass and a big 10-class one. No free-form sizes on purpose.
-  totalClasses: z.union([z.literal(5), z.literal(10)]).default(5),
+  // Member card size - exactly two products (owner 10.07): pay for 5 -> 6
+  // classes on the card (1.5M), pay for 10 -> 12 (3M). The bonus classes are
+  // already included here; cashflow prices the sale as classPrice x total,
+  // which lands on exactly 1.5M / 3M at 250k. No free-form sizes on purpose.
+  totalClasses: z.union([z.literal(6), z.literal(12)]).default(6),
   note: z.string().trim().optional(),
 })
 

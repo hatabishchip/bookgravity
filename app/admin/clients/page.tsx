@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { Search, CalendarPlus, X, Loader2, Check, AlertCircle, Phone, Mail, Ticket, BadgeCheck, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SellMembershipModal } from "@/app/_components/SellMembershipButton"
 
 type Client = {
   name: string
@@ -91,6 +92,8 @@ function HistoryModal({ client, onClose, onBook }: {
   onBook: () => void
 }) {
   const [data, setData] = useState<{ bookings: HistoryBooking[]; memberships: HistoryMembership[] } | null>(null)
+  // Sell a Member card straight from the client card, pre-filled.
+  const [selling, setSelling] = useState(false)
 
   useEffect(() => {
     fetch(`/api/admin/clients/history?phone=${encodeURIComponent(client.phone)}`, { cache: "no-store" })
@@ -120,6 +123,12 @@ function HistoryModal({ client, onClose, onBook }: {
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button
+              onClick={() => setSelling(true)}
+              className="inline-flex items-center gap-1.5 bg-white border border-brand/30 text-brand hover:bg-brand/5 text-xs font-semibold px-3 py-2 rounded-xl touch-manipulation"
+            >
+              🎟️ Member card
+            </button>
+            <button
               onClick={() => { onClose(); onBook() }}
               className="inline-flex items-center gap-1.5 bg-brand hover:bg-brand-dark text-white text-xs font-semibold px-3 py-2 rounded-xl touch-manipulation"
             >
@@ -141,7 +150,7 @@ function HistoryModal({ client, onClose, onBook }: {
               {/* Memberships */}
               <section>
                 <div className="flex items-center justify-between mb-1.5">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Memberships</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Member cards</h3>
                   {membershipBalance > 0 && (
                     <span className="text-xs font-bold text-brand bg-brand/10 px-2 py-0.5 rounded-full">
                       {membershipBalance} class{membershipBalance === 1 ? "" : "es"} left
@@ -245,6 +254,13 @@ function HistoryModal({ client, onClose, onBook }: {
             </>
           )}
         </div>
+      {selling && (
+        <SellMembershipModal
+          initialPhone={client.phone}
+          initialName={client.name ?? ""}
+          onClose={() => setSelling(false)}
+        />
+      )}
       </div>
     </div>
   )

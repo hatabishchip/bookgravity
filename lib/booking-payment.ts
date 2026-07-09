@@ -65,7 +65,23 @@ export async function applyPaymentSwitch(opts: {
       return row.id
     })
 
-    if (!usedId) return { ok: false, error: "no_membership_balance" }
+    if (!usedId) {
+      // No pass in the system - a paper Member card sold before the app, or a
+      // balance that ran out. Owner decision 10.07: the Member-card payment is
+      // STILL recorded (PAID, member tariff, zero cash - the money entered the
+      // books when the card was sold); the punch card on paper stays the
+      // source of truth for the remaining visits. membershipId stays null so
+      // nothing is ever decremented or restored for this booking.
+      return {
+        ok: true,
+        updateData: {
+          membershipId: null,
+          paymentStatus: "PAID",
+          priceTier: opts.requestedPriceTier ?? "MEMBER",
+          localResident: opts.requestedPriceTier ? opts.requestedPriceTier === "LOCAL" : false,
+        },
+      }
+    }
     return {
       ok: true,
       updateData: {

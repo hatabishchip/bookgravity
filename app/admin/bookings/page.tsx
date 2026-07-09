@@ -7,7 +7,6 @@ import { useOpenChat } from "@/lib/use-open-chat"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
-import { SellMembershipModal } from "@/app/_components/SellMembershipButton"
 
 type Booking = {
   id: string
@@ -57,7 +56,7 @@ const PAYMENT_METHODS = [
 
 const PAYMENT_LABEL: Record<string, string> = {
   ...Object.fromEntries(PAYMENT_METHODS.map((m) => [m.value, m.label])),
-  MEMBERSHIP: "Membership",
+  MEMBERSHIP: "Member card",
 }
 
 const paymentBadge = (type: string, status: string) => {
@@ -98,9 +97,6 @@ function BookingDetails({
 }) {
   const [noteDraft, setNoteDraft] = useState(booking.notes ?? "")
   const [noteSaved, setNoteSaved] = useState(false)
-  // "Membership / Prepaid" with no balance → sell a pass right here (pre-filled
-  // client) and mark this booking paid from it in one flow (Sveta 07.07).
-  const [sellingPass, setSellingPass] = useState(false)
   const { openChat } = useOpenChat()
 
   const saveNote = () => {
@@ -167,33 +163,18 @@ function BookingDetails({
             </div>
           ) : (
             <div>
-              {/* Always visible: with a balance it pays from the pass; without
-                  one it opens the sell-pass modal pre-filled with this client
-                  and marks the booking paid right after the sale. */}
+              {/* Member card = a payment method (Sveta 10.07): one tap marks
+                  the class paid from the card. With a card in the system it
+                  debits one class; without one it just records the member
+                  payment (zero cash - the paper punch card is the ledger). */}
               <button
                 type="button"
                 disabled={isUpdating}
-                onClick={() => {
-                  if ((booking.membershipRemaining ?? 0) > 0 || booking.membershipId != null) {
-                    onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })
-                  } else {
-                    setSellingPass(true)
-                  }
-                }}
+                onClick={() => onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })}
                 className="w-full mb-1.5 px-2 py-2 rounded-lg text-xs font-semibold border text-center touch-manipulation bg-white text-gray-700 border-gray-200 hover:border-brand/40 flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
-                🎟️ {(booking.membershipRemaining ?? 0) > 0 || booking.membershipId != null
-                  ? `Membership (${booking.membershipRemaining ?? 0} left)`
-                  : "Membership / Prepaid - sell a pass"}
+                🎟️ Member card{(booking.membershipRemaining ?? 0) > 0 ? ` · ${booking.membershipRemaining} left` : ""}
               </button>
-              {sellingPass && (
-                <SellMembershipModal
-                  initialPhone={booking.clientPhone}
-                  initialName={booking.clientName}
-                  onClose={() => setSellingPass(false)}
-                  onSold={() => onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })}
-                />
-              )}
             <div className="grid grid-cols-4 gap-1.5">
               {PAYMENT_METHODS.map((pm) => (
                 <button

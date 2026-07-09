@@ -49,7 +49,7 @@ export default function TrainerMembershipsPage() {
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-1">
-        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Memberships</h1>
+        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Member cards</h1>
         <SellMembershipButton fullLabel onSold={fetchClients} />
       </div>
       <p className="text-xs text-gray-500 mb-4">
@@ -73,7 +73,7 @@ export default function TrainerMembershipsPage() {
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-10 text-center">
           <Ticket size={28} className="mx-auto text-gray-300" />
           <div className="mt-2 text-sm font-medium text-gray-600">
-            {clients.length === 0 ? "No memberships yet" : "No matches"}
+            {clients.length === 0 ? "No Member cards yet" : "No matches"}
           </div>
           <div className="text-[11px] text-gray-400 mt-0.5">
             {clients.length === 0 ? "Sell one with the button above." : "Try a different name or number."}

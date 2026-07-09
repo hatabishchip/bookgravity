@@ -8,12 +8,12 @@ import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { useVisualViewport } from "@/lib/use-visual-viewport"
 import { cn } from "@/lib/utils"
 
-// Sell a class pass (prepayment) to a client by phone. Used in the trainer
-// cabinet, the admin panel AND straight from a booking card (the "Membership /
-// Prepaid" button opens this modal pre-filled when the client has no balance
-// yet - Sveta 07.07 couldn't find the prepayment flow at the point of need).
-// The API scopes to the seller's studio and records who sold it. Two products
-// only (owner 07.07): a 5-class pass and a 10-class pass - no free-form sizes.
+// Sell a MEMBER CARD to a client by phone (terminology unified 10.07 - the
+// printed cards are "Member cards", no "pass"/"loyalty" wording anywhere).
+// Two products only (owner 10.07): pay for 5 -> 6 classes on the card (1.5M),
+// pay for 10 -> 12 classes (3M, for bule). The API scopes to the seller's
+// studio and records who sold it. Selling lives on the client pages - paying
+// a class FROM the card is the "Member card" chip among the payment methods.
 
 const PAYMENT_METHODS = [
   { value: "CASH", label: "Cash" },
@@ -22,8 +22,12 @@ const PAYMENT_METHODS = [
   { value: "TRANSFER", label: "Transfer" },
 ]
 
-const PASS_SIZES = [5, 10] as const
-const DEFAULT_CLASSES = 5
+// classes = what lands on the card; payFor = what the client pays for.
+const PRODUCTS = [
+  { classes: 6, payFor: 5 },
+  { classes: 12, payFor: 10 },
+] as const
+const DEFAULT_CLASSES = 6
 const DEFAULT_PRICE = 250000
 const fmtRp = (n: number) => `Rp ${Math.round(n).toLocaleString("en-US")}`
 
@@ -95,7 +99,7 @@ export function SellMembershipModal({
       .then((d) => {
         if (!d) return
         if (typeof d.membershipClassPrice === "number") setPerClass(d.membershipClassPrice)
-        if (typeof d.membershipClasses === "number" && (PASS_SIZES as readonly number[]).includes(d.membershipClasses)) {
+        if (typeof d.membershipClasses === "number" && PRODUCTS.some((pr) => pr.classes === d.membershipClasses)) {
           setClasses(d.membershipClasses)
         }
       })
@@ -134,7 +138,7 @@ export function SellMembershipModal({
         body: JSON.stringify({ clientPhone: phone, clientName: name.trim(), paymentType: payment, totalClasses: classes }),
       })
       if (!res.ok) {
-        setError("Couldn't sell the membership. Please try again.")
+        setError("Couldn't sell the Member card. Please try again.")
         return
       }
       const d = await res.json()
@@ -162,37 +166,39 @@ export function SellMembershipModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 flex-shrink-0 border-b border-gray-100">
-          <h3 className="text-base font-semibold text-gray-900">Membership / Prepaid</h3>
+          <h3 className="text-base font-semibold text-gray-900">Member card</h3>
           <button type="button" onClick={onClose} className="text-gray-400 text-xl leading-none p-1">×</button>
         </div>
 
         {done == null ? (
           <div className="flex-1 overflow-y-auto p-5 space-y-3">
-            {/* Pass size — exactly two products (5 or 10 classes); the total
-                recalculates so the seller always states the right amount. */}
+            {/* Exactly two products; the free classes are already on the card. */}
             <div className="grid grid-cols-2 gap-1.5">
-              {PASS_SIZES.map((n) => (
+              {PRODUCTS.map((pr) => (
                 <button
-                  key={n}
+                  key={pr.classes}
                   type="button"
-                  onClick={() => setClasses(n)}
+                  onClick={() => setClasses(pr.classes)}
                   className={cn(
-                    "py-2.5 rounded-xl text-sm font-semibold border touch-manipulation",
-                    classes === n
+                    "py-2.5 rounded-xl text-sm font-semibold border touch-manipulation flex flex-col items-center gap-0.5",
+                    classes === pr.classes
                       ? "bg-brand text-white border-brand"
                       : "bg-white text-gray-600 border-gray-200 hover:border-brand/40",
                   )}
                 >
-                  {n} classes
+                  <span>{pr.classes} classes</span>
+                  <span className={cn("text-[10px] font-medium", classes === pr.classes ? "text-white/80" : "text-gray-400")}>
+                    pay for {pr.payFor} · {pr.classes - pr.payFor} free
+                  </span>
                 </button>
               ))}
             </div>
 
-            {/* Price banner — per-class price x pass size = the prepayment total. */}
+            {/* Price banner - what the client pays now for the whole card. */}
             <div className="rounded-xl bg-brand/[0.08] border border-brand/20 px-4 py-3 flex items-center justify-between">
               <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-700">{classes} classes</span>
-                <span className="text-[11px] text-gray-400">{classes} × {fmtRp(perClass)}</span>
+                <span className="text-sm font-medium text-gray-700">Member card · {classes} classes</span>
+                <span className="text-[11px] text-gray-400">{fmtRp(perClass)} per class</span>
               </div>
               <span className="text-lg font-bold text-brand">{fmtRp(perClass * classes)}</span>
             </div>
@@ -236,7 +242,7 @@ export function SellMembershipModal({
 
             {existing != null && existing > 0 && (
               <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-                This client already has <b>{existing}</b> classes. The new membership is added to their balance.
+                This client already has <b>{existing}</b> classes. The new Member card adds to their balance.
               </div>
             )}
 
@@ -267,14 +273,14 @@ export function SellMembershipModal({
               onClick={submit}
               className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
             >
-              {submitting ? "Saving…" : `Sell · ${fmtRp(perClass * classes)}`}
+              {submitting ? "Saving…" : `Sell Member card · ${fmtRp(perClass * classes)}`}
             </button>
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
             <div className="text-3xl mb-2">🎟️</div>
-            <h3 className="text-base font-semibold text-gray-900 mb-1">Membership sold</h3>
-            <p className="text-sm text-gray-500 mb-4">The client now has <b>{done}</b> classes.</p>
+            <h3 className="text-base font-semibold text-gray-900 mb-1">Member card sold</h3>
+            <p className="text-sm text-gray-500 mb-4">The card now holds <b>{done}</b> classes.</p>
             <button
               type="button"
               onClick={onClose}
@@ -309,8 +315,8 @@ export default function SellMembershipButton({
         onClick={() => setOpen(true)}
         // Compact on narrow screens (icon-only, square) so the trainer header
         // never wraps to two lines; full label on ≥sm where there's room.
-        aria-label="Sell membership"
-        title="Sell membership"
+        aria-label="Sell a Member card"
+        title="Sell a Member card"
         className={cn(
           "inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand text-white font-semibold hover:bg-brand-dark whitespace-nowrap shrink-0",
           fullLabel
@@ -320,7 +326,7 @@ export default function SellMembershipButton({
         )}
       >
         <span className="leading-none">＋</span>
-        <span className={fullLabel ? "inline" : "hidden sm:inline"}>Sell membership</span>
+        <span className={fullLabel ? "inline" : "hidden sm:inline"}>Sell Member card</span>
       </button>
 
       {open && (
