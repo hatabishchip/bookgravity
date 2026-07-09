@@ -455,6 +455,10 @@ export async function sendWhatsAppTemplate(opts: {
    *  class-moved template's "I'll be there" / "Can't make it" pair. Takes
    *  precedence over `buttonPayload` when both are set. */
   buttonPayloads?: string[]
+  /** Value for a dynamic URL button ({{1}} suffix in the template's URL),
+   *  e.g. the studio slug for "https://bookgravity.com/{{1}}". The template's
+   *  single URL button is assumed to be at index 0. */
+  buttonUrlParam?: string
   config?: CloudConfig | null
 }): Promise<SendResult> {
   const cfg = opts.config ?? getConfig()
@@ -491,6 +495,14 @@ export async function sendWhatsAppTemplate(opts: {
       parameters: [{ type: "payload", payload }],
     })
   })
+  if (opts.buttonUrlParam) {
+    components.push({
+      type: "button",
+      sub_type: "url",
+      index: 0,
+      parameters: [{ type: "text", text: opts.buttonUrlParam }],
+    })
+  }
 
   return postMessage(cfg, {
     messaging_product: "whatsapp",

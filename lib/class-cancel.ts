@@ -55,6 +55,7 @@ function loadSlot(slotId: string, studioId: string) {
       trainer: { select: { id: true, name: true, whatsapp: true, notifyWhatsapp: true } },
       studio: {
         select: {
+          slug: true,
           timezone: true,
           whatsappPhoneNumberId: true,
           whatsappAccessToken: true,
@@ -206,6 +207,8 @@ export async function cancelClassSlot(opts: {
               templateName: warmTemplate,
               languageCode: "en",
               variables: [b.clientName.trim().split(/\s+/)[0] || "there", classLabel(slot)],
+              // "Book another day" URL button: bookgravity.com/{{1}} → studio page.
+              buttonUrlParam: slot.studio.slug,
               config: cfg,
             })
           : await sendWhatsAppTemplate({
