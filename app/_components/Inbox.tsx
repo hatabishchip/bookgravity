@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useRouter, useSearchParams } from "next/navigation"
 import { upload } from "@vercel/blob/client"
 import Composer from "@/app/_components/Composer"
+import ChatBookingSheet, { type ChatBooking } from "@/app/_components/ChatBookingSheet"
 import ImageLightbox from "@/app/_components/ImageLightbox"
 import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns"
 import {
@@ -757,6 +758,10 @@ export default function Inbox({
   // Trainer 👋 wave: rate-limited to once per 12h per conversation (stored in
   // localStorage). waveLockUntil = timestamp the button reactivates, or null.
   const [waveLockUntil, setWaveLockUntil] = useState<number | null>(null)
+  // Chat "class action" (calendar-x by the input, Canggu rollout): this
+  // client's upcoming bookings + the studio slug that gates the button.
+  const [classInfo, setClassInfo] = useState<{ studioSlug: string | null; bookings: ChatBooking[] } | null>(null)
+  const [classSheetOpen, setClassSheetOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
   // Wrapper that carries the interactive-keyboard CSS vars (--kb-h height,
@@ -885,6 +890,25 @@ export default function Inbox({
       }
     } catch {}
   }, [])
+  // Class-action data: the selected client's upcoming bookings (+ studio slug
+  // gating the composer button). Refetched on chat open and after move/cancel.
+  const refreshClassInfo = useCallback(async () => {
+    if (!selectedId) {
+      setClassInfo(null)
+      return
+    }
+    try {
+      const r = await fetch(`/api/whatsapp/conversations/${selectedId}/bookings`, { cache: "no-store" })
+      setClassInfo(r.ok ? await r.json() : null)
+    } catch {
+      setClassInfo(null)
+    }
+  }, [selectedId])
+  useEffect(() => {
+    setClassSheetOpen(false)
+    void refreshClassInfo()
+  }, [refreshClassInfo])
+
   useEffect(() => {
     if (!selectedId) {
       setDetail(null)
@@ -1970,8 +1994,17 @@ export default function Inbox({
             `windowOpen` flag still drives the 👋 (a greeting only makes sense
             to re-open a closed window, but it's harmless when open). */}
         {windowOpen || role === "ADMIN" || role === "TRAINER" ? (
-          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} windowOpen={windowOpen} keyboardOpen={keyboardOpen} onKeyboardOpenChange={setKeyboardOpen} onKbHeight={onKbHeight} />
+          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} windowOpen={windowOpen} keyboardOpen={keyboardOpen} onKeyboardOpenChange={setKeyboardOpen} onKbHeight={onKbHeight} onClassAction={classInfo?.studioSlug === "canggu" ? () => setClassSheetOpen(true) : undefined} />
         ) : null}
+        {classSheetOpen && (
+          <ChatBookingSheet
+            role={role}
+            clientName={detail?.clientName ?? null}
+            bookings={classInfo?.bookings ?? []}
+            onClose={() => setClassSheetOpen(false)}
+            onChanged={() => { void refreshClassInfo(); void refreshList() }}
+          />
+        )}
         {sendError && (
           <div className="px-3 pb-1 text-xs text-red-600 dark:text-red-400 bg-[#ECE5DD] dark:bg-[#0B141A]">
             {sendError}

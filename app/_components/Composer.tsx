@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Keyboard, Loader2, Send, Smile } from "lucide-react"
+import { CalendarX, Keyboard, Loader2, Send, Smile } from "lucide-react"
 import { cn } from "@/lib/utils"
 import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
 import StickerPicker from "@/app/_components/StickerPicker"
@@ -59,9 +59,12 @@ export interface ComposerProps {
   /** MOBILE: report the on-screen keyboard's natural pixel height so the parent
    *  can drive the interactive (finger-tracked) show/hide via a CSS variable. */
   onKbHeight?: (height: number) => void
+  /** When set, shows the calendar-x "class action" button (move/cancel the
+   *  client's booking right from the chat). Gated per studio by the parent. */
+  onClassAction?: () => void
 }
 
-export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, windowOpen = true, keyboardOpen = true, onKeyboardOpenChange, onKbHeight }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, windowOpen = true, keyboardOpen = true, onKeyboardOpenChange, onKbHeight, onClassAction }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // The on-screen keyboard panel — measured so the parent can size the shell
@@ -254,6 +257,23 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
         style={{ paddingBottom: 6 }}
       >
         <div className="flex gap-2 items-end">
+          {/* Calendar-x "class action" button: move or cancel this client's
+              booking right from the chat (Canggu rollout, 09.07). Muted
+              warning tone so it reads "something about the class" without
+              screaming. Works regardless of the 24h window - the resulting
+              notifications go out as approved templates server-side. */}
+          {onClassAction && (
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={onClassAction}
+              className="w-9 h-9 mb-0.5 rounded-xl border border-amber-300/80 bg-amber-100/70 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-500/90 flex items-center justify-center flex-shrink-0 active:opacity-60"
+              aria-label="Move or cancel a class"
+              title="Move or cancel this client's class"
+            >
+              <CalendarX size={19} />
+            </button>
+          )}
           {/* "+" attachment button — opens the native picker. We deliberately
               fire on `click` (not pointerdown) because the file input dialog
               must be invoked from a user-initiated click for iOS to allow it.
