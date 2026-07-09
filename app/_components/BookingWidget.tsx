@@ -221,6 +221,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const [otpSending, setOtpSending] = useState(false)
   const [otpSent, setOtpSent] = useState(false)
   const [otpVerified, setOtpVerified] = useState(false)
+  // True when the client used the "continue without WhatsApp confirmation"
+  // escape hatch - the field shows an honest neutral mark, not the green check.
+  const [otpUnconfirmed, setOtpUnconfirmed] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [otpError, setOtpError] = useState("")
   // WhatsApp delivery status of the code we sent (polled): sent → delivered →
@@ -423,6 +426,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         sentDigitsRef.current = ""
         setOtpSent(false)
         setOtpVerified(false)
+        setOtpUnconfirmed(false)
         setOtpReady(false)
         otpFailedRef.current = false
         setOtpCode("")
@@ -467,6 +471,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       setOtpCode("")
       otpFailedRef.current = false
       setOtpVerified(false)
+      setOtpUnconfirmed(false)
       setOtpReady(false)
       setMembershipLeft(0)
       setLookupState("idle")
@@ -774,6 +779,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           verifiedClientsRef.current.delete(d)
           sentDigitsRef.current = ""
           setOtpVerified(false)
+          setOtpUnconfirmed(false)
           setOtpReady(false)
           setOtpError(
             err.otpError === "locked"
@@ -860,7 +866,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             <div key={d} className="text-center text-xs font-semibold text-gray-700 py-2 uppercase tracking-wider">{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-1">
+        {/* While availability loads the grid pulses and dims - otherwise the
+            bare numbers read as tappable a beat before the dots appear. */}
+        <div className={cn("grid grid-cols-7 gap-1", !slotsLoaded && "animate-pulse opacity-50")}>
           {blanks.map((_, i) => <div key={`b${i}`} />)}
           {days.map((day) => {
             const str = format(day, "yyyy-MM-dd")
@@ -1219,8 +1227,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           if (s === "details") return !!selectedSlot
           return true
         }
+        const stepLabels = ["Date", "Time", "Details"]
         return (
-          <div className="flex items-center justify-center gap-1.5 mb-3">
+          <div className="flex items-center justify-center gap-4 mb-3">
             {stepList.map((s, i) => {
               const isCompleted = currentIdx > i
               const isCurrent = currentIdx === i
@@ -1230,13 +1239,24 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                   key={s}
                   onClick={() => clickable && setStep(s)}
                   disabled={!clickable}
-                  aria-label={`Step ${i + 1}`}
+                  aria-label={`Step ${i + 1}: ${stepLabels[i]}`}
                   className={cn(
-                    "h-1.5 rounded-full transition-all",
-                    isCurrent ? "w-6 bg-brand" : isCompleted ? "w-1.5 bg-brand" : "w-1.5 bg-gray-300",
+                    "flex flex-col items-center gap-1",
                     clickable ? "cursor-pointer hover:opacity-80" : "cursor-default"
                   )}
-                />
+                >
+                  <span className={cn(
+                    "h-1.5 rounded-full transition-all",
+                    isCurrent ? "w-8 bg-brand" : "w-5",
+                    isCompleted ? "bg-brand" : isCurrent ? "" : "bg-gray-300",
+                  )} />
+                  <span className={cn(
+                    "text-[10px] font-medium leading-none",
+                    isCurrent ? "text-brand" : isCompleted ? "text-brand/70" : "text-gray-400",
+                  )}>
+                    {stepLabels[i]}
+                  </span>
+                </button>
               )
             })}
           </div>
@@ -1415,11 +1435,17 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       : null
                     return (
                       <div key={slot.id}>
+                      {/* Compact card (owner UX pass 09.07): the time reads in
+                          ONE line, the right side says one thing ("N spots
+                          left"), and GROUP slots skip the badge + subtitle -
+                          repeating "Group class · up to 6" on every row said
+                          nothing new. Kids/Private keep their badge so the odd
+                          one out stands out. */}
                       <button
                         onClick={() => canBook && handleSlotSelect(slot)}
                         disabled={!canBook}
                         className={cn(
-                          "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left relative",
+                          "w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border-2 transition-all text-left relative",
                           canBook
                             ? "border-gray-100 hover:border-brand hover:bg-brand/5 cursor-pointer"
                             : withinCutoff
@@ -1429,48 +1455,35 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                                 : "border-amber-100 bg-amber-50/40 cursor-not-allowed"
                         )}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
-                            canBook ? "bg-brand/10" : withinCutoff ? "bg-gray-200" : isFull ? "bg-gray-200" : "bg-amber-100"
-                          )}>
-                            <Clock size={18} className={canBook ? "text-brand" : withinCutoff ? "text-gray-400" : isFull ? "text-gray-400" : "text-amber-600"} />
-                          </div>
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <div className="min-w-0">
-                            <div className={cn("font-semibold flex items-center gap-2 flex-wrap", isFull ? "text-gray-400" : withinCutoff ? "text-gray-500" : "text-gray-800")}>
-                              <span>{formatTime(slot.startTime)} - {clientEndTime(slot.startTime)}</span>
-                              {(() => {
-                                const label = slot.classType === "KIDS" ? "Kids" : slot.classType === "PRIVATE" ? "Private" : "Group"
-                                // Sold-out cards fade everything to pale grey;
-                                // otherwise each class type keeps its colour.
-                                const color = isFull
-                                  ? "bg-gray-200 text-gray-400"
-                                  : slot.classType === "KIDS"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : slot.classType === "PRIVATE"
-                                      ? "bg-purple-100 text-purple-700"
-                                      : "bg-brand/10 text-brand"
-                                return (
-                                  <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded-full no-underline", color)}>
-                                    {label}
-                                  </span>
-                                )
-                              })()}
+                            <div className={cn("font-semibold flex items-center gap-2", isFull ? "text-gray-400" : withinCutoff ? "text-gray-500" : "text-gray-800")}>
+                              <span className="whitespace-nowrap text-[15px] tabular-nums">{formatTime(slot.startTime)} - {clientEndTime(slot.startTime)}</span>
+                              {slot.classType !== "GROUP" && (
+                                <span className={cn(
+                                  "text-[10px] font-bold uppercase px-2 py-0.5 rounded-full no-underline flex-shrink-0",
+                                  isFull
+                                    ? "bg-gray-200 text-gray-400"
+                                    : slot.classType === "KIDS"
+                                      ? "bg-amber-100 text-amber-700"
+                                      : "bg-purple-100 text-purple-700",
+                                )}>
+                                  {slot.classType === "KIDS" ? "Kids" : "Private"}
+                                </span>
+                              )}
                             </div>
-                            <div className={cn("text-sm", withinCutoff ? "text-gray-400" : "text-gray-400")}>
-                              {withinCutoff
-                                ? slot.started
-                                  ? "Class in progress"
-                                  : "Online booking closed - message us to join"
-                                : slot.classType === "PRIVATE"
-                                  ? "Private session · 1 person"
-                                  : slot.classType === "KIDS"
-                                    ? `Kids class · up to ${slot.maxCapacity}`
-                                    : `Group class · up to ${slot.maxCapacity}`}
-                            </div>
+                            {(withinCutoff || slot.classType === "PRIVATE") && (
+                              <div className="text-xs text-gray-400 mt-0.5">
+                                {withinCutoff
+                                  ? slot.started
+                                    ? "Class in progress"
+                                    : "Online booking closed - message us to join"
+                                  : "Private session · 1 person"}
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div className="text-right flex flex-col items-end gap-0.5">
+                        <div className="text-right flex-shrink-0">
                           {withinCutoff ? (
                             <span className={cn(
                               "inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide leading-none",
@@ -1481,17 +1494,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                           ) : !enoughForParty ? (
                             <span className="inline-flex items-center justify-center px-2.5 h-5 rounded-full text-[10px] font-bold uppercase tracking-wide leading-none bg-amber-500 text-white">{`Only ${spotsLeft} left`}</span>
                           ) : (
-                            <div className="flex items-center gap-1 text-sm font-medium text-brand">
+                            <div className="flex items-center gap-1 text-sm font-medium text-brand whitespace-nowrap">
                               <Users size={14} />
-                              {spotsLeft} / {slot.maxCapacity} spots
+                              {spotsLeft} {spotsLeft === 1 ? "spot" : "spots"} left
                             </div>
                           )}
-                          <div className={cn(
-                            "text-[11px] mt-0.5",
-                            canBook ? "text-brand/70" : withinCutoff ? "text-gray-400" : isFull ? "text-rose-500 font-semibold" : "text-amber-600/70"
-                          )}>
-                            {withinCutoff ? "Within 2h of start" : isFull ? `${slot.bookedCount}/${slot.maxCapacity} booked` : canBook ? "Available" : `${spotsLeft} free`}
-                          </div>
                         </div>
                       </button>
                       {joinHref && (
@@ -1652,9 +1659,15 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     {/* Verified = a small check inside the field. Replaces the
                         old full-width "✓ Number verified" row (screen space). */}
                     {otpVerified && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none w-6 h-6 rounded-full bg-brand text-white flex items-center justify-center text-sm font-bold" aria-label="Number verified">
-                        ✓
-                      </div>
+                      otpUnconfirmed ? (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none w-6 h-6 rounded-full bg-gray-300 text-white flex items-center justify-center text-sm font-bold" aria-label="Number not confirmed" title="Number not confirmed on WhatsApp">
+                          ✓
+                        </div>
+                      ) : (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none w-6 h-6 rounded-full bg-brand text-white flex items-center justify-center text-sm font-bold" aria-label="Number verified">
+                          ✓
+                        </div>
+                      )
                     )}
                     {/* Code delivered → WhatsApp badge so it's obvious the code
                         went to this number's WhatsApp. Auto-hides when the
@@ -1707,7 +1720,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     flagged phone-unverified so staff double-check contact. */}
                 <button
                   type="button"
-                  onClick={() => { setOtpVerified(true); setOtpError("") }}
+                  onClick={() => { setOtpVerified(true); setOtpUnconfirmed(true); setOtpError("") }}
                   className="mt-2 inline-flex items-center rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
                 >
                   Continue without WhatsApp confirmation
