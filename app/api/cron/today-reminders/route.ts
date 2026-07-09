@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { assertCronAuth } from "@/lib/cron-auth"
 import { runTodayReminders } from "@/lib/today-reminders"
+import { runAwaitingEscalation } from "@/lib/awaiting-escalation"
 
 export const dynamic = "force-dynamic"
 // Sending several reminders sequentially can exceed the default 10s.
@@ -14,5 +15,8 @@ export async function GET(req: NextRequest) {
   const denied = assertCronAuth(req)
   if (denied) return denied
   const summary = await runTodayReminders("cron-endpoint")
-  return NextResponse.json(summary)
+  // Piggyback: ping admins about client questions unanswered for 2h+
+  // (internal staff push only - nothing goes to clients). Best-effort.
+  const escalation = await runAwaitingEscalation().catch(() => null)
+  return NextResponse.json({ ...summary, escalation })
 }

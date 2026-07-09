@@ -54,3 +54,20 @@ export function formatPhoneDisplay(phone: string): string {
   const digits = phone.replace(/\D/g, "")
   return digits ? `+${digits}` : phone
 }
+
+/**
+ * Normalize a client-typed name before it is stored or substituted into a
+ * WhatsApp template: trim, collapse runs of whitespace, and drop an
+ * immediately repeated word ("Elizaveta Elizaveta" -> "Elizaveta"). The chat
+ * audit (09.07) found confirmations reading "Hi Ksenia ," and doubled names -
+ * raw form input was inserted verbatim.
+ */
+export function cleanClientName(raw: string): string {
+  const words = raw.trim().split(/\s+/).filter(Boolean)
+  const out: string[] = []
+  for (const w of words) {
+    if (out.length && out[out.length - 1].toLowerCase() === w.toLowerCase()) continue
+    out.push(w)
+  }
+  return out.join(" ")
+}

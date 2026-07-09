@@ -76,6 +76,12 @@ export async function runTodayReminders(trigger: string): Promise<TodayReminders
   let skippedNoWA = 0
   let failed = 0
 
+  // ONE message per phone per class: a party of N books N bookings on one
+  // number, and the old per-booking loop sent N identical check-ins a second
+  // apart (chat audit 09.07 caught a real party of 6 receiving 6 copies).
+  // Group the eligible bookings by phone tail + slot and send once per group;
+  // the claim marks EVERY booking in the group so no other run re-sends.
+  const groups = new Map<string, { list: typeof bookings; minutesUntil: number }>()
   for (const b of bookings) {
     if (!b.slot.studio.whatsappEnabled || b.slot.studio.remindToday === false) {
       skippedNoWA++
@@ -96,11 +102,19 @@ export async function runTodayReminders(trigger: string): Promise<TodayReminders
       skippedFresh++
       continue
     }
+    const key = `${phoneTail(b.clientPhone)}|${b.slotId}`
+    const g = groups.get(key)
+    if (g) g.list.push(b)
+    else groups.set(key, { list: [b], minutesUntil })
+  }
 
-    // Atomically CLAIM this booking before sending — only one concurrent run
-    // wins; the others see count===0 and skip, so no duplicates.
+  for (const { list: group, minutesUntil } of groups.values()) {
+    const b = group[0]
+
+    // Atomically CLAIM the whole group before sending — only one concurrent
+    // run wins; the others see count===0 and skip, so no duplicates.
     const claim = await prisma.booking.updateMany({
-      where: { id: b.id, todayReminderSentAt: null },
+      where: { id: { in: group.map((g) => g.id) }, todayReminderSentAt: null },
       data: { todayReminderSentAt: new Date() },
     })
     if (claim.count === 0) continue
@@ -120,9 +134,9 @@ export async function runTodayReminders(trigger: string): Promise<TodayReminders
         error: res.error,
         trigger,
       })
-      // Release the claim so the next run can retry.
-      await prisma.booking.update({
-        where: { id: b.id },
+      // Release the whole group's claim so the next run can retry.
+      await prisma.booking.updateMany({
+        where: { id: { in: group.map((g) => g.id) } },
         data: { todayReminderSentAt: null },
       })
       continue

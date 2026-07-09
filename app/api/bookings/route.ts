@@ -23,10 +23,13 @@ import { hasOtpSession, attachOtpSession } from "@/lib/otp-session"
 import { rateLimit, clientIp } from "@/lib/rate-limit"
 import { clientClassRange } from "@/lib/class-time"
 import { z } from "zod"
+import { cleanClientName } from "@/lib/format"
 
 const BookingSchema = z.object({
   slotId: z.string(),
-  clientName: z.string().min(2),
+  // Normalized (trim, collapse spaces, drop doubled words) - raw form input
+  // used to flow verbatim into WhatsApp templates ("Hi Ksenia ,").
+  clientName: z.string().min(2).transform(cleanClientName),
   // Stored digits-only (canonical since 2026-06-12) — display layers add the +.
   clientPhone: z.string().min(5).transform((p) => p.replace(/\D/g, "")),
   clientEmail: z.string().email(),

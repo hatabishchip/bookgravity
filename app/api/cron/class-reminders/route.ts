@@ -60,6 +60,11 @@ export async function GET(req: NextRequest) {
   let skippedNoWA = 0
   let failed = 0
 
+  // ONE reminder per phone per class: a party of N is N bookings on one
+  // number, and the old per-booking loop sent N identical reminders a second
+  // apart (chat audit 09.07). Group eligible bookings by phone tail + slot;
+  // send once, then mark reminderSentAt on the WHOLE group.
+  const groups = new Map<string, typeof bookings>()
   for (const b of bookings) {
     // Autonomous studios: only remind via a studio that has its OWN WhatsApp
     // enabled — no borrowing another studio's number. Also respect the
@@ -75,7 +80,14 @@ export async function GET(req: NextRequest) {
       skippedSameDay++
       continue
     }
+    const key = `${phoneTail(b.clientPhone)}|${b.slotId}`
+    const g = groups.get(key)
+    if (g) g.push(b)
+    else groups.set(key, [b])
+  }
 
+  for (const group of groups.values()) {
+    const b = group[0]
     const trainerName = b.slot.trainer?.name?.trim() || "the Gravity Stretching team"
     // Client-facing time = 1.5h (real slot is 2h with trainer buffer).
     const time = clientClassRange(b.slot.startTime)
@@ -95,11 +107,13 @@ export async function GET(req: NextRequest) {
       sent++
       await elog("reminders:tomorrow", "sent tomorrow-class reminder", {
         bookingId: b.id,
+        partySize: group.length,
         phoneTail: phoneTail(b.clientPhone),
         classTime: `${b.slot.date} ${b.slot.startTime}`,
       })
-      await prisma.booking.update({
-        where: { id: b.id },
+      // Mark the WHOLE phone group as reminded - one message covered them all.
+      await prisma.booking.updateMany({
+        where: { id: { in: group.map((g) => g.id) } },
         data: { reminderSentAt: new Date() },
       })
       // Best-effort: log the reminder in the client's conversation thread so

@@ -1752,6 +1752,22 @@ export default function Inbox({
                         </>
                       )}
                     </div>
+                    {/* How long the client has been waiting for an answer -
+                        goes amber after 2h, red after 6h (audit 09.07: median
+                        answer 2.6h, p90 12h - the wait was invisible). */}
+                    {c.awaitingReply && c.lastInboundAt && (() => {
+                      const h = (Date.now() - new Date(c.lastInboundAt).getTime()) / 3600_000
+                      if (h < 1) return null
+                      return (
+                        <span className={cn(
+                          "text-[11px] font-semibold tabular-nums flex-shrink-0 px-1.5 py-0.5 rounded-full",
+                          h >= 6 ? "bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+                        )}>
+                          {Math.floor(h)}h
+                        </span>
+                      )
+                    })()}
                     {/* Unread dot — shows 1 per conversation (same principle as app icon badge). */}
                     {hasUnread && (
                       <span className="bg-[#25D366] text-white text-[11px] w-5 h-5 rounded-full flex items-center justify-center font-semibold flex-shrink-0">
