@@ -8,6 +8,7 @@ import { useThemePref, type ThemePref } from "@/lib/theme-preference"
 import { Text } from "@/components/ui/Text"
 import { Button } from "@/components/ui/Button"
 import { UpdateButton } from "@/components/UpdateButton"
+import { NotificationSettings } from "@/components/NotificationSettings"
 
 const APPEARANCE: { value: ThemePref; label: string }[] = [
   { value: "light", label: "Light" },
@@ -75,6 +76,13 @@ export default function ProfileTab() {
             </Pressable>
           ))}
         </View>
+      </View>
+
+      {/* Live view of how notifications arrive on this device: OS permission,
+          push registration, staff chat-alert mode, what this role receives. */}
+      <View style={[styles.card, { backgroundColor: theme.bg.card, borderColor: theme.border.subtle }]}>
+        <Text variant="caption" tone="muted" style={{ marginBottom: spacing.sm }}>Notifications</Text>
+        <NotificationSettings />
       </View>
 
       <View style={[styles.card, { backgroundColor: theme.bg.card, borderColor: theme.border.subtle }]}>
