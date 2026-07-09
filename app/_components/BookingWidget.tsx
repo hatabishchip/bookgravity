@@ -1245,48 +1245,38 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
       {/* Step: Date */}
       {step === "date" && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          {/* Group class summary — two fixed zones so nothing reflows when the
-              count changes: (1) class + price header, (2) party-size stepper.
-              The two rows never compete for horizontal space, and the count has
-              a fixed width, so the card stays put on every phone width. */}
-          <div className="bg-brand/[0.07] border border-brand/15 rounded-2xl mb-4 overflow-hidden">
-            {/* Header: class label + details (left), price (right) */}
-            <div className="px-4 py-3 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-brand leading-none">Group class</div>
-                <div className="text-[11px] text-gray-500 mt-1.5 leading-none">{(studio?.country || "").toUpperCase() === "US" ? "Live online · small group" : "Up to 6 people · 1.5 hours"}</div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-2xl font-bold text-brand leading-none tabular-nums">{formatIDR(studio?.groupPrice ?? 300000)}</div>
-                <div className="text-[10px] text-gray-500 mt-1.5 uppercase tracking-wide leading-none">per person</div>
-              </div>
+        <div className="bg-white rounded-2xl shadow-sm px-4 pt-3 pb-4 sm:px-6 sm:pb-6">
+          {/* Group class summary — ONE compact row (owner 09.07: the old
+              two-zone card ate half the phone screen before the calendar).
+              Left: class + price. Right: the party-size stepper. The details
+              (duration, capacity, per-person) repeat on the slot cards below,
+              so they don't need a second home up here. */}
+          <div className="bg-brand/[0.07] border border-brand/15 rounded-xl mb-2 px-3 py-2 flex items-center justify-between gap-3">
+            <div className="min-w-0 flex items-baseline gap-2 flex-wrap">
+              <span className="text-[13px] font-semibold text-brand leading-none">Group class</span>
+              <span className="text-lg font-bold text-brand leading-none tabular-nums">{formatIDR(studio?.groupPrice ?? 300000)}</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wide leading-none">/ person</span>
             </div>
-
-            {/* Stepper row on its own line, divided from the header */}
-            <div className="px-4 py-2.5 border-t border-brand/12 flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-gray-600">How many people?</span>
-              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-full p-1 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setPartySize(Math.max(1, partySize - 1))}
-                  disabled={partySize <= 1}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-xl text-brand hover:bg-brand/10 active:bg-brand/15 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-                  aria-label="Decrease people"
-                >
-                  −
-                </button>
-                <span className="w-8 text-center font-bold text-lg text-gray-900 tabular-nums leading-none">{partySize}</span>
-                <button
-                  type="button"
-                  onClick={() => setPartySize(Math.min(6, partySize + 1))}
-                  disabled={partySize >= 6}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-xl text-brand hover:bg-brand/10 active:bg-brand/15 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-                  aria-label="Increase people"
-                >
-                  +
-                </button>
-              </div>
+            <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-full p-0.5 shadow-sm flex-shrink-0" aria-label="How many people">
+              <button
+                type="button"
+                onClick={() => setPartySize(Math.max(1, partySize - 1))}
+                disabled={partySize <= 1}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-lg text-brand hover:bg-brand/10 active:bg-brand/15 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                aria-label="Decrease people"
+              >
+                −
+              </button>
+              <span className="w-7 text-center font-bold text-base text-gray-900 tabular-nums leading-none">{partySize}</span>
+              <button
+                type="button"
+                onClick={() => setPartySize(Math.min(6, partySize + 1))}
+                disabled={partySize >= 6}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-lg text-brand hover:bg-brand/10 active:bg-brand/15 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                aria-label="Increase people"
+              >
+                +
+              </button>
             </div>
           </div>
 
