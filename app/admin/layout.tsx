@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Landmark, Settings, ExternalLink, X, Menu, Megaphone, PiggyBank } from "lucide-react"
+import { Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Landmark, Settings, ExternalLink, X, Menu, Megaphone, PiggyBank, Ticket } from "lucide-react"
 import { cn } from "@/lib/utils"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 import WebPushManager from "@/app/_components/WebPushManager"
@@ -16,6 +16,7 @@ const navItems: { href: string; label: string; icon: React.ComponentType<{ size?
   { href: "/admin/beta-schedule", label: "Schedule", icon: Calendar, beta: true },
   { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
   { href: "/admin/clients", label: "Clients", icon: UserRound },
+  { href: "/admin/memberships", label: "Member cards", icon: Ticket },
   { href: "/admin/trainers", label: "Trainers", icon: Users },
   // "Prices & Services": this page holds the CORE class/membership prices, not
   // just add-ons - under the old "Services" label admins hunted for prices in

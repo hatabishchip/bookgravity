@@ -186,7 +186,7 @@ export default function CashFlowPage() {
                       <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{format(new Date(r.date), "MMM d")}</td>
                       <td className="px-4 py-2 text-gray-800">
                         {r.label}
-                        {r.kind === "membership" && <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-brand/10 text-brand">pass</span>}
+                        {r.kind === "membership" && <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-brand/10 text-brand">card</span>}
                       </td>
                       <td className="px-4 py-2 text-gray-400 hidden sm:table-cell">{r.responsible}</td>
                       {METHOD_COLS.map((m) => <td key={m.key} className="px-4 py-2 text-right tabular-nums text-gray-700">{r.method === m.key ? fmtCell(r.amount) : ""}</td>)}
