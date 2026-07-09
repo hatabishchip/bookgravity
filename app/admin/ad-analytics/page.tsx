@@ -74,11 +74,11 @@ export default function AdAnalyticsPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex flex-wrap items-center justify-between gap-y-2 mb-1">
         <h1 className="text-xl font-semibold flex items-center gap-2">
           <Megaphone size={20} /> Реклама - ROI
         </h1>
-        <div className="flex gap-1 text-sm">
+        <div className="flex flex-wrap gap-1 text-sm">
           {PRESETS.map((p) => (
             <button
               key={p.key}
