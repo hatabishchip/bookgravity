@@ -15,6 +15,9 @@ import { API_BASE } from "@/lib/api"
 // /api/trainer/schedule endpoint the web dashboard uses. Each card opens
 // the class detail screen (clients on that class) on tap. Other trainers'
 // slots and unassigned slots render with reduced detail.
+
+const CLASS_LABEL: Record<string, string> = { GROUP: "Group", KIDS: "Kids", PRIVATE: "Private" }
+const classLabel = (t: string) => CLASS_LABEL[t] ?? t
 export default function TrainerScheduleTab() {
   const { theme } = useTheme()
   const router = useRouter()
@@ -50,14 +53,18 @@ export default function TrainerScheduleTab() {
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.brand.primary} />}
       >
-        {logoUri ? (
-          <Image
-            source={{ uri: logoUri }}
-            style={{ height: 48, width: 160, resizeMode: "contain", alignSelf: "flex-start" }}
-          />
-        ) : (
-          <Text variant="title2" tone="primary">Your schedule</Text>
-        )}
+        {/* Header: the title anchors the screen; the studio logo sits small
+            and right-aligned (the old full-width 48px logo at the top read as
+            a misplaced banner - owner 09.07). */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text variant="title2" tone="primary">Schedule</Text>
+          {logoUri ? (
+            <Image
+              source={{ uri: logoUri }}
+              style={{ height: 24, width: 96, resizeMode: "contain", opacity: 0.85 }}
+            />
+          ) : null}
+        </View>
 
         {/* Segmented switcher */}
         <View style={[styles.seg, { backgroundColor: theme.bg.card, borderColor: theme.border.subtle }]}>
@@ -110,7 +117,7 @@ export default function TrainerScheduleTab() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                       <Users size={12} color={theme.text.muted} />
                       <Text variant="footnote" tone="muted">
-                        {slot._count.bookings} / {slot.maxCapacity} confirmed
+                        {classLabel(slot.classType)} · {slot._count.bookings} / {slot.maxCapacity} confirmed
                       </Text>
                     </View>
                   </View>
@@ -134,8 +141,9 @@ export default function TrainerScheduleTab() {
                         <Text style={{ color: theme.text.invert, fontSize: 10, fontWeight: "700" }}>You assist</Text>
                       </View>
                       <Text variant="footnote" tone="muted">
-                        {slot.mainTrainerName ? `with ${slot.mainTrainerName} · ` : ""}
-                        {slot._count.bookings}/{slot.maxCapacity}
+                        {classLabel(slot.classType)}
+                        {slot.mainTrainerName ? ` · with ${slot.mainTrainerName}` : ""}
+                        {` · ${slot._count.bookings}/${slot.maxCapacity}`}
                       </Text>
                     </View>
                   </View>
