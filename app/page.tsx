@@ -26,7 +26,7 @@ export default async function HomePage() {
 
   // Auto-detect the visitor's country from Vercel's geo header (no permission
   // prompt). The chooser only uses it to pre-select a country that actually
-  // has studios — otherwise it shows the country grid.
+  // has studios - otherwise it shows the country grid.
   const hdrs = await headers()
   const detectedCountry =
     (hdrs.get("x-vercel-ip-country") || "").toUpperCase() || null
@@ -39,7 +39,7 @@ export default async function HomePage() {
     url: "https://bookgravity.com",
     logo: "https://bookgravity.com/icon-default.png",
     description:
-      "Gravity Stretching studios — see the live class schedule and book a stretching session online.",
+      "Gravity Stretching studios - see the live class schedule and book a stretching session online.",
   }
   const siteLd = {
     "@context": "https://schema.org",

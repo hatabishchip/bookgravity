@@ -4,7 +4,7 @@ import JsonLd from "../_components/JsonLd"
 import { formatMoney } from "@/lib/format"
 
 // Server-rendered SEO/content block under the booking widget. This is the
-// page's crawlable substance — the widget itself is interactive UI that
+// page's crawlable substance - the widget itself is interactive UI that
 // search engines can't read meaningfully. Copy targets "stretching classes
 // in <city>" and the long-tail questions around it.
 
@@ -45,23 +45,23 @@ function buildFaq(city: string, pricing: ClassPricing, currency: string | null, 
   const faq: { q: string; a: string }[] = [
     {
       q: "How long is a stretching class?",
-      a: "Each class is 75–90 minutes: a guided warm-up, gravity stretching with the trainer, and a calm cool-down.",
+      a: "Each class is 75-90 minutes: a guided warm-up, gravity stretching with the trainer, and a calm cool-down.",
     },
     {
       q: "Do I need any experience or flexibility to join?",
-      a: "No. Classes suit complete beginners and athletes alike — the trainer adjusts every stretch to your current range, so you work at your own depth.",
+      a: "No. Classes suit complete beginners and athletes alike - the trainer adjusts every stretch to your current range, so you work at your own depth.",
     },
     {
       q: "What should I wear or bring?",
-      a: "Comfortable clothes you can move in. Mats and all equipment are provided at the studio — just bring yourself and some water.",
+      a: "Comfortable clothes you can move in. Mats and all equipment are provided at the studio - just bring yourself and some water.",
     },
     {
       q: "How many people are in a group class?",
-      a: "Groups are small — up to 6 people — so the trainer can give everyone hands-on attention. Private 1-on-1 sessions are also available.",
+      a: "Groups are small - up to 6 people - so the trainer can give everyone hands-on attention. Private 1-on-1 sessions are also available.",
     },
     {
       q: "Can I cancel or reschedule my booking?",
-      a: "Yes — cancellation is free up to 2 hours before the class. Just tap the Cancel button in your WhatsApp booking confirmation, or message the studio.",
+      a: "Yes - cancellation is free up to 2 hours before the class. Just tap the Cancel button in your WhatsApp booking confirmation, or message the studio.",
     },
     {
       q: "How do I pay?",
@@ -115,15 +115,15 @@ export default function StudioInfo({
     {
       icon: Users,
       title: "Group class",
-      desc: `Up to 6 people, 75–90 minutes of gravity stretching with a trainer${
-        pricing.group ? ` — from ${formatPrice(pricing.group, studio.currency, studio.country)} per person` : ""
+      desc: `Up to 6 people, 75-90 minutes of gravity stretching with a trainer${
+        pricing.group ? ` - from ${formatPrice(pricing.group, studio.currency, studio.country)} per person` : ""
       }.`,
     },
     {
       icon: Sparkles,
       title: "Private 1-on-1",
       desc: `A full session focused entirely on your body and goals${
-        pricing.private ? ` — from ${formatPrice(pricing.private, studio.currency, studio.country)}` : ""
+        pricing.private ? ` - from ${formatPrice(pricing.private, studio.currency, studio.country)}` : ""
       }. Ideal for deep progress or specific issues.`,
     },
     {
@@ -139,16 +139,16 @@ export default function StudioInfo({
       <JsonLd data={breadcrumbLd} />
 
       <div className="space-y-6 mt-2">
-        {/* Intro — carries the page's single h1 (keyword + city); the header
+        {/* Intro - carries the page's single h1 (keyword + city); the header
             above the widget shows the brand as a plain div. */}
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h1 className="text-lg font-bold text-gray-900">Stretching classes in {city}</h1>
           <p className="mt-2 text-sm leading-relaxed text-gray-600">
             {studio.name} is a gravity-stretching studio in {city}
             {studio.country === "ID" ? ", Bali" : ""}. A trainer works with your body through every
-            stretch — deeper than you&apos;d ever get on your own, and safer too. Sessions improve
+            stretch - deeper than you&apos;d ever get on your own, and safer too. Sessions improve
             flexibility, posture and recovery, release tight hips and backs, and simply feel
-            fantastic. Book your spot online in a few taps — no payment needed to reserve.
+            fantastic. Book your spot online in a few taps - no payment needed to reserve.
           </p>
         </div>
 

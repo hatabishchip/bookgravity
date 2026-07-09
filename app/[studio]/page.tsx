@@ -13,7 +13,7 @@ import StudioInfo from "./StudioInfo"
 import { countryName } from "@/lib/countries"
 
 // Per-studio booking page: bookgravity.com/canggu, /ubud, etc. The studio is
-// the path segment — no subdomains. Unknown slugs 404 (static routes like
+// the path segment - no subdomains. Unknown slugs 404 (static routes like
 // /login, /admin, /privacy win over this dynamic segment automatically).
 
 // Always render per-request so the signed-in staff pill reflects the live
@@ -32,7 +32,7 @@ export async function generateMetadata({
   })
   if (!studio) return {}
   const place = [studio.city].filter(Boolean).join("")
-  const title = place ? `Stretching classes in ${place} — ${studio.name}` : `${studio.name} — Booking`
+  const title = place ? `Stretching classes in ${place} - ${studio.name}` : `${studio.name} - Booking`
   const description = place
     ? `Book a stretching class at ${studio.name} in ${place}. See the live schedule and reserve your spot in a few taps.`
     : `Book a stretching class at ${studio.name}. See the live schedule and reserve your spot in a few taps.`
@@ -92,12 +92,12 @@ export default async function StudioBookingPage({
   const pricing = { group: minPrice("GROUP"), private: minPrice("PRIVATE"), kids: minPrice("KIDS") }
 
   const role = session?.user?.role
-  // SUPER_ADMIN (platform owner) acts as an admin everywhere — proxy.ts lets
+  // SUPER_ADMIN (platform owner) acts as an admin everywhere - proxy.ts lets
   // them into /admin, so the booking page must recognise them too.
   const isAdminish = role === "ADMIN" || role === "SUPER_ADMIN"
   const dashboardHref = isAdminish ? "/admin" : role === "TRAINER" ? "/trainer" : null
   // The top-right staff badge shows ONLY: a trainer's own name, or just
-  // "Admin" for any admin — no "Signed in as", no email, no other details.
+  // "Admin" for any admin - no "Signed in as", no email, no other details.
   let badgeLabel: string | null = isAdminish ? "Admin" : null
   if (!badgeLabel && role === "TRAINER" && session?.user?.id) {
     const trainer = await prisma.trainer.findFirst({
@@ -149,18 +149,18 @@ export default async function StudioBookingPage({
       <header className="bg-white border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
-            {/* Brand only — the studio (Canggu/Ubud) is conveyed by the
+            {/* Brand only - the studio (Canggu/Ubud) is conveyed by the
                 switcher pills below, so we don't repeat it in the title.
                 Not an h1: the page's h1 ("Stretching classes in <city>")
                 lives in the content block below the widget. */}
             <div className="text-base sm:text-xl font-bold text-brand tracking-tight truncate">
               Gravity Stretching
             </div>
-            {/* Location switcher — shows the active studio, tap to change */}
+            {/* Location switcher - shows the active studio, tap to change */}
             <div className="mt-1.5">
               <StudioSwitcher
                 studios={allStudios
-                  // Only sibling studios in the SAME country — a visitor on
+                  // Only sibling studios in the SAME country - a visitor on
                   // Bali never sees an Almaty pill.
                   .filter((s) =>
                     (s.country || "").toUpperCase() === (studio.country || "").toUpperCase(),
@@ -173,7 +173,7 @@ export default async function StudioBookingPage({
           </div>
           <div className="flex items-center flex-shrink-0">
             {dashboardHref && badgeLabel ? (
-              // Signed-in staff: just the trainer's name, or "Admin" — no
+              // Signed-in staff: just the trainer's name, or "Admin" - no
               // "Signed in as", no email. Tapping it returns to the dashboard.
               <Link
                 href={dashboardHref}

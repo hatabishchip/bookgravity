@@ -173,7 +173,7 @@ function formatTime(time: string) {
 // below) so the USA / Online studio renders USD while Indonesian studios keep
 // the compact "300k IDR" style. Single source: lib/format.formatMoney.
 
-// Client-facing end time (12h) lives in lib/class-time.ts now — single source
+// Client-facing end time (12h) lives in lib/class-time.ts now - single source
 // of truth for the "real slot is 2h, client sees 1.5h" rule. Aliased so the
 // existing JSX (clientEndTime(...)) keeps working unchanged.
 const clientEndTime = clientEndTime12
@@ -208,7 +208,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const [partySize, setPartySize] = useState(1)
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
-  // Set when the API reports this phone already booked the slot — drives the
+  // Set when the API reports this phone already booked the slot - drives the
   // "are you sure?" confirmation before allowing a duplicate booking.
   const [dupWarn, setDupWarn] = useState<{ existingName: string | null } | null>(null)
   const [loading, setLoading] = useState(false)
@@ -231,16 +231,16 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // "checking…" spinner; on failure we ask the client to change the number.
   const [otpReady, setOtpReady] = useState(false)
   const otpFailedRef = useRef(false)
-  // The 2-digit code input — auto-focused (and keyboard raised) the moment it
+  // The 2-digit code input - auto-focused (and keyboard raised) the moment it
   // appears, so the client just types the code with zero extra taps.
   const otpInputRef = useRef<HTMLInputElement>(null)
-  // Whether the (transparent) code input is focused — drives the blinking
+  // Whether the (transparent) code input is focused - drives the blinking
   // caret on the active segmented cell.
   const [otpFocused, setOtpFocused] = useState(false)
   // Seconds until "Resend code" re-activates. Starts at 59 each time we send a
   // code; the button is greyed + counts down until it hits 0.
   const [resendIn, setResendIn] = useState(0)
-  // Wrapper around the code field — centered in view + the page frozen while
+  // Wrapper around the code field - centered in view + the page frozen while
   // the code is pending, so the client never has to scroll to find it.
   const otpScrollRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState("")
@@ -260,7 +260,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // number used for the booking, with the confirmation text prefilled.
   // Open the client's own WhatsApp chat with the booking details prefilled as
   // text. We intentionally do NOT render/download a PNG (that popped a confusing
-  // "download this image?" dialog) — the message already carries the ticket
+  // "download this image?" dialog) - the message already carries the ticket
   // code + details + a link to view it.
   function shareTicketToWhatsApp(_messageText: string, waLink: string | null) {
     if (waLink) window.open(waLink, "_blank")
@@ -274,10 +274,10 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   })
   const [lookupState, setLookupState] = useState<"idle" | "loading" | "found" | "new">("idle")
   // Informational membership balance for this phone at this studio (0 = none).
-  // Clients can't spend a class — this is shown for awareness only; a trainer
+  // Clients can't spend a class - this is shown for awareness only; a trainer
   // deducts it at the studio.
   const [membershipLeft, setMembershipLeft] = useState(0)
-  // Phone (digits only) we last sent a code to — guards against re-sending.
+  // Phone (digits only) we last sent a code to - guards against re-sending.
   const sentDigitsRef = useRef("")
   // Phones already verified in THIS session (digits → verified code + the
   // client details we looked up). Lets "Book another" with the same number
@@ -285,7 +285,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const verifiedClientsRef = useRef<Map<string, { code: string; name: string | null; email: string | null; membership: number }>>(new Map())
 
   // Send a WhatsApp confirmation code to the entered number, revealing the code
-  // field. We deliberately do NOT look the client up here — name/email are only
+  // field. We deliberately do NOT look the client up here - name/email are only
   // revealed AFTER a correct code (privacy: a phone number alone must not leak
   // someone's details).
   const sendOtp = async (phone: string) => {
@@ -341,17 +341,17 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         setResendIn(30)
         return
       }
-      // Synchronous failure — Meta refused the number outright (bad format /
+      // Synchronous failure - Meta refused the number outright (bad format /
       // not reachable). Don't show the code field; tell the client now.
       setOtpSent(false)
       setError(
         data.code === "send_failed"
           ? "We couldn't send a code to that number. Check it's correct and has WhatsApp."
-          : data.error || "Couldn't send the code — check the number and try again.",
+          : data.error || "Couldn't send the code - check the number and try again.",
       )
     } catch {
       setOtpSent(false)
-      setError("Couldn't send the code — check the number and try again.")
+      setError("Couldn't send the code - check the number and try again.")
     } finally {
       setOtpSending(false)
     }
@@ -391,16 +391,16 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       } else {
         setOtpError(
           data.error === "expired"
-            ? "Code expired — tap “Resend code”."
+            ? "Code expired - tap “Resend code”."
             : data.error === "locked"
-              ? "Too many tries — tap “Resend code”."
+              ? "Too many tries - tap “Resend code”."
               : typeof data.remaining === "number"
-                ? `Wrong code — ${data.remaining} ${data.remaining === 1 ? "try" : "tries"} left.`
+                ? `Wrong code - ${data.remaining} ${data.remaining === 1 ? "try" : "tries"} left.`
                 : "Wrong code.",
         )
       }
     } catch {
-      setOtpError("Network error — please try again.")
+      setOtpError("Network error - please try again.")
     } finally {
       setVerifying(false)
     }
@@ -408,7 +408,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
   // Auto-send the code the instant the phone is fully entered. If the number
   // changes or becomes incomplete, reset verification + clear any prefilled
-  // name/email (privacy). Only on the details step — otherwise navigating back
+  // name/email (privacy). Only on the details step - otherwise navigating back
   // to a restored ticket (step "done", phone restored) would re-send a code.
   useEffect(() => {
     if (step !== "details") return
@@ -538,7 +538,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       tries++
       void poll()
       // Fallback after ~12s with no failure: a valid number whose phone is just
-      // offline still got the code — let them enter it. Kept longer than the
+      // offline still got the code - let them enter it. Kept longer than the
       // delivery latency so a slow "failed" (number not on WhatsApp) lands FIRST
       // and we show "not on WhatsApp" instead of prematurely revealing the code.
       if (tries >= 6 && !otpFailedRef.current) setOtpReady(true)
@@ -565,7 +565,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
   // While the code is pending (sent, not verified), bring the phone + code
   // into view and FREEZE the page, so the client only sees the number and the
-  // code box — no scrolling/hunting. Entering the code (verified) unlocks it
+  // code box - no scrolling/hunting. Entering the code (verified) unlocks it
   // and reveals the rest of the form; editing the number is still possible.
   useEffect(() => {
     const pending = step === "details" && otpSent && !otpVerified
@@ -619,7 +619,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // Future dates that have at least one BOOKABLE slot (passes 2h cutoff) with
   // enough free seats for the party. Without the `bookable` check the calendar
   // shows green dots for days whose only remaining slots are inside the cutoff
-  // window — then clicking the day yields an empty list.
+  // window - then clicking the day yields an empty list.
   const availableDates = new Set(
     allSlots
       .filter((s) => s.date >= todayStr && s.bookable !== false && (s.maxCapacity - s.bookedCount) >= partySize)
@@ -631,9 +631,9 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       .filter((s) => s.date >= todayStr && s.bookable !== false && !availableDates.has(s.date))
       .map((s) => s.date)
   )
-  // Past dates that had a class scheduled — shown so the user sees there was a session
+  // Past dates that had a class scheduled - shown so the user sees there was a session
   // Today/future dates that DO have a class but it can't be booked online
-  // (inside the 2h cutoff, or already in progress) — shown greyed so visitors
+  // (inside the 2h cutoff, or already in progress) - shown greyed so visitors
   // still see "there are classes today" and can message us. Excludes days that
   // are already bookable/full (those have their own state) and classes that
   // have fully finished (`ended`).
@@ -650,7 +650,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       .map((s) => s.date),
   )
   // Grey "had a class" dot: any day that has slots but nothing bookable or in
-  // progress — past days, AND today once all its classes have finished (so the
+  // progress - past days, AND today once all its classes have finished (so the
   // day never looks empty when there genuinely were lessons).
   const historyDates = new Set(
     allSlots
@@ -778,7 +778,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
           setOtpError(
             err.otpError === "locked"
               ? "Too many tries. We're sending a new code."
-              : "That code expired — sending a new one.",
+              : "That code expired - sending a new one.",
           )
           void sendOtp(form.clientPhone)
           return
@@ -842,7 +842,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const sortedBookableMonths = Array.from(monthsWithBookable).sort()
   const hasAnyBookable = sortedBookableMonths.length > 0
 
-  // Render the day grid for a "yyyy-MM" key (no month title — that lives in
+  // Render the day grid for a "yyyy-MM" key (no month title - that lives in
   // the chevron header). Kept as a closure so it reads the date sets / handlers
   // from this scope without prop plumbing.
   const renderMonthGrid = (monthKey: string) => {
@@ -871,7 +871,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             // classes already finished) → grey dot so the day isn't blank.
             const hadClass = historyDates.has(str)
             // Has a class today/soon that can't be booked online (cutoff / in
-            // progress) — still selectable so the visitor can see it greyed.
+            // progress) - still selectable so the visitor can see it greyed.
             const hasInfo = infoDates.has(str)
             const clickable = (hasSlot || hasInfo) && !isPast
 
@@ -936,7 +936,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   }, [allSlots.length, currentKey, todayKey])
 
   // Navigation is capped at TWO months: the nearest bookable month and the
-  // single month after it. No paging three+ months ahead — only those two are
+  // single month after it. No paging three+ months ahead - only those two are
   // ever reachable.
   const reachableMonths = sortedBookableMonths.slice(0, 2)
   const reachableIdx = reachableMonths.indexOf(currentKey)
@@ -986,7 +986,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       // items-start (not center) so a tall ticket scrolls from the top instead
       // of having its edges clipped; my-auto still centers a short ticket.
       <div className="fixed inset-0 bg-gradient-to-br from-sand via-[#EFEEE8] to-[#E8E6DD] z-50 flex items-start justify-center p-4 overflow-y-auto">
-        {/* Always-visible Back control — pinned to the top-left so the user can
+        {/* Always-visible Back control - pinned to the top-left so the user can
             return to the schedule without scrolling to the bottom button. */}
         <button
           onClick={goToStart}
@@ -1128,7 +1128,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
           {/* Actions */}
           <div className="mt-4 space-y-2">
-            {/* Add to calendar — Google Calendar template URL with the
+            {/* Add to calendar - Google Calendar template URL with the
                 client-facing 90-min range, local "floating" time (clients book
                 in the studio's own timezone). */}
             {(() => {
@@ -1136,7 +1136,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               const t = (hhmm: string) => hhmm.replace(":", "") + "00"
               const calUrl =
                 "https://calendar.google.com/calendar/render?action=TEMPLATE" +
-                `&text=${encodeURIComponent(`Stretching class — ${studio?.name || "Gravity Stretching"}`)}` +
+                `&text=${encodeURIComponent(`Stretching class - ${studio?.name || "Gravity Stretching"}`)}` +
                 `&dates=${d}T${t(booking.slot.startTime)}/${d}T${t(clientEndTime24(booking.slot.startTime))}` +
                 `&details=${encodeURIComponent(`Ticket ${booking.ticketCode}. Arrive 10 minutes early. Booked at bookgravity.com/${studioSlug}`)}` +
                 (studio?.locationUrl ? `&location=${encodeURIComponent(studio.locationUrl)}` : "")
@@ -1154,15 +1154,15 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             })()}
             {/* Honest delivery status: the API reports whether the WhatsApp
                 confirmation was accepted. If it failed, say so and offer the
-                manual send — a silent miss used to leave clients without any
+                manual send - a silent miss used to leave clients without any
                 confirmation (audit 2026-06-12). */}
             {booking?.waConfirmationSent === false && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-relaxed text-amber-700">
-                We couldn&apos;t deliver the confirmation to your WhatsApp — your spot is
+                We couldn&apos;t deliver the confirmation to your WhatsApp - your spot is
                 still booked. Save this ticket or send it to us below.
               </div>
             )}
-            {/* "Send to WhatsApp" only for studios WITHOUT WhatsApp — those WITH
+            {/* "Send to WhatsApp" only for studios WITHOUT WhatsApp - those WITH
                 it already auto-send the ticket to the client's WhatsApp. The
                 failed-delivery case above re-enables it as a fallback. */}
             {waLink && (!studio?.whatsappEnabled || booking?.waConfirmationSent === false) && (
@@ -1205,7 +1205,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      {/* Compact step indicator — just three dots with the current one
+      {/* Compact step indicator - just three dots with the current one
           highlighted. No labels, no big circles, no connectors taking up
           vertical space. Clicking a completed step jumps back. */}
       {(() => {
@@ -1246,7 +1246,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
       {/* Step: Date */}
       {step === "date" && (
         <div className="bg-white rounded-2xl shadow-sm px-4 pt-3 pb-4 sm:px-6 sm:pb-6">
-          {/* Group class summary — ONE compact row (owner 09.07: the old
+          {/* Group class summary - ONE compact row (owner 09.07: the old
               two-zone card ate half the phone screen before the calendar).
               Left: class + price. Right: the party-size stepper. The details
               (duration, capacity, per-person) repeat on the slot cards below,
@@ -1303,7 +1303,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             </div>
           ) : (
             // Calendar renders INSTANTLY (today's month) and the availability
-            // dots fill in lazily once /api/slots resolves — so it feels snappy
+            // dots fill in lazily once /api/slots resolves - so it feels snappy
             // instead of showing a blank skeleton. Chevrons stay disabled until
             // data lands, then hop between the (max two) bookable months.
             <>
@@ -1391,7 +1391,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                       <div className="text-xs text-rose-700/80 leading-relaxed">
                         {slots.every((s) => !s.available)
                           ? "Every session on this day is sold out. Please pick another day from the calendar."
-                          : `You need ${partySize} spots — none of the groups today have that many seats left.`}
+                          : `You need ${partySize} spots - none of the groups today have that many seats left.`}
                       </div>
                     </div>
                   </div>
@@ -1401,7 +1401,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     const spotsLeft = slot.maxCapacity - slot.bookedCount
                     const enoughForParty = spotsLeft >= partySize
                     // Slot is inside the 2-hour cutoff: still shown, but greyed
-                    // out and not bookable online — the client can contact us.
+                    // out and not bookable online - the client can contact us.
                     const withinCutoff = slot.bookable === false
                     const isFull = !slot.available
                     const canBook = slot.available && enoughForParty && !withinCutoff
@@ -1438,7 +1438,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                           </div>
                           <div className="min-w-0">
                             <div className={cn("font-semibold flex items-center gap-2 flex-wrap", isFull ? "text-gray-400" : withinCutoff ? "text-gray-500" : "text-gray-800")}>
-                              <span>{formatTime(slot.startTime)} – {clientEndTime(slot.startTime)}</span>
+                              <span>{formatTime(slot.startTime)} - {clientEndTime(slot.startTime)}</span>
                               {(() => {
                                 const label = slot.classType === "KIDS" ? "Kids" : slot.classType === "PRIVATE" ? "Private" : "Group"
                                 // Sold-out cards fade everything to pale grey;
@@ -1461,7 +1461,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                               {withinCutoff
                                 ? slot.started
                                   ? "Class in progress"
-                                  : "Online booking closed — message us to join"
+                                  : "Online booking closed - message us to join"
                                 : slot.classType === "PRIVATE"
                                   ? "Private session · 1 person"
                                   : slot.classType === "KIDS"
@@ -1522,7 +1522,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               {selectedDate && format(parseISO(selectedDate), "EEEE, MMMM d")}
             </div>
             <div className="text-sm text-gray-500">
-              {formatTime(selectedSlot.startTime)} – {clientEndTime(selectedSlot.startTime)} · Group class
+              {formatTime(selectedSlot.startTime)} - {clientEndTime(selectedSlot.startTime)} · Group class
             </div>
           </div>
 
@@ -1637,8 +1637,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                         <span className="text-amber-500">{display.tail}</span>
                       </div>
                     )}
-                    {/* Sending the WhatsApp code — a spinner at the field's edge so
-                        the client knows something is happening in the 1–2s wait. */}
+                    {/* Sending the WhatsApp code - a spinner at the field's edge so
+                        the client knows something is happening in the 1-2s wait. */}
                     {(otpSending || (otpSent && !otpReady && !otpVerified && otpDelivery !== "failed")) && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-brand pointer-events-none" aria-label="Checking WhatsApp">
                         <Loader2 size={20} className="animate-spin" />
@@ -1676,7 +1676,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                   {fieldErrors.clientPhone ? (
                     <p className="text-xs text-red-500 mt-1">{fieldErrors.clientPhone}</p>
                   ) : unknownCode ? (
-                    <p className="text-xs text-red-500 mt-1">Unknown country code — please start with a valid code, e.g. +62</p>
+                    <p className="text-xs text-red-500 mt-1">Unknown country code - please start with a valid code, e.g. +62</p>
                   ) : !country ? (
                     <p className="text-xs text-gray-400 mt-1">Start with country code, e.g. +62 for Indonesia</p>
                   ) : null}
@@ -1684,7 +1684,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               )
             })()}
 
-            {/* Checking delivery — the code field stays hidden until we know
+            {/* Checking delivery - the code field stays hidden until we know
                 the number is on WhatsApp. */}
             {otpSent && !otpReady && !otpVerified && otpDelivery !== "failed" && (
               <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
@@ -1715,7 +1715,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               </div>
             )}
 
-            {/* WhatsApp code — only once we know the number is on WhatsApp
+            {/* WhatsApp code - only once we know the number is on WhatsApp
                 (and the send did not fail). */}
             {otpSent && otpReady && !otpVerified && otpDelivery !== "failed" && (
               <div ref={otpScrollRef} className="flex flex-col items-center gap-3 py-1 scroll-mt-24">
@@ -1805,7 +1805,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               </div>
             )}
             {/* Everything below stays hidden until the WhatsApp code is
-                verified — so while entering the code only the phone + code are
+                verified - so while entering the code only the phone + code are
                 on screen. Verifying reveals the rest (the number stays editable
                 above the whole time). The "verified" signal is the ✓ inside
                 the phone field - no separate row. */}
