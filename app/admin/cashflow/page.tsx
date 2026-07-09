@@ -24,6 +24,11 @@ type CashFlow = {
   cashExpensesAllTime: number
   cashPayoutsAllTime: number
   expectedInDrawer: number
+  // Month-scoped cash ledger lines (carried over + in - out = expected).
+  carriedOver: number
+  monthCashIn: number
+  monthCashOut: number
+  monthAbsorbed: number
   lastCount: { counted: number; difference: number; note: string | null; createdAt: string } | null
   counts: CashCount[]
 }
@@ -125,12 +130,15 @@ export default function CashFlowPage() {
                 <ClipboardCheck size={13} /> Count cash
               </button>
             </div>
+            {/* Month ledger (Sveta 10.07): carried over + this month's cash
+                in - this month's cash out = expected. The old all-time lines
+                hid income from previous months and read as a formula error. */}
             <div className="text-sm space-y-1.5">
-              <div className="flex justify-between gap-3"><span className="text-gray-500">Cash received (all time)</span><span className="font-medium tabular-nums text-green-600">+{fmt(data.cashInAllTime)}</span></div>
-              <div className="flex justify-between gap-3"><span className="text-gray-500">Cash expenses</span><span className="font-medium tabular-nums text-red-500">−{fmt(data.cashExpensesAllTime)}</span></div>
-              <div className="flex justify-between gap-3"><span className="text-gray-500">Cash salary paid</span><span className="font-medium tabular-nums text-red-500">−{fmt(data.cashPayoutsAllTime)}</span></div>
-              {data.lastCount && (
-                <div className="flex justify-between gap-3"><span className="text-gray-500">Since last count</span><span className="font-medium tabular-nums text-gray-400">baseline {fmt(data.lastCount.counted)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">Carried over (before {data.monthLabel.split(" ")[0]})</span><span className="font-medium tabular-nums text-gray-700">{fmt(data.carriedOver)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">Cash in · {data.monthLabel.split(" ")[0]}</span><span className="font-medium tabular-nums text-green-600">+{fmt(data.monthCashIn)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">Cash out · {data.monthLabel.split(" ")[0]}</span><span className="font-medium tabular-nums text-red-500">−{fmt(data.monthCashOut)}</span></div>
+              {data.monthAbsorbed !== 0 && (
+                <div className="flex justify-between gap-3"><span className="text-gray-500">Recount adjustments · {data.monthLabel.split(" ")[0]}</span><span className="font-medium tabular-nums text-amber-600">−{fmt(data.monthAbsorbed)}</span></div>
               )}
               <div className="flex justify-between gap-3 border-t border-gray-200 pt-2 mt-1">
                 <span className="font-semibold text-gray-800">Should be in the drawer</span>

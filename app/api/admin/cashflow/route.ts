@@ -180,6 +180,22 @@ export async function GET(request: NextRequest) {
   const expectedInDrawer = cashNet - absorbed
   const lastCount = recentCounts[0] ?? null
 
+  // Month-scoped CASH ledger for the register card (Sveta 10.07): the pure
+  // all-time figure silently mixed in income from previous months and read
+  // as a formula error. Shown as: carried over + this month's cash in - this
+  // month's cash out (- this month's recount absorptions) = expected now, so
+  // the admin can verify the arithmetic against the month tables by eye.
+  const monthCashIn = income.filter((r) => r.method === "CASH").reduce((s, r) => s + r.amount, 0)
+  const monthCashOut =
+    expenses.filter((e) => e.method === "CASH").reduce((s, e) => s + e.amount, 0) +
+    payouts.filter((p) => p.method === "CASH").reduce((s, p) => s + p.amount, 0)
+  const monthAbsorbedAgg = await prisma.cashCount.aggregate({
+    where: { studioId: ctx.studioId, createdAt: { gte: monthStartInstant, lt: monthEndExclusive } },
+    _sum: { difference: true },
+  })
+  const monthAbsorbed = monthAbsorbedAgg._sum.difference ?? 0
+  const carriedOver = expectedInDrawer - monthCashIn + monthCashOut + monthAbsorbed
+
   return NextResponse.json({
     month,
     monthLabel: new Date(year, mon - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" }),
@@ -194,6 +210,11 @@ export async function GET(request: NextRequest) {
     cashPayoutsAllTime,
     // Control figure: what should be in the drawer now, after past recounts.
     expectedInDrawer,
+    // Month-scoped cash ledger lines for the register card.
+    carriedOver,
+    monthCashIn,
+    monthCashOut,
+    monthAbsorbed,
     lastCount: lastCount
       ? { counted: lastCount.counted, difference: lastCount.difference, note: lastCount.note, createdAt: lastCount.createdAt }
       : null,
