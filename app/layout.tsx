@@ -129,7 +129,9 @@ Promise.all(ps).then(done,done);setTimeout(done,3000);
 }catch(e){try{location.reload()}catch(_){}}}
 window.addEventListener("error",function(ev){var t=ev&&ev.target;
 if(t&&(t.tagName==="SCRIPT"||t.tagName==="LINK")){var s=(t.src||t.href||"");
-if(s.indexOf("/_next/")>=0)heal("asset "+s.split("/").pop())}},true);
+if(s.indexOf("/_next/")>=0){heal("asset "+s.split("/").pop());return}}
+var m=String((ev&&ev.message)||"");
+if(/ChunkLoadError|Loading chunk|dynamically imported module|Importing a module script failed/i.test(m))heal("chunk "+m.slice(0,60))},true);
 window.addEventListener("unhandledrejection",function(ev){
 var m=String((ev&&ev.reason&&(ev.reason.message||ev.reason))||"");
 if(/ChunkLoadError|Loading chunk|dynamically imported module|Importing a module script failed/i.test(m))heal("chunk "+m.slice(0,60))});

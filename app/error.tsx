@@ -20,6 +20,29 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     }
   }, [])
 
+  // A stale chunk/module error (a newer deploy removed the chunk this bundle
+  // asks for) self-heals with a cache-busting hard reload - no tap needed,
+  // guarded to 2 attempts per build so a real bug can't loop (Sveta 10.07).
+  useEffect(() => {
+    const m = error?.message ?? ""
+    if (!/ChunkLoadError|Loading chunk|dynamically imported module|Importing a module script failed/i.test(m)) return
+    const BUILT = process.env.NEXT_PUBLIC_BUILD_ID || "dev"
+    const KEY = "gs-heal-" + BUILT
+    let n = 0
+    try { n = parseInt(localStorage.getItem(KEY) || "0", 10) } catch { /* ignore */ }
+    if (n >= 2) return
+    try { localStorage.setItem(KEY, String(n + 1)) } catch { /* ignore */ }
+    try {
+      const p = JSON.stringify({ message: "segment chunk self-heal", kind: "recovery", platform: "web", appVersion: BUILT, stack: location.pathname })
+      if (navigator.sendBeacon) navigator.sendBeacon("/api/native/log-crash", new Blob([p], { type: "application/json" }))
+    } catch { /* ignore */ }
+    setBusy(true)
+    reloadTimer.current = setTimeout(() => {
+      const u = location.pathname + location.search
+      location.replace(u + (u.includes("?") ? "&" : "?") + "gsheal=" + (n + 1))
+    }, 400)
+  }, [error])
+
   // The tap MUST visibly do something. Show a spinner immediately, then try
   // Next's in-place reset() for a fast recovery; if the segment still can't
   // render (so this component stays mounted), a hard reload kicks in after a
