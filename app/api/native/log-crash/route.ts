@@ -16,10 +16,15 @@ export async function POST(request: NextRequest) {
       appVersion?: unknown
       role?: unknown
       studioSlug?: unknown
+      kind?: unknown
     }
     const s = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : undefined)
+    // kind "recovery" = a self-heal event (stale cache auto-fixed, WebView
+    // reloaded). Logged under its own scope at warn level so the crash
+    // watcher doesn't page anyone about something that already fixed itself.
+    const isRecovery = body.kind === "recovery"
     await elog(
-      "native:crash",
+      isRecovery ? "native:recovered" : "native:crash",
       s(body.message, 300) || "unknown mobile crash",
       {
         stack: s(body.stack, 2000),
@@ -29,7 +34,7 @@ export async function POST(request: NextRequest) {
         role: s(body.role, 20),
         studioSlug: s(body.studioSlug, 40),
       },
-      "error",
+      isRecovery ? "warn" : "error",
     )
   } catch {
     // Never let crash-reporting itself error.

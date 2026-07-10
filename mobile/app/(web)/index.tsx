@@ -32,6 +32,54 @@ export default function AppWebView() {
   const [error, setError] = useState<string | null>(null)
   const webRef = useRef<WebView>(null)
 
+  // BLANK-SCREEN WATCHDOG (Sveta 10.07: a stale WebView cache served HTML
+  // whose chunks a newer deploy had deleted - white screen until she cleared
+  // the app cache by hand). The page's self-heal script posts "web-alive"
+  // once React mounts; if that handshake doesn't arrive in time (or the main
+  // document fails outright), the shell clears the WebView cache and reloads
+  // with a cache-busting query - the "clear cache" fix, done automatically.
+  // One retry, then the honest error screen.
+  const aliveRef = useRef(false)
+  const healedRef = useRef(false)
+  const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const reportRecovery = useCallback((reason: string) => {
+    api("/api/native/log-crash", {
+      method: "POST",
+      body: { message: `webview-self-heal: ${reason}`, kind: "recovery", platform: "app-shell" },
+      auth: false,
+    }).catch(() => {})
+  }, [])
+
+  const heal = useCallback((reason: string) => {
+    if (aliveRef.current) return
+    if (healedRef.current) {
+      setError("No connection. Tap to retry.")
+      return
+    }
+    healedRef.current = true
+    reportRecovery(reason)
+    try {
+      // Android; harmless no-op elsewhere.
+      ;(webRef.current as unknown as { clearCache?: (b: boolean) => void })?.clearCache?.(true)
+    } catch { /* not supported on this platform */ }
+    setUri((u) => {
+      if (!u) return u
+      const sep = u.includes("?") ? "&" : "?"
+      return `${u}${sep}gsheal=${Math.floor(Math.random() * 1e9)}`
+    })
+  }, [reportRecovery])
+
+  const armWatchdog = useCallback(() => {
+    aliveRef.current = false
+    if (watchdogRef.current) clearTimeout(watchdogRef.current)
+    // Generous 20s: the page's own inline self-heal gets to run first when
+    // the HTML loaded; this net only catches "nothing loaded at all".
+    watchdogRef.current = setTimeout(() => heal("handshake-timeout"), 20_000)
+  }, [heal])
+
+  useEffect(() => () => { if (watchdogRef.current) clearTimeout(watchdogRef.current) }, [])
+
   const open = useCallback(async () => {
     setError(null)
     setUri(null)
@@ -58,6 +106,11 @@ export default function AppWebView() {
 
   useEffect(() => { open() }, [open])
 
+  // Every (re)load gets a fresh watchdog window.
+  useEffect(() => {
+    if (uri) armWatchdog()
+  }, [uri, armWatchdog])
+
   // Messages posted by the web page (only inside the app, see NativeAppBridge
   // on the web side).
   const onMessage = useCallback((e: WebViewMessageEvent) => {
@@ -68,6 +121,12 @@ export default function AppWebView() {
       return
     }
     if (!msg) return
+    if (msg.type === "web-alive") {
+      aliveRef.current = true
+      healedRef.current = false
+      if (watchdogRef.current) clearTimeout(watchdogRef.current)
+      return
+    }
     if (msg.type === "native-auth" && msg.token && msg.refreshToken && msg.user) {
       void useAuth.getState().adoptWebLogin({ token: msg.token, refreshToken: msg.refreshToken, user: msg.user })
     } else if (msg.type === "open-notifications") {
@@ -136,7 +195,12 @@ export default function AppWebView() {
           onMessage={onMessage}
           onNavigationStateChange={onNav}
           onShouldStartLoadWithRequest={onShouldStart}
-          onError={() => setError("No connection. Tap to retry.")}
+          onError={() => heal("load-error")}
+          onHttpError={(e) => {
+            // Only the main document counts - a failed analytics beacon or
+            // image must not nuke the whole view.
+            if (e.nativeEvent.url && uri && e.nativeEvent.url.split("?")[0] === uri.split("?")[0]) heal(`http-${e.nativeEvent.statusCode}`)
+          }}
           injectedJavaScriptBeforeContentLoaded={NATIVE_FLAG_JS}
           startInLoadingState
           renderLoading={() => (

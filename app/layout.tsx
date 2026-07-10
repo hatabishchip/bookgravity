@@ -102,6 +102,46 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "(function(){try{if(location.pathname.indexOf('/admin')===0&&localStorage.getItem('admin-theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}})();",
           }}
         />
+        {/* SELF-HEAL (Sveta's white screen, 10.07): when a cached HTML points
+            at chunks a newer deploy deleted, NOTHING runs - not even
+            VersionWatcher - and the user stares at a blank page until someone
+            tells them to clear the cache. This dependency-free script catches
+            failed /_next/ assets, chunk-load rejections and a missed boot
+            beacon (window.__GS_BOOTED, set by VersionWatcher), then clears
+            CacheStorage + service workers and reloads with a cache-busting
+            query. Two attempts per build, then it stops (no reload loops).
+            Inside the native app it also posts the "web-alive" handshake the
+            shell's watchdog waits for. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{
+var B=${JSON.stringify(process.env.NEXT_PUBLIC_BUILD_ID || "dev")},K="gs-heal-"+B,healing=false;
+function report(m){try{var p=JSON.stringify({message:m,kind:"recovery",platform:"web",appVersion:B,stack:location.pathname});
+if(navigator.sendBeacon){navigator.sendBeacon("/api/native/log-crash",new Blob([p],{type:"application/json"}))}}catch(e){}}
+function heal(reason){try{
+if(healing)return;var n=parseInt(localStorage.getItem(K)||"0",10);if(n>=2)return;
+healing=true;localStorage.setItem(K,String(n+1));report("web-self-heal: "+reason);
+var done=function(){var u=location.pathname+location.search;u+=(u.indexOf("?")>=0?"&":"?")+"gsheal="+(n+1);location.replace(u)};
+var ps=[];
+if(window.caches&&caches.keys){ps.push(caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}))}
+if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations){ps.push(navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}))}
+Promise.all(ps).then(done,done);setTimeout(done,3000);
+}catch(e){try{location.reload()}catch(_){}}}
+window.addEventListener("error",function(ev){var t=ev&&ev.target;
+if(t&&(t.tagName==="SCRIPT"||t.tagName==="LINK")){var s=(t.src||t.href||"");
+if(s.indexOf("/_next/")>=0)heal("asset "+s.split("/").pop())}},true);
+window.addEventListener("unhandledrejection",function(ev){
+var m=String((ev&&ev.reason&&(ev.reason.message||ev.reason))||"");
+if(/ChunkLoadError|Loading chunk|dynamically imported module|Importing a module script failed/i.test(m))heal("chunk "+m.slice(0,60))});
+function booted(){try{localStorage.removeItem(K)}catch(e){}
+if(window.__GS_NATIVE__&&window.ReactNativeWebView){try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"web-alive"}))}catch(e){}}}
+var tries=0;function checkBoot(){if(window.__GS_BOOTED){booted();return}
+tries++;if(tries>=3){if(document.readyState!=="loading")heal("boot-timeout");return}
+setTimeout(checkBoot,5000)}
+setTimeout(checkBoot,6000);
+}catch(e){}})();`,
+          }}
+        />
         <OfflineBanner />
         <VersionWatcher />
         {children}

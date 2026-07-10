@@ -16,6 +16,17 @@ export default function VersionWatcher() {
   const reloading = useRef(false)
 
   useEffect(() => {
+    // Boot beacon for the self-heal script in the root layout: React mounted,
+    // so the bundle is alive - the blank-screen watchdog can stand down. Also
+    // tell the native shell right away (its watchdog waits for this handshake).
+    ;(window as unknown as { __GS_BOOTED?: boolean }).__GS_BOOTED = true
+    try {
+      const w = window as unknown as { __GS_NATIVE__?: boolean; ReactNativeWebView?: { postMessage: (d: string) => void } }
+      if (w.__GS_NATIVE__ && w.ReactNativeWebView) w.ReactNativeWebView.postMessage(JSON.stringify({ type: "web-alive" }))
+    } catch { /* not inside the app */ }
+  }, [])
+
+  useEffect(() => {
     // No commit sha locally → nothing to compare, and we never want a dev reload.
     if (BUILT === "dev") return
 
