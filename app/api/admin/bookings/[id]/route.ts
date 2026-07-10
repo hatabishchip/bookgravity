@@ -84,8 +84,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   // Payment attribution: whoever records the payment took the money — for a
   // CASH payment this decides whose safe the bills are counted in.
-  if (data.paymentType !== undefined || data.paymentStatus !== undefined) {
+  if (data.paymentType === "PENDING") {
+    // Clearing back to "not paid" erases the marks and the tier - "no payment
+    // recorded" must leave no stale commission base behind.
+    updateData.paymentMarkedByUserId = null
+    updateData.paymentMarkedAt = null
+    updateData.priceTier = null
+    updateData.localResident = false
+  } else if (data.paymentType !== undefined || data.paymentStatus !== undefined) {
     updateData.paymentMarkedByUserId = ctx.userId
+    updateData.paymentMarkedAt = new Date()
   }
   if (data.paymentType !== undefined) {
     const sw = await applyPaymentSwitch({

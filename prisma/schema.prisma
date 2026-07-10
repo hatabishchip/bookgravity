@@ -524,6 +524,12 @@ model Booking {
   // physically took the bills. Null on history; the safe engine falls back
   // to the slot's lead trainer for those.
   paymentMarkedByUserId String?
+  // When the payment was recorded. Together with paymentMarkedByUserId this
+  // powers the trainer's own-mistake undo window (Seni 10.07: clicked "Paid"
+  // on a no-show client with no way back): within PAYMENT_EDIT_WINDOW_MS of
+  // their OWN mark on their OWN class a trainer may still change or clear it;
+  // after that Sveta's rule stands - admin-only corrections.
+  paymentMarkedAt DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { getMembershipBalance } from "@/lib/membership"
 import { applyPaymentSwitch } from "@/lib/booking-payment"
-import { zBookingPaymentType, zPaymentStatus, zBookingStatus, zPriceTier } from "@/lib/payments"
+import { zBookingPaymentType, zPaymentStatus, zBookingStatus, zPriceTier, PAYMENT_EDIT_WINDOW_MS } from "@/lib/payments"
 import { notifyBookingCreated } from "@/lib/booking-notify"
 import { syncSlotToGoogle } from "@/lib/google-calendar"
 import { afterStaffCancellation } from "@/lib/booking-cancel"
@@ -74,11 +74,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // already-recorded one - a wrong method/tier is corrected by the admin only
   // (keeps the cash-register books honest; trainers can't quietly reclassify
   // money after the fact). The first entry (booking still UNPAID) is allowed;
-  // once PAID, changing method/tier/local is admin-only.
+  // once PAID, changing method/tier/local is admin-only - EXCEPT the undo
+  // window (Seni 10.07: tapped "Paid" on a no-show with no way back): within
+  // PAYMENT_EDIT_WINDOW_MS of THEIR OWN mark on THEIR OWN class the coach may
+  // still change or clear it. A fresh correction is a fixed misclick, not a
+  // quiet after-the-fact reclassification.
   const alreadyPaid = booking.paymentStatus === "PAID"
   const touchesPayment =
     data.paymentType !== undefined || data.priceTier !== undefined || data.localResident !== undefined
-  if (alreadyPaid && touchesPayment) {
+  const withinOwnEditWindow =
+    isOwnClass &&
+    booking.paymentMarkedByUserId === ctx.userId &&
+    booking.paymentMarkedAt != null &&
+    Date.now() - booking.paymentMarkedAt.getTime() < PAYMENT_EDIT_WINDOW_MS
+  if (alreadyPaid && touchesPayment && !withinOwnEditWindow) {
     return NextResponse.json(
       { error: "This payment is already recorded - ask an admin to correct it." },
       { status: 403 },
@@ -125,9 +134,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     updateData.cancelledByRole = "trainer"
   }
   // Payment attribution: whoever records the payment took the money — for a
-  // CASH payment this decides whose safe the bills are counted in.
-  if (data.paymentType !== undefined || data.paymentStatus !== undefined) {
+  // CASH payment this decides whose safe the bills are counted in. The
+  // timestamp opens the own-mistake undo window. Clearing the payment back to
+  // PENDING (the undo itself) erases the marks and the tier: "no payment
+  // recorded" must leave no stale commission base behind.
+  if (data.paymentType === "PENDING") {
+    updateData.paymentMarkedByUserId = null
+    updateData.paymentMarkedAt = null
+    updateData.priceTier = null
+    updateData.localResident = false
+  } else if (data.paymentType !== undefined || data.paymentStatus !== undefined) {
     updateData.paymentMarkedByUserId = ctx.userId
+    updateData.paymentMarkedAt = new Date()
   }
   if (data.paymentType !== undefined) {
     const sw = await applyPaymentSwitch({
@@ -222,5 +240,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const membershipRemaining = await getMembershipBalance(ctx.studioId, updated.clientPhone)
 
-  return NextResponse.json({ ...updated, membershipRemaining })
+  // Undo window for the UI: until when THIS coach may still change the record.
+  const paymentEditableUntil =
+    updated.paymentStatus === "PAID" &&
+    updated.paymentMarkedByUserId === ctx.userId &&
+    updated.paymentMarkedAt != null &&
+    isOwnClass
+      ? new Date(updated.paymentMarkedAt.getTime() + PAYMENT_EDIT_WINDOW_MS).toISOString()
+      : null
+
+  return NextResponse.json({ ...updated, membershipRemaining, paymentEditableUntil })
 }

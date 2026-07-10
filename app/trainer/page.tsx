@@ -55,6 +55,9 @@ type Booking = {
   phoneUnverified?: boolean
   // Last change time — used to allow editing a paid booking for 30 minutes.
   updatedAt?: string
+  // Until when THIS coach may still change/clear the payment they recorded on
+  // their own class (server-computed, null = frozen: admin-only correction).
+  paymentEditableUntil?: string | null
   services: { service: Service; paymentType?: string | null }[]
   slot: { id: string; price?: number }
   // Membership: how many classes the client has left at this studio, and the
@@ -496,6 +499,8 @@ export default function TrainerSchedulePage() {
                 localResident: saved.localResident ?? b.localResident,
                 priceTier: saved.priceTier ?? b.priceTier,
                 membershipId: saved.membershipId ?? null,
+                paymentEditableUntil:
+                  "paymentEditableUntil" in saved ? saved.paymentEditableUntil : b.paymentEditableUntil,
                 membershipRemaining:
                   typeof saved.membershipRemaining === "number"
                     ? saved.membershipRemaining
@@ -1331,6 +1336,14 @@ export default function TrainerSchedulePage() {
                   const paidWithin30 = Number.isFinite(classEndMs)
                     ? Date.now() < classEndMs + 30 * 60 * 1000
                     : true
+                  // Own-mistake undo window (Seni 10.07): for 30 min after
+                  // recording a payment on their own class the coach may still
+                  // change it - tap the green method again to un-mark, or tap
+                  // another one. After the window: admin-only, as before.
+                  const payEditable =
+                    isPaid &&
+                    !!b.paymentEditableUntil &&
+                    Date.now() < Date.parse(b.paymentEditableUntil)
                   const collapsed = isPaid && collapsedIds.has(b.id)
                   const paymentLabel = b.paymentType === "MEMBERSHIP"
                     ? "Membership"
@@ -1418,10 +1431,16 @@ export default function TrainerSchedulePage() {
                         <div className="flex items-center justify-between mb-2">
                           <div className="text-xs text-gray-500 font-medium">Payment method</div>
                           {/* Sveta 06.07: once recorded, a trainer can't re-edit
-                              the payment - an admin corrects mistakes. */}
-                          {isPaid && <span className="text-[11px] text-gray-400">recorded - admin can change</span>}
+                              the payment - an admin corrects mistakes. Except
+                              their OWN fresh record (Seni 10.07): 30 min to fix
+                              a misclick - tap the green button to undo. */}
+                          {isPaid && (
+                            <span className={cn("text-[11px]", payEditable ? "text-amber-600" : "text-gray-400")}>
+                              {payEditable ? "wrong? tap the green button to undo (30 min)" : "recorded - admin can change"}
+                            </span>
+                          )}
                         </div>
-                        <div className={cn("rounded-xl border border-gray-200 p-2 space-y-1.5", isPaid && "opacity-60 pointer-events-none")}>
+                        <div className={cn("rounded-xl border border-gray-200 p-2 space-y-1.5", isPaid && !payEditable && "opacity-60 pointer-events-none")}>
                           {/* Member card = a payment method (Sveta 10.07):
                               one tap marks the class paid from the card. With
                               a card in the system it debits one class; without
@@ -1429,7 +1448,7 @@ export default function TrainerSchedulePage() {
                               the paper punch card is the ledger). */}
                           <button
                             type="button"
-                            disabled={isPaid}
+                            disabled={isPaid && !payEditable}
                             onClick={() => handlePaymentMethod(b, "MEMBERSHIP")}
                             className={cn(
                               "w-full py-2.5 rounded-lg text-sm font-semibold border touch-manipulation flex items-center justify-center gap-2",
@@ -1483,7 +1502,7 @@ export default function TrainerSchedulePage() {
                               memberPrice={b.memberPrice ?? 250000}
                               localPrice={b.localPrice ?? 200000}
                               onChange={(tier) => setTier(b, tier)}
-                              disabled={isPaid}
+                              disabled={isPaid && !payEditable}
                             />
                           </div>
                         )}

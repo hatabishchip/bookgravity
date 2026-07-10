@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { getStudioMembershipBalances, getMembershipBalance, phoneTail } from "@/lib/membership"
+import { PAYMENT_EDIT_WINDOW_MS } from "@/lib/payments"
 import { upsertConversation } from "@/lib/whatsapp-conversation"
 import { baliDateStr, addDaysStr } from "@/lib/tz"
 import { generateUniqueTicketCode } from "@/lib/tickets"
@@ -66,6 +67,15 @@ export async function GET(request: NextRequest) {
     localPrice: studio?.localPrice ?? 200000,
     memberPrice: studio?.membershipClassPrice ?? 250000,
     bankConfirmed: bankPayments.length > 0,
+    // Own-mistake undo window: until when THIS coach may still change/clear
+    // the payment they recorded on their own class (Seni 10.07).
+    paymentEditableUntil:
+      b.paymentStatus === "PAID" &&
+      b.paymentMarkedByUserId === ctx.userId &&
+      b.paymentMarkedAt != null &&
+      b.slot.trainerId === trainer.id
+        ? new Date(b.paymentMarkedAt.getTime() + PAYMENT_EDIT_WINDOW_MS).toISOString()
+        : null,
   }))
 
   return NextResponse.json(withBalance)

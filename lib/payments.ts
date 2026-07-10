@@ -26,6 +26,14 @@ export const BOOKING_PAYMENT_TYPES = [
 ] as const
 
 export const PAYMENT_STATUSES = ["PAID", "UNPAID"] as const
+
+// How long a trainer may still change/clear THEIR OWN payment record on THEIR
+// OWN class after tapping it (Seni 10.07: marked a no-show client as paid by
+// Member card and had no way back). Matches the "available for 30 minutes"
+// affordance already shown on the collapsed card. After the window, Sveta's
+// 06.07 rule stands: recorded payments are corrected by an admin only.
+export const PAYMENT_EDIT_WINDOW_MS = 30 * 60 * 1000
+
 // CANCELLED = client cancelled or never came. The trainer/admin cancel returns
 // any membership class used and notifies the client. (A separate "no-show"
 // state that burned the pass was removed - owner decision 21.06.2026.)
