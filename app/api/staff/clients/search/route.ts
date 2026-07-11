@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireStaff } from "@/lib/auth-helpers"
+import { requireAdmin, requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { phoneTail } from "@/lib/membership"
 
@@ -8,12 +8,13 @@ import { phoneTail } from "@/lib/membership"
 // shouldn't have to quest for their phone and email again; in Zenwel you type
 // part of a name and the record pops up).
 //
-// Scope and privacy: staff of this studio only (admin OR trainer), at least 2
-// typed characters, top 8 matches, and only clients who already booked HERE.
-// This surfaces one client's saved contacts on demand - it never hands the
-// trainer the whole client base (Sveta's explicit boundary).
+// Scope and privacy: staff of this studio only (admin OR trainer - NOT the
+// cleaning-staff "STAFF" role, which is schedule-read-only by design), at
+// least 2 typed characters, top 8 matches, and only clients who already
+// booked HERE. This surfaces one client's saved contacts on demand - it never
+// hands the trainer the whole client base (Sveta's explicit boundary).
 export async function GET(request: NextRequest) {
-  const ctx = await requireStaff()
+  const ctx = (await requireTrainer()) ?? (await requireAdmin())
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const q = (new URL(request.url).searchParams.get("q") ?? "").trim()
