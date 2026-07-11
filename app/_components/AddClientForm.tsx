@@ -11,6 +11,11 @@ import { detectCountry, subscriberDigits, validatePhone } from "@/lib/phone"
 // flag/country shows beneath. Once the number is long enough we look the
 // client up in the DB and, if found, auto-fill their name and email (only
 // when those fields are still empty, so the operator can override).
+//
+// The NAME field works the other way round (Yacinta / Sveta 11.07, the Zenwel
+// habit): type 2+ letters of a returning client's name and their saved record
+// pops up - tap it and phone + email fill themselves. Staff-only endpoint,
+// max 8 matches; a regular never has to be asked for their contacts again.
 
 export type NewClient = {
   clientName: string
@@ -40,6 +45,44 @@ export function AddClientForm({
   const [partySize, setPartySize] = useState(1)
   const [lookup, setLookup] = useState<"idle" | "loading" | "found" | "new">("idle")
   const lastLookedUp = useRef("")
+
+  // Name-first autocomplete: suggestions from this studio's client base.
+  type Suggestion = { name: string; phone: string; email: string }
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  // Set when the operator picks a suggestion - suppresses re-searching the
+  // filled-in name (the dropdown would instantly reopen over the next field).
+  const pickedName = useRef("")
+
+  useEffect(() => {
+    const q = name.trim()
+    if (q.length < 2 || q === pickedName.current) {
+      setSuggestions([])
+      setSuggestOpen(false)
+      return
+    }
+    const ctrl = new AbortController()
+    const t = setTimeout(() => {
+      fetch(`/api/staff/clients/search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((list: Suggestion[]) => {
+          setSuggestions(Array.isArray(list) ? list : [])
+          setSuggestOpen(Array.isArray(list) && list.length > 0)
+        })
+        .catch(() => {})
+    }, 250)
+    return () => { clearTimeout(t); ctrl.abort() }
+  }, [name])
+
+  const pickSuggestion = (s: Suggestion) => {
+    pickedName.current = s.name
+    setName(s.name)
+    if (s.phone) setPhone("+" + s.phone)
+    if (s.email) setEmail(s.email)
+    setSuggestions([])
+    setSuggestOpen(false)
+    setLookup("found")
+  }
 
   // Debounced-ish DB lookup once the phone reaches its country's min length.
   useEffect(() => {
@@ -118,15 +161,36 @@ export function AddClientForm({
         <p className="text-xs text-gray-400 -mt-1">Looking up…</p>
       ) : null}
 
-      <input
-        type="text"
-        required
-        placeholder="Client name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={onKeyDownSubmit}
-        className={inputCls}
-      />
+      <div className="relative">
+        <input
+          type="text"
+          required
+          placeholder="Client name"
+          value={name}
+          onChange={(e) => { pickedName.current = ""; setName(e.target.value) }}
+          onKeyDown={onKeyDownSubmit}
+          onBlur={() => setTimeout(() => setSuggestOpen(false), 150)}
+          onFocus={() => { if (suggestions.length > 0) setSuggestOpen(true) }}
+          className={inputCls}
+        />
+        {/* Returning-client suggestions: tap a name, contacts fill themselves. */}
+        {suggestOpen && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+            {suggestions.map((s) => (
+              <button
+                key={s.phone + s.name}
+                type="button"
+                // onMouseDown fires before the input's blur closes the list.
+                onMouseDown={(e) => { e.preventDefault(); pickSuggestion(s) }}
+                className="w-full px-3 py-2.5 text-left hover:bg-gray-50 active:bg-gray-100 flex items-baseline justify-between gap-2"
+              >
+                <span className="text-sm font-medium text-gray-900 truncate">{s.name}</span>
+                <span className="text-xs text-gray-400 flex-shrink-0">···{s.phone.slice(-4)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <input
         type="email"
         placeholder="Email (optional)"
