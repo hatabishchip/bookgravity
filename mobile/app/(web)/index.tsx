@@ -1,18 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ActivityIndicator, View, StyleSheet, Pressable, Linking } from "react-native"
+import { ActivityIndicator, View, StyleSheet, Pressable, Linking, AppState } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView, type WebViewMessageEvent } from "react-native-webview"
 import { useLocalSearchParams, useRouter } from "expo-router"
+import * as Updates from "expo-updates"
 import { api, API_BASE } from "@/lib/api"
 import { useAuth, webHomeFor, type AuthUser } from "@/lib/auth"
 import { useTheme } from "@/hooks/useTheme"
 import { Text } from "@/components/ui/Text"
 import { PULL_TO_REFRESH_JS } from "@/lib/webview-pull-refresh"
+import { webAlive } from "@/lib/web-alive"
 
 // Marks the embedded web session as "running inside the native app": the web
 // sign-out routes to the native-signout sentinel, the layouts mount the
 // NativeAuthBridge (token handover for push) and show "Notification settings".
 const NATIVE_FLAG_JS = "window.__GS_NATIVE__ = true; true;"
+
+// Injected on app-foreground: a LIVE page (React booted) answers with the
+// web-alive handshake; a dead JS context (killed renderer, stale bundle,
+// white screen) can't run this at all - silence within the timeout = heal.
+const PING_JS =
+  '(function(){try{if(window.__GS_BOOTED&&window.ReactNativeWebView){window.ReactNativeWebView.postMessage(\'{"type":"web-alive"}\')}}catch(e){}})();true;'
 
 // THE app screen: the mobile web 1:1 (owner metaprompt 09.07 - "a person who
 // used the web version and opened the app must not notice any difference").
@@ -30,6 +38,9 @@ export default function AppWebView() {
 
   const [uri, setUri] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Bumped to force a full WebView REMOUNT - the only cure after Android kills
+  // the renderer process (a plain reload on a gone renderer is a no-op).
+  const [webKey, setWebKey] = useState(0)
   const webRef = useRef<WebView>(null)
 
   // BLANK-SCREEN WATCHDOG (Sveta 10.07: a stale WebView cache served HTML
@@ -42,6 +53,13 @@ export default function AppWebView() {
   const aliveRef = useRef(false)
   const healedRef = useRef(false)
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Is a downloaded-but-not-applied OTA sitting ready? (The root layout
+  // downloads them on start/foreground.) Kept in a ref so heal() sees the
+  // current value without re-creating its callback.
+  const { isUpdatePending } = Updates.useUpdates()
+  const updatePendingRef = useRef(false)
+  useEffect(() => { updatePendingRef.current = isUpdatePending }, [isUpdatePending])
 
   const reportRecovery = useCallback((reason: string) => {
     api("/api/native/log-crash", {
@@ -58,6 +76,16 @@ export default function AppWebView() {
       return
     }
     healedRef.current = true
+    // A fetched-but-not-applied OTA is a better cure than a cache-bust reload:
+    // the stale shell itself may be what's broken. Applying it restarts the
+    // whole app on the new bundle (which also reloads the page fresh). Only
+    // when one is actually pending - an unconditional reload here would be a
+    // restart loop whenever the page is genuinely unreachable.
+    if (updatePendingRef.current && Updates.isEnabled) {
+      reportRecovery(`${reason} -> applying pending OTA`)
+      Updates.reloadAsync().catch(() => {})
+      return
+    }
     reportRecovery(reason)
     try {
       // Android; harmless no-op elsewhere.
@@ -79,6 +107,27 @@ export default function AppWebView() {
   }, [heal])
 
   useEffect(() => () => { if (watchdogRef.current) clearTimeout(watchdogRef.current) }, [])
+
+  // FOREGROUND HEALTH CHECK (metaprompt 12.07, gap D2): the 20s watchdog only
+  // guards the initial load. An app parked in recents for days comes back with
+  // a page whose chunks a deploy has deleted - or whose renderer Android
+  // silently killed - and NOTHING used to notice: the page's own watchers are
+  // dead too. Now every return to the foreground pings the page; no web-alive
+  // answer within 10s means it's gone - heal without anyone tapping anything.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s !== "active" || !uri || error) return
+      aliveRef.current = false
+      // New episode: the one-heal guard resets so each foreground gets its own
+      // single repair attempt (web-alive also resets it on every good boot).
+      healedRef.current = false
+      webAlive.current = false
+      try { webRef.current?.injectJavaScript(PING_JS) } catch { /* view gone */ }
+      if (watchdogRef.current) clearTimeout(watchdogRef.current)
+      watchdogRef.current = setTimeout(() => heal("foreground-dead"), 10_000)
+    })
+    return () => sub.remove()
+  }, [uri, error, heal])
 
   const open = useCallback(async () => {
     setError(null)
@@ -106,10 +155,24 @@ export default function AppWebView() {
 
   useEffect(() => { open() }, [open])
 
-  // Every (re)load gets a fresh watchdog window.
+  // AUTO-RETRY (gap D4): the "No connection" screen used to be a dead end
+  // until a tap. Retry silently on every return to the foreground and every
+  // 30s in place - the button stays for impatient thumbs.
+  useEffect(() => {
+    if (!error) return
+    const timer = setInterval(() => { open() }, 30_000)
+    const sub = AppState.addEventListener("change", (s) => { if (s === "active") open() })
+    return () => { clearInterval(timer); sub.remove() }
+  }, [error, open])
+
+  // Every (re)load - including a post-process-kill REMOUNT (webKey bump),
+  // which keeps the same uri - gets a fresh watchdog window. The one-heal
+  // guard (healedRef) deliberately does NOT reset here: heal() itself changes
+  // the uri, so resetting per-load would turn "heal once, then the honest
+  // error screen" into an endless reload loop on a truly dead page.
   useEffect(() => {
     if (uri) armWatchdog()
-  }, [uri, armWatchdog])
+  }, [uri, webKey, armWatchdog])
 
   // Messages posted by the web page (only inside the app, see NativeAppBridge
   // on the web side).
@@ -124,6 +187,7 @@ export default function AppWebView() {
     if (msg.type === "web-alive") {
       aliveRef.current = true
       healedRef.current = false
+      webAlive.current = true
       if (watchdogRef.current) clearTimeout(watchdogRef.current)
       return
     }
@@ -190,12 +254,33 @@ export default function AppWebView() {
         <View style={styles.center}><ActivityIndicator color={theme.brand.primary} /></View>
       ) : (
         <WebView
+          key={webKey}
           ref={webRef}
           source={{ uri }}
           onMessage={onMessage}
           onNavigationStateChange={onNav}
           onShouldStartLoadWithRequest={onShouldStart}
           onError={() => heal("load-error")}
+          // Gap D1 (metaprompt 12.07): the OS killed the web engine's process
+          // (Android trims renderers under memory pressure all the time; iOS
+          // terminates content processes). Without these handlers that is a
+          // PERMANENT white view no reload can fix - the WebView must be
+          // remounted. Bypasses the one-heal guard: a process kill is a system
+          // event, remounting is always the right answer.
+          onRenderProcessGone={() => {
+            reportRecovery("renderer-gone")
+            aliveRef.current = false
+            webAlive.current = false
+            healedRef.current = false // new episode - the remount may still need one heal
+            setWebKey((k) => k + 1)
+          }}
+          onContentProcessDidTerminate={() => {
+            reportRecovery("content-terminated")
+            aliveRef.current = false
+            webAlive.current = false
+            healedRef.current = false
+            setWebKey((k) => k + 1)
+          }}
           onHttpError={(e) => {
             // Only the main document counts - a failed analytics beacon or
             // image must not nuke the whole view.

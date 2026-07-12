@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { AppState, Platform } from "react-native"
 import { Stack, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
@@ -13,6 +13,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { useThemePref } from "@/lib/theme-preference"
 import { api } from "@/lib/api"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
+import { webAlive } from "@/lib/web-alive"
 
 // Hide the native splash until we've at least read the secure store, so
 // the user never sees a flash of "Sign in" before the cached session
@@ -181,16 +182,28 @@ export default function RootLayout() {
   }, [router])
 
   // 4. OTA: silently check + download a pushed JS/asset fix on cold start and
-  //    whenever the app returns to the foreground, so it's ready to apply.
-  //    The user applies it from Profile > "Check for updates" (which reloads
-  //    into it), or it applies automatically on the next cold start. No-ops in
-  //    Expo Go / dev where Updates.isEnabled is false.
+  //    whenever the app returns to the foreground - then APPLY it by itself
+  //    (metaprompt 12.07, gap D3: "waits for the next cold start" was the last
+  //    place a user had to do anything):
+  //      - page not proven alive (cold start still booting, white screen,
+  //        killed renderer) -> reload into the new bundle NOW; it can't
+  //        interrupt work that isn't happening, and it's very likely the cure;
+  //      - page alive (someone may be mid-booking) -> apply when the app goes
+  //        to the BACKGROUND: invisible, nothing is interrupted.
+  //    No-ops in Expo Go / dev where Updates.isEnabled is false.
+  const { isUpdatePending } = Updates.useUpdates()
+  const updatePendingRef = useRef(false)
+  useEffect(() => { updatePendingRef.current = isUpdatePending }, [isUpdatePending])
+
   useEffect(() => {
     if (!Updates.isEnabled) return
     const check = async () => {
       try {
         const res = await Updates.checkForUpdateAsync()
-        if (res.isAvailable) await Updates.fetchUpdateAsync()
+        if (!res.isAvailable) return
+        await Updates.fetchUpdateAsync()
+        // Nothing proven alive on screen -> restart into the fix right away.
+        if (!webAlive.current) await Updates.reloadAsync()
       } catch {
         // Offline or no update server reachable - ignore, try again next time.
       }
@@ -198,6 +211,8 @@ export default function RootLayout() {
     check()
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") check()
+      // Best-effort invisible apply; the next cold start remains the fallback.
+      if (s === "background" && updatePendingRef.current) Updates.reloadAsync().catch(() => {})
     })
     return () => sub.remove()
   }, [])
