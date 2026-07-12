@@ -111,3 +111,51 @@ export async function applyPaymentSwitch(opts: {
 
   return { ok: true, updateData: {} }
 }
+
+// Keep add-on service payment methods honest when the CLASS payment changes
+// (audit 12.07: services picked at online booking sat with paymentType null
+// forever - Cash Flow and the safes skip null, so Olivia's cash 300k class +
+// 50k lifting reported as 300k; meanwhile staff-toggled services hardcoded
+// CASH even when the client paid everything in one QR).
+//
+//  - Class recorded with a POS method (CASH/EDC/QR/TRANSFER): every service
+//    of this booking that has NO method yet inherits the class's method -
+//    one payment, one method, full amount counted.
+//  - Class un-recorded (PENDING): all service methods reset to null -
+//    "not paid" must not leave money attributed anywhere.
+//  - MEMBERSHIP: untouched - the pass never covers add-ons; the staff UI
+//    asks how each extra was paid (defaults to CASH on add).
+// Call AFTER the booking row update succeeds.
+export async function syncServicePaymentsWithClass(bookingId: string, newPaymentType: string) {
+  if (newPaymentType === "PENDING") {
+    await prisma.bookingService.updateMany({
+      where: { bookingId },
+      data: { paymentType: null },
+    })
+    return
+  }
+  if (["CASH", "EDC", "QR", "TRANSFER"].includes(newPaymentType)) {
+    await prisma.bookingService.updateMany({
+      where: { bookingId, paymentType: null },
+      data: { paymentType: newPaymentType },
+    })
+  }
+}
+
+/**
+ * Default method for a service ADDED BY STAFF (admin/trainer toggle), given
+ * the booking's current payment state:
+ *  - class already paid with a POS method -> inherit it (they'll settle the
+ *    add-on the same way they settled the class);
+ *  - class on MEMBERSHIP -> "CASH" (pass doesn't cover add-ons; UI lets the
+ *    coach switch it);
+ *  - class not paid yet -> null; syncServicePaymentsWithClass fills it in
+ *    the moment the class payment is recorded.
+ */
+export function defaultServiceMethod(booking: { paymentStatus: string; paymentType: string }): string | null {
+  if (booking.paymentType === "MEMBERSHIP") return "CASH"
+  if (booking.paymentStatus === "PAID" && ["CASH", "EDC", "QR", "TRANSFER"].includes(booking.paymentType)) {
+    return booking.paymentType
+  }
+  return null
+}

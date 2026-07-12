@@ -3,7 +3,7 @@ import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { getMembershipBalance } from "@/lib/membership"
-import { applyPaymentSwitch } from "@/lib/booking-payment"
+import { applyPaymentSwitch, syncServicePaymentsWithClass } from "@/lib/booking-payment"
 import { zBookingPaymentType, zPaymentStatus, zBookingStatus, zPriceTier, PAYMENT_EDIT_WINDOW_MS } from "@/lib/payments"
 import { notifyBookingCreated } from "@/lib/booking-notify"
 import { syncSlotToGoogle } from "@/lib/google-calendar"
@@ -206,6 +206,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         include: { slot: true, services: { include: { service: true } } },
       })
   if (!updated) return NextResponse.json({ error: "Target class is full" }, { status: 409 })
+
+  // Class payment changed -> keep the add-on services' methods honest
+  // (inherit a POS method / reset on undo; see lib/booking-payment.ts).
+  if (data.paymentType !== undefined) {
+    await syncServicePaymentsWithClass(updated.id, data.paymentType)
+  }
 
   // Cancellation side-effects: behave exactly like an admin/client cancel —
   // return the membership class and notify the client.

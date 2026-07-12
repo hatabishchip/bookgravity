@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { afterStaffCancellation } from "@/lib/booking-cancel"
 import { notifyBookingCreated } from "@/lib/booking-notify"
 import { syncSlotToGoogle } from "@/lib/google-calendar"
-import { applyPaymentSwitch } from "@/lib/booking-payment"
+import { applyPaymentSwitch, syncServicePaymentsWithClass } from "@/lib/booking-payment"
 import { zBookingPaymentType, zPaymentStatus, zBookingStatus, zPriceTier } from "@/lib/payments"
 import { getMembershipBalance } from "@/lib/membership"
 import { baliDateStr } from "@/lib/tz"
@@ -148,6 +148,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         .catch((e) => (e instanceof Error && e.message === "TARGET_FULL" ? null : Promise.reject(e)))
     : await prisma.booking.update({ where: { id: existing.id }, data: updateData, include: bookingInclude })
   if (!booking) return NextResponse.json({ error: "Target class is full" }, { status: 409 })
+
+  // Class payment changed -> keep the add-on services' methods honest
+  // (inherit a POS method / reset on undo; see lib/booking-payment.ts).
+  if (data.paymentType !== undefined) {
+    await syncServicePaymentsWithClass(booking.id, data.paymentType)
+  }
 
   // Cancellation side-effects: an admin cancel must behave like the client's
   // own WhatsApp cancel — return the membership class and tell the client.

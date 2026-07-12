@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { defaultServiceMethod } from "@/lib/booking-payment"
 
 // Admin add / remove an add-on service (e.g. Gravity lifting) on any booking
 // in this studio (Sveta 12.07: "how do I add lifting?" - the expanded booking
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const booking = await getBookingForAdmin(id, ctx.studioId)
   if (!booking) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (booking.status === "CANCELLED") {
+    return NextResponse.json({ error: "Cannot add a service to a cancelled booking" }, { status: 400 })
+  }
 
   const { serviceId, paymentType } = await request.json()
   if (!serviceId) return NextResponse.json({ error: "serviceId required" }, { status: 400 })
@@ -33,14 +37,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   })
   if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 })
 
-  // Add-on service defaults to CASH; a second call with paymentType just
-  // updates how that extra was paid (upsert keeps the row idempotent).
+  // No explicit method -> honest default (audit 12.07): inherit the class's
+  // POS method when the class is paid, CASH on a membership class, else null
+  // until the class payment is recorded (sync fills it in then). A second
+  // call with paymentType just updates how that extra was paid.
+  const fallback = defaultServiceMethod(booking)
   await prisma.bookingService.upsert({
     where: { bookingId_serviceId: { bookingId: id, serviceId } },
-    create: { bookingId: id, serviceId, paymentType: method ?? "CASH" },
+    create: { bookingId: id, serviceId, paymentType: method ?? fallback },
     update: method ? { paymentType: method } : {},
   })
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, paymentType: method ?? fallback })
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -607,6 +607,17 @@ export default function TrainerSchedulePage() {
   const toggleService = async (booking: Booking, serviceId: string) => {
     const has = booking.services.some((s) => s.service.id === serviceId)
     const svc = services.find((s) => s.id === serviceId)
+    // Honest default method (audit 12.07): a membership class asks for the
+    // extra's own method (CASH to start); a class already paid with a POS
+    // method inherits it; an unpaid class leaves it null - the server fills
+    // it in the moment the class payment is recorded. The server computes the
+    // same rule; we mirror it here for the optimistic render.
+    const inherited =
+      booking.paymentType === "MEMBERSHIP"
+        ? "CASH"
+        : booking.paymentStatus === "PAID" && ["CASH", "EDC", "QR", "TRANSFER"].includes(booking.paymentType)
+          ? booking.paymentType
+          : null
     // Optimistic local update
     setBookings((prev) => prev.map((b) => {
       if (b.id !== booking.id) return b
@@ -614,8 +625,7 @@ export default function TrainerSchedulePage() {
         return { ...b, services: b.services.filter((s) => s.service.id !== serviceId) }
       }
       if (!svc) return b
-      // New services default to cash; the trainer can change it below.
-      return { ...b, services: [...b.services, { service: { id: svc.id, name: svc.name, price: svc.price }, paymentType: "CASH" }] }
+      return { ...b, services: [...b.services, { service: { id: svc.id, name: svc.name, price: svc.price }, paymentType: inherited }] }
     }))
     try {
       if (has) {
@@ -624,7 +634,7 @@ export default function TrainerSchedulePage() {
         await fetch(`/api/trainer/bookings/${booking.id}/services`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ serviceId, paymentType: "CASH" }),
+          body: JSON.stringify({ serviceId }),
         })
       }
     } catch {

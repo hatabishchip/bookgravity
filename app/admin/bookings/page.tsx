@@ -26,7 +26,7 @@ type Booking = {
     endTime: string
     trainer: { name: string } | null
   }
-  services: { service: { id: string; name: string; price: number } }[]
+  services: { service: { id: string; name: string; price: number }; paymentType?: string | null }[]
   membershipRemaining?: number
   membershipId?: string | null
   // Staff-only "confirmed by bank" flag (a linked BankPayment).
@@ -89,7 +89,7 @@ function CopyButton({ value }: { value: string }) {
 type StudioService = { id: string; name: string; price: number }
 
 function BookingDetails({
-  booking, isUpdating, onUpdate, onCancel, localCtx, services, onToggleService,
+  booking, isUpdating, onUpdate, onCancel, localCtx, services, onToggleService, onSetServiceMethod,
 }: {
   booking: Booking
   isUpdating: boolean
@@ -98,6 +98,7 @@ function BookingDetails({
   localCtx: { country: string | null; localPrice: number }
   services: StudioService[]
   onToggleService: (bookingId: string, serviceId: string, currentlyOn: boolean) => Promise<void>
+  onSetServiceMethod: (bookingId: string, serviceId: string, method: string) => Promise<void>
 }) {
   const [noteDraft, setNoteDraft] = useState(booking.notes ?? "")
   const [noteSaved, setNoteSaved] = useState(false)
@@ -248,12 +249,39 @@ function BookingDetails({
                 >
                   {on ? <Check size={12} strokeWidth={3} /> : <Plus size={12} strokeWidth={2.5} />}
                   <span>{svc.name}</span>
-                  <span className={on ? "text-brand/60" : "text-gray-400"}>·</span>
-                  <span className={on ? "text-brand/80" : "text-gray-500"}>+{Math.round(svc.price / 1000)}k</span>
+                  {svc.price > 0 && (
+                    <>
+                      <span className={on ? "text-brand/60" : "text-gray-400"}>·</span>
+                      <span className={on ? "text-brand/80" : "text-gray-500"}>+{Math.round(svc.price / 1000)}k</span>
+                    </>
+                  )}
                 </button>
               )
             })}
           </div>
+          {/* On a membership class the pass does NOT cover add-ons, so each
+              added extra asks how it was paid (mirrors the trainer cabinet). */}
+          {booking.paymentType === "MEMBERSHIP" && booking.services.map((bs) => (
+            <div key={bs.service.id} className="mt-2 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-gray-500 min-w-0 truncate">{bs.service.name} paid by</span>
+              {PAYMENT_METHODS.map((pm) => (
+                <button
+                  key={pm.value}
+                  type="button"
+                  disabled={isUpdating}
+                  onClick={() => onSetServiceMethod(booking.id, bs.service.id, pm.value)}
+                  className={cn(
+                    "px-2 py-1 rounded-md text-[11px] font-semibold border touch-manipulation disabled:opacity-50",
+                    bs.paymentType === pm.value
+                      ? "bg-brand text-white border-brand"
+                      : "bg-white text-gray-500 border-gray-200 hover:border-brand/40",
+                  )}
+                >
+                  {pm.label}
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
       )}
 
@@ -434,7 +462,15 @@ export default function BookingsPage() {
       if (b.id !== bookingId) return b
       if (currentlyOn) return { ...b, services: b.services.filter((s) => s.service.id !== serviceId) }
       if (!svc || b.services.some((s) => s.service.id === serviceId)) return b
-      return { ...b, services: [...b.services, { service: { id: svc.id, name: svc.name, price: svc.price } }] }
+      // Same honest-default rule as the server: membership -> CASH (picker
+      // below lets the admin change it), paid POS class -> inherit, else null.
+      const inherited =
+        b.paymentType === "MEMBERSHIP"
+          ? "CASH"
+          : b.paymentStatus === "PAID" && ["CASH", "EDC", "QR", "TRANSFER"].includes(b.paymentType)
+            ? b.paymentType
+            : null
+      return { ...b, services: [...b.services, { service: { id: svc.id, name: svc.name, price: svc.price }, paymentType: inherited }] }
     }))
     try {
       const res = currentlyOn
@@ -444,6 +480,26 @@ export default function BookingsPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ serviceId }),
           })
+      if (!res.ok) fetchBookings()
+    } catch {
+      fetchBookings()
+    }
+  }
+
+  // How an added extra was paid (shown for membership classes - the pass
+  // doesn't cover add-ons). Optimistic; POST upserts the method.
+  const setBookingServiceMethod = async (bookingId: string, serviceId: string, method: string) => {
+    setBookings((prev) => prev.map((b) =>
+      b.id === bookingId
+        ? { ...b, services: b.services.map((s) => (s.service.id === serviceId ? { ...s, paymentType: method } : s)) }
+        : b
+    ))
+    try {
+      const res = await fetch(`/api/admin/bookings/${bookingId}/services`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceId, paymentType: method }),
+      })
       if (!res.ok) fetchBookings()
     } catch {
       fetchBookings()
@@ -716,6 +772,7 @@ export default function BookingsPage() {
                       localCtx={localCtx}
                       services={services}
                       onToggleService={toggleBookingService}
+                      onSetServiceMethod={setBookingServiceMethod}
                     />
                   )}
                 </div>
