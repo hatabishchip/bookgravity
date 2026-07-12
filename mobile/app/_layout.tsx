@@ -13,6 +13,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { useThemePref } from "@/lib/theme-preference"
 import { api } from "@/lib/api"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
+import { UpdateGate } from "@/components/UpdateGate"
 import { webAlive } from "@/lib/web-alive"
 
 // Hide the native splash until we've at least read the secure store, so
@@ -234,6 +235,10 @@ export default function RootLayout() {
                 animation: "fade",
               }}
             />
+            {/* Full-screen "Update available" prompt (Update now / Later) -
+                covers everything when an OTA is ready or the store has a
+                newer build (owner metaprompt 12.07). */}
+            <UpdateGate />
           </ErrorBoundary>
         </QueryClientProvider>
       </SafeAreaProvider>
