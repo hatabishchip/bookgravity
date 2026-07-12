@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { format, addDays } from "date-fns"
-import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, CheckCircle2, Copy, Check, X } from "lucide-react"
+import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, CheckCircle2, Copy, Check, X, Plus } from "lucide-react"
 import { useOpenChat } from "@/lib/use-open-chat"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
@@ -26,7 +26,7 @@ type Booking = {
     endTime: string
     trainer: { name: string } | null
   }
-  services: { service: { name: string; price: number } }[]
+  services: { service: { id: string; name: string; price: number } }[]
   membershipRemaining?: number
   membershipId?: string | null
   // Staff-only "confirmed by bank" flag (a linked BankPayment).
@@ -86,14 +86,18 @@ function CopyButton({ value }: { value: string }) {
   )
 }
 
+type StudioService = { id: string; name: string; price: number }
+
 function BookingDetails({
-  booking, isUpdating, onUpdate, onCancel, localCtx,
+  booking, isUpdating, onUpdate, onCancel, localCtx, services, onToggleService,
 }: {
   booking: Booking
   isUpdating: boolean
   onUpdate: (data: Record<string, string | boolean>) => Promise<void> | void
   onCancel: () => void
   localCtx: { country: string | null; localPrice: number }
+  services: StudioService[]
+  onToggleService: (bookingId: string, serviceId: string, currentlyOn: boolean) => Promise<void>
 }) {
   const [noteDraft, setNoteDraft] = useState(booking.notes ?? "")
   const [noteSaved, setNoteSaved] = useState(false)
@@ -220,16 +224,36 @@ function BookingDetails({
         </button>
       )}
 
-      {/* Services — only if any; just the chips, compact */}
-      {booking.services.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {booking.services.map((s, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 text-xs bg-brand/5 text-brand px-2.5 py-1 rounded-lg font-medium">
-              {s.service.name}
-              <span className="text-brand/60">·</span>
-              <span className="text-brand/80">{Math.round(s.service.price / 1000)}k</span>
-            </span>
-          ))}
+      {/* Services (Sveta 12.07 "how do I add lifting?") - tap to add or
+          remove. Chosen ones turn brand-green; the rest sit as neutral chips
+          so it reads as "pick what to add", not just a display. */}
+      {services.length > 0 && (
+        <div>
+          <div className="text-xs font-medium text-gray-500 mb-1.5">Services</div>
+          <div className="flex flex-wrap gap-1.5">
+            {services.map((svc) => {
+              const on = booking.services.some((s) => s.service.id === svc.id)
+              return (
+                <button
+                  key={svc.id}
+                  type="button"
+                  disabled={isUpdating}
+                  onClick={() => onToggleService(booking.id, svc.id, on)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium border touch-manipulation disabled:opacity-50",
+                    on
+                      ? "bg-brand/5 text-brand border-brand/25"
+                      : "bg-white text-gray-500 border-gray-200 hover:border-brand/40 hover:text-brand",
+                  )}
+                >
+                  {on ? <Check size={12} strokeWidth={3} /> : <Plus size={12} strokeWidth={2.5} />}
+                  <span>{svc.name}</span>
+                  <span className={on ? "text-brand/60" : "text-gray-400"}>·</span>
+                  <span className={on ? "text-brand/80" : "text-gray-500"}>+{Math.round(svc.price / 1000)}k</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -291,11 +315,16 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true)
   // Studio country + local price drive the "Local" toggle (Indonesia only).
   const [localCtx, setLocalCtx] = useState<{ country: string | null; localPrice: number }>({ country: null, localPrice: 200000 })
+  const [services, setServices] = useState<StudioService[]>([])
 
   useEffect(() => {
     fetch("/api/admin/studio").then((r) => r.json()).then((d) => {
       setLocalCtx({ country: d.country ?? null, localPrice: d.localPrice ?? 200000 })
     }).catch(() => {})
+    // Add-on catalog for the "Services" chips in the expanded booking.
+    fetch("/api/admin/services").then((r) => (r.ok ? r.json() : []))
+      .then((list: StudioService[]) => setServices(Array.isArray(list) ? list : []))
+      .catch(() => {})
   }, [])
 
   const fetchBookings = useCallback(async () => {
@@ -396,6 +425,31 @@ export default function BookingsPage() {
 
   // Optimistic update — apply locally first, then sync to the server.
   // No "loading" / disabled state — the UI reacts in the same frame.
+  // Add / remove a service on a booking (optimistic; pull authoritative state
+  // back on failure). Look up name+price in the catalog so the chip flips
+  // immediately without waiting for a refetch.
+  const toggleBookingService = async (bookingId: string, serviceId: string, currentlyOn: boolean) => {
+    const svc = services.find((s) => s.id === serviceId)
+    setBookings((prev) => prev.map((b) => {
+      if (b.id !== bookingId) return b
+      if (currentlyOn) return { ...b, services: b.services.filter((s) => s.service.id !== serviceId) }
+      if (!svc || b.services.some((s) => s.service.id === serviceId)) return b
+      return { ...b, services: [...b.services, { service: { id: svc.id, name: svc.name, price: svc.price } }] }
+    }))
+    try {
+      const res = currentlyOn
+        ? await fetch(`/api/admin/bookings/${bookingId}/services?serviceId=${encodeURIComponent(serviceId)}`, { method: "DELETE" })
+        : await fetch(`/api/admin/bookings/${bookingId}/services`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ serviceId }),
+          })
+      if (!res.ok) fetchBookings()
+    } catch {
+      fetchBookings()
+    }
+  }
+
   const updateBooking = async (id: string, data: Record<string, string | boolean>) => {
     setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...data } : b)))
     try {
@@ -660,6 +714,8 @@ export default function BookingsPage() {
                       onUpdate={(data) => updateBooking(b.id, data)}
                       onCancel={() => cancelBooking(b.id, b.clientName)}
                       localCtx={localCtx}
+                      services={services}
+                      onToggleService={toggleBookingService}
                     />
                   )}
                 </div>
