@@ -125,6 +125,10 @@ function applyMask(digits: string, mask: string): string {
       result += mask[i]
     }
   }
+  // Keep digits beyond the mask's "#" capacity: the mask is cosmetic and must
+  // NEVER truncate real input (an 11-digit German mobile against a 10-slot mask
+  // otherwise lost its last digit - owner report 13.07). Mirrors lib/phone.ts.
+  if (di < digits.length) result += digits.slice(di)
   return result
 }
 

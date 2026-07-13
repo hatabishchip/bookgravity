@@ -298,6 +298,12 @@ function applyMask(digits: string, mask: string): string {
       result += mask[i]
     }
   }
+  // Any digits beyond the mask's "#" capacity must still be kept: the mask is
+  // cosmetic grouping, it must NEVER drop real input. Without this an 11-digit
+  // German mobile ("176 21184627") against a 10-slot mask lost its last digit -
+  // the field simply refused the final keystroke (owner report 13.07). Also
+  // covers Indonesia (max 12 vs 11-slot mask), Austria, Italy, Cambodia.
+  if (di < digits.length) result += digits.slice(di)
   return result
 }
 

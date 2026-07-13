@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
-import { Search, CalendarPlus, X, Loader2, Check, AlertCircle, Phone, Mail, Ticket, BadgeCheck, Clock } from "lucide-react"
+import { Search, CalendarPlus, X, Loader2, Check, AlertCircle, Phone, Mail, Ticket, BadgeCheck, Clock, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SellMembershipModal } from "@/app/_components/SellMembershipButton"
+import PhoneInput from "@/app/_components/PhoneInput"
+import { formatPhoneInput, validatePhone } from "@/lib/phone"
 
 type Client = {
   name: string
@@ -466,11 +468,137 @@ function BookModal({ client, onClose, onBooked }: {
   )
 }
 
+// Correct a client's saved contact details. Rare, admin-only. Re-keys the phone
+// across bookings/chat/passes server-side (see PATCH /api/admin/clients).
+function EditClientModal({ client, onClose, onSaved }: {
+  client: Client
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [name, setName] = useState(client.name || "")
+  const [phone, setPhone] = useState(() => formatPhoneInput("+" + client.phone.replace(/\D/g, "")))
+  const [email, setEmail] = useState(client.email || "")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const newDigits = phone.replace(/\D/g, "")
+  const currDigits = client.phone.replace(/\D/g, "")
+  // Same country-length validation as the booking widget: a truncated number
+  // (one digit short for its country) is caught right here, not by the client.
+  const phoneOk = validatePhone(phone).kind === "ok"
+  const phoneChanged = newDigits !== currDigits
+  const nameChanged = name.trim() !== (client.name || "").trim()
+  const emailChanged = email.trim() !== (client.email || "").trim()
+  const changed = phoneChanged || nameChanged || emailChanged
+
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      // Only the fields that actually changed: an untouched email must not be
+      // stamped over every booking's (possibly different) historical email.
+      const res = await fetch("/api/admin/clients", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPhone: client.phone,
+          ...(phoneChanged ? { newPhone: newDigits } : {}),
+          ...(nameChanged ? { newName: name.trim() } : {}),
+          ...(emailChanged ? { newEmail: email.trim() } : {}),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error || "Could not save")
+        setSaving(false)
+        return
+      }
+      onSaved()
+      onClose()
+    } catch {
+      setError("Network error")
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-gray-900">Edit client</h2>
+          <button onClick={onClose} aria-label="Close" className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+            <X size={18} />
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 -mt-2">
+          Corrects the saved contact everywhere - bookings, WhatsApp chat and passes all move to the new number.
+        </p>
+        <label className="block">
+          <span className="text-xs font-medium text-gray-600">Name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+          />
+        </label>
+        <PhoneInput
+          label="Phone (with country code)"
+          value={phone}
+          onChange={setPhone}
+          compact
+          placeholder="+49 176 21184627"
+        />
+        <label className="block">
+          <span className="text-xs font-medium text-gray-600">Email</span>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+          />
+          {emailChanged && email.trim() === "" && (
+            <span className="text-[11px] text-amber-600 mt-0.5 block">
+              Empty - saving will remove the email from this client&apos;s bookings.
+            </span>
+          )}
+        </label>
+        {error && (
+          <div className="flex items-center gap-1.5 text-xs text-red-600">
+            <AlertCircle size={13} /> {error}
+          </div>
+        )}
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="flex-1 border border-gray-200 text-gray-700 text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={!changed || !phoneOk || saving}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[] | null>(null)
   const [query, setQuery] = useState("")
   const [bookFor, setBookFor] = useState<Client | null>(null)
   const [historyFor, setHistoryFor] = useState<Client | null>(null)
+  const [editFor, setEditFor] = useState<Client | null>(null)
 
   const load = useCallback(() => {
     fetch("/api/admin/clients", { cache: "no-store" })
@@ -565,6 +693,13 @@ export default function ClientsPage() {
                 </div>
               </div>
               <button
+                onClick={(e) => { e.stopPropagation(); setEditFor(c) }}
+                aria-label="Edit client"
+                className="p-2.5 rounded-xl text-gray-400 hover:text-brand hover:bg-gray-50 shrink-0"
+              >
+                <Pencil size={15} />
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); setBookFor(c) }}
                 className="inline-flex items-center gap-1.5 bg-brand hover:bg-brand-dark text-white text-xs font-semibold px-3.5 py-2.5 rounded-xl touch-manipulation shrink-0"
               >
@@ -583,6 +718,7 @@ export default function ClientsPage() {
         />
       )}
       {bookFor && <BookModal client={bookFor} onClose={() => setBookFor(null)} onBooked={load} />}
+      {editFor && <EditClientModal client={editFor} onClose={() => setEditFor(null)} onSaved={load} />}
     </div>
   )
 }
