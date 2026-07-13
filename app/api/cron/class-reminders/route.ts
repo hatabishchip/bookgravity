@@ -4,7 +4,7 @@ import { assertCronAuth } from "@/lib/cron-auth"
 import { sendClassReminderWA } from "@/lib/whatsapp-cloud"
 import { appendOutboundMessage, upsertConversation } from "@/lib/whatsapp-conversation"
 import { phoneTail } from "@/lib/membership"
-import { clientClassRange } from "@/lib/class-time"
+import { clientClassRange, clientStartTime12 } from "@/lib/class-time"
 import { elog, elogError } from "@/lib/elog"
 import { baliDateStr, addDaysStr } from "@/lib/tz"
 
@@ -141,13 +141,28 @@ export async function GET(req: NextRequest) {
               assignedTrainerId: b.slot.trainerId ?? null,
             })
           ).id
+        // Log what the client ACTUALLY received. The old hardcoded "your group
+        // class" line here misled staff: private-class clients get neutral
+        // wording, but the inbox showed "group class" for everyone (Sveta
+        // 13.07). Mirror the template routing of sendClassReminderWA.
+        const v5 = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_V5
+        const city = (b.slot.studio.name ?? "").replace(/gravity\s*stretching/i, "").trim()
+        const isGroup = (b.slot.classType ?? "GROUP") === "GROUP"
+        const logBody = v5
+          ? `You have Gravity Stretching class tomorrow at ${clientStartTime12(b.slot.startTime)} in the ${city} Studio. Please arrive 10 minutes early`
+          : `Reminder: your ${isGroup ? "group class" : "class"} is tomorrow at ${time}. Please arrive 10 minutes early.`
+        const logTemplate = v5
+          ? v5
+          : isGroup
+            ? process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_STUDIO_VAR ||
+              process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER ||
+              "class_reminder_v2"
+            : process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_ANY || "class_reminder_v3"
         await appendOutboundMessage({
           conversationId: convoId,
           type: "template",
-          body:
-            `Reminder: your group class is tomorrow at ${time}. ` +
-            `Please arrive 10 minutes early.`,
-          templateName: process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER || "class_reminder_v2",
+          body: logBody,
+          templateName: logTemplate,
           waMessageId: res.messageId ?? null,
           status: "sent",
           fromTrainerId: null,
