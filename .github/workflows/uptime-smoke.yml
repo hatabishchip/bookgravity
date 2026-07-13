@@ -1,0 +1,92 @@
+# Uptime monitor + post-deploy smoke for bookgravity.com.
+#
+# Why GitHub Actions: it runs in the cloud independent of any local machine or
+# app being open (local watchers proved unreliable for exactly that reason).
+# Alerts go to the owner's personal Telegram bot (@hatabish_bot) via the
+# TG_BOT_TOKEN / TG_CHAT_ID repo secrets. Silent while everything is healthy.
+name: uptime-smoke
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # uptime probe every 10 minutes
+  push:
+    branches: [main] # post-deploy smoke: wait for Vercel, then verify
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  uptime:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe production
+        id: probe
+        run: |
+          fail=""
+          # /api/version must answer 200 with a JSON sha
+          v=$(curl -fsS --max-time 15 --retry 2 https://bookgravity.com/api/version || true)
+          echo "version body: $v"
+          [[ "$v" == *'"v"'* ]] || fail="/api/version unhealthy: '$v'"
+          # booking page must render
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 --retry 2 https://bookgravity.com/canggu || true)
+          echo "/canggu -> $code"
+          [[ "$code" == "200" ]] || fail="${fail:+$fail; }/canggu returned $code"
+          # staff login page must render
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 --retry 2 https://bookgravity.com/login || true)
+          echo "/login -> $code"
+          [[ "$code" == "200" ]] || fail="${fail:+$fail; }/login returned $code"
+          if [ -n "$fail" ]; then
+            echo "fail=$fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+      - name: Alert owner (Telegram)
+        if: failure()
+        run: |
+          curl -fsS --max-time 15 "https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendMessage" \
+            --data-urlencode "chat_id=${{ secrets.TG_CHAT_ID }}" \
+            --data-urlencode "text=🔴 bookgravity.com DOWN: ${{ steps.probe.outputs.fail || 'probe failed' }} (uptime monitor)"
+
+  smoke:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Wait for Vercel to serve this commit
+        id: wait
+        run: |
+          echo "expecting sha ${GITHUB_SHA}"
+          for i in $(seq 1 40); do
+            v=$(curl -fsS --max-time 15 https://bookgravity.com/api/version 2>/dev/null || true)
+            if [[ "$v" == *"${GITHUB_SHA}"* ]]; then
+              echo "deployed after ~$((i*15))s"; exit 0
+            fi
+            sleep 15
+          done
+          echo "fail=prod never served ${GITHUB_SHA} within 10 min (deploy stuck or failed)" >> "$GITHUB_OUTPUT"
+          exit 1
+      - name: Smoke checks
+        id: smoke
+        run: |
+          fail=""
+          for path in /canggu /login /ubud; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 --retry 2 "https://bookgravity.com${path}" || true)
+            echo "${path} -> $code"
+            [[ "$code" == "200" ]] || fail="${fail:+$fail; }${path} returned $code"
+          done
+          # admin API must still be auth-gated (a 200 here would mean auth broke open)
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://bookgravity.com/api/admin/clients || true)
+          echo "/api/admin/clients unauth -> $code"
+          [[ "$code" == "401" ]] || fail="${fail:+$fail; }/api/admin/clients unauth returned $code (expected 401)"
+          if [ -n "$fail" ]; then
+            echo "fail=$fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+      - name: Alert owner (Telegram)
+        if: failure()
+        run: |
+          msg="${{ steps.wait.outputs.fail }}${{ steps.smoke.outputs.fail }}"
+          curl -fsS --max-time 15 "https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendMessage" \
+            --data-urlencode "chat_id=${{ secrets.TG_CHAT_ID }}" \
+            --data-urlencode "text=🔴 bookgravity deploy smoke FAILED (${GITHUB_SHA:0:7}): ${msg:-check Actions log}"

@@ -10,6 +10,7 @@ import {
   appendOutboundMessage,
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
+import { notifyDeliveryFailure } from "@/lib/delivery-alert"
 import { syncSlotToGoogle } from "@/lib/google-calendar"
 
 /**
@@ -107,6 +108,16 @@ export async function notifyBookingCreated(opts: {
       if (!r.ok) {
         console.warn("[booking-notify] WA client send failed:", r.error)
         void elogError("notify:booking", "client confirmation send FAILED", { bookingId: opts.leadBookingId, error: r.error })
+        // The client now has NO confirmation - alert the studio admins right
+        // away (async delivery failures are covered by the webhook alert; this
+        // catches sends Meta rejected immediately).
+        void notifyDeliveryFailure({
+          studioId: opts.studioId,
+          conversationId,
+          clientName: opts.clientName,
+          clientPhone: opts.clientPhone,
+          detail: r.error,
+        })
       } else {
         console.log("[booking-notify] WA client sent:", r.messageId)
         void elog("notify:booking", "client confirmation sent", { bookingId: opts.leadBookingId, messageId: r.messageId })

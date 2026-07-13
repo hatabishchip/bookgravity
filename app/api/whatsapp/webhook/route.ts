@@ -20,6 +20,7 @@ import { pickNextLeadTrainer } from "@/lib/lead-rotation"
 import { recordBankPayment } from "@/lib/bank-payment"
 import { sendPush } from "@/lib/expo-push"
 import { sendWebPush } from "@/lib/web-push"
+import { notifyDeliveryFailure } from "@/lib/delivery-alert"
 
 // WhatsApp Cloud API webhook.
 //
@@ -734,6 +735,36 @@ export async function POST(request: NextRequest) {
         // -- Delivery / read status updates --
         for (const st of value.statuses ?? []) {
           const errDetail = st.errors?.[0]?.error_data?.details ?? st.errors?.[0]?.title ?? null
+          // Detect the FIRST transition to "failed" (Meta may resend statuses)
+          // BEFORE updateMessageStatus overwrites the previous status.
+          let firstFail: {
+            studioId: string
+            conversationId: string
+            clientName: string | null
+            clientPhone: string
+          } | null = null
+          if (st.status === "failed") {
+            try {
+              const failedMsg = await prisma.whatsAppMessage.findFirst({
+                where: { waMessageId: st.id, direction: "OUTBOUND", status: { not: "failed" } },
+                select: {
+                  conversation: {
+                    select: { id: true, studioId: true, clientName: true, clientPhone: true },
+                  },
+                },
+              })
+              if (failedMsg?.conversation) {
+                firstFail = {
+                  studioId: failedMsg.conversation.studioId,
+                  conversationId: failedMsg.conversation.id,
+                  clientName: failedMsg.conversation.clientName,
+                  clientPhone: failedMsg.conversation.clientPhone,
+                }
+              }
+            } catch (err) {
+              console.error("[whatsapp-webhook] failed-lookup error:", err)
+            }
+          }
           try {
             await updateMessageStatus({
               waMessageId: st.id,
@@ -751,6 +782,11 @@ export async function POST(request: NextRequest) {
               recipient: st.recipient_id ?? null,
               detail: errDetail,
             })
+            // ...and loud for HUMANS: push the studio's admins + badge the chat
+            // in the inbox (first failed status only, not Meta's retries).
+            if (firstFail) {
+              void notifyDeliveryFailure({ ...firstFail, detail: errDetail })
+            }
           }
           // Mirror delivery status onto a matching booking-OTP send, so the
           // booking widget can tell a client their number isn't on WhatsApp
