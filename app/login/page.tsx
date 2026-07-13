@@ -9,15 +9,44 @@ import { Input } from "@/app/_components/ui/Input"
 import { Card } from "@/app/_components/ui/Card"
 import { Alert } from "@/app/_components/ui/Alert"
 
+// Social buttons appear only once their provider is fully wired (redirect URI
+// registered in Google Cloud / Apple Services ID + key created). Build-time
+// public flags let the code ship dormant and go live by flipping one env var,
+// with no broken button in production meanwhile. The server still guards each
+// flow by the presence of its real credentials.
+const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_LOGIN === "1"
+const APPLE_ENABLED = process.env.NEXT_PUBLIC_APPLE_LOGIN === "1"
+const ANY_SOCIAL = GOOGLE_ENABLED || APPLE_ENABLED
+
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [social, setSocial] = useState<"google" | "apple" | null>(null)
   // Already signed in? Bounce straight to the dashboard so staff coming from
   // the booking page never have to re-enter their credentials.
   const [checking, setChecking] = useState(true)
   const router = useRouter()
+
+  // Surface a social-login refusal (unknown email = not staff) sent back as
+  // ?error= by the signIn callback.
+  useEffect(() => {
+    const err = new URLSearchParams(window.location.search).get("error")
+    if (err === "NotStaff") setError("This Google/Apple account isn't linked to a staff member. Use the email and password you were given, or ask the admin to add your email.")
+    else if (err === "NoEmail") setError("Couldn't read an email from that account. Please sign in with your email and password.")
+    else if (err === "OAuthAccountNotLinked") setError("That email already signs in a different way. Use your email and password.")
+    else if (err) setError("Sign-in failed. Please try again, or use your email and password.")
+  }, [])
+
+  const handleSocial = (provider: "google" | "apple") => {
+    if (social) return
+    setSocial(provider)
+    setError("")
+    // Full-page redirect through the provider; on return the session cookie is
+    // set and the /login mount effect above bounces to the right dashboard.
+    signIn(provider, { callbackUrl: "/login" })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -135,6 +164,50 @@ export default function LoginPage() {
               </Link>
             </div>
           </form>
+
+          {/* Social sign-in - an alternative to the password for staff whose
+              email is already in the system. Each button appears only when its
+              provider is configured (build-time flag). */}
+          {ANY_SOCIAL && (
+          <>
+          <div className="mt-6 flex items-center gap-3">
+            <span className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400">or</span>
+            <span className="h-px flex-1 bg-gray-200" />
+          </div>
+          <div className="mt-4 space-y-2.5">
+            {GOOGLE_ENABLED && (
+            <button
+              type="button"
+              onClick={() => handleSocial("google")}
+              disabled={!!social}
+              className="w-full flex items-center justify-center gap-2.5 border border-gray-200 rounded-lg py-2.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 active:scale-[0.99] transition disabled:opacity-60"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
+                <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62Z" />
+                <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z" />
+                <path fill="#FBBC05" d="M3.97 10.72a5.41 5.41 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z" />
+                <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.47.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z" />
+              </svg>
+              {social === "google" ? "Opening Google..." : "Continue with Google"}
+            </button>
+            )}
+            {APPLE_ENABLED && (
+              <button
+                type="button"
+                onClick={() => handleSocial("apple")}
+                disabled={!!social}
+                className="w-full flex items-center justify-center gap-2.5 border border-gray-900 rounded-lg py-2.5 text-sm font-medium text-white bg-black hover:bg-gray-900 active:scale-[0.99] transition disabled:opacity-60"
+              >
+                <svg width="16" height="16" viewBox="0 0 384 512" fill="currentColor" aria-hidden>
+                  <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+                </svg>
+                {social === "apple" ? "Opening Apple..." : "Continue with Apple"}
+              </button>
+            )}
+          </div>
+          </>
+          )}
         </Card>
       </div>
     </div>
