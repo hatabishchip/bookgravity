@@ -50,3 +50,9 @@ dev.db-wal
 .env
 node_modules
 .next
+
+# Mobile build artifacts - never commit (bloated serverless functions past 250MB, 15.07.2026)
+mobile/*.aab
+mobile/*.ipa
+mobile/build/
+mobile/dist/
