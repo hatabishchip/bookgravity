@@ -469,17 +469,26 @@ export async function sendWhatsAppTemplate(opts: {
   const to = normalizePhone(opts.toPhone)
   if (!to) return { ok: false, error: "empty_phone" }
 
+  // WhatsApp rejects a template parameter that contains new-lines, tabs or
+  // 4+ consecutive spaces ("Param text cannot have new-line/tab characters or
+  // more than 4 consecutive spaces") and fails the whole send. Any dynamic
+  // value we inject - staff free text, canned quick replies, cancellation
+  // reasons - can carry line breaks, so collapse every whitespace run to a
+  // single space here, once, for every template parameter. (Free-form text
+  // messages keep their line breaks - this only touches template variables.)
+  const tplParam = (v: string) => v.replace(/\s+/g, " ").trim()
+
   const components: Array<Record<string, unknown>> = []
   if (opts.headerVariables?.length) {
     components.push({
       type: "header",
-      parameters: opts.headerVariables.map((v) => ({ type: "text", text: v })),
+      parameters: opts.headerVariables.map((v) => ({ type: "text", text: tplParam(v) })),
     })
   }
   if (opts.variables?.length) {
     components.push({
       type: "body",
-      parameters: opts.variables.map((v) => ({ type: "text", text: v })),
+      parameters: opts.variables.map((v) => ({ type: "text", text: tplParam(v) })),
     })
   }
   const payloads = opts.buttonPayloads?.length

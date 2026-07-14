@@ -204,6 +204,9 @@ export async function POST(
       process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message"
     const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
     const clientFirstName = (convo.clientName ?? "").trim().split(/\s+/)[0] || "there"
+    // sendWhatsAppTemplate sanitizes each parameter (WhatsApp forbids new-lines
+    // / tabs / 4+ spaces in template params), so the typed text's line breaks
+    // are collapsed there - a closed-window schedule update now delivers.
     const res = await sendWhatsAppTemplate({
       toPhone: convo.clientPhone,
       templateName: adminTemplate,
