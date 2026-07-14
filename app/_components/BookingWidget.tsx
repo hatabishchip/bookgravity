@@ -211,6 +211,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   const [allSlots, setAllSlots] = useState<Slot[]>([])
   const [partySize, setPartySize] = useState(1)
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
+  // The USA / Online studio sells an individual online "Level 1" intro session,
+  // not a group class - relabel just that studio so the public page (and the
+  // trademark specimen) matches what is actually sold. Other studios keep the
+  // shared "Group class" wording.
+  const serviceLabel = studio?.country === "US" ? "Level 1 online session" : "Group class"
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   // Set when the API reports this phone already booked the slot - drives the
   // "are you sure?" confirmation before allowing a duplicate booking.
@@ -1279,7 +1284,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             {/* Price follows the stepper (owner 09.07: "/ PERSON" read
                 robotic): "300k IDR for 1 person" -> "600k IDR for 2 people". */}
             <div className="min-w-0 flex items-baseline gap-2 flex-wrap">
-              <span className="text-[13px] font-semibold text-brand leading-none">Group class</span>
+              <span className="text-[13px] font-semibold text-brand leading-none">{serviceLabel}</span>
               <span className="text-lg font-bold text-brand leading-none tabular-nums">{formatIDR((studio?.groupPrice ?? 300000) * partySize)}</span>
               <span className="text-[11px] text-gray-500 leading-none">for {partySize} {partySize === 1 ? "person" : "people"}</span>
             </div>
@@ -1535,7 +1540,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               {selectedDate && format(parseISO(selectedDate), "EEEE, MMMM d")}
             </div>
             <div className="text-sm text-gray-500">
-              {formatTime(selectedSlot.startTime)} - {clientEndTime(selectedSlot.startTime)} · Group class
+              {formatTime(selectedSlot.startTime)} - {clientEndTime(selectedSlot.startTime)} · {serviceLabel}
             </div>
           </div>
 

@@ -73,9 +73,13 @@ function buildFaq(city: string, pricing: ClassPricing, currency: string | null, 
   if (pricing.group) {
     faq.splice(3, 0, {
       q: `How much does a stretching class in ${city} cost?`,
-      a: `Group classes start from ${formatPrice(pricing.group, currency, country)} per person.${
-        pricing.private ? ` Private 1-on-1 sessions start from ${formatPrice(pricing.private, currency, country)}.` : ""
-      }${(country || "").toUpperCase() === "US" ? " Booking is free; your coach shares payment details when you join." : " You book your spot online for free and pay at the studio."}`,
+      a: (country || "").toUpperCase() === "US"
+        ? `The Level 1 online session starts from ${formatPrice(pricing.group, currency, country)}.${
+            pricing.private ? ` A full 1-on-1 online program starts from ${formatPrice(pricing.private, currency, country)}.` : ""
+          } Booking is free; your coach shares the class link and payment details when you join.`
+        : `Group classes start from ${formatPrice(pricing.group, currency, country)} per person.${
+            pricing.private ? ` Private 1-on-1 sessions start from ${formatPrice(pricing.private, currency, country)}.` : ""
+          } You book your spot online for free and pay at the studio.`,
     })
   }
   return faq
@@ -111,27 +115,48 @@ export default function StudioInfo({
     ],
   }
 
-  const classTypes = [
-    {
-      icon: Users,
-      title: "Group class",
-      desc: `Up to 6 people, 75-90 minutes of gravity stretching with a trainer${
-        pricing.group ? ` - from ${formatPrice(pricing.group, studio.currency, studio.country)} per person` : ""
-      }.`,
-    },
-    {
-      icon: Sparkles,
-      title: "Private 1-on-1",
-      desc: `A full session focused entirely on your body and goals${
-        pricing.private ? ` - from ${formatPrice(pricing.private, studio.currency, studio.country)}` : ""
-      }. Ideal for deep progress or specific issues.`,
-    },
-    {
-      icon: Clock,
-      title: "Kids class",
-      desc: "Gentle, playful flexibility training for children, led by trainers experienced with young bodies.",
-    },
-  ]
+  // The USA / Online studio sells individual online sessions (a $20 "Level 1"
+  // intro and a full 1-on-1 program), not physical group/kids classes - so it
+  // advertises its own service list. Other studios keep the group/private/kids set.
+  const isUS = (studio.country || "").toUpperCase() === "US"
+  const classTypes = isUS
+    ? [
+        {
+          icon: Sparkles,
+          title: "Level 1 online session",
+          desc: `An individual intro online stretching session with your coach${
+            pricing.group ? ` - from ${formatPrice(pricing.group, studio.currency, studio.country)}` : ""
+          }. A focused first step into the Gravity Stretching method.`,
+        },
+        {
+          icon: Users,
+          title: "Full 1-on-1 program",
+          desc: `A complete personalized online program focused entirely on your body and goals${
+            pricing.private ? ` - from ${formatPrice(pricing.private, studio.currency, studio.country)}` : ""
+          }.`,
+        },
+      ]
+    : [
+        {
+          icon: Users,
+          title: "Group class",
+          desc: `Up to 6 people, 75-90 minutes of gravity stretching with a trainer${
+            pricing.group ? ` - from ${formatPrice(pricing.group, studio.currency, studio.country)} per person` : ""
+          }.`,
+        },
+        {
+          icon: Sparkles,
+          title: "Private 1-on-1",
+          desc: `A full session focused entirely on your body and goals${
+            pricing.private ? ` - from ${formatPrice(pricing.private, studio.currency, studio.country)}` : ""
+          }. Ideal for deep progress or specific issues.`,
+        },
+        {
+          icon: Clock,
+          title: "Kids class",
+          desc: "Gentle, playful flexibility training for children, led by trainers experienced with young bodies.",
+        },
+      ]
 
   return (
     <section className="max-w-4xl mx-auto px-4 pb-10">
