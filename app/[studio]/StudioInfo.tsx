@@ -144,10 +144,9 @@ export default function StudioInfo({
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h1 className="text-lg font-bold text-gray-900">Stretching classes in {city}</h1>
           <p className="mt-2 text-sm leading-relaxed text-gray-600">
-            {studio.name} is a gravity-stretching studio in {city}
-            {studio.country === "ID" ? ", Bali" : ""}. A trainer works with your body through every
-            stretch - deeper than you&apos;d ever get on your own, and safer too. Sessions improve
-            flexibility, posture and recovery, release tight hips and backs, and simply feel
+            Gravity Stretching in {city}. Experience Gravity Stretching - a unique way to
+            relax, release tension, improve mobility, and help your body recover naturally.
+            Sessions improve posture, release tight backs and joints, and simply feel
             fantastic. Book your spot online in a few taps - no payment needed to reserve.
           </p>
         </div>
