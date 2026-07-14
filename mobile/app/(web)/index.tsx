@@ -177,7 +177,7 @@ export default function AppWebView() {
   // Messages posted by the web page (only inside the app, see NativeAppBridge
   // on the web side).
   const onMessage = useCallback((e: WebViewMessageEvent) => {
-    let msg: { type?: string; token?: string; refreshToken?: string; user?: AuthUser } | null = null
+    let msg: { type?: string; token?: string; refreshToken?: string; user?: AuthUser; provider?: string } | null = null
     try {
       msg = JSON.parse(e.nativeEvent.data)
     } catch {
@@ -193,6 +193,12 @@ export default function AppWebView() {
     }
     if (msg.type === "native-auth" && msg.token && msg.refreshToken && msg.user) {
       void useAuth.getState().adoptWebLogin({ token: msg.token, refreshToken: msg.refreshToken, user: msg.user })
+    } else if (msg.type === "social-login" && msg.provider === "google") {
+      // Google forbids OAuth inside a WebView. Run the WHOLE flow in the system
+      // browser: it opens /login?social=google&nr=1, which does the OAuth there
+      // (pkce cookie lives in that browser) and, on success, deep-links a native
+      // token pair back to us via gravitystretching://auth (handled below).
+      Linking.openURL(`${API_BASE}/login?social=google&nr=1`).catch(() => {})
     } else if (msg.type === "open-notifications") {
       router.push("/(web)/notifications")
     }
@@ -212,6 +218,29 @@ export default function AppWebView() {
       return
     }
     if (/\/login(\?|$)/.test(navState.url) && useAuth.getState().user) open()
+  }, [open])
+
+  // Native Google login return. The system-browser flow (kicked off by a
+  // "social-login" message) finishes on /native-return, which redirects to
+  // gravitystretching://auth?d=<url-encoded json token pair>. Catch that deep
+  // link, adopt the session, and re-bridge the WebView into the authed app.
+  useEffect(() => {
+    const handleUrl = (url: string | null) => {
+      if (!url || url.indexOf("gravitystretching://auth") !== 0) return
+      const m = url.match(/[?&]d=([^&]+)/)
+      if (!m) return
+      try {
+        const data = JSON.parse(decodeURIComponent(m[1])) as { token?: string; refreshToken?: string; user?: AuthUser }
+        if (data?.token && data?.refreshToken && data?.user) {
+          void useAuth.getState().adoptWebLogin({ token: data.token, refreshToken: data.refreshToken, user: data.user })
+          open() // re-bridge the WebView into the now-authenticated app
+        }
+      } catch { /* malformed payload - ignore */ }
+    }
+    const sub = Linking.addEventListener("url", (e) => handleUrl(e.url))
+    // Cold start: the app may have been launched by the deep link.
+    Linking.getInitialURL().then(handleUrl).catch(() => {})
+    return () => sub.remove()
   }, [open])
 
   // Google OAuth can't run inside an embedded WebView (disallowed_useragent):

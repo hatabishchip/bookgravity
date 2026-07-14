@@ -43,13 +43,43 @@ export default function LoginPage() {
     if (social) return
     setSocial(provider)
     setError("")
+    // Google forbids OAuth inside an embedded WebView ("disallowed_useragent").
+    // In the native app, hand the Google flow to the shell, which runs the whole
+    // thing in the system browser and bridges the session back via a deep link
+    // (see /native-return). Apple uses form_post and works in-WebView, so it
+    // stays on the normal path.
+    const w = window as unknown as { __GS_NATIVE__?: boolean; ReactNativeWebView?: { postMessage: (d: string) => void } }
+    if (provider === "google" && w.__GS_NATIVE__ && w.ReactNativeWebView) {
+      w.ReactNativeWebView.postMessage(JSON.stringify({ type: "social-login", provider: "google" }))
+      // The shell drives it from here; drop the spinner shortly so the button is
+      // usable again if the user dismisses the system browser.
+      setTimeout(() => setSocial(null), 2000)
+      return
+    }
     // Full-page redirect through the provider; on return the session cookie is
     // set and the /login mount effect above bounces to the right dashboard.
     signIn(provider, { callbackUrl: "/login" })
   }
 
+  // Native Google bridge (system-browser side): the shell opens
+  // /login?social=google&nr=1 in the system browser. Run the full Google OAuth
+  // HERE (the pkce cookie lives in this browser), then land on /native-return,
+  // which mints a native token pair and deep-links it back into the app.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    if (sp.get("social") === "google" && sp.get("nr") === "1") {
+      signIn("google", { callbackUrl: "/native-return" })
+    }
+  }, [])
+
   useEffect(() => {
     let cancelled = false
+    // On the native-bridge tab (?nr=1) we never auto-redirect to a dashboard -
+    // the whole point is to run OAuth and hand a token back to the app.
+    if (new URLSearchParams(window.location.search).get("nr") === "1") {
+      setChecking(false)
+      return
+    }
     fetch("/api/auth/session", { cache: "no-store" })
       .then((r) => r.json())
       .then((s) => {

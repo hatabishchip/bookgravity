@@ -26,6 +26,7 @@ _Generated/updated автоматически при обработке исто
 | n-5pct-retention-lift-raises-profit-25-95pct | A 5% increase in customer retention raises profit by 25–95% | M |
 | n-store-publishing-apple-google-state-2026-06 | Публикация App Store: нужны wet-sign employment letter + заверенные EN-переводы Akta/NIB; Google Play отклонял по Misleading Claims | H |
 | n-booking-phone-otp-device-trust-2026-07 | Booking-виджет: ввод любого номера (196 стран), WhatsApp-OTP единственный гейт, доверие номера на устройстве 400 дней скользящее | H |
+| n-local-native-build-android-ios-2026-07 | Локальная сборка Android(.aab)/iOS(.ipa) на Mac через eas build --local без кредитов EAS; фикс gradle metaspace 512m→2g | H |
 
 ## Claims
 
