@@ -43,7 +43,28 @@ export default function VersionWatcher() {
         if (sessionStorage.getItem(key)) return
         sessionStorage.setItem(key, "1")
         reloading.current = true
-        location.reload()
+        // HARD reload, not location.reload(): a plain reload can be answered
+        // from the WebView's bfcache / in-memory page with the SAME stale build
+        // (Sveta/Andrey 13.07 - a deploy deleted the running build's route
+        // chunks, so the layout+bell rendered but the page content stayed
+        // white, and a soft reload restored the same dead page). A distinct,
+        // version-stamped URL forces a real network navigation to fresh HTML;
+        // clearing CacheStorage first drops any leftover chunk entries. The
+        // fresh build carries a NEW build id, so the inline self-heal's
+        // per-build attempt counter starts clean and can't stay exhausted.
+        const hardReload = () => {
+          const u = location.pathname + location.search
+          const stamped = u + (u.includes("?") ? "&" : "?") + "gsv=" + v.slice(0, 8)
+          location.replace(stamped)
+        }
+        const jobs: Promise<unknown>[] = []
+        try {
+          if (typeof window.caches !== "undefined") {
+            jobs.push(caches.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k)))))
+          }
+        } catch { /* ignore */ }
+        Promise.all(jobs).then(hardReload, hardReload)
+        setTimeout(hardReload, 2500) // never hang on a stuck cache op
       } catch {
         /* offline / transient — ignore */
       }
@@ -52,11 +73,17 @@ export default function VersionWatcher() {
     const onVisible = () => { if (document.visibilityState === "visible") check() }
     document.addEventListener("visibilitychange", onVisible)
     window.addEventListener("focus", check)
+    // bfcache restore (Android WebView / iOS resume from a frozen page) fires
+    // pageshow with persisted=true and NO normal load event - the exact resume
+    // that leaves a stale page on screen. Re-check the version on it too.
+    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) check() }
+    window.addEventListener("pageshow", onPageShow)
     // One check on first mount too (covers a tab that was left open across a deploy).
     check()
     return () => {
       document.removeEventListener("visibilitychange", onVisible)
       window.removeEventListener("focus", check)
+      window.removeEventListener("pageshow", onPageShow)
     }
   }, [])
 
