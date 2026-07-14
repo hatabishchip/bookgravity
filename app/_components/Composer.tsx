@@ -1,10 +1,23 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { CalendarX, Keyboard, Loader2, Send, Smile } from "lucide-react"
+import { CalendarX, Keyboard, Loader2, MessageSquareText, Send, Smile } from "lucide-react"
 import { cn } from "@/lib/utils"
 import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
 import StickerPicker from "@/app/_components/StickerPicker"
+
+// Canned staff messages ("quick replies"). Picking one drops the text into the
+// composer so staff can tweak it (e.g. add the new time) before sending. When
+// the 24h customer-service window is CLOSED the send path wraps the text in the
+// approved `admin_message` template, so these still reach a client who has gone
+// quiet - which is exactly when a schedule change needs to be sent.
+const QUICK_REPLIES: { id: string; label: string; text: string }[] = [
+  {
+    id: "schedule-update",
+    label: "Schedule update",
+    text: "Greetings!\n\nWe have a small schedule update. Tomorrow's session has been rescheduled to a different time",
+  },
+]
 
 // ---------------------------------------------------------------------------
 // Inbox composer (pill input + virtual keyboard).
@@ -80,6 +93,8 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
   // on-screen VirtualKeyboard. The emoji picker becomes a toggled panel.
   const [desktop, setDesktop] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
+  // Quick-reply canned messages popover.
+  const [qrOpen, setQrOpen] = useState(false)
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px) and (pointer: fine)")
     const update = () => setDesktop(mq.matches)
@@ -162,6 +177,28 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
       syncHasText()
     },
     [updateHeight, syncHasText],
+  )
+
+  // Quick reply → drop the canned text into the composer (replacing any draft),
+  // put the caret at the end so staff can keep typing (e.g. the new time), and
+  // close the popover. Sending is a separate, deliberate tap.
+  const applyQuickReply = useCallback(
+    (text: string) => {
+      const t = textareaRef.current
+      if (t) {
+        t.value = text
+        try {
+          t.setSelectionRange(text.length, text.length)
+        } catch {
+          // detached textarea — ignore
+        }
+        updateHeight()
+        syncHasText()
+        if (desktop) t.focus({ preventScroll: true })
+      }
+      setQrOpen(false)
+    },
+    [updateHeight, syncHasText, desktop],
   )
 
   // VirtualKeyboard → backspace. If the user has a selection (e.g. they
@@ -274,6 +311,47 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               <CalendarX size={19} />
             </button>
           )}
+          {/* Quick replies: canned staff messages (admin + trainer). Available
+              regardless of the 24h window - a closed-window send is auto-wrapped
+              in the approved admin_message template server-side, so a schedule
+              change still reaches a client who has gone quiet. */}
+          <div className="relative flex-shrink-0">
+            <button
+              type="button"
+              tabIndex={-1}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => setQrOpen((v) => !v)}
+              className={cn(
+                "w-9 h-9 mb-0.5 rounded-xl border flex items-center justify-center active:opacity-60",
+                qrOpen
+                  ? "border-brand bg-brand/10 text-brand dark:border-[#69B58F] dark:bg-[#69B58F]/15 dark:text-[#69B58F]"
+                  : "border-gray-300/80 bg-white/70 text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-[#8696A0]",
+              )}
+              aria-label="Quick replies"
+              title="Quick replies"
+            >
+              <MessageSquareText size={18} />
+            </button>
+            {qrOpen && (
+              <>
+                {/* Tap-away backdrop. */}
+                <div className="fixed inset-0 z-40" onClick={() => setQrOpen(false)} />
+                <div className="absolute bottom-11 left-0 z-50 w-64 max-w-[80vw] rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-white/10 dark:bg-[#233138] overflow-hidden">
+                  {QUICK_REPLIES.map((qr) => (
+                    <button
+                      key={qr.id}
+                      type="button"
+                      onClick={() => applyQuickReply(qr.text)}
+                      className="w-full text-left px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-white/5 active:bg-gray-100 dark:active:bg-white/10 border-b border-gray-100 dark:border-white/5 last:border-0"
+                    >
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{qr.label}</div>
+                      <div className="mt-0.5 text-xs text-gray-500 dark:text-[#8696A0] line-clamp-2 whitespace-pre-line">{qr.text}</div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           {/* "+" attachment button — opens the native picker. We deliberately
               fire on `click` (not pointerdown) because the file input dialog
               must be invoked from a user-initiated click for iOS to allow it.
