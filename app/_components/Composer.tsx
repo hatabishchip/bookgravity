@@ -127,6 +127,15 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     return () => mq.removeEventListener("change", update)
   }, [])
 
+  // The emoji toggle is hidden while the 24h window is closed — if the window
+  // flips closed mid-session, fall back out of the sticker/emoji panel so the
+  // user isn't stranded there with no button to leave.
+  useEffect(() => {
+    if (windowOpen) return
+    setBottomPanel("keyboard")
+    setEmojiOpen(false)
+  }, [windowOpen])
+
   // Recompute the textarea's height (up to 3 lines, then internal scroll).
   // Read-then-write in the same task to avoid layout thrashing. Coalesced
   // through requestAnimationFrame so a burst of keystrokes only triggers
@@ -547,7 +556,10 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
           {/* Emoji / sticker toggle — BOTH roles (a trainer softens messages
               with emoji just as much as an admin). Independent of onAttach:
               emoji have nothing to do with file attachments. The icon flips
-              depending on which panel is shown below, mirroring WhatsApp. */}
+              depending on which panel is shown below, mirroring WhatsApp.
+              Hidden when the 24h window is CLOSED (owner 15.07) — the closed
+              composer keeps only what matters there: templates + wave. */}
+          {windowOpen && (
           <button
             type="button"
             tabIndex={-1}
@@ -572,6 +584,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
                 panel); on mobile it flips between emoji + keyboard. */}
             {desktop || bottomPanel === "keyboard" ? <Smile size={22} /> : <Keyboard size={22} />}
           </button>
+          )}
 
           {/* Standalone 👋 wave — shown to BOTH admin and trainer, but ONLY
               when the 24h window is CLOSED (a cold chat). It sends an approved
