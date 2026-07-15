@@ -998,12 +998,14 @@ export default function Inbox({
   }, [refreshList])
   useEffect(() => {
     refreshList()
-    // Visible-tab only (CPU guard 2026-06-12) — cabinets stay open 24/7.
+    // Polling is now only a SAFETY-NET behind the SSE stream (owner 15.07:
+    // "связь без дёрганья"). The stream pushes changes in real time; this rare
+    // 60s tick just covers a dropped/blocked stream. Visible-tab only.
     const tick = () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return
       refreshList()
     }
-    const t = setInterval(tick, 30_000)
+    const t = setInterval(tick, 60_000)
     const onVis = () => { if (document.visibilityState === "visible") refreshList() }
     document.addEventListener("visibilitychange", onVis)
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis) }
@@ -1084,17 +1086,53 @@ export default function Inbox({
       setLoadingDetail(true)
       refreshDetail(selectedId).finally(() => setLoadingDetail(false))
     }
-    // Visible-tab only (CPU guard 2026-06-12): a chat left open in a
-    // background tab used to hit the function every 8s all night.
+    // Safety-net poll behind the SSE stream (real-time push drives updates
+    // now). Visible-tab only; 60s is just a backstop for a dropped stream.
     const tick = () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return
       refreshDetail(selectedId)
     }
-    const t = setInterval(tick, 10_000)
+    const t = setInterval(tick, 60_000)
     const onVis = () => { if (document.visibilityState === "visible") refreshDetail(selectedId) }
     document.addEventListener("visibilitychange", onVis)
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis) }
   }, [selectedId, refreshDetail])
+
+  // Real-time push (SSE): one held-open connection replaces polling. On a
+  // `changed` event we refresh the list and, if a chat is open, its detail -
+  // both hit the cache-through path, so the UI updates instantly and stays
+  // warm. Refs keep the handler current without reopening the stream on every
+  // chat switch. EventSource auto-reconnects (incl. our ~50s self-close).
+  const refreshListRef = useRef(refreshList)
+  const refreshDetailRef = useRef(refreshDetail)
+  const selectedIdRef = useRef(selectedId)
+  refreshListRef.current = refreshList
+  refreshDetailRef.current = refreshDetail
+  selectedIdRef.current = selectedId
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof EventSource === "undefined") return
+    let es: EventSource | null = null
+    let stopped = false
+    const open = () => {
+      if (stopped) return
+      es = new EventSource("/api/whatsapp/stream")
+      es.addEventListener("changed", () => {
+        refreshListRef.current()
+        const id = selectedIdRef.current
+        if (id) refreshDetailRef.current(id)
+      })
+      es.onerror = () => {
+        // Browser retries automatically per our `retry:` hint; if it hard-
+        // closed, reopen shortly. Guard against duplicate reopen loops.
+        if (es && es.readyState === EventSource.CLOSED && !stopped) {
+          es.close()
+          setTimeout(open, 3000)
+        }
+      }
+    }
+    open()
+    return () => { stopped = true; es?.close() }
+  }, [])
 
   // Background prefetch: after the list loads, quietly warm the cache for the
   // most recent chats so even the FIRST open of the day is instant (like a
