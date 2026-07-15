@@ -1847,7 +1847,7 @@ export default function Inbox({
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           {visibleConvos!.length === 0 && (
             <div className="py-10 text-center text-gray-400 dark:text-[#8696A0] text-sm">Ничего не найдено</div>
           )}
@@ -2106,7 +2106,7 @@ export default function Inbox({
           // The interactive keyboard drag (peel down on a thread drag, snap on
           // release) is wired via native touch listeners in an effect above, so
           // it can preventDefault the scroll while it owns the gesture.
-          className="chat-scroll flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 space-y-2"
+          className="chat-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 py-4 space-y-2"
         >
           {loadingDetail && !detail ? (
             <div className="text-center text-gray-400 text-sm py-8">

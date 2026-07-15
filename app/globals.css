@@ -86,7 +86,11 @@ html, body {
   max-width: 100vw;
   overflow-x: hidden;
   touch-action: pan-y;
-  overscroll-behavior-x: none;
+  /* Kill the browser/WebView pull-to-refresh: dragging the inbox down and
+     releasing was reloading the page and closing the open chat (owner report
+     15.07). This is an installed/app-like experience - swipe-to-reload isn't
+     wanted anywhere. `none` also keeps horizontal chaining off. */
+  overscroll-behavior: none;
 }
 
 * {
