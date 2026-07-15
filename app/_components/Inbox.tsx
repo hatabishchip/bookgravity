@@ -80,6 +80,16 @@ type MessageRow = {
   templateName: string | null
   status: string
   errorDetail: string | null
+  /** CLIENT-ONLY (never from the server): the local object URL for an
+   *  outbound photo/video we're sending. Kept even after the server row
+   *  arrives so the bubble shows the same pixels while the proxy image
+   *  preloads - no flicker. Revoked once the proxy has taken over. */
+  localMediaUrl?: string | null
+  /** CLIENT-ONLY: upload progress for an outbound media bubble.
+   *  phase "uploading" = phone->server (real %); "processing" = server->Meta
+   *  (spinner, no % available). Undefined once the send completes. */
+  uploadPct?: number
+  uploadPhase?: "uploading" | "processing"
   /** Emoji reaction the team put on this message (WhatsApp-style). */
   reaction: string | null
   fromTrainerId: string | null
@@ -222,6 +232,141 @@ function emojiCount(text: string): number {
   let count = 0
   for (const _ of text.replace(/\s+/g, "")) count++
   return count
+}
+
+// Circular loader for the media overlay. With a pct it draws an arc filling to
+// that percent (upload phase); without one it spins (server->Meta phase).
+function MediaSpinner({ pct }: { pct?: number }) {
+  const R = 18
+  const C = 2 * Math.PI * R
+  const off = pct != null ? C * (1 - Math.max(0, Math.min(100, pct)) / 100) : C * 0.72
+  return (
+    <span className="relative inline-flex items-center justify-center w-12 h-12">
+      <svg width="48" height="48" viewBox="0 0 48 48" className={pct == null ? "animate-spin" : undefined}>
+        <circle cx="24" cy="24" r={R} fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="3" />
+        <circle
+          cx="24" cy="24" r={R} fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"
+          strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 24 24)"
+        />
+      </svg>
+      {pct != null && (
+        <span className="absolute text-[11px] font-semibold text-white tabular-nums">{Math.round(pct)}</span>
+      )}
+    </span>
+  )
+}
+
+// Inline photo/video with a no-flicker source swap + upload overlay.
+//
+// No-flicker: an outbound bubble carries `localMediaUrl` (a blob: URL). We keep
+// showing it even after the server row arrives; the proxy image is preloaded
+// off-screen and we only switch `src` to it once it has fully loaded, then
+// revoke the blob. So the pixels on screen never blank out.
+//
+// Overlay: while `uploadPhase` is set we dim the media and show a loader -
+// real % during "uploading", a spinner during "processing" - plus a
+// "Still sending…" line if the server phase drags on.
+function ChatMedia({
+  m,
+  onImageClick,
+  onImgTouchStart,
+  onImgTouchEnd,
+}: {
+  m: MessageRow
+  onImageClick?: (src: string) => void
+  onImgTouchStart: (e: React.TouchEvent) => void
+  onImgTouchEnd: (e: React.TouchEvent, src: string) => void
+}) {
+  const proxyUrl = `/api/whatsapp/media/${m.id}`
+  const hasLocal = !!m.localMediaUrl
+  const busy = m.uploadPhase === "uploading" || m.uploadPhase === "processing"
+  const isTmp = m.id.startsWith("tmp_")
+  // If there's no local blob to fall back on, the proxy is the only source, so
+  // treat it as "ready" from the start (inbound media, or a reloaded page).
+  const [proxyReady, setProxyReady] = useState(!hasLocal)
+  // "Still sending…" appears if the server phase (processing) drags past 8s.
+  const [longWait, setLongWait] = useState(false)
+
+  // Preload the proxy once the send is done (real server id, not busy). Images
+  // preload via Image(); for video we just switch when the upload finishes
+  // (preloading a whole video off-screen is wasteful). On preload error we keep
+  // the local blob rather than swap to a broken proxy.
+  useEffect(() => {
+    if (proxyReady || busy || isTmp) return
+    if (m.type !== "image") { setProxyReady(true); return }
+    const img = new Image()
+    img.onload = () => setProxyReady(true)
+    img.onerror = () => {} // keep showing the local blob
+    img.src = proxyUrl
+  }, [proxyReady, busy, isTmp, m.type, proxyUrl])
+
+  // Revoke the local blob shortly after the proxy takes over (paint has swapped).
+  useEffect(() => {
+    if (!(proxyReady && m.localMediaUrl)) return
+    const u = m.localMediaUrl
+    const t = setTimeout(() => { try { URL.revokeObjectURL(u) } catch {} }, 1000)
+    return () => clearTimeout(t)
+  }, [proxyReady, m.localMediaUrl])
+
+  // Arm / disarm the "Still sending…" timer with the processing phase.
+  useEffect(() => {
+    if (m.uploadPhase !== "processing") { setLongWait(false); return }
+    const t = setTimeout(() => setLongWait(true), 8000)
+    return () => clearTimeout(t)
+  }, [m.uploadPhase])
+
+  const src = proxyReady ? proxyUrl : (m.localMediaUrl || proxyUrl)
+
+  const overlay = busy && (
+    <div className="absolute inset-0 flex items-center justify-center bg-black/35 rounded-xl pointer-events-none">
+      <MediaSpinner pct={m.uploadPhase === "uploading" ? (m.uploadPct ?? 0) : undefined} />
+    </div>
+  )
+
+  if (m.type === "video") {
+    return (
+      <>
+        <div className="relative mb-1">
+          <video
+            src={src}
+            controls={!busy}
+            playsInline
+            className="rounded-xl max-w-full max-h-72 bg-black block"
+          />
+          {overlay}
+        </div>
+        {m.uploadPhase === "processing" && longWait && (
+          <div className="text-[10px] text-gray-500 dark:text-[#8696A0] mb-1">Still sending…</div>
+        )}
+      </>
+    )
+  }
+
+  // image
+  return (
+    <>
+      <div className="relative mb-1 inline-block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={m.body ?? "photo"}
+          draggable={false}
+          onClick={(e) => { if (busy) return; e.stopPropagation(); onImageClick?.(src) }}
+          onTouchStart={onImgTouchStart}
+          onTouchEnd={(e) => { if (!busy) onImgTouchEnd(e, src) }}
+          className={cn(
+            "rounded-xl max-w-full max-h-72 object-cover bg-black/10",
+            busy ? "cursor-default" : "cursor-zoom-in",
+          )}
+          style={{ WebkitTouchCallout: "none" }}
+        />
+        {overlay}
+      </div>
+      {m.uploadPhase === "processing" && longWait && (
+        <div className="text-[10px] text-gray-500 dark:text-[#8696A0] mb-1">Still sending…</div>
+      )}
+    </>
+  )
 }
 
 function MessageBubble({
@@ -484,44 +629,15 @@ function MessageBubble({
           </div>
         )}
 
-        {/* Inline media. For pending optimistic messages we use the local
-            objectURL stored in mediaUrl; for persisted ones we go through
-            our /api/whatsapp/media proxy (which resolves the Meta media_id
-            on demand). */}
-        {m.type === "image" && (
-          (() => {
-            const src = m.mediaUrl?.startsWith("blob:")
-              ? m.mediaUrl
-              : `/api/whatsapp/media/${m.id}`
-            return (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={src}
-                alt={m.body ?? "photo"}
-                draggable={false}
-                onClick={(e) => { e.stopPropagation(); onImageClick?.(src) }}
-                onTouchStart={onImgTouchStart}
-                onTouchEnd={(e) => onImgTouchEnd(e, src)}
-                className="rounded-xl max-w-full max-h-72 object-cover mb-1 bg-black/10 cursor-zoom-in"
-                style={{ WebkitTouchCallout: "none" }}
-              />
-            )
-          })()
-        )}
-        {m.type === "video" && (
-          (() => {
-            const src = m.mediaUrl?.startsWith("blob:")
-              ? m.mediaUrl
-              : `/api/whatsapp/media/${m.id}`
-            return (
-              <video
-                src={src}
-                controls
-                playsInline
-                className="rounded-xl max-w-full max-h-72 mb-1 bg-black"
-              />
-            )
-          })()
+        {/* Inline media (photo/video/sticker) with a no-flicker source swap and
+            an upload-progress overlay. See ChatMedia. */}
+        {(m.type === "image" || m.type === "video") && (
+          <ChatMedia
+            m={m}
+            onImageClick={onImageClick}
+            onImgTouchStart={onImgTouchStart}
+            onImgTouchEnd={onImgTouchEnd}
+          />
         )}
         {m.type === "audio" && (
           <audio
@@ -1248,7 +1364,7 @@ export default function Inbox({
         body: null,
         translatedBody: null,
         detectedLang: null,
-        mediaUrl: localUrl, // local objectURL for instant preview
+        mediaUrl: localUrl,
         mediaMime: file.type,
         templateName: null,
         status: "queued",
@@ -1258,6 +1374,11 @@ export default function Inbox({
         fromTrainer: null,
         importedAt: null,
         createdAt: new Date().toISOString(),
+        // Instant, flicker-free preview: the bubble shows this blob and keeps
+        // showing it until the proxy image has preloaded (see ChatMedia).
+        localMediaUrl: localUrl,
+        uploadPct: 0,
+        uploadPhase: "uploading",
       }
       setDetail((prev) =>
         prev ? { ...prev, messages: [...prev.messages, optimistic] } : prev,
@@ -1268,79 +1389,94 @@ export default function Inbox({
         if (el) el.scrollTop = el.scrollHeight
       })
 
+      // Patch just this optimistic bubble (progress %, phase, status, ...).
+      const patch = (fields: Partial<MessageRow>) =>
+        setDetail((prev) =>
+          prev
+            ? { ...prev, messages: prev.messages.map((m) => (m.id === tempId ? { ...m, ...fields } : m)) }
+            : prev,
+        )
+      // Throttle progress writes to whole-percent changes (avoids a re-render
+      // per network chunk).
+      let lastPct = -1
+      const onPct = (pct: number) => {
+        const p = Math.max(0, Math.min(100, Math.round(pct)))
+        if (p === lastPct) return
+        lastPct = p
+        patch({ uploadPct: p, uploadPhase: "uploading" })
+      }
+
       try {
         // Vercel serverless caps the request body at ~4.5 MB, which a phone
         // video blows past. For anything sizeable, stream it straight to Vercel
         // Blob first and hand the media route just the URL; small photos still
         // take the simple multipart path.
         const BLOB_THRESHOLD = 4 * 1024 * 1024
-        let r: Response
+        let ok = false
+        let statusCode = 0
+        let data: { message?: MessageRow; error?: string } = {}
+
         if (file.size > BLOB_THRESHOLD) {
+          // Phone->Blob is the measurable upload; report its % live.
           const blob = await upload(file.name || "upload", file, {
             access: "public",
             handleUploadUrl: `/api/whatsapp/conversations/${detail.id}/blob-upload`,
             contentType: file.type || undefined,
+            onUploadProgress: (e) => onPct(e.percentage),
           })
-          r = await fetch(`/api/whatsapp/conversations/${detail.id}/media`, {
+          // Blob done; the server now pulls it and hands it to Meta - no % for
+          // that leg, so switch to the indeterminate spinner.
+          patch({ uploadPct: 100, uploadPhase: "processing" })
+          const r = await fetch(`/api/whatsapp/conversations/${detail.id}/media`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ blobUrl: blob.url, mime: file.type, filename: file.name }),
           })
+          ok = r.ok
+          statusCode = r.status
+          data = (await r.json().catch(() => ({}))) as typeof data
         } else {
-          const form = new FormData()
-          form.append("file", file)
-          r = await fetch(`/api/whatsapp/conversations/${detail.id}/media`, {
-            method: "POST",
-            body: form,
+          // Small files: one multipart POST. XHR (not fetch) so we get real
+          // upload progress; when the body finishes uploading we flip to the
+          // processing spinner while the server talks to Meta.
+          const res = await new Promise<{ ok: boolean; status: number; data: typeof data }>((resolve, reject) => {
+            const form = new FormData()
+            form.append("file", file)
+            const xhr = new XMLHttpRequest()
+            xhr.open("POST", `/api/whatsapp/conversations/${detail.id}/media`)
+            xhr.upload.onprogress = (e) => { if (e.lengthComputable) onPct((e.loaded / e.total) * 100) }
+            xhr.upload.onload = () => patch({ uploadPct: 100, uploadPhase: "processing" })
+            xhr.onload = () => {
+              let parsed: typeof data = {}
+              try { parsed = JSON.parse(xhr.responseText) } catch {}
+              resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data: parsed })
+            }
+            xhr.onerror = () => reject(new Error("Network error"))
+            xhr.send(form)
           })
+          ok = res.ok
+          statusCode = res.status
+          data = res.data
         }
-        const data = (await r.json().catch(() => ({}))) as {
-          message?: MessageRow
-          error?: string
-        }
-        if (!r.ok) {
-          setSendError(data.error || `HTTP ${r.status}`)
-          setDetail((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  messages: prev.messages.map((m) =>
-                    m.id === tempId
-                      ? { ...m, status: "failed", errorDetail: data.error ?? `HTTP ${r.status}` }
-                      : m,
-                  ),
-                }
-              : prev,
-          )
+
+        if (!ok) {
+          setSendError(data.error || `HTTP ${statusCode}`)
+          // Clear the overlay (uploadPhase undefined) so the bubble shows the
+          // photo + the "Not delivered" line; keep the local blob visible.
+          patch({ status: "failed", errorDetail: data.error ?? `HTTP ${statusCode}`, uploadPhase: undefined, uploadPct: undefined })
         } else if (data.message) {
-          // Replace the optimistic bubble with the server row; revoke the
-          // local objectURL since the bubble now points to the proxy.
-          URL.revokeObjectURL(localUrl)
+          // Swap in the server row but CARRY the local blob so the on-screen
+          // pixels don't blank while ChatMedia preloads the proxy. Overlay off.
+          const serverMsg = { ...(data.message as MessageRow), localMediaUrl: localUrl, uploadPhase: undefined, uploadPct: undefined }
           setDetail((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  messages: prev.messages.map((m) =>
-                    m.id === tempId ? (data.message as MessageRow) : m,
-                  ),
-                }
-              : prev,
+            prev ? { ...prev, messages: prev.messages.map((m) => (m.id === tempId ? serverMsg : m)) } : prev,
           )
           refreshList()
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         setSendError(msg)
-        setDetail((prev) =>
-          prev
-            ? {
-                ...prev,
-                messages: prev.messages.map((m) =>
-                  m.id === tempId ? { ...m, status: "failed", errorDetail: msg } : m,
-                ),
-              }
-            : prev,
-        )
+        patch({ status: "failed", errorDetail: msg, uploadPhase: undefined, uploadPct: undefined })
       }
     },
     [detail, refreshList],
