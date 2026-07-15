@@ -4,7 +4,7 @@
 // it can be pinned into GOOGLE_DRIVE_REFRESH_TOKEN once. SUPER_ADMIN only.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
-import { driveExchangeCode } from "@/lib/google-drive"
+import { driveExchangeCode, ensureRootFolderWithToken } from "@/lib/google-drive"
 import { elog } from "@/lib/elog"
 
 export const dynamic = "force-dynamic"
@@ -26,9 +26,13 @@ export async function GET(req: NextRequest) {
   const tok = await driveExchangeCode(code)
   if (!tok.ok || !tok.refreshToken) return red("noretoken")
 
+  // Create/find the root media folder RIGHT NOW with the fresh access token —
+  // one consent round-trip yields both env values (refresh token + root id).
+  const rootFolderId = await ensureRootFolderWithToken(tok.accessToken)
+
   // One-time capture: the refresh token gets pinned into the env
   // (GOOGLE_DRIVE_REFRESH_TOKEN) from here. It's the owner's own Drive token in
   // the owner's own DB; the log row is removed once the env is set.
-  await elog("drive:connect", "drive authorized", { refreshToken: tok.refreshToken })
+  await elog("drive:connect", "drive authorized", { refreshToken: tok.refreshToken, rootFolderId })
   return red("connected")
 }

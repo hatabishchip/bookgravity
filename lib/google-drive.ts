@@ -205,3 +205,10 @@ export async function ensureRootFolder(): Promise<string | null> {
   // Root lives at Drive root ("root" is the reserved parent alias).
   return ensureFolder(token, "Gravity Stretching Media", "root")
 }
+
+/** Same, but with a caller-supplied access token — used by the OAuth callback,
+ *  which holds a fresh token BEFORE GOOGLE_DRIVE_REFRESH_TOKEN lands in env.
+ *  Lets one consent round-trip produce both env values at once. */
+export async function ensureRootFolderWithToken(token: string): Promise<string | null> {
+  return ensureFolder(token, "Gravity Stretching Media", "root")
+}
