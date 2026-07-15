@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { upload } from "@vercel/blob/client"
 import Composer from "@/app/_components/Composer"
 import useKeyboardSheet from "@/app/_components/useKeyboardSheet"
+import { readListCache, writeListCache, readDetailCache, writeDetailCache } from "@/lib/inbox-cache"
 import ChatBookingSheet, { type ChatBooking } from "@/app/_components/ChatBookingSheet"
 import ImageLightbox from "@/app/_components/ImageLightbox"
 import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns"
@@ -866,7 +867,13 @@ export default function Inbox({
     }
   }, [embedded, selectedId])
 
-  const [convos, setConvos] = useState<ConversationListItem[] | null>(null)
+  // Hydrate the list from the local cache SYNCHRONOUSLY on the first render so
+  // the inbox opens already populated (WhatsApp/Telegram style) - refreshList()
+  // then reconciles in the background. "Loading…" now only shows on a genuinely
+  // cold cache (very first visit on this device).
+  const [convos, setConvos] = useState<ConversationListItem[] | null>(
+    () => readListCache<ConversationListItem[]>(role),
+  )
   const [search, setSearch] = useState("")
   // Chat-list filter by booking day: all chats / booked today / booked tomorrow.
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "tomorrow" | "awaiting">("all")
@@ -969,9 +976,13 @@ export default function Inbox({
   const refreshList = useCallback(async () => {
     try {
       const r = await fetch("/api/whatsapp/conversations", { cache: "no-store" })
-      if (r.ok) setConvos(await r.json())
+      if (r.ok) {
+        const list = (await r.json()) as ConversationListItem[]
+        setConvos(list)
+        writeListCache(role, list)
+      }
     } catch {}
-  }, [])
+  }, [role])
 
   // "Mark all read": zero the admin unread backlog in one tap, then refresh so
   // the list + the app-icon badge (both read unreadAdmin) drop to zero.
@@ -1029,11 +1040,14 @@ export default function Inbox({
           })
           return { ...d, messages: [...merged, ...inFlight] }
         })
+        // Persist the fresh server snapshot for instant re-open. We cache the
+        // raw server payload (no tmp_/blob rows) - those are re-merged live.
+        writeDetailCache(role, id, d)
       } else if (r.status === 403 || r.status === 404) {
         setDetail(null)
       }
     } catch {}
-  }, [])
+  }, [role])
   // Class-action data: the selected client's upcoming bookings (+ studio slug
   // gating the composer button). Refetched on chat open and after move/cancel.
   const refreshClassInfo = useCallback(async () => {
@@ -1058,8 +1072,18 @@ export default function Inbox({
       setDetail(null)
       return
     }
-    setLoadingDetail(true)
-    refreshDetail(selectedId).finally(() => setLoadingDetail(false))
+    // Instant open: paint the cached chat immediately, then reconcile. The
+    // spinner shows only when this chat has never been cached on this device.
+    const cached = readDetailCache<ConversationDetail>(role, selectedId)
+    if (cached && cached.id === selectedId) {
+      setDetail(cached)
+      setLoadingDetail(false)
+      void refreshDetail(selectedId)
+    } else {
+      setDetail(null)
+      setLoadingDetail(true)
+      refreshDetail(selectedId).finally(() => setLoadingDetail(false))
+    }
     // Visible-tab only (CPU guard 2026-06-12): a chat left open in a
     // background tab used to hit the function every 8s all night.
     const tick = () => {
@@ -1071,6 +1095,31 @@ export default function Inbox({
     document.addEventListener("visibilitychange", onVis)
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis) }
   }, [selectedId, refreshDetail])
+
+  // Background prefetch: after the list loads, quietly warm the cache for the
+  // most recent chats so even the FIRST open of the day is instant (like a
+  // messenger that has already synced). One-time per session, sequential with
+  // a small gap so we don't stampede the function; skips chats already cached.
+  const prefetchedRef = useRef(false)
+  useEffect(() => {
+    if (prefetchedRef.current || !convos || convos.length === 0) return
+    prefetchedRef.current = true
+    const ids = convos.slice(0, 15).map((c) => c.id).filter((id) => id !== selectedId)
+    let cancelled = false
+    ;(async () => {
+      for (const id of ids) {
+        if (cancelled) return
+        if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+        if (readDetailCache<ConversationDetail>(role, id)) continue // already warm
+        try {
+          const r = await fetch(`/api/whatsapp/conversations/${id}`, { cache: "no-store" })
+          if (r.ok) writeDetailCache(role, id, await r.json())
+        } catch {}
+        await new Promise((res) => setTimeout(res, 250))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [convos, role, selectedId])
 
   // Jump to the latest message. useLayoutEffect runs BEFORE the browser
   // paints, so the chat opens already pinned to the bottom — no visible
