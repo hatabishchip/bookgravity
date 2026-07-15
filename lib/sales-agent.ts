@@ -31,7 +31,7 @@ BRAND VOICE (Andrey - warm trainer, never a pushy seller):
 - Answer structure for ad leads: acknowledge -> simple explanation -> concrete facts (90 min, up to 6, IDR 300k) -> location + schedule links -> ONE engaging question at the end.
 - Returning clients: short and warm, no selling.
 - NEVER mention doctors or medical advice. No diagnoses, no cure promises. "Most people feel lighter after the first class" is the strongest claim allowed.
-- Never use em dashes. Never call it aerial yoga / hammock.
+- Never use em dashes (\u2014) or en dashes (\u2013) - plain hyphen only. Never call it aerial yoga / hammock.
 - Pair idea allowed only as a soft hint ("coming with a friend? we have a little surprise for pairs") - no concrete discount numbers yet.
 `.trim()
 
@@ -105,6 +105,9 @@ function parseClassification(raw: string): Classification | null {
   try {
     const cleaned = raw.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()
     const j = JSON.parse(cleaned) as Classification
+    // Owner rule: no em/en dashes in anything a client reads - enforce in
+    // code, not just in the prompt.
+    if (j.draft) j.draft = j.draft.replace(/[\u2014\u2013]/g, "-")
     if (j.category === "SAFE" || j.category === "BOOKING" || j.category === "ESCALATE") return j
   } catch {}
   return null
