@@ -20,7 +20,30 @@ import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 // Permission: admin can post to any conversation in their studio. Trainer can
 // post only to conversations assigned to them.
 
-const TextSchema = z.object({ text: z.string().min(1).max(4096) })
+/** Mark the agent suggestion this send came from as sent (or edited_sent when
+ *  staff changed the draft before sending) - each outcome is a training
+ *  signal for the self-learning loop. Never throws. */
+async function closeAgentSuggestion(suggestionId: string, conversationId: string, sentText: string) {
+  try {
+    const s = await prisma.agentSuggestion.findFirst({
+      where: { id: suggestionId, conversationId, status: "pending" },
+      select: { id: true, draft: true },
+    })
+    if (!s) return
+    const edited = !!(s.draft && s.draft.trim() !== sentText.trim())
+    await prisma.agentSuggestion.update({
+      where: { id: s.id },
+      data: { status: edited ? "edited_sent" : "sent", sentText },
+    })
+  } catch {}
+}
+
+const TextSchema = z.object({
+  text: z.string().min(1).max(4096),
+  // Present when staff sends an AI agent suggestion (possibly edited): marks
+  // the outbound with the Agent signature and closes the suggestion row.
+  agentSuggestionId: z.string().optional(),
+})
 const TemplateSchema = z.object({
   templateName: z.string().min(1).max(64),
   languageCode: z.string().min(2).max(10).optional(),
@@ -226,8 +249,15 @@ export async function POST(
       status: res.ok ? "sent" : "failed",
       errorDetail: res.ok ? null : res.error,
       fromTrainerId,
+      fromAgent: !!parsed.data.agentSuggestionId,
     })
     if (res.ok) await markConversationHandled(convo.id)
+    // Close the agent suggestion this send came from (sent vs edited_sent is
+    // recorded by the suggestion PATCH from the client; here we just make sure
+    // a stale pending row never lingers after a successful send).
+    if (res.ok && parsed.data.agentSuggestionId) {
+      await closeAgentSuggestion(parsed.data.agentSuggestionId, convo.id, parsed.data.text)
+    }
     return NextResponse.json(
       { message: saved, sendResult: res },
       { status: res.ok ? 201 : 502 },
@@ -246,8 +276,15 @@ export async function POST(
     status: res.ok ? "sent" : "failed",
     errorDetail: res.ok ? null : res.error,
     fromTrainerId,
+    fromAgent: !!parsed.data.agentSuggestionId,
   })
   if (res.ok) await markConversationHandled(convo.id)
+  // Close the agent suggestion this send came from (sent vs edited_sent is
+  // recorded by the suggestion PATCH from the client; here we just make sure
+  // a stale pending row never lingers after a successful send).
+  if (res.ok && parsed.data.agentSuggestionId) {
+    await closeAgentSuggestion(parsed.data.agentSuggestionId, convo.id, parsed.data.text)
+  }
   return NextResponse.json(
     { message: saved, sendResult: res },
     { status: res.ok ? 201 : 502 },

@@ -95,6 +95,17 @@ export async function GET(
     )
   }
 
+  // Pending AI agent suggestion for this chat (suggest-mode) - shown as a
+  // card above the composer. Rides along with every detail refresh so the
+  // inbox needs no extra polling endpoint.
+  const suggestion = await prisma.agentSuggestion
+    .findFirst({
+      where: { conversationId: convo.id, status: "pending" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, category: true, draft: true, reason: true, createdAt: true },
+    })
+    .catch(() => null)
+
   return NextResponse.json({
     id: convo.id,
     clientPhone: convo.clientPhone,
@@ -104,6 +115,7 @@ export async function GET(
     lastInboundAt: convo.lastInboundAt,
     lastMessageAt: convo.lastMessageAt,
     messages,
+    suggestion,
   })
 }
 

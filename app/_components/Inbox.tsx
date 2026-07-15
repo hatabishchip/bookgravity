@@ -95,6 +95,8 @@ type MessageRow = {
   reaction: string | null
   fromTrainerId: string | null
   fromTrainer: { id: string; name: string } | null
+  /** True when this reply came from the AI sales agent's suggestion. */
+  fromAgent?: boolean
   importedAt: string | null
   createdAt: string
 }
@@ -112,6 +114,17 @@ const localMediaCache = new Map<string, string>()
 // 🙏 added 06.07 - Sveta asked for a "thank you" hands option (business politeness).
 const REACTIONS = ["❤️", "👍", "🙏", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌"] as const
 
+/** The AI sales agent's pending suggestion for a chat (suggest-mode).
+ *  SAFE -> `draft` holds a ready reply; BOOKING/ESCALATE -> `reason` tells
+ *  staff why the agent stepped aside and a human must answer. */
+type AgentSuggestion = {
+  id: string
+  category: "SAFE" | "BOOKING" | "ESCALATE"
+  draft: string | null
+  reason: string | null
+  createdAt: string
+}
+
 type ConversationDetail = {
   id: string
   clientPhone: string
@@ -121,6 +134,7 @@ type ConversationDetail = {
   lastInboundAt: string | null
   lastMessageAt: string
   messages: MessageRow[]
+  suggestion?: AgentSuggestion | null
 }
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
@@ -719,12 +733,14 @@ function MessageBubble({
         {/* Who answered — persists across reassignment (stored per message).
             Shown to admins and trainers alike: trainer name for a trainer's
             reply, "Admin" for an admin's typed reply. */}
-        {m.fromTrainer && isOut && (
+        {m.fromAgent && isOut ? (
+          /* Owner 15.07: everyone must SEE a reply came from the agent. */
+          <div className="text-[10px] text-gray-500 mt-1 italic">— Agent 🤖</div>
+        ) : m.fromTrainer && isOut ? (
           <div className="text-[10px] text-gray-500 mt-1 italic">— {m.fromTrainer.name}</div>
-        )}
-        {!m.fromTrainer && isOut && m.type === "text" && (
+        ) : !m.fromTrainer && isOut && m.type === "text" ? (
           <div className="text-[10px] text-gray-500 mt-1 italic">— Admin</div>
-        )}
+        ) : null}
 
         {/* On-demand translate for client (inbound) messages — admin only.
             Hidden once a translation exists (it's already shown above). */}
@@ -881,6 +897,33 @@ export default function Inbox({
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [sendError, setSendError] = useState<string | null>(null)
+  // --- AI sales agent (suggest-mode) ---
+  // Card above the composer with the agent's pending draft. `hidden` keeps a
+  // consumed/being-edited card from flashing back on the next detail refresh.
+  const [hiddenSuggestionId, setHiddenSuggestionId] = useState<string | null>(null)
+  const [composerPrefill, setComposerPrefill] = useState<{ text: string; nonce: number } | null>(null)
+  const pendingSuggestionIdRef = useRef<string | null>(null)
+
+  const dismissSuggestion = useCallback(async (sug: AgentSuggestion) => {
+    setHiddenSuggestionId(sug.id)
+    setDetail((prev) => (prev?.suggestion?.id === sug.id ? { ...prev, suggestion: null } : prev))
+    if (!detail) return
+    try {
+      await fetch(`/api/whatsapp/conversations/${detail.id}/suggestion`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ suggestionId: sug.id, action: "dismiss" }),
+      })
+    } catch {}
+  }, [detail])
+
+  const editSuggestion = useCallback((sug: AgentSuggestion) => {
+    if (!sug.draft) return
+    pendingSuggestionIdRef.current = sug.id
+    setHiddenSuggestionId(sug.id)
+    setDetail((prev) => (prev?.suggestion?.id === sug.id ? { ...prev, suggestion: null } : prev))
+    setComposerPrefill({ text: sug.draft, nonce: Date.now() })
+  }, [])
   const [assignOpen, setAssignOpen] = useState(false)
   const [translatingIds, setTranslatingIds] = useState<Set<string>>(new Set())
   // Timestamp of the last copy — drives the WhatsApp-style "Скопировано" toast.
@@ -1084,6 +1127,9 @@ export default function Inbox({
     } else {
       setDetail(null)
       setLoadingDetail(true)
+      setHiddenSuggestionId(null)
+      setComposerPrefill(null)
+      pendingSuggestionIdRef.current = null
       refreshDetail(selectedId).finally(() => setLoadingDetail(false))
     }
     // Safety-net poll behind the SSE stream (real-time push drives updates
@@ -1195,8 +1241,12 @@ export default function Inbox({
     router.push(params.toString() ? `?${params.toString()}` : "?")
   }
 
-  const send = useCallback(async (draft: string) => {
+  const send = useCallback(async (draft: string, agentSuggestionId?: string) => {
     if (!detail || !draft.trim()) return
+    // Edit flow: the composer was prefilled from an agent suggestion - the
+    // eventual plain onSend(text) must still close that suggestion.
+    const sugId = agentSuggestionId ?? pendingSuggestionIdRef.current
+    pendingSuggestionIdRef.current = null
     const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 
     // ---- Optimistic UI ----
@@ -1223,8 +1273,16 @@ export default function Inbox({
       reaction: null,
       fromTrainerId: null,
       fromTrainer: null,
+      fromAgent: !!sugId,
       importedAt: null,
       createdAt: new Date().toISOString(),
+    }
+    // Sending an agent suggestion consumes its card immediately (the server
+    // marks it sent/edited_sent; on failure the card simply comes back with
+    // the next detail refresh).
+    if (sugId) {
+      setHiddenSuggestionId(sugId)
+      setDetail((prev) => (prev?.suggestion?.id === sugId ? { ...prev, suggestion: null } : prev))
     }
     // Composer owns the textarea state and clears its own value when it
     // calls onSend(draft); we just append the optimistic bubble and run
@@ -1243,7 +1301,7 @@ export default function Inbox({
       const r = await fetch(`/api/whatsapp/conversations/${detail.id}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: draft }),
+        body: JSON.stringify({ text: draft, ...(sugId ? { agentSuggestionId: sugId } : {}) }),
       })
       const data = (await r.json().catch(() => ({}))) as {
         message?: MessageRow
@@ -2166,6 +2224,65 @@ export default function Inbox({
         {/* WhatsApp-style composer row: + on the left, pill input with the
             textarea, white circular Send button on the right. Sits over the
             chat doodle background, no separate border. */}
+        {/* AI sales agent suggestion (suggest-mode, owner 15.07). SAFE ->
+            ready draft with Send / Edit / Dismiss; BOOKING/ESCALATE -> a
+            "needs a human" note for the trainer. The agent NEVER sends by
+            itself - a person always presses Send. */}
+        {detail?.suggestion && detail.suggestion.id !== hiddenSuggestionId && (
+          <div className="mx-2 mb-1 rounded-xl border bg-white/95 dark:bg-[#1F2C34] shadow-sm border-gray-200 dark:border-white/10 px-3 py-2">
+            {detail.suggestion.category === "SAFE" && detail.suggestion.draft ? (
+              <>
+                <div className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 mb-1">
+                  🤖 Agent suggests a reply
+                </div>
+                <div className="text-[13px] whitespace-pre-wrap break-words text-gray-800 dark:text-gray-100 max-h-40 overflow-y-auto">
+                  {detail.suggestion.draft}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { const sug = detail.suggestion!; void send(sug.draft!, sug.id) }}
+                    className="px-3 py-1.5 rounded-full bg-emerald-600 text-white text-xs font-medium active:scale-95"
+                  >
+                    Send
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editSuggestion(detail.suggestion!)}
+                    className="px-3 py-1.5 rounded-full border border-gray-300 dark:border-white/20 text-xs text-gray-700 dark:text-gray-200 active:scale-95"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void dismissSuggestion(detail.suggestion!)}
+                    className="ml-auto px-3 py-1.5 rounded-full text-xs text-gray-500 dark:text-gray-400 active:scale-95"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 mb-0.5">
+                    🤖 Agent: needs your reply
+                  </div>
+                  <div className="text-[12px] text-gray-700 dark:text-gray-300 break-words">
+                    {detail.suggestion.reason || (detail.suggestion.category === "BOOKING" ? "Booking / schedule question" : "Needs a human reply")}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void dismissSuggestion(detail.suggestion!)}
+                  className="px-2.5 py-1 rounded-full text-xs text-gray-500 dark:text-gray-400 active:scale-95"
+                >
+                  OK
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         {/* Composer is always available. Admins: free text outside the 24h
             window auto-wraps in the admin_message template server-side.
             Trainers: the 👋 sends an approved greeting template to re-open a
@@ -2173,7 +2290,7 @@ export default function Inbox({
             `windowOpen` flag still drives the 👋 (a greeting only makes sense
             to re-open a closed window, but it's harmless when open). */}
         {windowOpen || role === "ADMIN" || role === "TRAINER" ? (
-          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} quickReplyDisabled={quickReplyDisabled} onQuickReplySent={onQuickReplySent} windowOpen={windowOpen} keyboardOpen={kb.open} onKeyboardOpenChange={kb.setOpen} onKbHeight={kb.onPanelHeight} onClassAction={classInfo?.studioSlug === "canggu" ? () => setClassSheetOpen(true) : undefined} />
+          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} quickReplyDisabled={quickReplyDisabled} onQuickReplySent={onQuickReplySent} windowOpen={windowOpen} keyboardOpen={kb.open} onKeyboardOpenChange={kb.setOpen} onKbHeight={kb.onPanelHeight} onClassAction={classInfo?.studioSlug === "canggu" ? () => setClassSheetOpen(true) : undefined} prefill={composerPrefill} />
         ) : null}
         {classSheetOpen && (
           <ChatBookingSheet

@@ -85,9 +85,12 @@ export interface ComposerProps {
   /** When set, shows the calendar-x "class action" button (move/cancel the
    *  client's booking right from the chat). Gated per studio by the parent. */
   onClassAction?: () => void
+  /** Put text into the composer programmatically (AI agent's "Edit" flow).
+   *  `nonce` bumps on every request so the same draft can be re-applied. */
+  prefill?: { text: string; nonce: number } | null
 }
 
-export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, quickReplyDisabled, onQuickReplySent, windowOpen = true, keyboardOpen = true, onKeyboardOpenChange, onKbHeight, onClassAction }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, quickReplyDisabled, onQuickReplySent, windowOpen = true, keyboardOpen = true, onKeyboardOpenChange, onKbHeight, onClassAction, prefill }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // On-screen keyboard handle — we report the text before the caret after
@@ -170,6 +173,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     updateHeightNow()
   }, [fontScale, updateHeightNow])
 
+
   // Report the caret context to the on-screen keyboard (auto-capitalization).
   // Cheap: a slice + an imperative call; the keyboard only setStates when the
   // shift arming actually flips.
@@ -191,6 +195,23 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     const next = t.value.trim().length > 0
     setHasText((prev) => (prev === next ? prev : next))
   }, [])
+
+  // Programmatic prefill (AI agent "Edit" flow): drop the draft into the
+  // textarea so staff can tweak it before sending. Replaces whatever was
+  // typed - the agent card is the explicit trigger, not a background write.
+  const prefillNonceRef = useRef(0)
+  useEffect(() => {
+    if (!prefill || prefill.nonce === prefillNonceRef.current) return
+    prefillNonceRef.current = prefill.nonce
+    const t = textareaRef.current
+    if (!t) return
+    t.value = prefill.text
+    t.setSelectionRange(t.value.length, t.value.length)
+    syncHasText()
+    updateHeightNow()
+    syncKbContext()
+    t.focus({ preventScroll: true })
+  }, [prefill, syncHasText, updateHeightNow, syncKbContext])
 
   // VirtualKeyboard → insert characters at the current caret position
   // (or replace the current selection). Falls back to "append at end" when

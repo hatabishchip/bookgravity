@@ -806,6 +806,9 @@ model WhatsAppMessage {
 
   @@index([conversationId, createdAt])
   @@index([waMessageId])
+  // Reply drafted by the AI sales agent and sent by staff (or auto later).
+  // Renders as an 'Agent' signature in the inbox so everyone sees who answered.
+  fromAgent       Boolean  @default(false)
 }
 
 // Verbose pipeline logging (incident 2026-06-11: reminders silently dead).
@@ -858,4 +861,24 @@ model SlotHandover {
   @@index([toTrainerId, status])
   @@index([fromTrainerId, status])
   @@index([slotId, status])
+}
+
+// AI sales-agent suggestion for an inbound WhatsApp message (suggest-mode,
+// owner 15.07.2026). The agent classifies the inbound and, for SAFE info
+// questions, drafts a reply in Andrey's voice; staff sends/edits/dismisses it
+// from the inbox. BOOKING/ESCALATE rows carry no draft - just the flag that a
+// human is needed. Every status change is a training signal.
+model AgentSuggestion {
+  id               String   @id @default(cuid())
+  conversationId   String
+  inboundMessageId String?
+  category         String // SAFE | BOOKING | ESCALATE
+  draft            String? // suggested reply text (SAFE only)
+  reason           String? // short why (escalations: what the human must handle)
+  status           String   @default("pending") // pending | sent | edited_sent | dismissed | expired
+  sentText         String? // what was actually sent (for learning diffs)
+  createdAt        DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt])
 }

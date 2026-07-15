@@ -174,6 +174,9 @@ export async function appendOutboundMessage(opts: {
   status?: string // queued|sent|delivered|read|failed
   errorDetail?: string | null
   fromTrainerId?: string | null
+  /** True when the text came from the AI sales agent's suggestion - renders
+   *  an "Agent" signature in the inbox so staff sees who answered. */
+  fromAgent?: boolean
 }) {
   const msg = await prisma.whatsAppMessage.create({
     data: {
@@ -189,6 +192,7 @@ export async function appendOutboundMessage(opts: {
       status: opts.status ?? "sent",
       errorDetail: opts.errorDetail ?? null,
       fromTrainerId: opts.fromTrainerId ?? null,
+      fromAgent: opts.fromAgent ?? false,
     },
   })
   await prisma.whatsAppConversation.update({

@@ -456,6 +456,16 @@ export async function POST(request: NextRequest) {
               hasTrainer: !!assignedTrainerId,
             })
 
+            // AI sales agent (suggest-mode, owner 15.07): classify this inbound
+            // and draft a reply suggestion for the inbox. Deferred + silent on
+            // failure - never blocks the webhook 200 to Meta.
+            if (type === "text" && msgBody) {
+              after(async () => {
+                const { generateAgentSuggestion } = await import("@/lib/sales-agent")
+                await generateAgentSuggestion(convo.id, saved.id)
+              })
+            }
+
             // Ring like WhatsApp: a native push for every inbound client message
             // to the studio's admins and the assigned trainer, deep-linking into
             // this chat (category "message"). Deferred via after() so it runs
