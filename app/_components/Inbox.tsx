@@ -1094,6 +1094,27 @@ export default function Inbox({
 
   const waveDisabled = !!(waveLockUntil && waveLockUntil > Date.now())
 
+  // --- Quick-reply templates cooldown (same pattern as the wave) -----------
+  // One tap can template-message a quiet client; without a lock a second
+  // accidental tap spams them (owner 15.07: "I could send these unlimited by
+  // mistake"). Once per 12h per conversation, tracked in localStorage.
+  const [qrLockUntil, setQrLockUntil] = useState<number | null>(null)
+  useEffect(() => {
+    if (typeof window === "undefined" || !detail) { setQrLockUntil(null); return }
+    const raw = window.localStorage.getItem(`qr:${detail.id}`)
+    const last = raw ? parseInt(raw, 10) : 0
+    const until = last + WAVE_COOLDOWN_MS
+    setQrLockUntil(until > Date.now() ? until : null)
+  }, [detail?.id, WAVE_COOLDOWN_MS])
+  const quickReplyDisabled = !!(qrLockUntil && qrLockUntil > Date.now())
+  // Composer reports a successful quick-reply send → arm the lock.
+  const onQuickReplySent = useCallback(() => {
+    if (!detail) return
+    const now = Date.now()
+    try { window.localStorage.setItem(`qr:${detail.id}`, String(now)) } catch {}
+    setQrLockUntil(now + WAVE_COOLDOWN_MS)
+  }, [detail, WAVE_COOLDOWN_MS])
+
   // Send a Meta-approved template (quick replies). Unlike free text, this
   // works even when the 24h customer-service window is closed.
   const sendTemplate = useCallback(async (t: {
@@ -1894,7 +1915,7 @@ export default function Inbox({
             `windowOpen` flag still drives the 👋 (a greeting only makes sense
             to re-open a closed window, but it's harmless when open). */}
         {windowOpen || role === "ADMIN" || role === "TRAINER" ? (
-          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} windowOpen={windowOpen} keyboardOpen={kb.open} onKeyboardOpenChange={kb.setOpen} onKbHeight={kb.onPanelHeight} onClassAction={classInfo?.studioSlug === "canggu" ? () => setClassSheetOpen(true) : undefined} />
+          <Composer onSend={send} onAttach={sendMedia} fontScale={fontScale} role={role} onSendTemplate={sendTemplate} clientName={detail?.clientName ?? null} onWave={sendWave} waveDisabled={waveDisabled} quickReplyDisabled={quickReplyDisabled} onQuickReplySent={onQuickReplySent} windowOpen={windowOpen} keyboardOpen={kb.open} onKeyboardOpenChange={kb.setOpen} onKbHeight={kb.onPanelHeight} onClassAction={classInfo?.studioSlug === "canggu" ? () => setClassSheetOpen(true) : undefined} />
         ) : null}
         {classSheetOpen && (
           <ChatBookingSheet

@@ -64,6 +64,11 @@ export interface ComposerProps {
   onWave?: () => void
   /** TRAINER-only: greys out the wave button during its 12h cooldown. */
   waveDisabled?: boolean
+  /** Greys out the quick-reply templates icon during its 12h cooldown - one
+   *  accidental double-tap must not template-spam a quiet client. */
+  quickReplyDisabled?: boolean
+  /** Notify the parent that a quick reply was actually sent → arms the lock. */
+  onQuickReplySent?: () => void
   /** True while the 24h customer-service window is open (the client has
    *  written within 24h). When closed, free text can't reach the client —
    *  only an approved template/wave can — so the text field is shown muted. */
@@ -82,7 +87,7 @@ export interface ComposerProps {
   onClassAction?: () => void
 }
 
-export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, windowOpen = true, keyboardOpen = true, onKeyboardOpenChange, onKbHeight, onClassAction }: ComposerProps) {
+export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, quickReplyDisabled, onQuickReplySent, windowOpen = true, keyboardOpen = true, onKeyboardOpenChange, onKbHeight, onClassAction }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // On-screen keyboard handle — we report the text before the caret after
@@ -237,15 +242,20 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
 
   // Quick reply -> send the canned template STRAIGHT to the chat (owner 14.07:
   // "at tap, send it to the chat, not into the input field"). On a closed window
-  // the server wraps it in the approved admin_message template.
+  // the server wraps it in the approved admin_message template. After one send
+  // the parent arms a 12h per-conversation lock (owner 15.07) so an accidental
+  // second tap can't spam the client.
   const applyQuickReply = useCallback(
     (qr: (typeof QUICK_REPLIES)[number]) => {
       if (sending) return
       setQrOpen(false)
       setSending(true)
-      Promise.resolve(onSend(qr.text)).catch(() => {}).finally(() => setSending(false))
+      Promise.resolve(onSend(qr.text))
+        .then(() => onQuickReplySent?.())
+        .catch(() => {})
+        .finally(() => setSending(false))
     },
-    [onSend, sending],
+    [onSend, sending, onQuickReplySent],
   )
 
   // VirtualKeyboard → backspace. If the user has a selection (e.g. they
@@ -380,15 +390,17 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               type="button"
               tabIndex={-1}
               onPointerDown={(e) => e.preventDefault()}
-              onClick={() => setQrOpen((v) => !v)}
+              onClick={() => { if (!quickReplyDisabled) setQrOpen((v) => !v) }}
+              disabled={quickReplyDisabled}
               className={cn(
                 "w-9 h-9 mb-0.5 rounded-xl border flex items-center justify-center active:opacity-60",
+                "disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed",
                 qrOpen
                   ? "border-brand bg-brand/10 text-brand dark:border-[#69B58F] dark:bg-[#69B58F]/15 dark:text-[#69B58F]"
                   : "border-gray-300/80 bg-white/70 text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-[#8696A0]",
               )}
               aria-label="Quick replies"
-              title="Quick replies"
+              title={quickReplyDisabled ? "Already sent - you can send a template once every 12 hours" : "Quick replies"}
             >
               <MessageSquareText size={18} />
             </button>
