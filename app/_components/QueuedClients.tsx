@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Plus, X } from "lucide-react"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
+import { useT } from "@/app/_components/LocaleProvider"
 
 // Client list collected inside a NOT-yet-saved session card (Schedule / Beta
 // creators). The slot has no id until the form is saved, so these clients are
@@ -20,6 +21,7 @@ export function QueuedClients({
   capacity: number
   canAdd?: boolean
 }) {
+  const t = useT()
   const [adding, setAdding] = useState(false)
   // Each queued client can cover several people (partySize), so seats used is
   // the SUM of party sizes, not the number of rows.
@@ -30,7 +32,7 @@ export function QueuedClients({
     <div className="mt-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] uppercase tracking-wider text-gray-400">
-          Clients ({usedSeats}/{capacity})
+          {t("Clients")} ({usedSeats}/{capacity})
         </span>
         {!adding && seatsLeft > 0 && canAdd && (
           <button
@@ -38,11 +40,11 @@ export function QueuedClients({
             onClick={() => setAdding(true)}
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand hover:underline"
           >
-            <Plus size={12} /> Add client
+            <Plus size={12} /> {t("Add client")}
           </button>
         )}
         {!adding && seatsLeft > 0 && !canAdd && (
-          <span className="text-[10px] text-gray-400">Assign a trainer first</span>
+          <span className="text-[10px] text-gray-400">{t("Assign a trainer first")}</span>
         )}
       </div>
 
@@ -60,7 +62,7 @@ export function QueuedClients({
           <button
             type="button"
             onClick={() => onChange(clients.filter((_, j) => j !== i))}
-            aria-label="Remove client"
+            aria-label={t("Remove client")}
             className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-rose-500 hover:bg-rose-50"
           >
             <X size={14} />

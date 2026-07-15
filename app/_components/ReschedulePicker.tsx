@@ -4,6 +4,7 @@ import { useState } from "react"
 import { format } from "date-fns"
 import { CheckCircle2, CalendarClock, ChevronDown, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useT, useLocale } from "@/app/_components/LocaleProvider"
 import { formatTime12 } from "@/lib/format"
 
 // Shared "move this booking to another class" picker for the trainer cabinet.
@@ -34,6 +35,8 @@ export function ReschedulePicker({
   /** Performs the move (PATCH {slotId}). Resolve false to show an error. */
   onMove: (slotId: string) => Promise<boolean | void> | boolean | void
 }) {
+  const t = useT()
+  const { dateLocale } = useLocale()
   const [open, setOpen] = useState(false)
   const [options, setOptions] = useState<RescheduleOption[] | null>(null)
   const [picked, setPicked] = useState<RescheduleOption | null>(null)
@@ -63,10 +66,10 @@ export function ReschedulePicker({
     const ok = await onMove(picked.id)
     setMoving(false)
     if (ok === false) {
-      setError("Couldn't move the booking - the class may be full. Try another one.")
+      setError(t("Couldn't move the booking - the class may be full. Try another one."))
       return
     }
-    setMovedTo(`${format(new Date(picked.date), "EEE, MMM d")} · ${formatTime12(picked.startTime)}`)
+    setMovedTo(`${format(new Date(picked.date), dateLocale ? "EEE, d MMM" : "EEE, MMM d", { locale: dateLocale })} · ${formatTime12(picked.startTime)}`)
     setOpen(false)
     setPicked(null)
     setOptions(null) // refetch next time — capacities changed
@@ -93,31 +96,31 @@ export function ReschedulePicker({
       >
         <span className="flex items-center gap-1.5">
           <CalendarClock size={14} className="text-brand" />
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reschedule</span>
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t("Reschedule")}</span>
         </span>
         {open
-          ? <X size={16} className="text-gray-400" aria-label="Close" />
-          : <ChevronDown size={16} className="text-gray-400" aria-label="Open" />}
+          ? <X size={16} className="text-gray-400" aria-label={t("Close")} />
+          : <ChevronDown size={16} className="text-gray-400" aria-label={t("Open")} />}
       </button>
 
       {movedTo && !open && (
         <div className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand bg-brand/5 border border-brand/20 rounded-lg px-3 py-2">
-          <CheckCircle2 size={14} /> Moved to {movedTo}. The client got a new confirmation.
+          <CheckCircle2 size={14} /> {t("Moved to {when}. The client got a new confirmation.", { when: movedTo })}
         </div>
       )}
 
       {open && (
         <div className="mt-3">
           {options === null ? (
-            <div className="text-sm text-gray-400 py-2">Loading classes…</div>
+            <div className="text-sm text-gray-400 py-2">{t("Loading classes…")}</div>
           ) : options.length === 0 ? (
-            <div className="text-sm text-gray-400 py-2">No upcoming classes with free spots.</div>
+            <div className="text-sm text-gray-400 py-2">{t("No upcoming classes with free spots.")}</div>
           ) : (
             <div className="max-h-64 overflow-y-auto space-y-3 pr-1">
               {Object.entries(byDate).map(([date, opts]) => (
                 <div key={date}>
                   <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                    {format(new Date(date), "EEEE, MMM d")}
+                    {format(new Date(date), dateLocale ? "EEEE, d MMM" : "EEEE, MMM d", { locale: dateLocale })}
                   </div>
                   <div className="space-y-1">
                     {opts.map((o) => {
@@ -138,17 +141,17 @@ export function ReschedulePicker({
                             {formatTime12(o.startTime)}
                             {o.classType !== "GROUP" && (
                               <span className={cn("ml-1.5 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded", active ? "bg-white/20 text-white" : "bg-amber-50 text-amber-600")}>
-                                {o.classType === "PRIVATE" ? "Private" : o.classType === "KIDS" ? "Kids" : o.classType}
+                                {o.classType === "PRIVATE" ? t("Private") : o.classType === "KIDS" ? t("Kids") : o.classType}
                               </span>
                             )}
                             {o.trainerName && (
                               <span className={cn("font-normal", active ? "text-white/80" : "text-gray-400")}>
-                                {" "}· {o.mine ? "my class" : o.trainerName}
+                                {" "}· {o.mine ? t("my class") : o.trainerName}
                               </span>
                             )}
                           </span>
                           <span className={cn("text-xs", active ? "text-white/80" : "text-gray-400")}>
-                            {o.spotsLeft} left
+                            {t("{n} left", { n: o.spotsLeft })}
                           </span>
                         </button>
                       )
@@ -169,8 +172,8 @@ export function ReschedulePicker({
               className="w-full mt-3 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-60 touch-manipulation"
             >
               {moving
-                ? "Moving…"
-                : `Confirm: move to ${format(new Date(picked.date), "MMM d")}, ${formatTime12(picked.startTime)}`}
+                ? t("Moving…")
+                : t("Confirm: move to {date}, {time}", { date: format(new Date(picked.date), dateLocale ? "d MMM" : "MMM d", { locale: dateLocale }), time: formatTime12(picked.startTime) })}
             </button>
           )}
         </div>

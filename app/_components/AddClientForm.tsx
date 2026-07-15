@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import PhoneInput from "@/app/_components/PhoneInput"
+import { useT } from "@/app/_components/LocaleProvider"
 import { detectCountry, subscriberDigits, validatePhone } from "@/lib/phone"
 
 // Manual "add client to a class" form, shared by Schedule and Beta Schedule.
@@ -37,6 +38,7 @@ export function AddClientForm({
   // Largest party that still fits the class (remaining seats, capped at 6).
   maxParty?: number
 }) {
+  const t = useT()
   // Pre-seed with the studios' country code so the "+" and flag show at once.
   const [phone, setPhone] = useState("+62 ")
   const [name, setName] = useState("")
@@ -156,16 +158,16 @@ export function AddClientForm({
       <PhoneInput value={phone} onChange={setPhone} inputClassName="text-base" />
 
       {lookup === "found" ? (
-        <p className="text-xs font-medium text-brand -mt-1">Existing client — details filled ✓</p>
+        <p className="text-xs font-medium text-brand -mt-1">{t("Existing client - details filled ✓")}</p>
       ) : lookup === "loading" ? (
-        <p className="text-xs text-gray-400 -mt-1">Looking up…</p>
+        <p className="text-xs text-gray-400 -mt-1">{t("Looking up…")}</p>
       ) : null}
 
       <div className="relative">
         <input
           type="text"
           required
-          placeholder="Client name"
+          placeholder={t("Client name")}
           value={name}
           onChange={(e) => { pickedName.current = ""; setName(e.target.value) }}
           onKeyDown={onKeyDownSubmit}
@@ -193,7 +195,7 @@ export function AddClientForm({
       </div>
       <input
         type="email"
-        placeholder="Email (optional)"
+        placeholder={t("Email (optional)")}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         onKeyDown={onKeyDownSubmit}
@@ -204,7 +206,7 @@ export function AddClientForm({
           left on the class. Mirrors the public booking widget. */}
       {partyMax > 1 && (
         <div>
-          <div className="text-[11px] font-medium text-gray-500 mb-1">People</div>
+          <div className="text-[11px] font-medium text-gray-500 mb-1">{t("People")}</div>
           <div className="flex gap-1.5">
             {Array.from({ length: partyMax }, (_, i) => i + 1).map((n) => (
               <button
@@ -231,7 +233,7 @@ export function AddClientForm({
           onClick={onCancel}
           className="flex-1 px-3 py-2.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-white"
         >
-          Cancel
+          {t("Cancel")}
         </button>
         <button
           type="button"
@@ -240,7 +242,7 @@ export function AddClientForm({
           disabled={!canSubmit}
           className="flex-1 px-3 py-2.5 rounded-lg text-sm font-semibold bg-brand text-white hover:bg-brand-dark disabled:opacity-50"
         >
-          {submitting ? "Adding…" : "Add client"}
+          {submitting ? t("Adding…") : t("Add client")}
         </button>
       </div>
     </div>

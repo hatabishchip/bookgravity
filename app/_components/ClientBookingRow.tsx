@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { ArrowRightLeft, X, Check, MessageSquare } from "lucide-react"
+import { useT } from "@/app/_components/LocaleProvider"
 import { cn } from "@/lib/utils"
 
 // A single registered-client row used inside both the Schedule and the Beta
@@ -31,6 +32,7 @@ export function ClientBookingRow({
   paid?: boolean
 }) {
   const [moving, setMoving] = useState(false)
+  const t = useT()
 
   return (
     <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2.5">
@@ -54,7 +56,7 @@ export function ClientBookingRow({
               className="appearance-none text-xs font-medium border border-brand/40 text-brand rounded-lg pl-2.5 pr-7 py-2 max-w-[160px] bg-brand/5 focus:outline-none focus:ring-2 focus:ring-brand/30"
             >
               <option value="" disabled>
-                Move to…
+                {t("Move to…")}
               </option>
               {targets.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -70,7 +72,7 @@ export function ClientBookingRow({
           <button
             type="button"
             onClick={() => setMoving(false)}
-            aria-label="Cancel move"
+            aria-label={t("Cancel move")}
             className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:scale-95 transition"
           >
             <X size={16} />
@@ -83,8 +85,8 @@ export function ClientBookingRow({
             <button
               type="button"
               onClick={onOpenChat}
-              title="Открыть чат"
-              aria-label="Открыть чат"
+              title={t("Открыть чат")}
+              aria-label={t("Открыть чат")}
               className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand/10 text-brand hover:bg-brand/15 active:scale-95 transition flex-shrink-0"
             >
               <MessageSquare size={16} strokeWidth={2.25} />
@@ -95,8 +97,8 @@ export function ClientBookingRow({
             type="button"
             onClick={() => setMoving(true)}
             disabled={targets.length === 0}
-            title={targets.length === 0 ? "Нет другого класса со свободным местом" : "Перенести в другой класс"}
-            aria-label="Перенести"
+            title={targets.length === 0 ? t("Нет другого класса со свободным местом") : t("Перенести в другой класс")}
+            aria-label={t("Перенести")}
             className={cn(
               "flex items-center justify-center w-8 h-8 rounded-lg transition active:scale-95 flex-shrink-0",
               targets.length === 0
@@ -113,8 +115,8 @@ export function ClientBookingRow({
               <button
                 type="button"
                 onClick={onCancel}
-                title="Отменить запись"
-                aria-label="Отменить запись"
+                title={t("Отменить запись")}
+                aria-label={t("Отменить запись")}
                 className="flex items-center justify-center w-8 h-8 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-95 transition flex-shrink-0"
               >
                 <X size={15} strokeWidth={2.5} />

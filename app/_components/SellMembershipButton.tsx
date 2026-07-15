@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import PhoneInput from "@/app/_components/PhoneInput"
+import { useT } from "@/app/_components/LocaleProvider"
 import { WhatsAppIcon } from "@/app/_components/WhatsAppIcon"
 import { validatePhone, detectCountry, subscriberDigits } from "@/lib/phone"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
@@ -51,6 +52,7 @@ export function SellMembershipModal({
   /** Fires right after a successful sale with the client's new balance. */
   onSold?: (remaining: number) => void
 }) {
+  const t = useT()
   const [phone, setPhone] = useState(() => toPhoneValue(initialPhone))
   const [name, setName] = useState(initialName ?? "")
   const [payment, setPayment] = useState("CASH")
@@ -138,7 +140,7 @@ export function SellMembershipModal({
         body: JSON.stringify({ clientPhone: phone, clientName: name.trim(), paymentType: payment, totalClasses: classes }),
       })
       if (!res.ok) {
-        setError("Couldn't sell the Member card. Please try again.")
+        setError(t("Couldn't sell the Member card. Please try again."))
         return
       }
       const d = await res.json()
@@ -146,7 +148,7 @@ export function SellMembershipModal({
       setDone(remaining)
       onSold?.(remaining)
     } catch {
-      setError("Network error. Please try again.")
+      setError(t("Network error. Please try again."))
     } finally {
       setSubmitting(false)
     }
@@ -166,7 +168,7 @@ export function SellMembershipModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 flex-shrink-0 border-b border-gray-100">
-          <h3 className="text-base font-semibold text-gray-900">Member card</h3>
+          <h3 className="text-base font-semibold text-gray-900">{t("Member card")}</h3>
           <button type="button" onClick={onClose} className="text-gray-400 text-xl leading-none p-1">×</button>
         </div>
 
@@ -186,9 +188,9 @@ export function SellMembershipModal({
                       : "bg-white text-gray-600 border-gray-200 hover:border-brand/40",
                   )}
                 >
-                  <span>{pr.classes} classes</span>
+                  <span>{t("{n} classes", { n: pr.classes })}</span>
                   <span className={cn("text-[10px] font-medium", classes === pr.classes ? "text-white/80" : "text-gray-400")}>
-                    pay for {pr.payFor} · {pr.classes - pr.payFor} free
+                    {t("pay for {payFor} · {free} free", { payFor: pr.payFor, free: pr.classes - pr.payFor })}
                   </span>
                 </button>
               ))}
@@ -197,8 +199,8 @@ export function SellMembershipModal({
             {/* Price banner - what the client pays now for the whole card. */}
             <div className="rounded-xl bg-brand/[0.08] border border-brand/20 px-4 py-3 flex items-center justify-between">
               <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-700">Member card · {classes} classes</span>
-                <span className="text-[11px] text-gray-400">{fmtRp(perClass)} per class</span>
+                <span className="text-sm font-medium text-gray-700">{t("Member card")} · {t("{n} classes", { n: classes })}</span>
+                <span className="text-[11px] text-gray-400">{t("{price} per class", { price: fmtRp(perClass) })}</span>
               </div>
               <span className="text-lg font-bold text-brand">{fmtRp(perClass * classes)}</span>
             </div>
@@ -217,8 +219,8 @@ export function SellMembershipModal({
               {phoneOk && hasWhatsApp && (
                 <span
                   className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                  title="On WhatsApp"
-                  aria-label="On WhatsApp"
+                  title={t("On WhatsApp")}
+                  aria-label={t("On WhatsApp")}
                 >
                   <WhatsAppIcon size={15} />
                 </span>
@@ -231,7 +233,7 @@ export function SellMembershipModal({
               value={name}
               disabled={!nameEnabled}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Client name"
+              placeholder={t("Client name")}
               className={cn(
                 "w-full border rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand",
                 nameEnabled
@@ -242,7 +244,7 @@ export function SellMembershipModal({
 
             {existing != null && existing > 0 && (
               <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-                This client already has <b>{existing}</b> classes. The new Member card adds to their balance.
+                {t("This client already has")} <b>{existing}</b> {t("classes. The new Member card adds to their balance.")}
               </div>
             )}
 
@@ -260,7 +262,7 @@ export function SellMembershipModal({
                       : "bg-white text-gray-600 border-gray-200"
                   )}
                 >
-                  {pm.label}
+                  {t(pm.label)}
                 </button>
               ))}
             </div>
@@ -273,20 +275,20 @@ export function SellMembershipModal({
               onClick={submit}
               className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
             >
-              {submitting ? "Saving…" : `Sell Member card · ${fmtRp(perClass * classes)}`}
+              {submitting ? t("Saving…") : `${t("Sell Member card")} · ${fmtRp(perClass * classes)}`}
             </button>
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
             <div className="text-3xl mb-2">🎟️</div>
-            <h3 className="text-base font-semibold text-gray-900 mb-1">Member card sold</h3>
-            <p className="text-sm text-gray-500 mb-4">The card now holds <b>{done}</b> classes.</p>
+            <h3 className="text-base font-semibold text-gray-900 mb-1">{t("Member card sold")}</h3>
+            <p className="text-sm text-gray-500 mb-4">{t("The card now holds")} <b>{done}</b> {t("classes.")}</p>
             <button
               type="button"
               onClick={onClose}
               className="w-full max-w-xs bg-brand hover:bg-brand-dark text-white font-semibold py-3 rounded-xl"
             >
-              Done
+              {t("Done")}
             </button>
           </div>
         )}
@@ -307,6 +309,7 @@ export default function SellMembershipButton({
   fullLabel?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const t = useT()
 
   return (
     <>
@@ -315,8 +318,8 @@ export default function SellMembershipButton({
         onClick={() => setOpen(true)}
         // Compact on narrow screens (icon-only, square) so the trainer header
         // never wraps to two lines; full label on ≥sm where there's room.
-        aria-label="Sell a Member card"
-        title="Sell a Member card"
+        aria-label={t("Sell a Member card")}
+        title={t("Sell a Member card")}
         className={cn(
           "inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand text-white font-semibold hover:bg-brand-dark whitespace-nowrap shrink-0",
           fullLabel
@@ -326,7 +329,7 @@ export default function SellMembershipButton({
         )}
       >
         <span className="leading-none">＋</span>
-        <span className={fullLabel ? "inline" : "hidden sm:inline"}>Sell Member card</span>
+        <span className={fullLabel ? "inline" : "hidden sm:inline"}>{t("Sell Member card")}</span>
       </button>
 
       {open && (

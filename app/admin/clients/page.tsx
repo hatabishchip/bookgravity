@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { Search, CalendarPlus, X, Loader2, Check, AlertCircle, Phone, Mail, Ticket, BadgeCheck, Clock, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useT, useLocale } from "@/app/_components/LocaleProvider"
 import { SellMembershipModal } from "@/app/_components/SellMembershipButton"
 import PhoneInput from "@/app/_components/PhoneInput"
 import { formatPhoneInput, validatePhone } from "@/lib/phone"
@@ -96,6 +97,8 @@ function HistoryModal({ client, onClose, onBook }: {
   const [data, setData] = useState<{ bookings: HistoryBooking[]; memberships: HistoryMembership[] } | null>(null)
   // Sell a Member card straight from the client card, pre-filled.
   const [selling, setSelling] = useState(false)
+  const t = useT()
+  const { dateLocale } = useLocale()
 
   useEffect(() => {
     fetch(`/api/admin/clients/history?phone=${encodeURIComponent(client.phone)}`, { cache: "no-store" })
@@ -128,15 +131,15 @@ function HistoryModal({ client, onClose, onBook }: {
               onClick={() => setSelling(true)}
               className="inline-flex items-center gap-1.5 bg-white border border-brand/30 text-brand hover:bg-brand/5 text-xs font-semibold px-3 py-2 rounded-xl touch-manipulation"
             >
-              🎟️ Member card
+              🎟️ {t("Member card")}
             </button>
             <button
               onClick={() => { onClose(); onBook() }}
               className="inline-flex items-center gap-1.5 bg-brand hover:bg-brand-dark text-white text-xs font-semibold px-3 py-2 rounded-xl touch-manipulation"
             >
-              <CalendarPlus size={13} /> Book
+              <CalendarPlus size={13} /> {t("Book")}
             </button>
-            <button onClick={onClose} aria-label="Close" className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+            <button onClick={onClose} aria-label={t("Close")} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
               <X size={18} />
             </button>
           </div>
@@ -145,23 +148,23 @@ function HistoryModal({ client, onClose, onBook }: {
         <div className="px-5 py-4 space-y-5">
           {data === null ? (
             <div className="flex items-center gap-2 text-sm text-gray-400 py-8 justify-center">
-              <Loader2 size={16} className="animate-spin" /> Loading history…
+              <Loader2 size={16} className="animate-spin" /> {t("Loading history…")}
             </div>
           ) : (
             <>
               {/* Memberships */}
               <section>
                 <div className="flex items-center justify-between mb-1.5">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Member cards</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">{t("Member cards")}</h3>
                   {membershipBalance > 0 && (
                     <span className="text-xs font-bold text-brand bg-brand/10 px-2 py-0.5 rounded-full">
-                      {membershipBalance} class{membershipBalance === 1 ? "" : "es"} left
+                      {membershipBalance === 1 ? t("{n} class left", { n: membershipBalance }) : t("{n} classes left", { n: membershipBalance })}
                     </span>
                   )}
                 </div>
                 {data.memberships.length === 0 ? (
                   <div className="text-xs text-gray-400 border border-dashed border-gray-200 rounded-xl px-3 py-3 text-center">
-                    No memberships bought.
+                    {t("No memberships bought.")}
                   </div>
                 ) : (
                   <ul className="space-y-1.5">
@@ -170,17 +173,17 @@ function HistoryModal({ client, onClose, onBook }: {
                         <Ticket size={16} className={m.remainingClasses > 0 ? "text-brand" : "text-gray-300"} />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-semibold text-gray-900">
-                            {m.remainingClasses}/{m.totalClasses} classes left
+                            {t("{remaining}/{total} classes left", { remaining: m.remainingClasses, total: m.totalClasses })}
                           </div>
                           <div className="text-[11px] text-gray-400">
-                            Bought {format(parseISO(m.soldAt), "MMM d, yyyy")}
-                            {" · "}{PAYMENT_LABELS[m.paymentType] ?? m.paymentType}
-                            {m.soldByName && ` · sold by ${m.soldByName}`}
+                            {t("Bought {date}", { date: format(parseISO(m.soldAt), dateLocale ? "d MMM yyyy" : "MMM d, yyyy", { locale: dateLocale }) })}
+                            {" · "}{t(PAYMENT_LABELS[m.paymentType] ?? m.paymentType)}
+                            {m.soldByName && ` · ${t("sold by {name}", { name: m.soldByName })}`}
                             {m.note && ` · ${m.note}`}
                           </div>
                         </div>
                         {m.remainingClasses === 0 && (
-                          <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">used up</span>
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">{t("used up")}</span>
                         )}
                       </li>
                     ))}
@@ -191,11 +194,11 @@ function HistoryModal({ client, onClose, onBook }: {
               {/* Booking history */}
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
-                  History ({data.bookings.length})
+                  {t("History")} ({data.bookings.length})
                 </h3>
                 {data.bookings.length === 0 ? (
                   <div className="text-xs text-gray-400 border border-dashed border-gray-200 rounded-xl px-3 py-3 text-center">
-                    No bookings yet.
+                    {t("No bookings yet.")}
                   </div>
                 ) : (
                   <ul className="space-y-1.5">
@@ -211,22 +214,22 @@ function HistoryModal({ client, onClose, onBook }: {
                         >
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={cn("text-sm font-semibold", cancelled ? "text-gray-400 line-through" : "text-gray-900")}>
-                              {format(parseISO(b.date + "T00:00:00"), "MMM d, yyyy")} · {formatTime(b.startTime)}
+                              {format(parseISO(b.date + "T00:00:00"), dateLocale ? "d MMM yyyy" : "MMM d, yyyy", { locale: dateLocale })} · {formatTime(b.startTime)}
                             </span>
                             {cancelled ? (
                               <span className="text-[10px] uppercase tracking-wider font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
-                                cancelled
+                                {t("cancelled")}
                               </span>
                             ) : b.checkedIn ? (
                               <span className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-wider font-bold text-brand bg-brand/10 px-1.5 py-0.5 rounded">
-                                <BadgeCheck size={11} /> visited
+                                <BadgeCheck size={11} /> {t("visited")}
                               </span>
                             ) : null}
                           </div>
                           <div className="mt-0.5 text-[11px] text-gray-400">
-                            {b.classType === "GROUP" ? "Group" : b.classType === "KIDS" ? "Kids" : "Private"}
+                            {b.classType === "GROUP" ? t("Group") : b.classType === "KIDS" ? t("Kids") : t("Private")}
                             {b.trainerName && ` · ${b.trainerName}`}
-                            {" · ticket "}{b.ticketCode}
+                            {` · ${t("ticket")} `}{b.ticketCode}
                             {b.services.length > 0 && ` · ${b.services.join(", ")}`}
                           </div>
                           <div className="mt-0.5 flex items-center gap-2 flex-wrap text-[11px]">
@@ -234,17 +237,17 @@ function HistoryModal({ client, onClose, onBook }: {
                             {cancelled ? (
                               b.cancelledAt && (
                                 <span className="inline-flex items-center gap-1 text-gray-400">
-                                  <Clock size={11} /> cancelled {format(parseISO(b.cancelledAt), "MMM d, HH:mm")}
+                                  <Clock size={11} /> {t("cancelled")} {format(parseISO(b.cancelledAt), dateLocale ? "d MMM, HH:mm" : "MMM d, HH:mm", { locale: dateLocale })}
                                 </span>
                               )
                             ) : b.viaMembership || b.paymentType === "MEMBERSHIP" ? (
-                              <span className="font-semibold text-brand">Paid · membership</span>
+                              <span className="font-semibold text-brand">{t("Paid · membership")}</span>
                             ) : b.paymentStatus === "PAID" ? (
                               <span className="font-semibold text-brand">
-                                Paid · {PAYMENT_LABELS[b.paymentType] ?? b.paymentType}
+                                {t("Paid")} · {t(PAYMENT_LABELS[b.paymentType] ?? b.paymentType)}
                               </span>
                             ) : (
-                              <span className="font-semibold text-amber-600">Not paid</span>
+                              <span className="font-semibold text-amber-600">{t("Not paid")}</span>
                             )}
                           </div>
                         </li>
@@ -283,6 +286,8 @@ function BookModal({ client, onClose, onBooked }: {
   const [busy, setBusy] = useState(false)
   // Per-slot outcome after "Book": ok / error message.
   const [results, setResults] = useState<Map<string, string>>(new Map())
+  const t = useT()
+  const { dateLocale } = useLocale()
 
   useEffect(() => {
     fetch(`/api/admin/slots?from=${todayStr()}&to=${plusDaysStr(30)}`, { cache: "no-store" })
@@ -349,10 +354,10 @@ function BookModal({ client, onClose, onBooked }: {
         if (res.ok) outcomes.set(slotId, "ok")
         else {
           const data = await res.json().catch(() => null)
-          outcomes.set(slotId, data?.error || `Error ${res.status}`)
+          outcomes.set(slotId, data?.error || t("Error {status}", { status: res.status }))
         }
       } catch {
-        outcomes.set(slotId, "Network error")
+        outcomes.set(slotId, t("Network error"))
       }
       setResults(new Map(outcomes))
     }
@@ -373,10 +378,10 @@ function BookModal({ client, onClose, onBooked }: {
       <div className="sm:bg-white sm:rounded-2xl sm:shadow-xl sm:max-w-lg sm:w-full sm:max-h-[85vh] sm:overflow-y-auto bg-white min-h-full sm:min-h-0">
         <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between gap-3 z-10">
           <div className="min-w-0">
-            <h2 className="text-base font-bold text-gray-900 truncate">Book {client.name}</h2>
-            <p className="text-xs text-gray-400">{client.phone} · pick one or several classes</p>
+            <h2 className="text-base font-bold text-gray-900 truncate">{t("Book {name}", { name: client.name })}</h2>
+            <p className="text-xs text-gray-400">{client.phone} · {t("pick one or several classes")}</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+          <button onClick={onClose} aria-label={t("Close")} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
             <X size={18} />
           </button>
         </div>
@@ -384,15 +389,15 @@ function BookModal({ client, onClose, onBooked }: {
         <div className="px-5 py-4 space-y-4 pb-28 sm:pb-4">
           {slots === null ? (
             <div className="flex items-center gap-2 text-sm text-gray-400 py-8 justify-center">
-              <Loader2 size={16} className="animate-spin" /> Loading classes…
+              <Loader2 size={16} className="animate-spin" /> {t("Loading classes…")}
             </div>
           ) : byDate.size === 0 ? (
-            <div className="text-sm text-gray-400 text-center py-8">No upcoming classes in the next 30 days.</div>
+            <div className="text-sm text-gray-400 text-center py-8">{t("No upcoming classes in the next 30 days.")}</div>
           ) : (
             [...byDate.entries()].map(([date, list]) => (
               <div key={date}>
                 <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
-                  {format(parseISO(date + "T00:00:00"), "EEEE, MMM d")}
+                  {format(parseISO(date + "T00:00:00"), dateLocale ? "EEEE, d MMM" : "EEEE, MMM d", { locale: dateLocale })}
                 </div>
                 <div className="space-y-1.5">
                   {list.map((s) => {
@@ -406,7 +411,7 @@ function BookModal({ client, onClose, onBooked }: {
                         key={s.id}
                         disabled={full || noTrainer || busy}
                         onClick={() => toggle(s.id)}
-                        title={noTrainer ? "Assign a trainer to this class first (Schedule)" : undefined}
+                        title={noTrainer ? t("Assign a trainer to this class first (Schedule)") : undefined}
                         className={cn(
                           "w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors touch-manipulation",
                           full || noTrainer
@@ -426,12 +431,12 @@ function BookModal({ client, onClose, onBooked }: {
                         </span>
                         <span className="flex-1 min-w-0">
                           <span className="block text-sm font-semibold text-gray-900">
-                            {formatTime(s.startTime)} · {s.classType === "GROUP" ? "Group" : s.classType === "KIDS" ? "Kids" : "Private"}
+                            {formatTime(s.startTime)} · {s.classType === "GROUP" ? t("Group") : s.classType === "KIDS" ? t("Kids") : t("Private")}
                           </span>
                           <span className="block text-xs text-gray-400 truncate">
                             {noTrainer
-                              ? "No trainer assigned - assign one in Schedule first"
-                              : `${s.trainer?.name} · ${full ? "Full" : `${seatsLeft} spot${seatsLeft === 1 ? "" : "s"} left`}`}
+                              ? t("No trainer assigned - assign one in Schedule first")
+                              : `${s.trainer?.name} · ${full ? t("Full") : seatsLeft === 1 ? t("{n} spot left", { n: seatsLeft }) : t("{n} spots left", { n: seatsLeft })}`}
                           </span>
                         </span>
                         {result === "ok" ? (
@@ -452,7 +457,7 @@ function BookModal({ client, onClose, onBooked }: {
 
         <div className="fixed sm:sticky bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-5 py-3 flex items-center gap-3">
           <div className="text-xs text-gray-400 flex-1">
-            {selected.size ? `${selected.size} class${selected.size === 1 ? "" : "es"} selected` : "Nothing selected"}
+            {selected.size ? (selected.size === 1 ? t("{n} class selected", { n: selected.size }) : t("{n} classes selected", { n: selected.size })) : t("Nothing selected")}
           </div>
           <button
             onClick={book}
@@ -460,7 +465,7 @@ function BookModal({ client, onClose, onBooked }: {
             className="inline-flex items-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl touch-manipulation"
           >
             {busy && <Loader2 size={15} className="animate-spin" />}
-            {busy ? "Booking…" : `Book${selected.size > 1 ? ` ${selected.size}` : ""}`}
+            {busy ? t("Booking…") : `${t("Book")}${selected.size > 1 ? ` ${selected.size}` : ""}`}
           </button>
         </div>
       </div>
@@ -480,6 +485,7 @@ function EditClientModal({ client, onClose, onSaved }: {
   const [email, setEmail] = useState(client.email || "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const t = useT()
 
   const newDigits = phone.replace(/\D/g, "")
   const currDigits = client.phone.replace(/\D/g, "")
@@ -509,14 +515,14 @@ function EditClientModal({ client, onClose, onSaved }: {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data.error || "Could not save")
+        setError(data.error || t("Could not save"))
         setSaving(false)
         return
       }
       onSaved()
       onClose()
     } catch {
-      setError("Network error")
+      setError(t("Network error"))
       setSaving(false)
     }
   }
@@ -531,16 +537,16 @@ function EditClientModal({ client, onClose, onSaved }: {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-gray-900">Edit client</h2>
-          <button onClick={onClose} aria-label="Close" className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+          <h2 className="text-base font-bold text-gray-900">{t("Edit client")}</h2>
+          <button onClick={onClose} aria-label={t("Close")} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
             <X size={18} />
           </button>
         </div>
         <p className="text-xs text-gray-400 -mt-2">
-          Corrects the saved contact everywhere - bookings, WhatsApp chat and passes all move to the new number.
+          {t("Corrects the saved contact everywhere - bookings, WhatsApp chat and passes all move to the new number.")}
         </p>
         <label className="block">
-          <span className="text-xs font-medium text-gray-600">Name</span>
+          <span className="text-xs font-medium text-gray-600">{t("Name")}</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -548,14 +554,14 @@ function EditClientModal({ client, onClose, onSaved }: {
           />
         </label>
         <PhoneInput
-          label="Phone (with country code)"
+          label={t("Phone (with country code)")}
           value={phone}
           onChange={setPhone}
           compact
           placeholder="+49 176 21184627"
         />
         <label className="block">
-          <span className="text-xs font-medium text-gray-600">Email</span>
+          <span className="text-xs font-medium text-gray-600">{t("Email")}</span>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -564,7 +570,7 @@ function EditClientModal({ client, onClose, onSaved }: {
           />
           {emailChanged && email.trim() === "" && (
             <span className="text-[11px] text-amber-600 mt-0.5 block">
-              Empty - saving will remove the email from this client&apos;s bookings.
+              {t("Empty - saving will remove the email from this client's bookings.")}
             </span>
           )}
         </label>
@@ -578,14 +584,14 @@ function EditClientModal({ client, onClose, onSaved }: {
             onClick={onClose}
             className="flex-1 border border-gray-200 text-gray-700 text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-gray-50"
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             onClick={save}
             disabled={!changed || !phoneOk || saving}
             className="flex-1 inline-flex items-center justify-center gap-1.5 bg-brand hover:bg-brand-dark disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {t("Save")}
           </button>
         </div>
       </div>
@@ -594,6 +600,8 @@ function EditClientModal({ client, onClose, onSaved }: {
 }
 
 export default function ClientsPage() {
+  const t = useT()
+  const { dateLocale } = useLocale()
   const [clients, setClients] = useState<Client[] | null>(null)
   const [query, setQuery] = useState("")
   const [bookFor, setBookFor] = useState<Client | null>(null)
@@ -625,14 +633,14 @@ export default function ClientsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Clients</h1>
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">{t("Clients")}</h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            Everyone who ever booked — including cancelled bookings, so no one&apos;s contact details get lost.
+            {t("Everyone who ever booked - including cancelled bookings, so no one's contact details get lost.")}
           </p>
         </div>
         {clients && (
           <div className="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
-            {clients.length} total
+            {t("{n} total", { n: clients.length })}
           </div>
         )}
       </div>
@@ -643,18 +651,18 @@ export default function ClientsPage() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name, phone or email…"
+          placeholder={t("Search by name, phone or email…")}
           className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
         />
       </div>
 
       {filtered === null ? (
         <div className="flex items-center gap-2 text-sm text-gray-400 py-10 justify-center">
-          <Loader2 size={16} className="animate-spin" /> Loading clients…
+          <Loader2 size={16} className="animate-spin" /> {t("Loading clients…")}
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-400">
-          {query ? "No clients match the search." : "No clients yet — they appear after the first booking."}
+          {query ? t("No clients match the search.") : t("No clients yet - they appear after the first booking.")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -672,7 +680,7 @@ export default function ClientsPage() {
                   <span className="text-sm font-semibold text-gray-900">{c.name || "—"}</span>
                   {c.confirmedCount === 0 && c.cancelledCount > 0 && (
                     <span className="text-[10px] uppercase tracking-wider font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                      cancelled only
+                      {t("cancelled only")}
                     </span>
                   )}
                 </div>
@@ -687,14 +695,14 @@ export default function ClientsPage() {
                   )}
                 </div>
                 <div className="mt-0.5 text-[11px] text-gray-400">
-                  {c.confirmedCount} booking{c.confirmedCount === 1 ? "" : "s"}
-                  {c.cancelledCount > 0 && ` · ${c.cancelledCount} cancelled`}
-                  {c.lastClassDate && ` · last class ${format(parseISO(c.lastClassDate + "T00:00:00"), "MMM d")}`}
+                  {c.confirmedCount === 1 ? t("{n} booking", { n: c.confirmedCount }) : t("{n} bookings", { n: c.confirmedCount })}
+                  {c.cancelledCount > 0 && ` · ${t("{n} cancelled", { n: c.cancelledCount })}`}
+                  {c.lastClassDate && ` · ${t("last class {date}", { date: format(parseISO(c.lastClassDate + "T00:00:00"), dateLocale ? "d MMM" : "MMM d", { locale: dateLocale }) })}`}
                 </div>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); setEditFor(c) }}
-                aria-label="Edit client"
+                aria-label={t("Edit client")}
                 className="p-2.5 rounded-xl text-gray-400 hover:text-brand hover:bg-gray-50 shrink-0"
               >
                 <Pencil size={15} />
@@ -703,7 +711,7 @@ export default function ClientsPage() {
                 onClick={(e) => { e.stopPropagation(); setBookFor(c) }}
                 className="inline-flex items-center gap-1.5 bg-brand hover:bg-brand-dark text-white text-xs font-semibold px-3.5 py-2.5 rounded-xl touch-manipulation shrink-0"
               >
-                <CalendarPlus size={14} /> Book
+                <CalendarPlus size={14} /> {t("Book")}
               </button>
             </div>
           ))}

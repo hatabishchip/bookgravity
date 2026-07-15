@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { format, addDays } from "date-fns"
 import { Search, ChevronDown, MessageCircle, Calendar, Phone, Send, CheckCircle2, Copy, Check, X, Plus } from "lucide-react"
 import { useOpenChat } from "@/lib/use-open-chat"
+import { useT, useLocale } from "@/app/_components/LocaleProvider"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { AddClientForm, type NewClient } from "@/app/_components/AddClientForm"
@@ -59,16 +60,17 @@ const PAYMENT_LABEL: Record<string, string> = {
   MEMBERSHIP: "Member card",
 }
 
-const paymentBadge = (type: string, status: string) => {
+const paymentBadge = (type: string, status: string, t: (key: string, vars?: Record<string, string | number>) => string) => {
   if (status === "PAID") {
     const label = PAYMENT_LABEL[type] ?? (type === "ONLINE" ? "Online" : type === "OFFLINE" ? "Offline" : "Paid")
-    return { label: `Paid · ${label}`, cls: "bg-green-50 text-green-700" }
+    return { label: `${t("Paid")} · ${t(label)}`, cls: "bg-green-50 text-green-700" }
   }
-  return { label: "Unpaid", cls: "bg-yellow-50 text-yellow-700" }
+  return { label: t("Unpaid"), cls: "bg-yellow-50 text-yellow-700" }
 }
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
+  const t = useT()
   return (
     <button
       onClick={(e) => {
@@ -78,7 +80,7 @@ function CopyButton({ value }: { value: string }) {
           setTimeout(() => setCopied(false), 1500)
         })
       }}
-      title="Copy"
+      title={t("Copy")}
       className="p-1.5 text-gray-400 hover:text-brand hover:bg-brand/5 rounded-md transition-colors"
     >
       {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -103,6 +105,8 @@ function BookingDetails({
   const [noteDraft, setNoteDraft] = useState(booking.notes ?? "")
   const [noteSaved, setNoteSaved] = useState(false)
   const { openChat } = useOpenChat()
+  const t = useT()
+  const { dateLocale } = useLocale()
 
   const saveNote = () => {
     const trimmed = noteDraft.trim()
@@ -118,8 +122,8 @@ function BookingDetails({
       {/* Date & time already live in the row header — here we only keep the
           secondary bits (trainer + booked-on) as quiet, de-emphasised text. */}
       <div className="flex items-center gap-x-4 gap-y-0.5 flex-wrap text-xs text-gray-400">
-        <span>Trainer <span className="text-gray-500 font-medium">{booking.slot.trainer?.name ?? "-"}</span></span>
-        <span>Booked <span className="text-gray-500 font-medium">{format(new Date(booking.createdAt), "MMM d")}</span></span>
+        <span>{t("Trainer")} <span className="text-gray-500 font-medium">{booking.slot.trainer?.name ?? "-"}</span></span>
+        <span>{t("Booked")} <span className="text-gray-500 font-medium">{format(new Date(booking.createdAt), dateLocale ? "d MMM" : "MMM d", { locale: dateLocale })}</span></span>
       </div>
 
       {/* Contact + Payment */}
@@ -145,7 +149,7 @@ function BookingDetails({
             onClick={(e) => { e.stopPropagation(); openChat(booking.clientPhone, booking.clientName) }}
             className="mt-0.5 w-full flex items-center justify-center gap-2 text-sm font-medium bg-brand/10 hover:bg-brand/20 text-brand border border-brand/25 px-3 py-2 rounded-lg transition-colors"
           >
-            <MessageCircle size={14} /> Открыть чат
+            <MessageCircle size={14} /> {t("Открыть чат")}
           </button>
         </div>
 
@@ -155,7 +159,7 @@ function BookingDetails({
             <div className="flex items-center justify-between gap-2 bg-brand/5 border border-brand/20 rounded-lg px-3 py-2">
               <span className="flex items-center gap-1.5 text-sm font-medium text-brand">
                 <CheckCircle2 size={14} />
-                Paid · {PAYMENT_LABEL[booking.paymentType] ?? booking.paymentType}
+                {t("Paid")} · {t(PAYMENT_LABEL[booking.paymentType] ?? booking.paymentType)}
               </span>
               <button
                 type="button"
@@ -163,7 +167,7 @@ function BookingDetails({
                 onClick={() => onUpdate({ paymentType: "PENDING", paymentStatus: "UNPAID" })}
                 className="text-[11px] text-brand/70 hover:text-brand underline disabled:opacity-50"
               >
-                Undo
+                {t("Undo")}
               </button>
             </div>
           ) : (
@@ -178,7 +182,7 @@ function BookingDetails({
                 onClick={() => onUpdate({ paymentType: "MEMBERSHIP", paymentStatus: "PAID" })}
                 className="w-full mb-1.5 px-2 py-2 rounded-lg text-xs font-semibold border text-center touch-manipulation bg-white text-gray-700 border-gray-200 hover:border-brand/40 flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
-                🎟️ Member card{(booking.membershipRemaining ?? 0) > 0 ? ` · ${booking.membershipRemaining} left` : ""}
+                🎟️ {t("Member card")}{(booking.membershipRemaining ?? 0) > 0 ? ` · ${t("{n} left", { n: booking.membershipRemaining ?? 0 })}` : ""}
               </button>
             <div className="grid grid-cols-4 gap-1.5">
               {PAYMENT_METHODS.map((pm) => (
@@ -192,7 +196,7 @@ function BookingDetails({
                     "bg-white text-gray-500 border-gray-200 hover:border-brand/40 hover:text-brand"
                   )}
                 >
-                  {pm.label}
+                  {t(pm.label)}
                 </button>
               ))}
             </div>
@@ -220,7 +224,7 @@ function BookingDetails({
               </svg>
             )}
           </span>
-          <span className="text-sm font-medium text-gray-700 flex-1">Local (Indonesian resident)</span>
+          <span className="text-sm font-medium text-gray-700 flex-1">{t("Local (Indonesian resident)")}</span>
           <span className="text-xs font-semibold text-brand">{Math.round(localCtx.localPrice / 1000)}k</span>
         </button>
       )}
@@ -230,7 +234,7 @@ function BookingDetails({
           so it reads as "pick what to add", not just a display. */}
       {services.length > 0 && (
         <div>
-          <div className="text-xs font-medium text-gray-500 mb-1.5">Services</div>
+          <div className="text-xs font-medium text-gray-500 mb-1.5">{t("Services")}</div>
           <div className="flex flex-wrap gap-1.5">
             {services.map((svc) => {
               const on = booking.services.some((s) => s.service.id === svc.id)
@@ -263,7 +267,7 @@ function BookingDetails({
               added extra asks how it was paid (mirrors the trainer cabinet). */}
           {booking.paymentType === "MEMBERSHIP" && booking.services.map((bs) => (
             <div key={bs.service.id} className="mt-2 flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] text-gray-500 min-w-0 truncate">{bs.service.name} paid by</span>
+              <span className="text-[11px] text-gray-500 min-w-0 truncate">{t("{name} paid by", { name: bs.service.name })}</span>
               {PAYMENT_METHODS.map((pm) => (
                 <button
                   key={pm.value}
@@ -277,7 +281,7 @@ function BookingDetails({
                       : "bg-white text-gray-500 border-gray-200 hover:border-brand/40",
                   )}
                 >
-                  {pm.label}
+                  {t(pm.label)}
                 </button>
               ))}
             </div>
@@ -295,7 +299,7 @@ function BookingDetails({
           onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur() }}
           onClick={(e) => e.stopPropagation()}
           disabled={isUpdating}
-          placeholder="Notes"
+          placeholder={t("Notes")}
           className="w-full bg-white border border-gray-100 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-50"
         />
         {noteSaved && <Check size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-600" />}
@@ -309,11 +313,11 @@ function BookingDetails({
             type="button"
             disabled={isUpdating}
             onClick={onCancel}
-            title="Cancel this booking"
+            title={t("Cancel this booking")}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-95 transition disabled:opacity-50"
           >
             <X size={14} strokeWidth={2.5} />
-            Cancel booking
+            {t("Cancel booking")}
           </button>
         </div>
       )}
@@ -322,6 +326,8 @@ function BookingDetails({
 }
 
 export default function BookingsPage() {
+  const t = useT()
+  const { dateLocale } = useLocale()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [search, setSearch] = useState("")
   const [dateFilter, setDateFilter] = useState("")
@@ -389,7 +395,7 @@ export default function BookingsPage() {
       .catch(() => setNewSlots([]))
   }, [newOpen, newSlots])
   const submitNewBooking = async (c: NewClient) => {
-    if (!newSlotId) { setNewErr("Pick a class first"); return }
+    if (!newSlotId) { setNewErr(t("Pick a class first")); return }
     setNewSaving(true)
     setNewErr("")
     try {
@@ -406,14 +412,14 @@ export default function BookingsPage() {
       })
       if (!res.ok) {
         const e = await res.json().catch(() => ({}))
-        setNewErr(e.error ?? "Couldn't create the booking.")
+        setNewErr(e.error ?? t("Couldn't create the booking."))
         return
       }
       setNewOpen(false)
       setNewSlotId("")
       fetchBookings()
     } catch {
-      setNewErr("Network error - please try again.")
+      setNewErr(t("Network error - please try again."))
     } finally {
       setNewSaving(false)
     }
@@ -524,7 +530,7 @@ export default function BookingsPage() {
   // confirm, optimistically drop it from the list, then PATCH status=CANCELLED.
   const cancelBooking = async (id: string, name: string) => {
     const cleanName = name.replace(/\s*\(\d+\/\d+\)$/, "")
-    if (!confirm(`Cancel ${cleanName}'s booking?`)) return
+    if (!confirm(t("Cancel {name}'s booking?", { name: cleanName }))) return
     setBookings((prev) => prev.filter((b) => b.id !== id))
     setExpandedId(null)
     try {
@@ -535,11 +541,11 @@ export default function BookingsPage() {
       })
       if (!res.ok) {
         const e = await res.json().catch(() => ({}))
-        alert(e.error ?? "Couldn't cancel the booking. Please try again.")
+        alert(e.error ?? t("Couldn't cancel the booking. Please try again."))
         fetchBookings()
       }
     } catch {
-      alert("Network error - couldn't cancel the booking. Please try again.")
+      alert(t("Network error - couldn't cancel the booking. Please try again."))
       fetchBookings()
     }
   }
@@ -576,13 +582,13 @@ export default function BookingsPage() {
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t("Bookings")}</h1>
         <button
           type="button"
           onClick={() => setNewOpen(true)}
           className="px-4 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark touch-manipulation whitespace-nowrap"
         >
-          + New booking
+          + {t("New booking")}
         </button>
       </div>
 
@@ -592,25 +598,25 @@ export default function BookingsPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => !newSaving && setNewOpen(false)}>
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-gray-100 flex-shrink-0">
-              <h2 className="text-lg font-semibold text-gray-800">New booking</h2>
-              <button onClick={() => !newSaving && setNewOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Close"><X size={18} /></button>
+              <h2 className="text-lg font-semibold text-gray-800">{t("New booking")}</h2>
+              <button onClick={() => !newSaving && setNewOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label={t("Close")}><X size={18} /></button>
             </div>
             <div className="p-5 overflow-y-auto">
-              <label className="block text-xs text-gray-500 font-medium mb-1.5">Class</label>
+              <label className="block text-xs text-gray-500 font-medium mb-1.5">{t("Class")}</label>
               {newSlots === null ? (
                 <div className="py-4"><PetalSpinner /></div>
               ) : newSlots.length === 0 ? (
-                <p className="text-sm text-gray-400 py-2">No upcoming classes with free spots. Create one in Schedule first.</p>
+                <p className="text-sm text-gray-400 py-2">{t("No upcoming classes with free spots. Create one in Schedule first.")}</p>
               ) : (
                 <select
                   value={newSlotId}
                   onChange={(e) => setNewSlotId(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 mb-4"
                 >
-                  <option value="">Pick a class...</option>
+                  <option value="">{t("Pick a class...")}</option>
                   {newSlots.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {format(new Date(s.date + "T00:00:00"), "EEE, MMM d")} · {s.startTime} · {s.trainer?.name} ({s.maxCapacity - s._count.bookings} free)
+                      {format(new Date(s.date + "T00:00:00"), dateLocale ? "EEE, d MMM" : "EEE, MMM d", { locale: dateLocale })} · {s.startTime} · {s.trainer?.name} ({t("{n} free", { n: s.maxCapacity - s._count.bookings })})
                     </option>
                   ))}
                 </select>
@@ -635,7 +641,7 @@ export default function BookingsPage() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search name, phone..."
+            placeholder={t("Search name, phone...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
@@ -651,7 +657,7 @@ export default function BookingsPage() {
           />
         </div>
         {dateFilter && (
-          <button onClick={() => { setDateFilter(""); }} className="text-sm text-gray-500 hover:text-gray-800 px-2">Clear</button>
+          <button onClick={() => { setDateFilter(""); }} className="text-sm text-gray-500 hover:text-gray-800 px-2">{t("Clear")}</button>
         )}
       </div>
 
@@ -669,7 +675,7 @@ export default function BookingsPage() {
                 : "bg-white text-gray-600 border-gray-200 hover:border-brand/40"
             )}
           >
-            {r.label}
+            {t(r.label)}
           </button>
         ))}
         <span className="w-px self-stretch bg-gray-200 mx-1" aria-hidden />
@@ -683,29 +689,29 @@ export default function BookingsPage() {
               : "bg-white text-amber-700 border-amber-200 hover:border-amber-400"
           )}
         >
-          Unpaid
+          {t("Unpaid")}
         </button>
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="grid [grid-template-columns:1.5fr_1.5fr_1fr_30px] lg:[grid-template-columns:2fr_2fr_1fr_1fr_1fr_40px] gap-3 lg:gap-4 px-4 lg:px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wide">
-          <div>Client</div>
-          <div>Session</div>
-          <div className="hidden lg:block">Trainer</div>
-          <div>Payment</div>
-          <div className="hidden lg:block">Booked</div>
+          <div>{t("Client")}</div>
+          <div>{t("Session")}</div>
+          <div className="hidden lg:block">{t("Trainer")}</div>
+          <div>{t("Payment")}</div>
+          <div className="hidden lg:block">{t("Booked")}</div>
           <div />
         </div>
 
         {loading ? (
           <PetalSpinner />
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 text-sm">No bookings found</div>
+          <div className="text-center py-12 text-gray-400 text-sm">{t("No bookings found")}</div>
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-transparent">
             {filtered.map((b) => {
-              const badge = paymentBadge(b.paymentType, b.paymentStatus)
+              const badge = paymentBadge(b.paymentType, b.paymentStatus, t)
               const isExpanded = expandedId === b.id
 
               return (
@@ -730,14 +736,14 @@ export default function BookingsPage() {
                       <div className="font-medium text-sm text-gray-800 truncate">
                         {b.clientName}
                         {b.phoneUnverified && (
-                          <span className="ml-1.5 align-middle text-[9px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full whitespace-nowrap" title="Phone not confirmed on WhatsApp">unverified</span>
+                          <span className="ml-1.5 align-middle text-[9px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full whitespace-nowrap" title={t("Phone not confirmed on WhatsApp")}>{t("unverified")}</span>
                         )}
                       </div>
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm text-gray-800">
-                        <span className="lg:hidden">{format(new Date(b.slot.date), "MMM d")}</span>
-                        <span className="hidden lg:inline">{format(new Date(b.slot.date), "MMM d, yyyy")}</span>
+                        <span className="lg:hidden">{format(new Date(b.slot.date), dateLocale ? "d MMM" : "MMM d", { locale: dateLocale })}</span>
+                        <span className="hidden lg:inline">{format(new Date(b.slot.date), dateLocale ? "d MMM yyyy" : "MMM d, yyyy", { locale: dateLocale })}</span>
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5">
                         <span className="lg:hidden">{formatTime24(b.slot.startTime)}</span>
@@ -750,13 +756,13 @@ export default function BookingsPage() {
                         {badge.label}
                       </span>
                       {b.bankConfirmed ? (
-                        <span className="text-[10px] lg:text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap bg-emerald-100 text-emerald-700" title="Payment confirmed by bank">
-                          ✓ bank
+                        <span className="text-[10px] lg:text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap bg-emerald-100 text-emerald-700" title={t("Payment confirmed by bank")}>
+                          {t("✓ bank")}
                         </span>
                       ) : null}
                     </div>
                     <div className="hidden lg:block text-xs text-gray-400">
-                      {format(new Date(b.createdAt), "MMM d")}
+                      {format(new Date(b.createdAt), dateLocale ? "d MMM" : "MMM d", { locale: dateLocale })}
                     </div>
                     <div>
                       <ChevronDown size={16} className={cn("text-gray-400 transition-transform", isExpanded && "rotate-180")} />
