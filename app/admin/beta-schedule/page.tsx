@@ -14,6 +14,7 @@ import { QueuedClients } from "@/app/_components/QueuedClients"
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { useT, useLocale } from "@/app/_components/LocaleProvider"
 
 type Trainer = { id: string; name: string; color: string }
 
@@ -116,6 +117,8 @@ function hexToRgba(hex: string, alpha: number) {
 }
 
 export default function BetaSchedulePage() {
+  const t = useT()
+  const { dateLocale } = useLocale()
   const today = useMemo(() => new Date(), [])
   const [monthAnchor, setMonthAnchor] = useState(startOfMonth(today))
   const [selectedDate, setSelectedDate] = useState<Date>(today)
@@ -204,9 +207,9 @@ export default function BetaSchedulePage() {
     <div className="-mx-4 lg:mx-0">
       <div className="px-4 lg:px-0 flex items-center justify-between gap-3 mb-3">
         <h1 className="text-xl lg:text-2xl font-bold text-gray-900">
-          Schedule
+          {t("Schedule")}
           <span className="ml-2 text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded align-middle">
-            Beta
+            {t("Beta")}
           </span>
         </h1>
         <button
@@ -216,19 +219,19 @@ export default function BetaSchedulePage() {
           }}
           className="text-sm font-medium text-gray-600 hover:text-brand px-3 py-1.5 rounded-lg hover:bg-gray-50 touch-manipulation"
         >
-          Today
+          {t("Today")}
         </button>
       </div>
 
       <div className="px-2 lg:px-0">
         <div className="text-base lg:text-lg font-semibold text-gray-800 mb-2 px-2 lg:px-1">
-          {format(monthAnchor, "MMMM yyyy")}
+          {format(monthAnchor, "LLLL yyyy", { locale: dateLocale })}
         </div>
 
         <div className="grid grid-cols-7">
           {WEEKDAYS.map((d) => (
             <div key={d} className="text-center text-[10px] sm:text-xs font-medium text-gray-400 uppercase tracking-wider py-1.5">
-              {d}
+              {t(d)}
             </div>
           ))}
         </div>
@@ -306,7 +309,7 @@ export default function BetaSchedulePage() {
                     : "bg-white border border-gray-200 text-gray-600"
                 )}
               >
-                {format(m, "MMM yyyy")}
+                {format(m, "LLL yyyy", { locale: dateLocale })}
               </button>
             )
           })}
@@ -318,7 +321,7 @@ export default function BetaSchedulePage() {
         <div className="flex gap-3 lg:gap-4">
           <div className="flex flex-col items-center flex-shrink-0 pt-1">
             <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
-              {format(selectedDate, "EEE")}
+              {format(selectedDate, "EEE", { locale: dateLocale })}
             </div>
             <div className={cn(
               "mt-1 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full text-base sm:text-lg font-semibold",
@@ -357,12 +360,12 @@ export default function BetaSchedulePage() {
                       <div className="flex items-center justify-between gap-2">
                         <div className={cn("text-sm font-semibold truncate flex items-center gap-1.5", bright ? "text-white" : "text-gray-900")}>
                           <span className="truncate">
-                            {slot.trainer?.name ?? "Unassigned"}
+                            {slot.trainer?.name ?? t("Unassigned")}
                             {slot.assistant && ` · + ${slot.assistant.name}`}
                           </span>
                           {isHidden && (
                             <span className="inline-flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-full bg-white border border-gray-300 text-[#4b5563] text-[9px] font-bold uppercase tracking-wider leading-none">
-                              <EyeOff size={10} strokeWidth={2.25} /> Hidden
+                              <EyeOff size={10} strokeWidth={2.25} /> {t("Hidden")}
                             </span>
                           )}
                         </div>
@@ -372,13 +375,13 @@ export default function BetaSchedulePage() {
                         </span>
                       </div>
                       <div className={cn("text-xs mt-0.5 flex items-center gap-2", bright ? "text-white/80" : "text-gray-600")}>
-                        <span>{formatTime(slot.startTime)}–{formatTime(slot.endTime)}</span>
+                        <span>{formatTime(slot.startTime)}-{formatTime(slot.endTime)}</span>
                         <span className={cn("text-[10px] font-semibold uppercase tracking-wider", bright ? "text-white/70" : "text-gray-500")}>
-                          · {CLASS_TYPES.find((c) => c.value === slot.classType)?.label ?? slot.classType}
+                          · {t(CLASS_TYPES.find((c) => c.value === slot.classType)?.label ?? slot.classType)}
                         </span>
                         {isHidden && (
                           <span className={cn("text-[10px] font-medium italic", bright ? "text-white/70" : "text-gray-500")}>
-                            · not visible to clients
+                            · {t("not visible to clients")}
                           </span>
                         )}
                       </div>
@@ -392,7 +395,7 @@ export default function BetaSchedulePage() {
                   className="w-full flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium text-brand bg-brand/5 border border-dashed border-brand/30 hover:bg-brand/10 touch-manipulation"
                 >
                   <Plus size={16} />
-                  Add session
+                  {t("Add session")}
                 </button>
               </div>
             )}
@@ -407,7 +410,7 @@ export default function BetaSchedulePage() {
               return (
                 <div className="mt-6 pt-4 border-t border-gray-100">
                   <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-2">
-                    Trainers this month
+                    {t("Trainers this month")}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {Array.from(trainersWithSlots.values()).map((t) => (
@@ -463,6 +466,8 @@ function SlotEditor({
   onDeleted: () => void
 }) {
   useBodyScrollLock(true)
+  const t = useT()
+  const { dateLocale } = useLocale()
   const [trainerId, setTrainerId] = useState(slot.trainer?.id ?? "")
   const [assistantId, setAssistantId] = useState(slot.assistant?.id ?? "")
   const [classType, setClassType] = useState<ClassType>(slot.classType)
@@ -478,7 +483,7 @@ function SlotEditor({
   // When class type changes, auto-update capacity and (only if untouched) price
   const handleClassTypeChange = (next: ClassType) => {
     if (next === "PRIVATE" && slot._count.bookings >= 2) {
-      const ok = confirm(`This session has ${slot._count.bookings} bookings. Private allows only 1 person — extra clients will be over capacity. Continue?`)
+      const ok = confirm(t("This session has {n} bookings. Private allows only 1 person - extra clients will be over capacity. Continue?", { n: slot._count.bookings }))
       if (!ok) return
     }
     setClassType(next)
@@ -531,13 +536,13 @@ function SlotEditor({
   }
 
   const handleDeleteSlot = () => {
-    if (!confirm("Cancel this class? Confirmed bookings will remain in the database but the class is removed.")) return
+    if (!confirm(t("Cancel this class? Confirmed bookings will remain in the database but the class is removed."))) return
     onDeleted()
     fetch(`/api/admin/slots?id=${slot.id}`, { method: "DELETE" }).finally(() => onChanged())
   }
 
   const handleCancelBooking = (b: Booking) => {
-    if (!confirm(`Remove ${b.clientName} from this class?`)) return
+    if (!confirm(t("Remove {name} from this class?", { name: b.clientName }))) return
     // Optimistic: remove from local state immediately
     setBookings((prev) => prev.filter((x) => x.id !== b.id))
     fetch(`/api/admin/bookings/${b.id}`, {
@@ -558,7 +563,7 @@ function SlotEditor({
     }).then(async (res) => {
       if (!res.ok) {
         const e = await res.json().catch(() => ({}))
-        setError(e.error ?? "Couldn't move the booking.")
+        setError(e.error ?? t("Couldn't move the booking."))
         fetchBookings()
       }
     }).finally(() => { onChanged() })
@@ -571,7 +576,7 @@ function SlotEditor({
     .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
     .map((s) => ({
       id: s.id,
-      label: `${format(new Date(s.date + "T00:00:00"), "MMM d")} · ${formatTime(s.startTime)}`,
+      label: `${format(new Date(s.date + "T00:00:00"), dateLocale ? "d MMM" : "MMM d", { locale: dateLocale })} · ${formatTime(s.startTime)}`,
     }))
 
   const handleAddBooking = (c: NewClient) => {
@@ -603,7 +608,7 @@ function SlotEditor({
     }).then(async (res) => {
       if (!res.ok) {
         const e = await res.json().catch(() => ({}))
-        setError(e.error ?? "Failed to add")
+        setError(e.error ?? t("Failed to add"))
       }
     }).finally(() => { fetchBookings(); onChanged() })
   }
@@ -621,9 +626,9 @@ function SlotEditor({
       >
         <div className="px-5 pt-5 pb-3 flex items-center justify-between flex-shrink-0 border-b border-gray-100">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Edit class</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t("Edit class")}</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {format(new Date(slot.date + "T00:00:00"), "EEEE, MMM d")} · {formatTime(slot.startTime)}–{formatTime(slot.endTime)}
+              {format(new Date(slot.date + "T00:00:00"), dateLocale ? "EEEE, d MMM" : "EEEE, MMM d", { locale: dateLocale })} · {formatTime(slot.startTime)}-{formatTime(slot.endTime)}
             </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
@@ -633,7 +638,7 @@ function SlotEditor({
           {/* Slot fields */}
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Class type</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("Class type")}</label>
               <div className="grid grid-cols-3 gap-1.5">
                 {CLASS_TYPES.map((c) => {
                   const p = studioPrices ? priceForType(c.value, studioPrices) : 0
@@ -643,9 +648,9 @@ function SlotEditor({
                         classType === c.value ? "border-brand bg-brand/5" : "border-gray-200 bg-white"
                       )}>
                       <div className={cn("text-xs font-semibold", classType === c.value ? "text-brand" : "text-gray-700")}>
-                        {c.label}
+                        {t(c.label)}
                       </div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">{c.sub}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">{t(c.sub)}</div>
                       {studioPrices && (
                         <div className={cn("text-[11px] font-bold mt-1", classType === c.value ? "text-brand" : "text-gray-600")}>
                           {formatPriceShort(p)} IDR
@@ -658,18 +663,18 @@ function SlotEditor({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Trainer & capacity</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("Trainer & capacity")}</label>
               <div className="flex gap-2">
                 <select value={trainerId} onChange={(e) => { setTrainerId(e.target.value); if (!e.target.value) setAssistantId("") }}
                   className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30">
-                  <option value="">Unassigned</option>
-                  {trainers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  <option value="">{t("Unassigned")}</option>
+                  {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
                 </select>
                 <select
                   value={classType === "PRIVATE" ? 1 : maxCapacity}
                   disabled={classType === "PRIVATE"}
                   onChange={(e) => setMaxCapacity(Number(e.target.value))}
-                  title={classType === "PRIVATE" ? "Private session is always 1 person" : "Capacity"}
+                  title={classType === "PRIVATE" ? t("Private session is always 1 person") : t("Capacity")}
                   className="w-[88px] border border-gray-200 rounded-xl px-2 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-60 disabled:bg-gray-50"
                 >
                   {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>👤 {n}</option>)}
@@ -678,12 +683,12 @@ function SlotEditor({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Assistant <span className="text-gray-400">(optional)</span></label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("Assistant")} <span className="text-gray-400">({t("optional")})</span></label>
               <select value={assistantId} disabled={!trainerId}
                 onChange={(e) => setAssistantId(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-50">
-                <option value="">None</option>
-                {trainers.filter((t) => t.id !== trainerId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                <option value="">{t("None")}</option>
+                {trainers.filter((tr) => tr.id !== trainerId).map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
               </select>
             </div>
 
@@ -691,7 +696,7 @@ function SlotEditor({
               <button
                 type="button"
                 onClick={() => setPublicVisible((v) => !v)}
-                title={publicVisible ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
+                title={publicVisible ? t("Visible to clients - tap to hide") : t("Hidden from clients - tap to show")}
                 className="w-full flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left touch-manipulation"
               >
                 <span
@@ -706,19 +711,19 @@ function SlotEditor({
                 </span>
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-800">
-                    {publicVisible ? "Shown in public schedule" : "Hidden from public schedule"}
+                    {publicVisible ? t("Shown in public schedule") : t("Hidden from public schedule")}
                   </div>
                   <div className="text-[11px] text-gray-500 mt-0.5">
                     {publicVisible
-                      ? "Clients will see this as a " + (classType === "KIDS" ? "Kids" : "Private") + " class and can book it."
-                      : "Hidden from clients. Visible only to admin and trainer."}
+                      ? t("Clients will see this as a {type} class and can book it.", { type: t(classType === "KIDS" ? "Kids" : "Private") })
+                      : t("Hidden from clients. Visible only to admin and trainer.")}
                   </div>
                 </div>
               </button>
             )}
 
             {(() => {
-              const weekday = format(new Date(slot.date + "T00:00:00"), "EEEE")
+              const weekday = format(new Date(slot.date + "T00:00:00"), "EEEE", { locale: dateLocale })
               const showWarning = wasInSeries && !repeatWeekly
               return (
                 <label className={cn(
@@ -738,14 +743,14 @@ function SlotEditor({
                       "text-sm font-medium",
                       repeatWeekly ? "text-brand" : "text-gray-700"
                     )}>
-                      Repeat every {weekday}
+                      {t("Repeat every {weekday}", { weekday })}
                     </div>
                     <div className="text-[11px] text-gray-500 mt-0.5">
                       {showWarning
-                        ? "Unchecking stops the series — future occurrences will be removed."
+                        ? t("Unchecking stops the series - future occurrences will be removed.")
                         : wasInSeries
-                          ? "Part of a weekly series — this trainer covers every " + weekday + "."
-                          : "Currently one-off. Turning on won't backfill past weeks."}
+                          ? t("Part of a weekly series - this trainer covers every {weekday}.", { weekday })
+                          : t("Currently one-off. Turning on won't backfill past weeks.")}
                     </div>
                   </div>
                 </label>
@@ -757,12 +762,12 @@ function SlotEditor({
           <div className="pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-medium text-gray-500">
-                Clients ({bookings.length}/{maxCapacity})
+                {t("Clients")} ({bookings.length}/{maxCapacity})
               </div>
               {!adding && bookings.length < maxCapacity && (
                 <button type="button" onClick={() => setAdding(true)}
                   className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
-                  <Plus size={12} /> Add client
+                  <Plus size={12} /> {t("Add client")}
                 </button>
               )}
             </div>
@@ -772,7 +777,7 @@ function SlotEditor({
                 {[1, 2].map((i) => <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />)}
               </div>
             ) : bookings.length === 0 && !adding ? (
-              <div className="text-xs text-gray-400 py-3">No clients booked yet</div>
+              <div className="text-xs text-gray-400 py-3">{t("No clients booked yet")}</div>
             ) : (
               <div className="space-y-1.5">
                 {bookings.map((b) => (
@@ -810,11 +815,11 @@ function SlotEditor({
           </button>
           <button type="button" onClick={onClose}
             className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">
-            Close
+            {t("Close")}
           </button>
           <button type="button" onClick={handleSave} disabled={saving}
             className="flex-1 px-3 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-60">
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("Saving…") : t("Save")}
           </button>
         </div>
       </div>
@@ -839,6 +844,8 @@ function SlotCreator({
   onCreated: () => void
 }) {
   useBodyScrollLock(true)
+  const t = useT()
+  const { dateLocale } = useLocale()
 
   const initialTimes = useMemo(
     () => sortTimes(existingSlots.map((s) => s.startTime)),
@@ -871,27 +878,27 @@ function SlotCreator({
     return m
   }, [existingSlots])
 
-  const toggleTime = (t: string) => {
+  const toggleTime = (time: string) => {
     setError("")
     setStartTimes((prev) => {
-      if (prev.includes(t)) return prev.filter((x) => x !== t)
-      const conflict = overlapsAny(t, prev)
+      if (prev.includes(time)) return prev.filter((x) => x !== time)
+      const conflict = overlapsAny(time, prev)
       if (conflict) {
-        setError(`${formatTime(t)} overlaps with ${formatTime(conflict)}–${formatTime(computeEndTime(conflict))} (classes are 2h long)`)
+        setError(t("{time} overlaps with {range} (classes are 2h long)", { time: formatTime(time), range: `${formatTime(conflict)}-${formatTime(computeEndTime(conflict))}` }))
         return prev
       }
-      return sortTimes([...prev, t])
+      return sortTimes([...prev, time])
     })
     setAssignments((prev) => {
-      if (prev[t]) return prev
-      return { ...prev, [t]: { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: false } }
+      if (prev[time]) return prev
+      return { ...prev, [time]: { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: false } }
     })
   }
 
-  const updateAssignment = (t: string, change: Partial<Assignment>) => {
+  const updateAssignment = (time: string, change: Partial<Assignment>) => {
     setAssignments((prev) => ({
       ...prev,
-      [t]: { ...(prev[t] ?? { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: false }), ...change },
+      [time]: { ...(prev[time] ?? { trainerId: "", assistantId: "", classType: "GROUP", publicVisible: true, maxCapacity: 6, repeatWeekly: false }), ...change },
     }))
   }
 
@@ -1038,16 +1045,16 @@ function SlotCreator({
 
   const hasChanges = counts.toCreate > 0 || counts.toDelete > 0 || counts.toUpdate > 0
   const saveLabel = (() => {
-    if (saving) return "Saving…"
-    if (!hasChanges) return "Save"
+    if (saving) return t("Saving…")
+    if (!hasChanges) return t("Save")
     const parts: string[] = []
     if (counts.toCreate > 0) parts.push(`+${counts.toCreate}`)
     if (counts.toDelete > 0) parts.push(`−${counts.toDelete}`)
     if (counts.toUpdate > 0) parts.push(`~${counts.toUpdate}`)
-    return `Save (${parts.join(" / ")})`
+    return t("Save ({parts})", { parts: parts.join(" / ") })
   })()
 
-  const title = existingSlots.length > 0 ? "Manage day's sessions" : "Add sessions"
+  const title = existingSlots.length > 0 ? t("Manage day's sessions") : t("Add sessions")
 
   return (
     <div
@@ -1061,7 +1068,7 @@ function SlotCreator({
         <div className="px-5 pt-5 pb-3 flex items-center justify-between flex-shrink-0 border-b border-gray-100">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{format(new Date(date + "T00:00:00"), "EEEE, MMM d")}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{format(new Date(date + "T00:00:00"), dateLocale ? "EEEE, d MMM" : "EEEE, MMM d", { locale: dateLocale })}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
         </div>
@@ -1075,18 +1082,18 @@ function SlotCreator({
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
-            <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min). Times within 2h of an existing one are locked.</p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("Session times")}</label>
+            <p className="text-xs text-gray-400 mb-2">{t("Pick one or more - each creates a separate session (+120 min). Times within 2h of an existing one are locked.")}</p>
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {TIME_PRESETS.map((t) => {
-                const selected = startTimes.includes(t)
-                const conflictWith = !selected ? overlapsAny(t, startTimes) : null
+              {TIME_PRESETS.map((tp) => {
+                const selected = startTimes.includes(tp)
+                const conflictWith = !selected ? overlapsAny(tp, startTimes) : null
                 const disabled = !!conflictWith
                 return (
-                  <button key={t} type="button"
+                  <button key={tp} type="button"
                     disabled={disabled}
-                    title={disabled && conflictWith ? `Conflicts with ${formatTime(conflictWith)}` : undefined}
-                    onClick={() => toggleTime(t)}
+                    title={disabled && conflictWith ? t("Conflicts with {time}", { time: formatTime(conflictWith) }) : undefined}
+                    onClick={() => toggleTime(tp)}
                     className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium touch-manipulation",
                       selected
                         ? "bg-brand text-white border-brand"
@@ -1094,7 +1101,7 @@ function SlotCreator({
                           ? "bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed line-through"
                           : "bg-white text-gray-600 border-gray-200"
                     )}>
-                    {formatTime(t)}
+                    {formatTime(tp)}
                   </button>
                 )
               })}
@@ -1108,19 +1115,19 @@ function SlotCreator({
                 onClick={() => {
                   if (!customTime) return
                   if (startTimes.includes(customTime)) {
-                    setError(`${formatTime(customTime)} is already in the list`)
+                    setError(t("{time} is already in the list", { time: formatTime(customTime) }))
                     return
                   }
                   const conflict = overlapsAny(customTime, startTimes)
                   if (conflict) {
-                    setError(`${formatTime(customTime)} overlaps with ${formatTime(conflict)}–${formatTime(computeEndTime(conflict))} (classes are 2h long)`)
+                    setError(t("{time} overlaps with {range} (classes are 2h long)", { time: formatTime(customTime), range: `${formatTime(conflict)}-${formatTime(computeEndTime(conflict))}` }))
                     return
                   }
                   toggleTime(customTime)
                   setCustomTime("")
                 }}
                 className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700">
-                + Add
+                {t("+ Add")}
               </button>
             </div>
           </div>
@@ -1135,26 +1142,26 @@ function SlotCreator({
               <div className="space-y-2">
                 {startTimes.length > 0 && (
                   <div>
-                    <div className="text-xs text-gray-500 mb-1.5">Sessions ({startTimes.length}):</div>
+                    <div className="text-xs text-gray-500 mb-1.5">{t("Sessions ({n}):", { n: startTimes.length })}</div>
                     <div className="space-y-1.5">
-                      {startTimes.map((t) => {
-                        const isExisting = existingTimes.has(t)
-                        const a = assignments[t] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
-                        const existingSlotForTime = isExisting ? existingSlots.find((s) => s.startTime === t) : null
+                      {startTimes.map((time) => {
+                        const isExisting = existingTimes.has(time)
+                        const a = assignments[time] ?? { trainerId: "", assistantId: "", classType: "GROUP" as ClassType, publicVisible: true, maxCapacity: 6, repeatWeekly: false }
+                        const existingSlotForTime = isExisting ? existingSlots.find((s) => s.startTime === time) : null
                         const bookingCount = existingSlotForTime?._count.bookings ?? 0
                         const hasBookings = bookingCount > 0
                         return (
-                          <div key={t} className={cn(
+                          <div key={time} className={cn(
                             "relative rounded-lg text-xs border pl-3 pr-10 py-2.5 space-y-2",
                             isExisting ? "bg-gray-50 border-gray-200" : "bg-brand/5 border-brand/15"
                           )}>
                             <button type="button"
                               disabled={hasBookings}
-                              onClick={() => toggleTime(t)}
+                              onClick={() => toggleTime(time)}
                               title={hasBookings
-                                ? `Has ${bookingCount} booking${bookingCount === 1 ? "" : "s"} — cancel them first or hide the session instead`
-                                : isExisting ? "Remove this session" : "Discard this new session"}
-                              aria-label="Remove session"
+                                ? t("Has {n} booking(s) - cancel them first or hide the session instead", { n: bookingCount })
+                                : isExisting ? t("Remove this session") : t("Discard this new session")}
+                              aria-label={t("Remove session")}
                               className={cn(
                                 "absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center text-lg leading-none touch-manipulation",
                                 hasBookings ? "text-gray-300 cursor-not-allowed" :
@@ -1164,7 +1171,7 @@ function SlotCreator({
                               <span className={cn("font-medium whitespace-nowrap",
                                 isExisting ? "text-gray-700" : "text-brand"
                               )}>
-                                {formatTime(t)}–{formatTime(computeEndTime(t))}
+                                {formatTime(time)}-{formatTime(computeEndTime(time))}
                               </span>
                               <div className="ml-auto flex gap-1">
                                 {CLASS_TYPES.map((c) => {
@@ -1174,27 +1181,27 @@ function SlotCreator({
                                       onClick={() => {
                                         if (c.value === "PRIVATE") {
                                           if (bookingCount >= 2) {
-                                            const ok = confirm(`This session has ${bookingCount} bookings. Private allows only 1 person — extra clients will be over capacity. Continue?`)
+                                            const ok = confirm(t("This session has {n} bookings. Private allows only 1 person - extra clients will be over capacity. Continue?", { n: bookingCount }))
                                             if (!ok) return
                                           }
                                           // Private defaults to hidden from the public schedule.
-                                          updateAssignment(t, { classType: c.value, maxCapacity: 1, publicVisible: false })
+                                          updateAssignment(time, { classType: c.value, maxCapacity: 1, publicVisible: false })
                                         } else if (c.value === "GROUP") {
-                                          updateAssignment(t, {
+                                          updateAssignment(time, {
                                             classType: c.value,
                                             publicVisible: true,
                                             maxCapacity: wasPrivate ? 6 : a.maxCapacity,
                                           })
                                         } else {
                                           // Kids defaults to visible in the public schedule.
-                                          updateAssignment(t, {
+                                          updateAssignment(time, {
                                             classType: c.value,
                                             publicVisible: true,
                                             maxCapacity: wasPrivate ? 6 : a.maxCapacity,
                                           })
                                         }
                                       }}
-                                      title={c.label}
+                                      title={t(c.label)}
                                       className={cn(
                                         "w-7 h-7 rounded text-[11px] font-bold leading-none flex items-center justify-center border touch-manipulation",
                                         a.classType === c.value
@@ -1210,8 +1217,8 @@ function SlotCreator({
                                 <>
                                   <span className="w-px h-5 bg-gray-300/60 flex-shrink-0" aria-hidden />
                                   <button type="button"
-                                    onClick={() => updateAssignment(t, { publicVisible: !a.publicVisible })}
-                                    title={a.publicVisible ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
+                                    onClick={() => updateAssignment(time, { publicVisible: !a.publicVisible })}
+                                    title={a.publicVisible ? t("Visible to clients - tap to hide") : t("Hidden from clients - tap to show")}
                                     className={cn(
                                       "w-7 h-7 rounded flex items-center justify-center border touch-manipulation",
                                       a.publicVisible
@@ -1228,20 +1235,20 @@ function SlotCreator({
                             <div className="flex items-center gap-2">
                               <select
                                 value={a.trainerId}
-                                onChange={(e) => updateAssignment(t, { trainerId: e.target.value, assistantId: e.target.value ? a.assistantId : "" })}
+                                onChange={(e) => updateAssignment(time, { trainerId: e.target.value, assistantId: e.target.value ? a.assistantId : "" })}
                                 className="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand/30"
                               >
-                                <option value="">Unassigned</option>
+                                <option value="">{t("Unassigned")}</option>
                                 {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
                               </select>
                               {a.trainerId && (
                                 <select
                                   value={a.assistantId}
-                                  onChange={(e) => updateAssignment(t, { assistantId: e.target.value })}
+                                  onChange={(e) => updateAssignment(time, { assistantId: e.target.value })}
                                   className="flex-1 min-w-0 text-xs border border-dashed border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand/30 text-gray-500"
-                                  title="Assistant"
+                                  title={t("Assistant")}
                                 >
-                                  <option value="">+ Asst</option>
+                                  <option value="">{t("+ Asst")}</option>
                                   {trainers.filter((tr) => tr.id !== a.trainerId).map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
                                 </select>
                               )}
@@ -1252,8 +1259,8 @@ function SlotCreator({
                                   <select
                                     value={isPrivate ? 1 : a.maxCapacity}
                                     disabled={isPrivate}
-                                    onChange={(e) => updateAssignment(t, { maxCapacity: Number(e.target.value) })}
-                                    title={isPrivate ? "Private session is always 1 person" : "Capacity"}
+                                    onChange={(e) => updateAssignment(time, { maxCapacity: Number(e.target.value) })}
+                                    title={isPrivate ? t("Private session is always 1 person") : t("Capacity")}
                                     className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand/30 disabled:opacity-60 disabled:bg-gray-50 flex-shrink-0"
                                   >
                                     {[1, 2, 3, 4, 5, 6].map((n) => (
@@ -1265,14 +1272,14 @@ function SlotCreator({
                               {hasBookings && (
                                 <span
                                   className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold leading-none whitespace-nowrap flex-shrink-0"
-                                  title={`${bookingCount} confirmed booking${bookingCount === 1 ? "" : "s"} — session can't be removed`}
+                                  title={t("{n} confirmed booking(s) - session can't be removed", { n: bookingCount })}
                                 >
                                   🔒 {bookingCount}
                                 </span>
                               )}
                             </div>
                             {(() => {
-                              const weekday = format(new Date(date + "T00:00:00"), "EEEE")
+                              const weekday = format(new Date(date + "T00:00:00"), "EEEE", { locale: dateLocale })
                               const isPartOfSeries = isExisting && !!existingSlotForTime?.seriesId
                               const showWarning = isPartOfSeries && !a.repeatWeekly
                               return (
@@ -1284,7 +1291,7 @@ function SlotCreator({
                                 )}>
                                   <input type="checkbox"
                                     checked={a.repeatWeekly}
-                                    onChange={(e) => updateAssignment(t, { repeatWeekly: e.target.checked })}
+                                    onChange={(e) => updateAssignment(time, { repeatWeekly: e.target.checked })}
                                     className="w-4 h-4 mt-0.5 accent-brand flex-shrink-0"
                                   />
                                   <div className="min-w-0 flex-1 leading-tight">
@@ -1292,16 +1299,16 @@ function SlotCreator({
                                       "text-[11px] font-medium",
                                       a.repeatWeekly ? "text-brand" : "text-gray-600"
                                     )}>
-                                      Repeat every {weekday}
+                                      {t("Repeat every {weekday}", { weekday })}
                                     </div>
                                     <div className="text-[10px] text-gray-500 mt-0.5">
                                       {showWarning
-                                        ? "Unchecking stops the series — future occurrences will be removed"
+                                        ? t("Unchecking stops the series - future occurrences will be removed.")
                                         : isPartOfSeries
-                                          ? "Part of a weekly series"
+                                          ? t("Part of a weekly series")
                                           : isExisting
-                                            ? "Currently one-off (turning on won't backfill past weeks)"
-                                            : `Also schedule the next 12 ${weekday}s`}
+                                            ? t("Currently one-off (turning on won't backfill past weeks)")
+                                            : t("Also schedule the next 12 {weekday}s", { weekday })}
                                     </div>
                                   </div>
                                 </label>
@@ -1311,7 +1318,7 @@ function SlotCreator({
                               <QueuedClients
                                 clients={a.clients ?? []}
                                 capacity={a.classType === "PRIVATE" ? 1 : Number(a.maxCapacity)}
-                                onChange={(c) => updateAssignment(t, { clients: c })}
+                                onChange={(c) => updateAssignment(time, { clients: c })}
                               />
                             )}
                           </div>
@@ -1322,7 +1329,7 @@ function SlotCreator({
                 )}
                 {removed.length > 0 && (
                   <div>
-                    <div className="text-xs text-rose-600 mb-1.5">Will be deleted ({removed.length}):</div>
+                    <div className="text-xs text-rose-600 mb-1.5">{t("Will be deleted ({n}):", { n: removed.length })}</div>
                     <div className="flex flex-wrap gap-1.5">
                       {removed.map((s) => (
                         <span key={s.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-medium line-through decoration-rose-300">
@@ -1342,7 +1349,7 @@ function SlotCreator({
         <div className="px-5 py-3 flex gap-2 flex-shrink-0 border-t border-gray-100">
           <button type="button" onClick={onClose}
             className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">
-            Cancel
+            {t("Cancel")}
           </button>
           <button type="button" onClick={handleSave} disabled={saving || !hasChanges}
             className="flex-1 px-3 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-60">

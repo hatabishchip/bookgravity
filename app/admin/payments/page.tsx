@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Landmark, Check, Link2, Link2Off, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { useT } from "@/app/_components/LocaleProvider"
 
 type Suggestion = {
   id: string
@@ -38,6 +39,7 @@ type Feed = { payments: Payment[]; unmatchedCount: number; totalCount: number }
 const fmt = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID")
 
 export default function PaymentsPage() {
+  const t = useT()
   const [filter, setFilter] = useState<"unmatched" | "all">("unmatched")
   const [data, setData] = useState<Feed | null>(null)
   const [loading, setLoading] = useState(true)
@@ -68,11 +70,10 @@ export default function PaymentsPage() {
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center gap-2 mb-1">
         <Landmark size={22} className="text-emerald-600" />
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Bank confirmations</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t("Bank confirmations")}</h1>
       </div>
       <p className="text-sm text-gray-400 mb-5">
-        Incoming bank/QRIS payments from the studio SIM. Link each one to a booking - the trainer then
-        sees a &quot;confirmed by bank&quot; mark. Clients never see this.
+        {t('Incoming bank/QRIS payments from the studio SIM. Link each one to a booking - the trainer then sees a "confirmed by bank" mark. Clients never see this.')}
       </p>
 
       {/* Filter */}
@@ -88,7 +89,7 @@ export default function PaymentsPage() {
                 : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200",
             )}
           >
-            {f === "unmatched" ? "To link" : "All"}
+            {f === "unmatched" ? t("To link") : t("All")}
             {f === "unmatched" && data?.unmatchedCount ? (
               <span className="ml-2 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 text-white text-xs">
                 {data.unmatchedCount}
@@ -102,7 +103,7 @@ export default function PaymentsPage() {
         <div className="flex justify-center py-16"><PetalSpinner /></div>
       ) : !data || data.payments.length === 0 ? (
         <div className="text-center py-16 text-gray-400 text-sm">
-          {filter === "unmatched" ? "Nothing to link - every payment is matched." : "No bank payments yet."}
+          {filter === "unmatched" ? t("Nothing to link - every payment is matched.") : t("No bank payments yet.")}
         </div>
       ) : (
         <div className="space-y-3">
@@ -114,12 +115,12 @@ export default function PaymentsPage() {
                   <div className="text-lg font-bold text-gray-900 dark:text-gray-100">{fmt(p.amount)}</div>
                   <div className="text-xs text-gray-400 mt-0.5">
                     {p.channel} · {p.paidDate} {p.paidTime}
-                    {p.reference ? <> · ref {p.reference}</> : null}
+                    {p.reference ? <> · {t("ref")} {p.reference}</> : null}
                   </div>
                 </div>
                 {p.booking ? (
                   <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-lg">
-                    <Check size={13} /> Linked
+                    <Check size={13} /> {t("Linked")}
                   </span>
                 ) : null}
               </div>
@@ -136,17 +137,17 @@ export default function PaymentsPage() {
                     disabled={busyId === p.id}
                     className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 disabled:opacity-50"
                   >
-                    <Link2Off size={14} /> Unlink
+                    <Link2Off size={14} /> {t("Unlink")}
                   </button>
                 </div>
               ) : (
                 /* Suggestions to link */
                 <div className="mt-3">
                   {p.suggestions.length === 0 ? (
-                    <div className="text-xs text-gray-400">No bookings on {p.paidDate} to match. Check the schedule.</div>
+                    <div className="text-xs text-gray-400">{t("No bookings on {date} to match. Check the schedule.", { date: p.paidDate })}</div>
                   ) : (
                     <div className="space-y-1.5">
-                      <div className="text-xs text-gray-400 mb-1">Link to a booking on {p.paidDate}:</div>
+                      <div className="text-xs text-gray-400 mb-1">{t("Link to a booking on {date}:", { date: p.paidDate })}</div>
                       {p.suggestions.map((s) => (
                         <div
                           key={s.id}
@@ -161,13 +162,13 @@ export default function PaymentsPage() {
                             <div className="text-sm text-gray-800 dark:text-gray-200 truncate">
                               <span className="font-medium">{s.startTime}</span> · {s.clientName}
                               {s.amountMatch ? (
-                                <span className="ml-2 text-xs text-emerald-600">amount matches</span>
+                                <span className="ml-2 text-xs text-emerald-600">{t("amount matches")}</span>
                               ) : null}
                             </div>
                             <div className="text-xs text-gray-400 truncate">
                               {s.classType} · {fmt(s.price)}
                               {s.trainerName ? <> · {s.trainerName}</> : null}
-                              {s.alreadyLinked ? <span className="text-amber-600"> · already has a bank match</span> : null}
+                              {s.alreadyLinked ? <span className="text-amber-600"> · {t("already has a bank match")}</span> : null}
                             </div>
                           </div>
                           <button
@@ -175,7 +176,7 @@ export default function PaymentsPage() {
                             disabled={busyId === p.id}
                             className="inline-flex items-center gap-1 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-3 py-1.5 rounded-lg flex-shrink-0"
                           >
-                            <Link2 size={14} /> Link
+                            <Link2 size={14} /> {t("Link")}
                           </button>
                         </div>
                       ))}
@@ -189,7 +190,7 @@ export default function PaymentsPage() {
                 onClick={() => setOpenRaw((o) => ({ ...o, [p.id]: !o[p.id] }))}
                 className="mt-3 inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
               >
-                {openRaw[p.id] ? <ChevronUp size={13} /> : <ChevronDown size={13} />} Raw SMS
+                {openRaw[p.id] ? <ChevronUp size={13} /> : <ChevronDown size={13} />} {t("Raw SMS")}
               </button>
               {openRaw[p.id] ? (
                 <pre className="mt-1.5 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-white/5 rounded-lg p-2.5 whitespace-pre-wrap break-words">

@@ -117,6 +117,7 @@ function readImageAsDataUrl(file: File, maxDim = 512, quality = 0.85): Promise<s
 }
 
 export default function SettingsPage() {
+  const t = useT()
   const [studio, setStudio] = useState<Studio | null>(null)
   const [saving, setSaving] = useState<"logo" | "favicon" | "cover" | "name" | "language" | "location" | "bookingAlert" | "otp" | "confirmEmail" | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -162,7 +163,7 @@ export default function SettingsPage() {
       setStudio(updated)
     } else {
       const e = await res.json().catch(() => ({}))
-      setError(e.error ?? "Failed to save")
+      setError(e.error ?? t("Failed to save"))
     }
     setSaving(null)
   }
@@ -172,7 +173,7 @@ export default function SettingsPage() {
     // Covers are full-bleed photos, so allow a larger source file.
     const maxBytes = kind === "cover" ? 6 * 1024 * 1024 : 2 * 1024 * 1024
     if (file.size > maxBytes) {
-      setError(`Image is too large (max ${maxBytes / (1024 * 1024)} MB).`)
+      setError(t("Image is too large (max {n} MB).", { n: maxBytes / (1024 * 1024) }))
       return
     }
     try {
@@ -187,15 +188,15 @@ export default function SettingsPage() {
             : { coverUrl: dataUrl },
       )
     } catch {
-      setError("Could not read the file.")
+      setError(t("Could not read the file."))
     }
   }
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-xl lg:text-2xl font-bold text-gray-900 mb-1">Settings</h1>
+      <h1 className="text-xl lg:text-2xl font-bold text-gray-900 mb-1">{t("Settings")}</h1>
       <p className="text-gray-500 text-xs lg:text-sm mb-6">
-        Branding for {studio?.name ?? "your studio"} — customers see this on the booking page.
+        {t("Branding for {name} - customers see this on the booking page.", { name: studio?.name ?? t("your studio") })}
       </p>
 
       {error && (
@@ -205,7 +206,7 @@ export default function SettingsPage() {
       )}
 
       {!studio ? (
-        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">Loading…</div>
+        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">{t("Loading…")}</div>
       ) : (
         <div className="space-y-4">
           <AppearanceCard />
@@ -213,8 +214,8 @@ export default function SettingsPage() {
           <InterfaceLanguageCard />
 
           <AssetCard
-            title="Logo"
-            description="Shown in the header of your public booking page, and used as the browser-tab icon (favicon). Best looks: PNG with transparent background, square or wide format."
+            title={t("Logo")}
+            description={t("Shown in the header of your public booking page, and used as the browser-tab icon (favicon). Best looks: PNG with transparent background, square or wide format.")}
             kind="logo"
             value={studio.logoUrl}
             saving={saving === "logo"}
@@ -225,8 +226,8 @@ export default function SettingsPage() {
           />
 
           <AssetCard
-            title="Studio photo"
-            description="Shown on the studio chooser at bookgravity.com and as a soft backdrop behind the booking calendar. A bright portrait photo of your studio works best (e.g. a class in session)."
+            title={t("Studio photo")}
+            description={t("Shown on the studio chooser at bookgravity.com and as a soft backdrop behind the booking calendar. A bright portrait photo of your studio works best (e.g. a class in session).")}
             kind="cover"
             // Show the photo actually used on the chooser: the custom cover if
             // set, otherwise the bundled /studios/<slug>.jpg default — so it
@@ -318,6 +319,7 @@ function AssetCard({
    *  not a real upload (there's nothing to remove). Defaults to true. */
   canRemove?: boolean
 }) {
+  const t = useT()
   // Like NameCard: when an image is set we show just a pencil (edit) button;
   // the Replace/Remove actions appear only after tapping it. When nothing is
   // set yet, the Upload button is shown directly. Editing collapses back to
@@ -339,7 +341,7 @@ function AssetCard({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            aria-label={`Edit ${title.toLowerCase()}`}
+            aria-label={t("Edit {what}", { what: title.toLowerCase() })}
             className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50"
           >
             <Pencil size={16} />
@@ -366,7 +368,7 @@ function AssetCard({
               className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand text-white text-sm font-medium hover:bg-brand-dark disabled:opacity-60"
             >
               <Upload size={14} />
-              {saving ? "Saving…" : value ? `Replace ${title.toLowerCase()}` : `Upload ${title.toLowerCase()}`}
+              {saving ? t("Saving…") : value ? t("Replace {what}", { what: title.toLowerCase() }) : t("Upload {what}", { what: title.toLowerCase() })}
             </button>
             {value && canRemove && (
               <button
@@ -376,7 +378,7 @@ function AssetCard({
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
               >
                 <Trash2 size={14} />
-                Remove
+                {t("Remove")}
               </button>
             )}
             {value && (
@@ -384,7 +386,7 @@ function AssetCard({
                 type="button"
                 onClick={() => setEditing(false)}
                 disabled={saving}
-                aria-label="Cancel"
+                aria-label={t("Cancel")}
                 className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
               >
                 <X size={14} />
@@ -441,6 +443,7 @@ function InterfaceLanguageCard() {
 }
 
 function AppearanceCard() {
+  const t = useT()
   const { theme, setTheme } = useAdminTheme()
   const options: { value: "light" | "dark"; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
     { value: "light", label: "Light", icon: Sun },
@@ -450,11 +453,10 @@ function AppearanceCard() {
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <div className="flex items-center gap-2 mb-3">
         <Moon size={16} className="text-brand" />
-        <h2 className="text-base font-semibold text-gray-900">Appearance</h2>
+        <h2 className="text-base font-semibold text-gray-900">{t("Appearance")}</h2>
       </div>
       <p className="text-xs text-gray-500 mb-4 max-w-md">
-        Choose how the admin panel looks. Dark theme is easier on the eyes in
-        low light. This preference is saved on this device.
+        {t("Choose how the admin panel looks. Dark theme is easier on the eyes in low light. This preference is saved on this device.")}
       </p>
       <div className="inline-flex items-center gap-1 rounded-xl bg-gray-100 p-1">
         {options.map((o) => {
@@ -474,7 +476,7 @@ function AppearanceCard() {
               aria-pressed={active}
             >
               <Icon size={16} />
-              {o.label}
+              {t(o.label)}
             </button>
           )
         })}
@@ -492,6 +494,7 @@ function InboxLanguageCard({
   saving: boolean
   onSave: (lang: string | null) => Promise<void> | void
 }) {
+  const t = useT()
   // Localish change UX: pick from a small native <select>, save immediately
   // on change. No need for a separate "Save" button — it's a single
   // dropdown and the round-trip is fast.
@@ -505,14 +508,10 @@ function InboxLanguageCard({
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <div className="flex items-center gap-2 mb-3">
         <Languages size={16} className="text-brand" />
-        <h2 className="text-base font-semibold text-gray-900">Inbox language</h2>
+        <h2 className="text-base font-semibold text-gray-900">{t("Inbox language")}</h2>
       </div>
       <p className="text-xs text-gray-500 mb-4 max-w-md">
-        Auto-translate incoming WhatsApp messages so the inbox always reads
-        in your language. Your replies are also translated back into the
-        client&apos;s detected language before delivery — clients see them
-        in whatever language they wrote in. The original text is always
-        preserved underneath the translation.
+        {t("Auto-translate incoming WhatsApp messages so the inbox always reads in your language. Your replies are also translated back into the client's detected language before delivery - clients see them in whatever language they wrote in. The original text is always preserved underneath the translation.")}
       </p>
       <div className="flex items-center gap-3">
         <select
@@ -523,13 +522,13 @@ function InboxLanguageCard({
         >
           {LANG_OPTIONS.map((o) => (
             <option key={o.value ?? "off"} value={o.value ?? ""}>
-              {o.emoji} {o.label}
+              {o.emoji} {t(o.label)}
             </option>
           ))}
         </select>
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
+        {saving && <span className="text-xs text-gray-400">{t("Saving…")}</span>}
         {done && !saving && (
-          <span className="text-xs text-brand font-medium">Saved ✓</span>
+          <span className="text-xs text-brand font-medium">{t("Saved ✓")}</span>
         )}
       </div>
     </div>
@@ -545,6 +544,7 @@ function LocationCard({
   saving: boolean
   onSave: (url: string | null) => Promise<void> | void
 }) {
+  const t = useT()
   const [text, setText] = useState(value ?? "")
   // Empty by default → editable; once saved → collapse to a pencil.
   const [editing, setEditing] = useState(!value)
@@ -566,13 +566,13 @@ function LocationCard({
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <MapPin size={16} className="text-brand" />
-          <h2 className="text-base font-semibold text-gray-900">Studio location</h2>
+          <h2 className="text-base font-semibold text-gray-900">{t("Studio location")}</h2>
         </div>
         {value && !editing && (
           <button
             type="button"
             onClick={() => setEditing(true)}
-            aria-label="Edit studio location"
+            aria-label={t("Edit studio location")}
             className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50"
           >
             <Pencil size={16} />
@@ -580,9 +580,7 @@ function LocationCard({
         )}
       </div>
       <p className="text-xs text-gray-500 mb-4 max-w-md">
-        Paste a Google Maps link to your studio. It&apos;s added to the
-        client&apos;s WhatsApp booking confirmation so they can navigate
-        straight to you. Leave empty to omit it.
+        {t("Paste a Google Maps link to your studio. It's added to the client's WhatsApp booking confirmation so they can navigate straight to you. Leave empty to omit it.")}
       </p>
 
       {editing ? (
@@ -603,14 +601,14 @@ function LocationCard({
             disabled={saving}
             className="flex-shrink-0 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("Saving…") : t("Save")}
           </button>
           {value && (
             <button
               type="button"
               onClick={() => { setText(value); setEditing(false) }}
               disabled={saving}
-              aria-label="Cancel"
+              aria-label={t("Cancel")}
               className="flex-shrink-0 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 disabled:opacity-50"
             >
               <X size={14} />
@@ -645,12 +643,13 @@ function ToggleRow({
    *  admin sees exactly what they're enabling. */
   preview?: React.ReactNode
 }) {
+  const t = useT()
   return (
     <div>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="text-sm font-medium text-gray-900">
-            {label} {saving && <span className="text-[11px] text-brand font-normal">Saving…</span>}
+            {label} {saving && <span className="text-[11px] text-brand font-normal">{t("Saving…")}</span>}
           </div>
           <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{desc}</p>
         </div>
@@ -664,7 +663,7 @@ function ToggleRow({
             "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
             value ? "bg-brand" : "bg-gray-300",
           )}
-          aria-label={`Toggle ${label}`}
+          aria-label={t("Toggle {label}", { label })}
         >
           <span
             className={cn(
@@ -696,6 +695,7 @@ function ToggleRow({
 type RotationTrainer = { id: string; name: string; inLeadRotation?: boolean; kind?: string; archived?: boolean }
 
 function LeadRoutingCard({ studio, onChanged }: { studio: Studio; onChanged: () => void }) {
+  const t = useT()
   const waReady = !!studio.whatsappEnabled
   const [enabled, setEnabled] = useState(!!studio.autoAssignLeads)
   const [trainers, setTrainers] = useState<RotationTrainer[]>([])
@@ -741,22 +741,21 @@ function LeadRoutingCard({ studio, onChanged }: { studio: Studio; onChanged: () 
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-      <h2 className="text-base font-semibold text-gray-900">Incoming lead routing</h2>
+      <h2 className="text-base font-semibold text-gray-900">{t("Incoming lead routing")}</h2>
       <p className="text-sm text-gray-500 mt-1">
-        Auto-assign a first message from an unknown number (an ad lead) to your trainers in turn.
-        It lands in the next trainer&apos;s inbox and is sent to their personal WhatsApp.
+        {t("Auto-assign a first message from an unknown number (an ad lead) to your trainers in turn. It lands in the next trainer's inbox and is sent to their personal WhatsApp.")}
       </p>
 
       <div className={cn("mt-4 flex items-center justify-between rounded-xl border px-4 py-3", waReady ? "border-gray-200" : "border-gray-100 bg-gray-50")}>
         <div className="min-w-0">
-          <div className={cn("text-sm font-medium", waReady ? "text-gray-800" : "text-gray-400")}>Auto-assign leads</div>
-          {!waReady && <div className="text-[11px] text-gray-400 mt-0.5">Connect WhatsApp to enable</div>}
+          <div className={cn("text-sm font-medium", waReady ? "text-gray-800" : "text-gray-400")}>{t("Auto-assign leads")}</div>
+          {!waReady && <div className="text-[11px] text-gray-400 mt-0.5">{t("Connect WhatsApp to enable")}</div>}
         </div>
         <button
           type="button"
           onClick={toggleEnabled}
           disabled={!waReady || busy}
-          aria-label="Toggle auto-assign leads"
+          aria-label={t("Toggle auto-assign leads")}
           className={cn(
             "relative w-11 h-6 rounded-full transition-colors flex-shrink-0",
             !waReady ? "bg-gray-200 cursor-not-allowed" : enabled ? "bg-brand" : "bg-gray-300",
@@ -769,10 +768,10 @@ function LeadRoutingCard({ studio, onChanged }: { studio: Studio; onChanged: () 
       {waReady && enabled && (
         <div className="mt-3">
           <div className="text-xs font-medium text-gray-500 mb-2">
-            Trainers in rotation {inPool > 0 && <span className="text-gray-400">· {inPool} selected</span>}
+            {t("Trainers in rotation")} {inPool > 0 && <span className="text-gray-400">· {t("{n} selected", { n: inPool })}</span>}
           </div>
           {trainers.length === 0 ? (
-            <div className="text-sm text-gray-400">No trainers yet.</div>
+            <div className="text-sm text-gray-400">{t("No trainers yet.")}</div>
           ) : (
             <div className="space-y-1.5">
               {trainers.map((t) => (
@@ -798,7 +797,7 @@ function LeadRoutingCard({ studio, onChanged }: { studio: Studio; onChanged: () 
             </div>
           )}
           {inPool === 0 && (
-            <p className="text-[11px] text-amber-600 mt-2">Pick at least one trainer, or leads stay with the admin.</p>
+            <p className="text-[11px] text-amber-600 mt-2">{t("Pick at least one trainer, or leads stay with the admin.")}</p>
           )}
         </div>
       )}
@@ -843,6 +842,7 @@ function NotifRoleRow({
   email: boolean
   onEdit: () => void
 }) {
+  const t = useT()
   return (
     <div className="flex items-center justify-between py-3.5">
       <div className="flex items-center gap-3 min-w-0">
@@ -852,7 +852,7 @@ function NotifRoleRow({
       <button
         type="button"
         onClick={onEdit}
-        aria-label={`Edit ${label} notifications`}
+        aria-label={t("Edit {label} notifications", { label })}
         className="p-2 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50 flex-shrink-0"
       >
         <Pencil size={16} />
@@ -875,6 +875,7 @@ function BigRow({
   onToggle: (on: boolean) => void
   preview: string
 }) {
+  const t = useT()
   return (
     <div className="border border-gray-200 rounded-2xl p-4">
       <div className="flex items-start justify-between gap-4">
@@ -891,7 +892,7 @@ function BigRow({
             "relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors",
             value ? "bg-brand" : "bg-gray-300",
           )}
-          aria-label={`Toggle ${label}`}
+          aria-label={t("Toggle {label}", { label })}
         >
           <span className={cn("inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform", value ? "translate-x-[22px]" : "translate-x-0.5")} />
         </button>
@@ -913,6 +914,7 @@ function NotificationsCard({
   studio: Studio
   onSaved: () => Promise<void> | void
 }) {
+  const t = useT()
   const [open, setOpen] = useState<null | "client" | "admin">(null)
   const waOn = !!studio.whatsappEnabled
   // Which channels actually send something for each role.
@@ -922,13 +924,13 @@ function NotificationsCard({
   const adminEmail = studio.emailAdminBooking !== false || studio.emailAdminWaCopy !== false
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5">
-      <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+      <h3 className="text-sm font-semibold text-gray-900">{t("Notifications")}</h3>
       <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-        Who gets what, by WhatsApp and email. A bright icon = that channel is on. Tap the pencil to see every message and change it.
+        {t("Who gets what, by WhatsApp and email. A bright icon = that channel is on. Tap the pencil to see every message and change it.")}
       </p>
       <div className="mt-2 divide-y divide-gray-100">
-        <NotifRoleRow label="Client" wa={clientWa} email={clientEmail} onEdit={() => setOpen("client")} />
-        <NotifRoleRow label="Admin" wa={adminWa} email={adminEmail} onEdit={() => setOpen("admin")} />
+        <NotifRoleRow label={t("Client")} wa={clientWa} email={clientEmail} onEdit={() => setOpen("client")} />
+        <NotifRoleRow label={t("Admin")} wa={adminWa} email={adminEmail} onEdit={() => setOpen("admin")} />
       </div>
       {open && (
         <NotificationsModal
@@ -956,6 +958,7 @@ function NotificationsModal({
   onClose: () => void
   onSaved: () => Promise<void> | void
 }) {
+  const t = useT()
   const waOn = !!studio.whatsappEnabled
   const [d, setD] = useState({
     requireBookingOtp: studio.requireBookingOtp !== false,
@@ -979,15 +982,15 @@ function NotificationsModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(d),
       })
-      if (!res.ok) { setErr(`Couldn't save (HTTP ${res.status})`); setSaving(false); return }
+      if (!res.ok) { setErr(t("Couldn't save (HTTP {status})", { status: res.status })); setSaving(false); return }
       await onSaved()
     } catch {
-      setErr("Couldn't save — try again.")
+      setErr(t("Couldn't save - try again."))
       setSaving(false)
     }
   }
 
-  const recip = role === "client" ? "client" : "you"
+  const recip = role === "client" ? t("client") : t("you")
   // Each channel is its own card with a bold coloured header (green for
   // WhatsApp, blue for Email) so it's obvious which channel a row belongs to.
   const ChannelGroup = ({ channel, children }: { channel: "whatsapp" | "email"; children: React.ReactNode }) => {
@@ -1011,9 +1014,9 @@ function NotificationsModal({
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
         <h3 className="text-lg font-bold text-gray-900">
-          {role === "client" ? "Client" : "Admin"} notifications
+          {role === "client" ? t("Client notifications") : t("Admin notifications")}
         </h3>
-        <button type="button" onClick={onClose} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:bg-gray-100">
+        <button type="button" onClick={onClose} aria-label={t("Close")} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100">
           <X size={22} />
         </button>
       </div>
@@ -1025,37 +1028,37 @@ function NotificationsModal({
             {waOn && (
               <ChannelGroup channel="whatsapp">
                 <BigRow
-                  label="Booking confirmation"
-                  desc="Sent to the client on WhatsApp right after booking, with a 2-digit code to confirm (stops spam)."
+                  label={t("Booking confirmation")}
+                  desc={t("Sent to the client on WhatsApp right after booking, with a 2-digit code to confirm (stops spam).")}
                   value={d.requireBookingOtp}
                   onToggle={set("requireBookingOtp")}
                   preview={"You're booked 💖\n\nJune 9 (Tuesday)\n7:00 AM class\nTicket: #352\n\n📍 Location:\nmaps.app.goo.gl/…\n\n[ Cancel booking ]"}
                 />
                 <BigRow
-                  label="Reminder — the day before"
-                  desc="Sent the afternoon before the class."
+                  label={t("Reminder - the day before")}
+                  desc={t("Sent the afternoon before the class.")}
                   value={d.remindTomorrow}
                   onToggle={set("remindTomorrow")}
-                  preview={"Reminder: your group class is tomorrow at 7:00–8:30. Please arrive 10 minutes early."}
+                  preview={"Reminder: your group class is tomorrow at 7:00-8:30. Please arrive 10 minutes early."}
                 />
                 <BigRow
-                  label="Same-day check-in"
-                  desc="Sent ~2.5 hours before the class — the client's reply is forwarded to the trainer."
+                  label={t("Same-day check-in")}
+                  desc={t("Sent ~2.5 hours before the class - the client's reply is forwarded to the trainer.")}
                   value={d.remindToday}
                   onToggle={set("remindToday")}
-                  preview={"Hello! 🌿 Just a gentle reminder about your class today — are you still able to join us? We'd love to see you on the mat. 🙏"}
+                  preview={"Hello! 🌿 Just a gentle reminder about your class today - are you still able to join us? We'd love to see you on the mat. 🙏"}
                 />
               </ChannelGroup>
             )}
             <ChannelGroup channel="email">
               <BigRow
-                label="Booking confirmation"
+                label={t("Booking confirmation")}
                 desc={waOn
-                  ? "Only used when WhatsApp can't reach the client (otherwise they get the WhatsApp confirmation)."
-                  : "Emailed to the client right after booking."}
+                  ? t("Only used when WhatsApp can't reach the client (otherwise they get the WhatsApp confirmation).")
+                  : t("Emailed to the client right after booking.")}
                 value={d.emailClientBooking}
                 onToggle={set("emailClientBooking")}
-                preview={`Subject: Booking confirmed · ${studioName} · Jun 9, 7:00\n\nName, date, time, class and ticket — the full booking details.\nFrom: ${studioName}`}
+                preview={`Subject: Booking confirmed · ${studioName} · Jun 9, 7:00\n\nName, date, time, class and ticket - the full booking details.\nFrom: ${studioName}`}
               />
             </ChannelGroup>
           </>
@@ -1064,28 +1067,28 @@ function NotificationsModal({
             {waOn && (
               <ChannelGroup channel="whatsapp">
                 <BigRow
-                  label="New booking alert"
+                  label={t("New booking alert")}
                   desc={studio.bookingAlertWhatsapp
-                    ? `Sent to your alert number (${studio.bookingAlertWhatsapp}) when a client books.`
-                    : "Set your alert WhatsApp number in the 'Booking alerts' field to receive these."}
+                    ? t("Sent to your alert number ({phone}) when a client books.", { phone: studio.bookingAlertWhatsapp })
+                    : t("Set your alert WhatsApp number in the 'Booking alerts' field to receive these.")}
                   value={d.notifyAdminWhatsapp}
                   onToggle={set("notifyAdminWhatsapp")}
-                  preview={"New booking 🎉\nGroup class · June 9, 7:00–8:30\nClient: Ni Putu\n3/8 booked"}
+                  preview={"New booking 🎉\nGroup class · June 9, 7:00-8:30\nClient: Ni Putu\n3/8 booked"}
                 />
               </ChannelGroup>
             )}
             <ChannelGroup channel="email">
               <BigRow
-                label="Booking confirmation copy"
-                desc="A copy of every booking, emailed to you with the full client + class info."
+                label={t("Booking confirmation copy")}
+                desc={t("A copy of every booking, emailed to you with the full client + class info.")}
                 value={d.emailAdminBooking}
                 onToggle={set("emailAdminBooking")}
                 preview={`Subject: Booking confirmed · ${studioName} · Jun 9, 7:00\n\nClient name, phone, email, date, time, class and ticket.\nFrom: ${studioName}`}
               />
               {waOn && (
                 <BigRow
-                  label="WhatsApp message copy"
-                  desc="Every WhatsApp message a client sends is also emailed to you, so you never miss one."
+                  label={t("WhatsApp message copy")}
+                  desc={t("Every WhatsApp message a client sends is also emailed to you, so you never miss one.")}
                   value={d.emailAdminWaCopy}
                   onToggle={set("emailAdminWaCopy")}
                   preview={"📨 WhatsApp message from a client\n\n“Hi, can I move my class to tomorrow?”\nForwarded to your email."}
@@ -1101,10 +1104,10 @@ function NotificationsModal({
       {/* Footer */}
       <div className="flex gap-3 px-5 py-4 border-t border-gray-100 flex-shrink-0 max-w-2xl mx-auto w-full">
         <button type="button" onClick={onClose} className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-base font-medium hover:bg-gray-50">
-          Cancel
+          {t("Cancel")}
         </button>
         <button type="button" onClick={save} disabled={saving} className="flex-1 px-4 py-3 rounded-xl bg-brand text-white text-base font-semibold hover:bg-brand-dark disabled:opacity-60">
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("Saving…") : t("Save")}
         </button>
       </div>
     </div>
@@ -1120,6 +1123,7 @@ function GoogleCalendarCard({
   studio: Studio
   onChanged: () => Promise<void> | void
 }) {
+  const t = useT()
   const connected = !!studio.googleEmail || !!studio.googleConnectedAt
   const [note, setNote] = useState<string | null>(null)
   const [disconnecting, setDisconnecting] = useState(false)
@@ -1130,10 +1134,10 @@ function GoogleCalendarCard({
     const p = new URLSearchParams(window.location.search).get("gcal")
     if (!p) return
     setNote(
-      p === "connected" ? "✓ Google Calendar connected."
-        : p === "noretoken" ? "Google didn't return access. In your Google account remove BookGravity, then connect again."
-        : p === "unavailable" ? "Google integration isn't configured yet."
-        : "Couldn't connect to Google — please try again.",
+      p === "connected" ? t("✓ Google Calendar connected.")
+        : p === "noretoken" ? t("Google didn't return access. In your Google account remove BookGravity, then connect again.")
+        : p === "unavailable" ? t("Google integration isn't configured yet.")
+        : t("Couldn't connect to Google - please try again."),
     )
     const url = new URL(window.location.href)
     url.searchParams.delete("gcal")
@@ -1157,13 +1161,12 @@ function GoogleCalendarCard({
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-gray-900">Google Calendar</h3>
           <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-            Sync this studio&apos;s classes into your own Google Calendar — created, edited and
-            removed automatically. It&apos;s your account, separate from other studios.
+            {t("Sync this studio's classes into your own Google Calendar - created, edited and removed automatically. It's your account, separate from other studios.")}
           </p>
         </div>
         {connected && (
           <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium flex-shrink-0">
-            Connected
+            {t("Connected")}
           </span>
         )}
       </div>
@@ -1173,12 +1176,12 @@ function GoogleCalendarCard({
       <div className="mt-4">
         {!studio.googleConfigured ? (
           <p className="text-xs text-gray-400">
-            Google sync isn&apos;t available yet — the platform owner needs to finish the Google setup.
+            {t("Google sync isn't available yet - the platform owner needs to finish the Google setup.")}
           </p>
         ) : connected ? (
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="text-sm text-gray-700">
-              Connected as <span className="font-medium">{studio.googleEmail ?? "your Google account"}</span>
+              {t("Connected as")} <span className="font-medium">{studio.googleEmail ?? t("your Google account")}</span>
             </div>
             <button
               type="button"
@@ -1186,7 +1189,7 @@ function GoogleCalendarCard({
               disabled={disconnecting}
               className="text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
             >
-              {disconnecting ? "Disconnecting…" : "Disconnect"}
+              {disconnecting ? t("Disconnecting…") : t("Disconnect")}
             </button>
           </div>
         ) : (
@@ -1200,7 +1203,7 @@ function GoogleCalendarCard({
               <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 010-4.2V7.06H2.18a11 11 0 000 9.88l3.66-2.84z" />
               <path fill="#EA4335" d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.44 14.97.5 12 .5A11 11 0 002.18 7.06l3.66 2.84C6.71 7.3 9.14 4.75 12 4.75z" />
             </svg>
-            Connect Google Calendar
+            {t("Connect Google Calendar")}
           </a>
         )}
       </div>
@@ -1226,6 +1229,7 @@ function WhatsAppActivationCard({
   studio: Studio
   onChanged: () => Promise<void> | void
 }) {
+  const t = useT()
   const onboardingEnabled = !!studio.whatsappOnboardingEnabled
   const active =
     !!studio.whatsappEnabled && !!studio.whatsappPhoneNumberId
@@ -1309,7 +1313,7 @@ function WhatsAppActivationCard({
       <h2 className="text-base font-semibold text-gray-900">WhatsApp</h2>
       {active && (
         <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-          Active
+          {t("Active")}
         </span>
       )}
     </div>
@@ -1321,15 +1325,14 @@ function WhatsAppActivationCard({
       <div className="bg-white rounded-2xl shadow-sm p-5">
         {Header}
         <p className="text-xs text-gray-500 mb-3 max-w-md">
-          WhatsApp is connected for this studio. Clients receive confirmations
-          and the inbox is live on this number:
+          {t("WhatsApp is connected for this studio. Clients receive confirmations and the inbox is live on this number:")}
         </p>
         <div className="flex items-center gap-3 mb-5">
           <div className="w-9 h-9 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold">
             ✓
           </div>
           <div className="font-mono text-sm text-gray-900">
-            {studio.whatsappDisplayPhone || studio.whatsappRequestDisplayPhone || "—"}
+            {studio.whatsappDisplayPhone || studio.whatsappRequestDisplayPhone || "-"}
           </div>
         </div>
         <BookingCopyNumber studio={studio} onChanged={onChanged} />
@@ -1343,7 +1346,7 @@ function WhatsAppActivationCard({
       <div className="bg-white rounded-2xl shadow-sm p-5">
         {Header}
         <p className="text-xs text-gray-500 mb-4 max-w-md">
-          Enter the 6 digits from the SMS Meta sent to{" "}
+          {t("Enter the 6 digits from the SMS Meta sent to")}{" "}
           <span className="font-mono">{studio.whatsappRequestDisplayPhone}</span>.
         </p>
         <div className="flex items-center gap-2 mb-3">
@@ -1367,7 +1370,7 @@ function WhatsAppActivationCard({
             className="flex-shrink-0 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
           >
             {busy && <Spinner />}
-            Confirm
+            {t("Confirm")}
           </button>
         </div>
         {localError && (
@@ -1379,7 +1382,7 @@ function WhatsAppActivationCard({
           disabled={busy}
           className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
         >
-          Cancel and enter a different number
+          {t("Cancel and enter a different number")}
         </button>
       </div>
     )
@@ -1391,8 +1394,7 @@ function WhatsAppActivationCard({
       <div className="bg-white rounded-2xl shadow-sm p-5 opacity-75">
         {Header}
         <p className="text-xs text-gray-500 mb-4 max-w-md">
-          WhatsApp activation isn&apos;t open for this studio yet. Contact the
-          platform admin to enable it.
+          {t("WhatsApp activation isn't open for this studio yet. Contact the platform admin to enable it.")}
         </p>
         <div className="flex items-center gap-2">
           <input
@@ -1406,7 +1408,7 @@ function WhatsAppActivationCard({
             disabled
             className="flex-shrink-0 bg-gray-200 text-gray-400 text-sm font-semibold px-4 py-2.5 rounded-xl cursor-not-allowed"
           >
-            Activate
+            {t("Activate")}
           </button>
         </div>
       </div>
@@ -1419,8 +1421,7 @@ function WhatsAppActivationCard({
     <div className="bg-white rounded-2xl shadow-sm p-5">
       {Header}
       <p className="text-xs text-gray-500 mb-4 max-w-md">
-        Enter the number WhatsApp will run on for this studio. An SMS code
-        arrives on that number in ~30 seconds.
+        {t("Enter the number WhatsApp will run on for this studio. An SMS code arrives on that number in ~30 seconds.")}
       </p>
       <div className="space-y-2 mb-3">
         <input
@@ -1437,7 +1438,7 @@ function WhatsAppActivationCard({
           type="text"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder={`WhatsApp display name — e.g. ${studio.name}`}
+          placeholder={t("WhatsApp display name - e.g. {name}", { name: studio.name })}
           disabled={busy}
           maxLength={64}
           className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-60"
@@ -1451,7 +1452,7 @@ function WhatsAppActivationCard({
           className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
         >
           {busy && <Spinner />}
-          Activate
+          {t("Activate")}
         </button>
         {failed && (
           <button
@@ -1460,7 +1461,7 @@ function WhatsAppActivationCard({
             disabled={busy}
             className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
           >
-            Reset
+            {t("Reset")}
           </button>
         )}
       </div>
@@ -1470,8 +1471,7 @@ function WhatsAppActivationCard({
         </p>
       )}
       <p className="text-[11px] text-gray-400 mt-3">
-        The number must be new (not registered in WhatsApp on a phone). If the
-        SIM is already in use, delete its WhatsApp account on the phone first.
+        {t("The number must be new (not registered in WhatsApp on a phone). If the SIM is already in use, delete its WhatsApp account on the phone first.")}
       </p>
     </div>
   )
@@ -1488,6 +1488,7 @@ function BookingCopyNumber({
   studio: Studio
   onChanged: () => Promise<void> | void
 }) {
+  const t = useT()
   const current = studio.bookingAlertWhatsapp ?? ""
   const [text, setText] = useState(current)
   const [editing, setEditing] = useState(!current)
@@ -1520,12 +1521,10 @@ function BookingCopyNumber({
   return (
     <div className="border-t border-gray-100 pt-4">
       <div className="text-sm font-semibold text-gray-900 mb-1">
-        Booking copies to your personal WhatsApp
+        {t("Booking copies to your personal WhatsApp")}
       </div>
       <p className="text-xs text-gray-500 mb-3 max-w-md">
-        Personal number that gets a copy of every new booking (in addition to
-        the assigned trainer). Must be different from the studio number above.
-        Leave empty to turn copies off.
+        {t("Personal number that gets a copy of every new booking (in addition to the assigned trainer). Must be different from the studio number above. Leave empty to turn copies off.")}
       </p>
 
       {editing ? (
@@ -1546,7 +1545,7 @@ function BookingCopyNumber({
             className="flex-shrink-0 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2"
           >
             {busy && <Spinner />}
-            Save
+            {t("Save")}
           </button>
         </div>
       ) : (
@@ -1556,7 +1555,7 @@ function BookingCopyNumber({
             type="button"
             onClick={() => setEditing(true)}
             className="p-1.5 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50"
-            aria-label="Edit booking copy number"
+            aria-label={t("Edit booking copy number")}
           >
             <Pencil size={14} />
           </button>
@@ -1564,8 +1563,7 @@ function BookingCopyNumber({
       )}
       {sameAsBusiness && (
         <p className="text-xs text-red-600 mt-2">
-          Это тот же номер, что и у студии. WhatsApp не может слать сам себе —
-          укажи личный номер.
+          {t("This is the same number as the studio's. WhatsApp can't message itself - enter a personal number.")}
         </p>
       )}
     </div>
@@ -1584,6 +1582,7 @@ const NOTIF_OPTIONS: { value: NotifMode; label: string; sub: string }[] = [
 // their phone sounds, buzzes, or both when a new WhatsApp message arrives.
 // This mirrors the same setting on the trainer profile screen.
 function MobileNotifCard() {
+  const t = useT()
   const [mode, setMode] = useState<NotifMode>("SOUND_VIBRATION")
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
@@ -1617,14 +1616,13 @@ function MobileNotifCard() {
       <div className="flex items-center gap-2 mb-1">
         <Bell size={16} className="text-brand" />
         <h2 className="text-base font-semibold text-gray-900">
-          Mobile notifications
-          {saving && <span className="ml-2 text-[11px] text-brand font-normal">Saving…</span>}
-          {done && !saving && <span className="ml-2 text-[11px] text-brand font-normal">Saved ✓</span>}
+          {t("Mobile notifications")}
+          {saving && <span className="ml-2 text-[11px] text-brand font-normal">{t("Saving…")}</span>}
+          {done && !saving && <span className="ml-2 text-[11px] text-brand font-normal">{t("Saved ✓")}</span>}
         </h2>
       </div>
       <p className="text-xs text-gray-500 mb-4 max-w-md">
-        How your phone reacts when a new client message arrives in the chat inbox.
-        This applies to your account only and works like WhatsApp settings.
+        {t("How your phone reacts when a new client message arrives in the chat inbox. This applies to your account only and works like WhatsApp settings.")}
       </p>
       <div className="space-y-1">
         {NOTIF_OPTIONS.map((opt) => {
@@ -1648,9 +1646,9 @@ function MobileNotifCard() {
               </span>
               <span className="min-w-0">
                 <span className={cn("block text-sm font-medium", active ? "text-brand" : "text-gray-800")}>
-                  {opt.label}
+                  {t(opt.label)}
                 </span>
-                <span className="block text-xs text-gray-400">{opt.sub}</span>
+                <span className="block text-xs text-gray-400">{t(opt.sub)}</span>
               </span>
             </button>
           )
@@ -1703,6 +1701,8 @@ function roleLabel(role: string): string {
 }
 
 function SessionsCard() {
+  const t = useT()
+  const { dateLocale } = useLocale()
   const [data, setData] = useState<UserSessions[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -1713,7 +1713,7 @@ function SessionsCard() {
       if (!res.ok) throw new Error("Failed to load")
       setData(await res.json())
     } catch {
-      setError("Could not load sign-ins.")
+      setError(t("Could not load sign-ins."))
     }
   }
   useEffect(() => { load() }, [])
@@ -1729,10 +1729,10 @@ function SessionsCard() {
   }
 
   const seen = (iso: string) => {
-    try { return formatDistanceToNow(new Date(iso), { addSuffix: true }) } catch { return "" }
+    try { return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: dateLocale }) } catch { return "" }
   }
   const seenAbs = (iso: string) => {
-    try { return format(new Date(iso), "d MMM yyyy, HH:mm") } catch { return "" }
+    try { return format(new Date(iso), "d MMM yyyy, HH:mm", { locale: dateLocale }) } catch { return "" }
   }
 
   const Row = ({ kind, s }: { kind: "web" | "mobile"; s: SignIn }) => (
@@ -1744,7 +1744,7 @@ function SessionsCard() {
         <div className="min-w-0">
           <div className="text-sm text-gray-800 truncate">{s.device}</div>
           <div className="text-[11px] text-gray-400">
-            {kind === "web" ? "Browser" : "Mobile app"} · last login {seen(s.lastSeenAt)}
+            {kind === "web" ? t("Browser") : t("Mobile app")} · {t("last login {ago}", { ago: seen(s.lastSeenAt) })}
           </div>
           <div className="text-[10px] text-gray-300">{seenAbs(s.lastSeenAt)}</div>
         </div>
@@ -1755,7 +1755,7 @@ function SessionsCard() {
         disabled={busy === s.id}
         className="text-xs font-medium text-rose-600 hover:text-rose-700 disabled:opacity-50 flex-shrink-0"
       >
-        {busy === s.id ? "…" : "Remove"}
+        {busy === s.id ? "…" : t("Remove")}
       </button>
     </div>
   )
@@ -1764,20 +1764,18 @@ function SessionsCard() {
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <div className="flex items-center gap-2 mb-1">
         <ShieldCheck size={16} className="text-brand" />
-        <h2 className="text-base font-semibold text-gray-900">Active sign-ins</h2>
+        <h2 className="text-base font-semibold text-gray-900">{t("Active sign-ins")}</h2>
       </div>
       <p className="text-xs text-gray-500 mb-4 max-w-md">
-        Everyone currently signed in to your studio — admins and trainers — and
-        the devices they&apos;re on. Remove anything that shouldn&apos;t be
-        there. Mobile removals also stop that device&apos;s notifications.
+        {t("Everyone currently signed in to your studio - admins and trainers - and the devices they're on. Remove anything that shouldn't be there. Mobile removals also stop that device's notifications.")}
       </p>
 
       {error ? (
         <p className="text-sm text-rose-600">{error}</p>
       ) : !data ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-gray-400">{t("Loading…")}</p>
       ) : data.length === 0 ? (
-        <p className="text-sm text-gray-400">No accounts yet.</p>
+        <p className="text-sm text-gray-400">{t("No accounts yet.")}</p>
       ) : (
         <div className="space-y-4">
           {data.map((u) => {
@@ -1788,12 +1786,12 @@ function SessionsCard() {
                   <div className="min-w-0">
                     <span className="text-sm font-semibold text-gray-900">{u.name ?? u.email}</span>
                     <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-brand bg-brand/10 px-1.5 py-0.5 rounded">
-                      {roleLabel(u.role)}
+                      {t(roleLabel(u.role))}
                     </span>
                   </div>
                 </div>
                 {total === 0 ? (
-                  <p className="text-[11px] text-gray-400">Not signed in on any device.</p>
+                  <p className="text-[11px] text-gray-400">{t("Not signed in on any device.")}</p>
                 ) : (
                   <div className="divide-y divide-gray-100">
                     {u.web.map((s) => <Row key={s.id} kind="web" s={s} />)}
@@ -1810,6 +1808,7 @@ function SessionsCard() {
 }
 
 function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
+  const t = useT()
   const [form, setForm] = useState({ current: "", next: "", confirm: "" })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -1822,8 +1821,8 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    if (form.next.length < 4) { setError("Password must be at least 4 characters"); return }
-    if (form.next !== form.confirm) { setError("Passwords do not match"); return }
+    if (form.next.length < 4) { setError(t("Password must be at least 4 characters")); return }
+    if (form.next !== form.confirm) { setError(t("Passwords do not match")); return }
     setLoading(true)
     const res = await fetch("/api/auth/change-password", {
       method: "POST",
@@ -1837,7 +1836,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
       setTimeout(() => setDone(false), 3000)
     } else {
       const d = await res.json().catch(() => ({}))
-      setError(d.error ?? "Error")
+      setError(d.error ?? t("Error"))
     }
     setLoading(false)
   }
@@ -1847,13 +1846,13 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <KeyRound size={16} className="text-brand" />
-          <h2 className="text-base font-semibold text-gray-900">Change password</h2>
+          <h2 className="text-base font-semibold text-gray-900">{t("Change password")}</h2>
         </div>
         {!editing && (
           <button
             type="button"
             onClick={() => setEditing(true)}
-            aria-label="Change password"
+            aria-label={t("Change password")}
             className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50"
           >
             <Pencil size={16} />
@@ -1862,18 +1861,18 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
       </div>
       <p className="text-xs text-gray-500 mb-4">
         {mustChange
-          ? "You're still using the starter password — set your own to secure the account."
-          : "Update the password used to sign into this admin account."}
+          ? t("You're still using the starter password - set your own to secure the account.")
+          : t("Update the password used to sign into this admin account.")}
       </p>
 
-      {done && !editing && <p className="text-xs text-brand font-medium">Password updated ✓</p>}
+      {done && !editing && <p className="text-xs text-brand font-medium">{t("Password updated ✓")}</p>}
 
       {!editing ? null : (
       <form onSubmit={handleSubmit} className="space-y-3 max-w-md">
         <input
           type="password"
           required
-          placeholder="Current password"
+          placeholder={t("Current password")}
           value={form.current}
           onChange={(e) => setForm({ ...form, current: e.target.value })}
           className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
@@ -1882,7 +1881,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
           <input
             type="password"
             required
-            placeholder="New password"
+            placeholder={t("New password")}
             minLength={4}
             value={form.next}
             onChange={(e) => setForm({ ...form, next: e.target.value })}
@@ -1891,7 +1890,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
           <input
             type="password"
             required
-            placeholder="Confirm new password"
+            placeholder={t("Confirm new password")}
             value={form.confirm}
             onChange={(e) => setForm({ ...form, confirm: e.target.value })}
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
@@ -1904,7 +1903,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
             disabled={loading}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand text-white text-sm font-medium hover:bg-brand-dark disabled:opacity-60"
           >
-            {loading ? "Saving…" : "Update password"}
+            {loading ? t("Saving…") : t("Update password")}
           </button>
           {!mustChange && (
             <button
@@ -1913,7 +1912,7 @@ function ChangePasswordCard({ mustChange }: { mustChange: boolean }) {
               disabled={loading}
               className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
             >
-              Cancel
+              {t("Cancel")}
             </button>
           )}
         </div>

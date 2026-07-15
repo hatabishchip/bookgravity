@@ -1,126 +1,135 @@
 // Step-by-step WhatsApp activation instruction for studio admins.
 // Opens in a new tab from /admin/settings → Booking alerts (WhatsApp) →
-// "Как подключить WhatsApp" link. Self-contained: no chrome, no nav, just
+// "How to connect WhatsApp" link. Self-contained: no chrome, no nav, just
 // the instruction itself so the admin can read alongside the actual
 // Facebook flow in another window.
 //
 // Light theme intentionally — the source mockups were dark to mimic the
-// Russian Meta UI, but here we draw them in white so the page reads like
+// Meta UI, but here we draw them in white so the page reads like
 // a regular help doc, not like a Facebook clone.
 //
 // The "Open Facebook Manager" button at the top is a real link with
 // target="_blank" so a single click lands the admin on the right page.
+//
+// Server component: text is localized through getAdminT (admin locale).
 
 import { Metadata } from "next"
 import Link from "next/link"
-import { ExternalLink, ArrowRight, Copy } from "lucide-react"
+import { ExternalLink, Copy } from "lucide-react"
+import { getAdminT } from "@/lib/i18n"
 
-export const metadata: Metadata = {
-  title: "Подключение WhatsApp — Gravity Stretching",
-  description: "Пошаговая инструкция для активации WhatsApp в новой студии",
+type Tr = (key: string, vars?: Record<string, string | number>) => string
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getAdminT()
+  return {
+    title: t("WhatsApp setup - Gravity Stretching"),
+    description: t("Step-by-step guide to activate WhatsApp for a new studio"),
+  }
 }
 
 const FB_URL =
   "https://business.facebook.com/wa/manage/phone-numbers/?asset_id=1571637721189360"
 
-const STEPS = [
-  {
-    n: 1,
-    title: "Открой бизнес-менеджер",
-    lines: [
-      <>
-        Адрес:{" "}
-        <a
-          href={FB_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-brand font-mono font-medium hover:underline"
-        >
-          business.facebook.com/wa/manage/phone-numbers
-        </a>
-      </>,
-      <>В правом верхнем углу должно быть выбрано название вашей компании.</>,
-    ],
-    mock: "phones",
-  },
-  {
-    n: 2,
-    title: "Жми синюю кнопку справа",
-    lines: [
-      <>
-        Кнопка: <strong>«Добавить номер телефона»</strong>{" "}
-        <span className="text-gray-500">(англ. Add phone number)</span>.
-      </>,
-    ],
-  },
-  {
-    n: 3,
-    title: "Заполни профиль → Далее",
-    lines: [
-      <>
-        <strong>Отображаемое имя</strong> — например{" "}
-        <em>Gravity Stretching Bali</em>.
-      </>,
-      <>
-        <strong>Категория</strong> — <em>Профессиональные услуги</em>.
-      </>,
-      <><strong>Описание</strong> — можно пропустить.</>,
-      <>
-        Жми <strong>Далее</strong>{" "}
-        <span className="text-gray-500">(Next)</span>.
-      </>,
-    ],
-    mock: "profile",
-  },
-  {
-    n: 4,
-    title: "Введи номер → Отправить код",
-    lines: [
-      <><strong>Код страны</strong>: +62.</>,
-      <>
-        <strong>Номер</strong>: 10 цифр без <code>+62</code> и без ведущего нуля.
-      </>,
-      <><strong>Способ подтверждения</strong>: SMS.</>,
-      <>
-        Жми <strong>Отправить код</strong>{" "}
-        <span className="text-gray-500">(Send code)</span>.
-      </>,
-    ],
-    mock: "phone",
-  },
-  {
-    n: 5,
-    title: "Введи 6 цифр из SMS → Подтвердить",
-    lines: [
-      <>SMS придёт за ~30 секунд.</>,
-      <>
-        Жми <strong>Подтвердить</strong>{" "}
-        <span className="text-gray-500">(Verify)</span>.
-      </>,
-      <>
-        Номер появится в списке со статусом{" "}
-        <strong className="text-brand">«Подключено»</strong>.
-      </>,
-    ],
-    mock: "code",
-  },
-  {
-    n: 6,
-    title: "Скопируй 2 значения и отправь админу",
-    lines: [
-      <>Кликни на свой новый номер в списке.</>,
-      <>
-        <strong>Phone Number ID</strong> — длинная цифра ~16 знаков.
-      </>,
-      <>
-        <strong>Display phone</strong> — номер в формате{" "}
-        <code>+62 8123456789</code>.
-      </>,
-    ],
-  },
-]
+function buildSteps(t: Tr): { n: number; title: string; lines: React.ReactNode[]; mock?: string }[] {
+  return [
+    {
+      n: 1,
+      title: t("Open the Business Manager"),
+      lines: [
+        <>
+          {t("Address:")}{" "}
+          <a
+            href={FB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-brand font-mono font-medium hover:underline"
+          >
+            business.facebook.com/wa/manage/phone-numbers
+          </a>
+        </>,
+        <>{t("The top-right corner must show your company name.")}</>,
+      ],
+      mock: "phones",
+    },
+    {
+      n: 2,
+      title: t("Click the blue button on the right"),
+      lines: [
+        <>
+          {t("The button:")} <strong>&laquo;{t("Add phone number")}&raquo;</strong>.
+        </>,
+      ],
+    },
+    {
+      n: 3,
+      title: t("Fill in the profile, then Next"),
+      lines: [
+        <>
+          <strong>{t("Display name")}</strong> - {t("for example")}{" "}
+          <em>Gravity Stretching Bali</em>.
+        </>,
+        <>
+          <strong>{t("Category")}</strong> - <em>{t("Professional services")}</em>.
+        </>,
+        <><strong>{t("Description")}</strong> - {t("can be skipped.")}</>,
+        <>
+          {t("Press")} <strong>{t("Next")}</strong>.
+        </>,
+      ],
+      mock: "profile",
+    },
+    {
+      n: 4,
+      title: t("Enter the number, then Send code"),
+      lines: [
+        <><strong>{t("Country code")}</strong>: +62.</>,
+        <>
+          <strong>{t("Number")}</strong>: {t("10 digits, without")} <code>+62</code>{" "}
+          {t("and without the leading zero.")}
+        </>,
+        <><strong>{t("Verification method")}</strong>: SMS.</>,
+        <>
+          {t("Press")} <strong>{t("Send code")}</strong>.
+        </>,
+      ],
+      mock: "phone",
+    },
+    {
+      n: 5,
+      title: t("Enter the 6 digits from the SMS, then Verify"),
+      lines: [
+        <>{t("The SMS arrives within ~30 seconds.")}</>,
+        <>
+          {t("Press")} <strong>{t("Verify")}</strong>.
+        </>,
+        <>
+          {t("The number appears in the list with the status")}{" "}
+          <strong className="text-brand">&laquo;{t("Connected")}&raquo;</strong>.
+        </>,
+      ],
+      mock: "code",
+    },
+    {
+      n: 6,
+      title: t("Copy 2 values and send them to the admin"),
+      lines: [
+        <>{t("Click your new number in the list.")}</>,
+        <>
+          <strong>Phone Number ID</strong> - {t("a long number, ~16 digits.")}
+        </>,
+        <>
+          <strong>Display phone</strong> - {t("the number in the format")}{" "}
+          <code>+62 8123456789</code>.
+        </>,
+      ],
+    },
+  ]
+}
 
-export default function WhatsAppSetupPage() {
+export default async function WhatsAppSetupPage() {
+  const { t } = await getAdminT()
+  const steps = buildSteps(t)
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-8">
       <div className="max-w-3xl mx-auto">
@@ -128,11 +137,10 @@ export default function WhatsAppSetupPage() {
         <header className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-brand leading-tight">
-              Активация WhatsApp
+              {t("WhatsApp activation")}
             </h1>
             <p className="text-gray-500 mt-2">
-              6 шагов, ≈ 30 минут. Все данные нужны только в начале —
-              потом WhatsApp работает сам.
+              {t("6 steps, ~30 minutes. The details are only needed at the start - after that WhatsApp runs on its own.")}
             </p>
           </div>
           <a
@@ -141,14 +149,14 @@ export default function WhatsAppSetupPage() {
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
           >
-            Открыть Facebook
+            {t("Open Facebook")}
             <ExternalLink size={16} />
           </a>
         </header>
 
         {/* Steps */}
         <ol className="space-y-6">
-          {STEPS.map((s) => (
+          {steps.map((s) => (
             <li
               key={s.n}
               className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
@@ -171,7 +179,7 @@ export default function WhatsAppSetupPage() {
                       </li>
                     ))}
                   </ul>
-                  {s.mock && <Mockup variant={s.mock} stepNum={s.n} />}
+                  {s.mock && <Mockup variant={s.mock} stepNum={s.n} t={t} />}
                 </div>
               </div>
             </li>
@@ -182,13 +190,13 @@ export default function WhatsAppSetupPage() {
         <section className="mt-10 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-2 flex items-center gap-2">
             <Copy size={20} className="text-brand" />
-            Шаблон для отправки
+            {t("Template to send")}
           </h2>
           <p className="text-sm text-gray-500 mb-4">
-            Скопируй блок ниже, подставь свои значения, отправь админу:
+            {t("Copy the block below, fill in your values, send it to the admin:")}
           </p>
           <pre className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm font-mono text-gray-800 whitespace-pre-wrap leading-relaxed">
-{`Подключила номер для [НАЗВАНИЕ СТУДИИ].
+{`${t("Connected a number for [STUDIO NAME].")}
 
 Phone Number ID: ____________________
 Display phone:   +62 ___________`}
@@ -198,7 +206,7 @@ Display phone:   +62 ___________`}
         {/* Footer */}
         <footer className="mt-10 text-center text-sm text-gray-400">
           <Link href="/admin/settings" className="text-brand hover:underline">
-            ← Назад в Settings
+            ← {t("Back to Settings")}
           </Link>
         </footer>
       </div>
@@ -210,7 +218,7 @@ Display phone:   +62 ___________`}
 // Light-theme mockups — drawn inline with Tailwind so they invert cleanly
 // from the dark Meta UI source. Each mimics a real screen the admin will see.
 // ----------------------------------------------------------------------------
-function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
+function Mockup({ variant, stepNum, t }: { variant: string; stepNum: number; t: Tr }) {
   const wrap =
     "mt-4 rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm"
   switch (variant) {
@@ -221,34 +229,34 @@ function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
           <div className="grid grid-cols-[180px,1fr] min-h-[280px]">
             <aside className="border-r border-gray-100 bg-gray-50 p-3 text-xs space-y-2">
               <div className="font-bold text-gray-900">WhatsApp Manager</div>
-              <div className="text-gray-500">Обзор</div>
-              <div className="text-gray-500">Шаблоны сообщений</div>
+              <div className="text-gray-500">{t("Overview")}</div>
+              <div className="text-gray-500">{t("Message templates")}</div>
               <div className="text-gray-500 font-semibold pt-2">
-                Инструменты управления
+                {t("Management tools")}
               </div>
-              <div className="text-gray-400 pl-2">Статистика</div>
+              <div className="text-gray-400 pl-2">{t("Statistics")}</div>
               <div className="pl-2 px-2 py-1 rounded bg-emerald-50 text-brand font-semibold -mx-2">
-                Номера телефонов
+                {t("Phone numbers")}
               </div>
             </aside>
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-sm font-semibold text-gray-900">
-                  Номера телефонов
+                  {t("Phone numbers")}
                 </div>
                 <div className="relative">
                   <button className="bg-[#1877F2] text-white text-xs font-semibold px-3 py-1.5 rounded-md">
-                    + Добавить номер телефона
+                    + {t("Add phone number")}
                   </button>
                   <Callout n={stepNum} className="-left-7 -top-1" />
                 </div>
               </div>
               <div className="border border-gray-100 rounded-lg overflow-hidden text-xs">
                 <div className="grid grid-cols-[1.2fr,1fr,90px,80px] gap-2 bg-gray-50 px-3 py-2 text-gray-500 font-medium">
-                  <div>Номер</div>
-                  <div>Название</div>
-                  <div>Статус</div>
-                  <div>Качество</div>
+                  <div>{t("Number")}</div>
+                  <div>{t("Title")}</div>
+                  <div>{t("Status")}</div>
+                  <div>{t("Quality")}</div>
                 </div>
                 <div className="grid grid-cols-[1.2fr,1fr,90px,80px] gap-2 px-3 py-3 border-t border-gray-100 items-center">
                   <div className="font-semibold text-gray-900">
@@ -257,12 +265,12 @@ function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
                   <div className="text-gray-700">GravityStretchingCanggu</div>
                   <div>
                     <span className="bg-emerald-50 text-brand px-2 py-0.5 rounded text-[10px] font-semibold border border-emerald-200">
-                      Подключено
+                      {t("Connected")}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 text-gray-700">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Высокое
+                    {t("High")}
                   </div>
                 </div>
               </div>
@@ -277,21 +285,21 @@ function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
           <div className="p-6 bg-gray-50 min-h-[320px]">
             <div className="bg-white border border-gray-200 rounded-xl p-5 max-w-lg mx-auto">
               <div className="text-base font-bold text-gray-900 mb-1">
-                Создайте профиль WhatsApp Business
+                {t("Create your WhatsApp Business profile")}
               </div>
               <div className="text-xs text-gray-500 mb-4">
-                В профиле показывается инфо для пользователей WhatsApp.
+                {t("The profile is what WhatsApp users see about you.")}
               </div>
-              <Field label="Отображаемое имя WhatsApp Business" value="Gravity Stretching Bali" callout={2} />
-              <Field label="Категория" value="Профессиональные услуги ▾" callout={3} />
-              <Field label="Описание компании · Необязательно" value="" placeholder="Расскажите о своей компании…" />
+              <Field label={t("WhatsApp Business display name")} value="Gravity Stretching Bali" callout={2} />
+              <Field label={t("Category")} value={`${t("Professional services")} ▾`} callout={3} />
+              <Field label={t("Business description · Optional")} value="" placeholder={t("Tell people about your business…")} />
               <div className="flex justify-end gap-2 mt-4">
                 <button className="text-xs text-gray-600 px-3 py-1.5 rounded border border-gray-200">
-                  Назад
+                  {t("Back")}
                 </button>
                 <div className="relative">
                   <button className="bg-[#1877F2] text-white text-xs font-semibold px-4 py-1.5 rounded">
-                    Далее
+                    {t("Next")}
                   </button>
                   <Callout n={4} className="-right-7 -top-1" />
                 </div>
@@ -307,13 +315,13 @@ function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
           <div className="p-6 bg-gray-50 min-h-[320px]">
             <div className="bg-white border border-gray-200 rounded-xl p-5 max-w-lg mx-auto">
               <div className="text-base font-bold text-gray-900 mb-1">
-                Добавьте номер телефона
+                {t("Add a phone number")}
               </div>
               <div className="text-xs text-gray-500 mb-4">
-                Этот номер НЕ должен быть зарегистрирован в WhatsApp.
+                {t("This number must NOT be registered in WhatsApp.")}
               </div>
               <label className="text-xs font-semibold text-gray-800">
-                Номер телефона
+                {t("Phone number")}
               </label>
               <div className="flex gap-2 mt-1 mb-4 relative">
                 <div className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
@@ -325,25 +333,25 @@ function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
                 <Callout n={2} className="-right-7 top-2" />
               </div>
               <label className="text-xs font-semibold text-gray-800">
-                Способ подтверждения
+                {t("Verification method")}
               </label>
               <div className="mt-2 mb-4 space-y-1.5 text-sm">
                 <label className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full border-[3px] border-[#1877F2]" />
-                  Текстовое сообщение (SMS)
+                  {t("Text message (SMS)")}
                 </label>
                 <label className="flex items-center gap-2 text-gray-500">
                   <span className="w-3 h-3 rounded-full border-2 border-gray-300" />
-                  Телефонный звонок
+                  {t("Phone call")}
                 </label>
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button className="text-xs text-gray-600 px-3 py-1.5 rounded border border-gray-200">
-                  Назад
+                  {t("Back")}
                 </button>
                 <div className="relative">
                   <button className="bg-[#1877F2] text-white text-xs font-semibold px-4 py-1.5 rounded">
-                    Отправить код
+                    {t("Send code")}
                   </button>
                   <Callout n={4} className="-right-7 -top-1" />
                 </div>
@@ -359,10 +367,10 @@ function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
           <div className="p-6 bg-gray-50 min-h-[260px]">
             <div className="bg-white border border-gray-200 rounded-xl p-5 max-w-lg mx-auto">
               <div className="text-base font-bold text-gray-900 mb-1">
-                Введите код подтверждения
+                {t("Enter the verification code")}
               </div>
               <div className="text-xs text-gray-500 mb-4">
-                6-значный код отправлен по SMS.
+                {t("A 6-digit code was sent by SMS.")}
               </div>
               <div className="flex gap-1.5 mb-4 relative">
                 {["7", "4", "8", "2", "9", "1"].map((d, i) => (
@@ -379,11 +387,11 @@ function Mockup({ variant, stepNum }: { variant: string; stepNum: number }) {
               </div>
               <div className="flex justify-end gap-2 mt-2">
                 <button className="text-xs text-gray-600 px-3 py-1.5 rounded border border-gray-200">
-                  Назад
+                  {t("Back")}
                 </button>
                 <div className="relative">
                   <button className="bg-[#1877F2] text-white text-xs font-semibold px-4 py-1.5 rounded">
-                    Подтвердить
+                    {t("Verify")}
                   </button>
                   <Callout n={2} className="-right-7 -top-1" />
                 </div>

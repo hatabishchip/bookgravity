@@ -11,6 +11,7 @@ import { useBodyScrollLock } from "@/lib/use-body-scroll-lock"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { ClientBookingRow } from "@/app/_components/ClientBookingRow"
 import { useOpenChat } from "@/lib/use-open-chat"
+import { useT, useLocale } from "@/app/_components/LocaleProvider"
 
 type View = "week" | "2weeks" | "month"
 
@@ -74,6 +75,8 @@ export default function TrainerSchedule({
   trainer: Trainer
   onClose: () => void
 }) {
+  const t = useT()
+  const { dateLocale } = useLocale()
   const [view, setView] = useState<View>("month")
   const [anchor, setAnchor] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [slots, setSlots] = useState<Slot[]>([])
@@ -109,9 +112,9 @@ export default function TrainerSchedule({
   const to = format(days[days.length - 1], "yyyy-MM-dd")
 
   const headerLabel = useMemo(() => {
-    if (view === "month") return format(anchor, "MMMM yyyy")
-    return `${format(days[0], "MMMM d")} – ${format(days[days.length - 1], "MMMM d, yyyy")}`
-  }, [view, anchor, days])
+    if (view === "month") return format(anchor, "LLLL yyyy", { locale: dateLocale })
+    return `${format(days[0], dateLocale ? "d MMMM" : "MMMM d", { locale: dateLocale })} - ${format(days[days.length - 1], dateLocale ? "d MMMM yyyy" : "MMMM d, yyyy", { locale: dateLocale })}`
+  }, [view, anchor, days, dateLocale])
 
   const fetchSlots = useCallback(async () => {
     const res = await fetch(`/api/admin/slots?from=${from}&to=${to}`)
@@ -172,7 +175,7 @@ export default function TrainerSchedule({
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (createForm.startTimes.length === 0) {
-      setCreateError("Select at least one time")
+      setCreateError(t("Select at least one time"))
       return
     }
     setCreating(true)
@@ -193,14 +196,14 @@ export default function TrainerSchedule({
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        failed.push(`${startTime}: ${err.error ?? "error"}`)
+        failed.push(`${startTime}: ${err.error ?? t("error")}`)
       }
     }
 
     await fetchSlots()
     setCreating(false)
     if (failed.length > 0) {
-      setCreateError(`Some slots not created — ${failed.join("; ")}`)
+      setCreateError(t("Some slots not created - {list}", { list: failed.join("; ") }))
       return
     }
     setCreateModal(null)
@@ -219,7 +222,7 @@ export default function TrainerSchedule({
           tap-outside backdrop already cover this. */}
       <button
         onClick={onClose}
-        aria-label="Close schedule"
+        aria-label={t("Close schedule")}
         className="lg:hidden fixed top-3 right-3 z-[55] flex items-center justify-center w-11 h-11 rounded-full bg-white text-gray-700 shadow-lg ring-1 ring-black/10 hover:bg-gray-100 active:scale-95 transition"
       >
         <X size={22} />
@@ -237,10 +240,10 @@ export default function TrainerSchedule({
                   className="inline-block w-3 h-3 rounded-full flex-shrink-0"
                   style={{ backgroundColor: trainer.color }}
                 />
-                {trainer.name}'s Schedule
+                {t("{name}'s Schedule", { name: trainer.name })}
               </h2>
               <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-                {headerLabel} · {mySlots} sessions
+                {headerLabel} · {t("{n} sessions", { n: mySlots })}
               </p>
             </div>
           </div>
@@ -257,7 +260,7 @@ export default function TrainerSchedule({
                     view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
-                  {VIEW_LABELS[v]}
+                  {t(VIEW_LABELS[v])}
                 </button>
               ))}
             </div>
@@ -266,31 +269,31 @@ export default function TrainerSchedule({
             <div className="flex items-stretch gap-2">
               <button
                 onClick={handlePrev}
-                aria-label="Previous"
+                aria-label={t("Previous")}
                 className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
               >
                 <ChevronLeft size={18} />
-                <span className="hidden sm:inline">Previous</span>
+                <span className="hidden sm:inline">{t("Previous")}</span>
               </button>
               <button
                 onClick={() => setAnchor(startOfWeek(new Date(), { weekStartsOn: 1 }))}
                 className="flex-1 lg:flex-initial px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
               >
-                Today
+                {t("Today")}
               </button>
               <button
                 onClick={handleNext}
-                aria-label="Next"
+                aria-label={t("Next")}
                 className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all"
               >
-                <span className="hidden sm:inline">Next</span>
+                <span className="hidden sm:inline">{t("Next")}</span>
                 <ChevronRight size={18} />
               </button>
             </div>
 
             {/* Desktop close — hidden on mobile/tablet where the floating
                 fixed X handles it. */}
-            <button onClick={onClose} aria-label="Close schedule" className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 ml-1 flex-shrink-0">
+            <button onClick={onClose} aria-label={t("Close schedule")} className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 ml-1 flex-shrink-0">
               <X size={18} />
             </button>
           </div>
@@ -302,15 +305,15 @@ export default function TrainerSchedule({
             <span className="w-3 h-3 rounded-sm bg-brand flex items-center justify-center">
               <Check size={8} className="text-white" strokeWidth={3} />
             </span>
-            Assigned — click to remove
+            {t("Assigned - click to remove")}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-sm border border-gray-300 bg-white" />
-            Not assigned — click to assign
+            {t("Not assigned - click to assign")}
           </span>
           <span className="flex items-center gap-1.5">
             <Plus size={11} className="text-brand" />
-            Click empty day to add new session
+            {t("Click empty day to add new session")}
           </span>
         </div>
 
@@ -321,7 +324,7 @@ export default function TrainerSchedule({
           <div className={cn("hidden lg:grid grid-cols-7 gap-2 mb-1.5", !slotsLoaded && "lg:hidden")}>
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
               <div key={d} className="text-center text-xs font-medium text-gray-400 uppercase tracking-wide py-1">
-                {d}
+                {t(d)}
               </div>
             ))}
           </div>
@@ -347,7 +350,7 @@ export default function TrainerSchedule({
                   {/* Date number */}
                   <div className="text-center mb-2">
                     <div className="lg:hidden text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
-                      {format(day, "EEE")}
+                      {format(day, "EEE", { locale: dateLocale })}
                     </div>
                     <div className={cn(
                       "font-bold mx-auto flex items-center justify-center rounded-full text-lg w-8 h-8 mt-0.5",
@@ -414,7 +417,7 @@ export default function TrainerSchedule({
                                 )}
                                 style={!mineBright && faintColor ? { color: hexToRgba(faintColor, 0.85) } : {}}
                               >
-                                {slot.trainer ? slot.trainer.name : "Unassigned"}
+                                {slot.trainer ? slot.trainer.name : t("Unassigned")}
                               </div>
                               {slot._count.bookings > 0 ? (
                                 // Tappable people-count: opens the client list
@@ -424,7 +427,7 @@ export default function TrainerSchedule({
                                   tabIndex={0}
                                   onClick={(e) => { e.stopPropagation(); setClientsSlot(slot) }}
                                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setClientsSlot(slot) } }}
-                                  title="Показать клиентов"
+                                  title={t("Show clients")}
                                   className={cn(
                                     "inline-flex items-center gap-1 text-[10px] font-medium rounded px-1 -ml-1 py-0.5 cursor-pointer underline decoration-dotted underline-offset-2",
                                     mineBright ? "text-white/90 hover:bg-white/15" : "text-gray-500 hover:bg-black/5"
@@ -455,7 +458,7 @@ export default function TrainerSchedule({
                   {/* Add hint on hover */}
                   <div className="mt-1 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity py-1">
                     <Plus size={10} className="text-gray-300" />
-                    <span className="text-[10px] text-gray-300">add</span>
+                    <span className="text-[10px] text-gray-300">{t("add")}</span>
                   </div>
                 </div>
               )
@@ -473,9 +476,9 @@ export default function TrainerSchedule({
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col overflow-hidden">
             <div className="px-6 pt-5 pb-4 flex items-center justify-between flex-shrink-0 border-b border-gray-100">
               <div>
-                <h2 className="text-lg font-semibold text-gray-800">Add Session</h2>
+                <h2 className="text-lg font-semibold text-gray-800">{t("Add Session")}</h2>
                 <p className="text-sm text-gray-400 mt-0.5">
-                  {format(new Date(createForm.date + "T00:00:00"), "EEEE, MMMM d")} · <span className="text-brand font-medium">{trainer.name}</span>
+                  {format(new Date(createForm.date + "T00:00:00"), dateLocale ? "EEEE, d MMMM" : "EEEE, MMMM d", { locale: dateLocale })} · <span className="text-brand font-medium">{trainer.name}</span>
                 </p>
               </div>
               <button onClick={() => setCreateModal(null)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -487,24 +490,24 @@ export default function TrainerSchedule({
               <div className="px-6 py-4 space-y-4 overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Session times</label>
-                <p className="text-xs text-gray-400 mb-2">Pick one or more — each creates a separate session (+120 min)</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("Session times")}</label>
+                <p className="text-xs text-gray-400 mb-2">{t("Pick one or more - each creates a separate session (+120 min)")}</p>
                 {/* Multi-select presets. Times that already have a class on this
                     day are filled solid green (same as the Schedule / Schedule
                     Beta views) and locked — you can't double-book them. */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {(() => {
                     const existingTimes = new Set(slotsForDay(createForm.date).map((s) => s.startTime))
-                    return TIME_PRESETS.map((t) => {
-                      const selected = createForm.startTimes.includes(t)
-                      const taken = existingTimes.has(t)
+                    return TIME_PRESETS.map((tp) => {
+                      const selected = createForm.startTimes.includes(tp)
+                      const taken = existingTimes.has(tp)
                       return (
-                        <button key={t} type="button"
+                        <button key={tp} type="button"
                           disabled={taken}
-                          title={taken ? "A class already exists at this time" : undefined}
+                          title={taken ? t("A class already exists at this time") : undefined}
                           onClick={() => {
                             if (taken) return
-                            const next = selected ? createForm.startTimes.filter((x) => x !== t) : sortTimes([...createForm.startTimes, t])
+                            const next = selected ? createForm.startTimes.filter((x) => x !== tp) : sortTimes([...createForm.startTimes, tp])
                             setCreateForm({ ...createForm, startTimes: next })
                           }}
                           className={cn("px-2.5 py-1 text-xs rounded-lg border font-medium",
@@ -514,7 +517,7 @@ export default function TrainerSchedule({
                                 ? "bg-brand text-white border-brand"
                                 : "bg-white text-gray-600 border-gray-200 hover:border-brand/40"
                           )}>
-                          {formatTime(t)}
+                          {formatTime(tp)}
                         </button>
                       )
                     })
@@ -537,17 +540,17 @@ export default function TrainerSchedule({
                     }}
                     className="px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:border-brand/40 transition-colors"
                   >
-                    + Add
+                    {t("+ Add")}
                   </button>
                 </div>
                 {/* Selected chips */}
                 {createForm.startTimes.length > 0 && (
                   <div className="mt-3">
-                    <div className="text-xs text-gray-500 mb-1.5">Selected ({createForm.startTimes.length}):</div>
+                    <div className="text-xs text-gray-500 mb-1.5">{t("Selected ({n}):", { n: createForm.startTimes.length })}</div>
                     <div className="flex flex-wrap gap-1.5">
                       {createForm.startTimes.map((t) => (
                         <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand/10 text-brand text-xs font-medium">
-                          {formatTime(t)} – {formatTime(computeEndTime(t))}
+                          {formatTime(t)} - {formatTime(computeEndTime(t))}
                           <button type="button" onClick={() => setCreateForm({ ...createForm, startTimes: createForm.startTimes.filter((x) => x !== t) })}
                             className="text-brand/60 hover:text-red-500 ml-0.5 text-base leading-none">×</button>
                         </span>
@@ -559,7 +562,7 @@ export default function TrainerSchedule({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t("Capacity")}</label>
                   <select
                     required
                     value={createForm.maxCapacity}
@@ -572,7 +575,7 @@ export default function TrainerSchedule({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Price (IDR)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t("Price (IDR)")}</label>
                   <input
                     type="number" min="0" step="any" required
                     value={createForm.price}
@@ -595,14 +598,14 @@ export default function TrainerSchedule({
                 if (dayExisting.length === 0) return null
                 return (
                   <div className="rounded-xl border border-gray-200 p-2.5">
-                    <div className="text-xs text-gray-500 font-medium mb-2">Already on this day</div>
+                    <div className="text-xs text-gray-500 font-medium mb-2">{t("Already on this day")}</div>
                     <div className="space-y-1.5">
                       {dayExisting.map((s) => {
                         const mine = s.trainer?.id === trainer.id
                         return (
                           <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 bg-gray-50 border border-gray-100">
                             <span className="text-sm font-medium text-gray-800">
-                              {formatTime(s.startTime)}–{formatTime(s.endTime)}
+                              {formatTime(s.startTime)}-{formatTime(s.endTime)}
                             </span>
                             <span className="flex items-center gap-2">
                               <span className="text-xs text-gray-500 tabular-nums">{s._count.bookings}/{s.maxCapacity}</span>
@@ -610,7 +613,7 @@ export default function TrainerSchedule({
                                 "px-1.5 py-0.5 rounded-full text-[10px] font-medium",
                                 mine ? "bg-brand/10 text-brand" : s.trainer ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
                               )}>
-                                {s.trainer ? s.trainer.name : "Unassigned"}
+                                {s.trainer ? s.trainer.name : t("Unassigned")}
                               </span>
                             </span>
                           </div>
@@ -624,10 +627,10 @@ export default function TrainerSchedule({
 
               <div className="px-6 py-4 flex gap-3 flex-shrink-0 border-t border-gray-100">
                 <button type="button" onClick={() => setCreateModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">
-                  Cancel
+                  {t("Cancel")}
                 </button>
                 <button type="submit" disabled={creating} className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
-                  {creating ? "Creating..." : "Create Session"}
+                  {creating ? t("Creating...") : t("Create Session")}
                 </button>
               </div>
             </form>
@@ -659,6 +662,8 @@ function SlotClients({
   onClose: () => void
   onChanged: () => void
 }) {
+  const t = useT()
+  const { dateLocale } = useLocale()
   type Booking = { id: string; clientName: string; clientPhone: string; status: string; paymentStatus: string; slot: { id: string } }
   const [list, setList] = useState<Booking[] | null>(null)
   const { openChat } = useOpenChat()
@@ -672,15 +677,15 @@ function SlotClients({
   useEffect(() => { load() }, [load])
 
   const cancel = async (b: Booking) => {
-    if (!confirm(`Отменить запись клиента ${b.clientName}?`)) return
+    if (!confirm(t("Cancel {name}'s booking?", { name: b.clientName }))) return
     setList((prev) => prev?.filter((x) => x.id !== b.id) ?? null)
     try {
       const res = await fetch(`/api/admin/bookings/${b.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "CANCELLED" }),
       })
-      if (!res.ok) { alert("Не удалось отменить запись. Попробуйте ещё раз."); load() }
-    } catch { alert("Сетевая ошибка — не удалось отменить запись."); load() }
+      if (!res.ok) { alert(t("Couldn't cancel the booking. Please try again.")); load() }
+    } catch { alert(t("Network error - couldn't cancel the booking.")); load() }
     finally { onChanged() }
   }
 
@@ -691,27 +696,27 @@ function SlotClients({
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slotId: targetSlotId }),
       })
-      if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error ?? "Не удалось перенести запись."); load() }
-    } catch { alert("Сетевая ошибка — не удалось перенести запись."); load() }
+      if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error ?? t("Couldn't move the booking.")); load() }
+    } catch { alert(t("Network error - couldn't move the booking.")); load() }
     finally { onChanged() }
   }
 
   const targetOptions = allSlots
     .filter((s) => s.id !== slot.id && s.maxCapacity - s._count.bookings > 0)
     .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
-    .map((t) => ({ id: t.id, label: `${format(new Date(t.date + "T00:00:00"), "MMM d")} · ${formatTime(t.startTime)}` }))
+    .map((s) => ({ id: s.id, label: `${format(new Date(s.date + "T00:00:00"), dateLocale ? "d MMM" : "MMM d", { locale: dateLocale })} · ${formatTime(s.startTime)}` }))
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white w-full max-w-md rounded-2xl shadow-xl max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-semibold text-gray-900">Клиенты класса</div>
+            <div className="font-semibold text-gray-900">{t("Class clients")}</div>
             <div className="text-xs text-gray-400 mt-0.5">
-              {format(new Date(slot.date + "T00:00:00"), "EEE, MMM d")} · {formatTime(slot.startTime)}–{formatTime(slot.endTime)}
+              {format(new Date(slot.date + "T00:00:00"), dateLocale ? "EEE, d MMM" : "EEE, MMM d", { locale: dateLocale })} · {formatTime(slot.startTime)}-{formatTime(slot.endTime)}
             </div>
           </div>
-          <button onClick={onClose} aria-label="Закрыть" className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 flex-shrink-0">
+          <button onClick={onClose} aria-label={t("Close")} className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 flex-shrink-0">
             <X size={18} />
           </button>
         </div>
@@ -719,7 +724,7 @@ function SlotClients({
           {list === null ? (
             <PetalSpinner />
           ) : list.length === 0 ? (
-            <div className="text-center text-sm text-gray-400 py-6">На этот класс пока никто не записан.</div>
+            <div className="text-center text-sm text-gray-400 py-6">{t("No one is booked into this class yet.")}</div>
           ) : (
             list.map((b) => (
               <ClientBookingRow

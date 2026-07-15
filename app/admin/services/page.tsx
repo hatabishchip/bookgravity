@@ -5,6 +5,7 @@ import { Plus, Trash2, X, Package, Pencil, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PriceInput } from "@/app/_components/PriceInput"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
+import { useT } from "@/app/_components/LocaleProvider"
 
 type Service = { id: string; name: string; price: number; active: boolean }
 
@@ -17,6 +18,7 @@ function kToPrice(k: number) {
 }
 
 export default function ServicesPage() {
+  const t = useT()
   const [services, setServices] = useState<Service[]>([])
   const [editing, setEditing] = useState<Service | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -81,12 +83,12 @@ export default function ServicesPage() {
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
-    if (!confirm("Remove this service? Existing bookings won't be affected.")) return
+    if (!confirm(t("Remove this service? Existing bookings won't be affected."))) return
     setDeleting(id)
     const res = await fetch(`/api/admin/services?id=${id}`, { method: "DELETE" })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error ?? `Failed to delete (HTTP ${res.status})`)
+      alert(data.error ?? t("Failed to delete (HTTP {status})", { status: res.status }))
     }
     await fetchServices()
     setDeleting(null)
@@ -117,8 +119,8 @@ export default function ServicesPage() {
       <div>
       <div className="flex items-center justify-between mb-6 gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Prices &amp; Services</h1>
-          <p className="text-gray-500 text-xs lg:text-sm mt-1 truncate">Class &amp; membership prices, plus add-on services clients can pick during booking</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">{t("Prices & Services")}</h1>
+          <p className="text-gray-500 text-xs lg:text-sm mt-1 truncate">{t("Class & membership prices, plus add-on services clients can pick during booking")}</p>
         </div>
         {services.filter((s) => s.active).length < 3 && (
           <button
@@ -126,15 +128,15 @@ export default function ServicesPage() {
             className="flex items-center gap-2 bg-brand text-white px-3 lg:px-4 py-2 rounded-xl text-sm font-medium hover:bg-brand-dark transition-colors flex-shrink-0"
           >
             <Plus size={16} />
-            <span className="hidden sm:inline">Add Service</span>
-            <span className="sm:hidden">Add</span>
+            <span className="hidden sm:inline">{t("Add Service")}</span>
+            <span className="sm:hidden">{t("Add")}</span>
           </button>
         )}
       </div>
 
       {services.filter((s) => s.active).length >= 3 && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm px-4 py-3 rounded-xl mb-4">
-          Maximum 3 visible services. Hide one with the eye toggle to add another.
+          {t("Maximum 3 visible services. Hide one with the eye toggle to add another.")}
         </div>
       )}
 
@@ -168,12 +170,12 @@ export default function ServicesPage() {
                 </span>
                 {!service.active && (
                   <span className="text-[9px] font-bold uppercase tracking-wider bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">
-                    Hidden
+                    {t("Hidden")}
                   </span>
                 )}
               </div>
               <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                <Pencil size={10} /> tap to edit
+                <Pencil size={10} /> {t("tap to edit")}
               </div>
             </div>
             <div className={cn("text-lg font-bold flex-shrink-0", service.active ? "text-brand" : "text-gray-400")}>
@@ -184,8 +186,8 @@ export default function ServicesPage() {
             <button
               type="button"
               onClick={(e) => handleToggleActive(e, service)}
-              title={service.active ? "Visible to clients — tap to hide" : "Hidden from clients — tap to show"}
-              aria-label={service.active ? "Hide from clients" : "Show to clients"}
+              title={service.active ? t("Visible to clients - tap to hide") : t("Hidden from clients - tap to show")}
+              aria-label={service.active ? t("Hide from clients") : t("Show to clients")}
               className={cn(
                 "p-2 rounded-lg transition-colors flex-shrink-0 border",
                 service.active
@@ -201,7 +203,7 @@ export default function ServicesPage() {
               onClick={(e) => handleDelete(e, service.id)}
               disabled={deleting === service.id}
               className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
-              aria-label="Delete service"
+              aria-label={t("Delete service")}
             >
               <Trash2 size={16} />
             </button>
@@ -212,7 +214,7 @@ export default function ServicesPage() {
 
         {!loading && services.length === 0 && (
           <div className="text-center py-12 text-gray-400 text-sm bg-white rounded-2xl">
-            No additional services yet.
+            {t("No additional services yet.")}
           </div>
         )}
       </div>
@@ -222,7 +224,7 @@ export default function ServicesPage() {
           <div className="bg-white rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-gray-800">
-                {editing ? "Edit Service" : "Add Service"}
+                {editing ? t("Edit Service") : t("Add Service")}
               </h2>
               <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X size={18} />
@@ -231,18 +233,18 @@ export default function ServicesPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("Service Name")}</label>
                 <input
                   required
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                  placeholder="e.g. Mat Rental"
+                  placeholder={t("e.g. Mat Rental")}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price (IDR)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("Price (IDR)")}</label>
                 <div className="relative">
                   <input
                     required
@@ -263,10 +265,10 @@ export default function ServicesPage() {
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={closeModal} className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl text-sm font-medium hover:bg-gray-50">
-                  Cancel
+                  {t("Cancel")}
                 </button>
                 <button type="submit" disabled={saving} className="flex-1 bg-brand text-white py-3 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
-                  {saving ? "Saving..." : editing ? "Save Changes" : "Add Service"}
+                  {saving ? t("Saving...") : editing ? t("Save Changes") : t("Add Service")}
                 </button>
               </div>
             </form>
@@ -298,6 +300,7 @@ function formatPriceShort(p: number) {
 type MainKind = "GROUP" | "KIDS" | "PRIVATE" | "MEMBERSHIP" | "LOCAL"
 
 function MainServicesCard() {
+  const t = useT()
   const [studio, setStudio] = useState<StudioPrices | null>(null)
   const [country, setCountry] = useState<string | null>(null)
   const [editing, setEditing] = useState<MainKind | null>(null)
@@ -317,13 +320,13 @@ function MainServicesCard() {
   }, [])
 
   const items: { kind: MainKind; field: keyof StudioPrices; label: string; sub: string }[] = [
-    { kind: "GROUP", field: "groupPrice", label: "Group class", sub: "Adults, up to 6 people" },
-    { kind: "KIDS", field: "kidsPrice", label: "Kids class", sub: "Children's group" },
-    { kind: "PRIVATE", field: "privatePrice", label: "Private session", sub: "1 person only" },
-    { kind: "MEMBERSHIP", field: "membershipClassPrice", label: "Membership (per class)", sub: "Price per class when buying a pass" },
+    { kind: "GROUP", field: "groupPrice", label: t("Group class"), sub: t("Adults, up to 6 people") },
+    { kind: "KIDS", field: "kidsPrice", label: t("Kids class"), sub: t("Children's group") },
+    { kind: "PRIVATE", field: "privatePrice", label: t("Private session"), sub: t("1 person only") },
+    { kind: "MEMBERSHIP", field: "membershipClassPrice", label: t("Membership (per class)"), sub: t("Price per class when buying a pass") },
     // Local resident discount only applies in Indonesian studios.
     ...(country === "ID"
-      ? [{ kind: "LOCAL" as MainKind, field: "localPrice" as keyof StudioPrices, label: "Local price", sub: "Indonesian local resident, per class" }]
+      ? [{ kind: "LOCAL" as MainKind, field: "localPrice" as keyof StudioPrices, label: t("Local price"), sub: t("Indonesian local resident, per class") }]
       : []),
   ]
 
@@ -353,11 +356,11 @@ function MainServicesCard() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Main Services</h1>
-        <p className="text-gray-500 text-xs lg:text-sm mt-1">Default prices for each class type · used when creating slots</p>
+        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">{t("Main Services")}</h1>
+        <p className="text-gray-500 text-xs lg:text-sm mt-1">{t("Default prices for each class type · used when creating slots")}</p>
       </div>
       {!studio ? (
-        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">Loading…</div>
+        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400 text-sm">{t("Loading…")}</div>
       ) : (
         <div className="space-y-3">
           {items.map(({ kind, field, label, sub }) => {
@@ -385,7 +388,7 @@ function MainServicesCard() {
                       disabled={saving}
                       className="px-2 py-2 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-50"
                     >
-                      Cancel
+                      {t("Cancel")}
                     </button>
                     <button
                       type="button"
@@ -393,7 +396,7 @@ function MainServicesCard() {
                       disabled={saving || draftValue === value}
                       className="px-3 py-2 rounded-lg bg-brand text-white text-xs font-medium hover:bg-brand-dark disabled:opacity-50"
                     >
-                      {saving ? "…" : "Save"}
+                      {saving ? "…" : t("Save")}
                     </button>
                   </div>
                 ) : (
@@ -404,7 +407,7 @@ function MainServicesCard() {
                     <button
                       type="button"
                       onClick={() => startEdit(kind, value)}
-                      title="Edit price"
+                      title={t("Edit price")}
                       className="p-2 hover:bg-brand/5 rounded-lg text-gray-400 hover:text-brand flex-shrink-0"
                     >
                       <Pencil size={14} />

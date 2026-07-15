@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Plus, TrendingUp, TrendingDown, Wallet, Clip
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { AddExpenseModal } from "@/app/_components/AddExpenseModal"
+import { useT, useLocale } from "@/app/_components/LocaleProvider"
 
 type Method = "CASH" | "EDC" | "QR" | "TRANSFER"
 type IncomeRow = { id: string; date: string; label: string; responsible: string; method: Method; amount: number; kind: "class" | "membership" | "service" }
@@ -43,6 +44,8 @@ const METHOD_COLS: { key: Method; label: string }[] = [
 ]
 
 export default function CashFlowPage() {
+  const t = useT()
+  const { dateLocale } = useLocale()
   const [anchor, setAnchor] = useState(new Date())
   const [data, setData] = useState<CashFlow | null>(null)
   const [loading, setLoading] = useState(true)
@@ -74,7 +77,7 @@ export default function CashFlowPage() {
     setCounting(false)
     if (!res.ok) {
       const j = await res.json().catch(() => ({}))
-      setCountError(j.error ?? "Couldn't save - try again.")
+      setCountError(j.error ?? t("Couldn't save - try again."))
       return
     }
     setShowCount(false)
@@ -85,21 +88,27 @@ export default function CashFlowPage() {
 
   useEffect(() => { fetchData(anchor) }, [anchor, fetchData])
 
+  // Localized month labels (data.monthLabel from the API is always English).
+  const monthTitle = data
+    ? format(new Date(data.month + "-01T00:00:00"), "LLLL yyyy", { locale: dateLocale })
+    : format(anchor, "LLLL yyyy", { locale: dateLocale })
+  const monthName = data ? format(new Date(data.month + "-01T00:00:00"), "LLLL", { locale: dateLocale }) : ""
+
   const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
   const canGoForward = new Date(anchor.getFullYear(), anchor.getMonth(), 1).getTime() < currentMonthStart.getTime()
 
   return (
     <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Cash Flow</h1>
-      <p className="text-sm text-gray-400 mb-5">Daily money in &amp; out - built automatically from bookings, passes and expenses.</p>
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">{t("Cash Flow")}</h1>
+      <p className="text-sm text-gray-400 mb-5">{t("Daily money in & out - built automatically from bookings, passes and expenses.")}</p>
 
       {/* Month switcher */}
       <div className="flex items-center justify-between bg-white rounded-2xl shadow-sm p-3 mb-4 max-w-md">
-        <button onClick={() => setAnchor(subMonths(anchor, 1))} className="w-10 h-10 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100" aria-label="Previous month">
+        <button onClick={() => setAnchor(subMonths(anchor, 1))} className="w-10 h-10 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100" aria-label={t("Previous month")}>
           <ChevronLeft size={20} />
         </button>
-        <div className="text-sm font-semibold text-gray-800">{data?.monthLabel ?? format(anchor, "MMMM yyyy")}</div>
-        <button onClick={() => canGoForward && setAnchor(addMonths(anchor, 1))} disabled={!canGoForward} className={cn("w-10 h-10 flex items-center justify-center rounded-lg", canGoForward ? "text-gray-500 hover:text-gray-800 hover:bg-gray-100" : "text-gray-300 cursor-not-allowed")} aria-label="Next month">
+        <div className="text-sm font-semibold text-gray-800">{monthTitle}</div>
+        <button onClick={() => canGoForward && setAnchor(addMonths(anchor, 1))} disabled={!canGoForward} className={cn("w-10 h-10 flex items-center justify-center rounded-lg", canGoForward ? "text-gray-500 hover:text-gray-800 hover:bg-gray-100" : "text-gray-300 cursor-not-allowed")} aria-label={t("Next month")}>
           <ChevronRight size={20} />
         </button>
       </div>
@@ -110,8 +119,8 @@ export default function CashFlowPage() {
         <div className="space-y-5">
           {/* Summary — the month's money in / out (all methods). */}
           <div className="grid grid-cols-2 gap-3">
-            <SummaryCard icon={TrendingUp} label={`Money in · ${data.monthLabel}`} value={fmt(data.incomeTotals.total)} color="green" />
-            <SummaryCard icon={TrendingDown} label={`Money out · ${data.monthLabel}`} value={fmt(data.expenseTotal)} color="red" />
+            <SummaryCard icon={TrendingUp} label={t("Money in · {month}", { month: monthTitle })} value={fmt(data.incomeTotals.total)} color="green" />
+            <SummaryCard icon={TrendingDown} label={t("Money out · {month}", { month: monthTitle })} value={fmt(data.expenseTotal)} color="red" />
           </div>
 
           {/* CASH IN REGISTER — control figure (Sveta 06.07). "Expected" is
@@ -121,47 +130,47 @@ export default function CashFlowPage() {
             <div className="flex items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2">
                 <span className="w-8 h-8 rounded-lg bg-brand/10 text-brand flex items-center justify-center"><Wallet size={16} /></span>
-                <span className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Cash register control</span>
+                <span className="text-xs uppercase tracking-wide text-gray-400 font-semibold">{t("Cash register control")}</span>
               </div>
               <button
                 onClick={() => { setCountAmount(""); setCountNote(""); setCountError(null); setShowCount(true) }}
                 className="inline-flex items-center gap-1 rounded-full bg-brand/10 text-brand px-3 py-1.5 text-xs font-semibold hover:bg-brand/15 active:scale-95 transition touch-manipulation"
               >
-                <ClipboardCheck size={13} /> Count cash
+                <ClipboardCheck size={13} /> {t("Count cash")}
               </button>
             </div>
             {/* Month ledger (Sveta 10.07): carried over + this month's cash
                 in - this month's cash out = expected. The old all-time lines
                 hid income from previous months and read as a formula error. */}
             <div className="text-sm space-y-1.5">
-              <div className="flex justify-between gap-3"><span className="text-gray-500">Carried over (before {data.monthLabel.split(" ")[0]})</span><span className="font-medium tabular-nums text-gray-700">{fmt(data.carriedOver)}</span></div>
-              <div className="flex justify-between gap-3"><span className="text-gray-500">Cash in · {data.monthLabel.split(" ")[0]}</span><span className="font-medium tabular-nums text-green-600">+{fmt(data.monthCashIn)}</span></div>
-              <div className="flex justify-between gap-3"><span className="text-gray-500">Cash out · {data.monthLabel.split(" ")[0]}</span><span className="font-medium tabular-nums text-red-500">−{fmt(data.monthCashOut)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">{t("Carried over (before {month})", { month: monthName })}</span><span className="font-medium tabular-nums text-gray-700">{fmt(data.carriedOver)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">{t("Cash in · {month}", { month: monthName })}</span><span className="font-medium tabular-nums text-green-600">+{fmt(data.monthCashIn)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-500">{t("Cash out · {month}", { month: monthName })}</span><span className="font-medium tabular-nums text-red-500">−{fmt(data.monthCashOut)}</span></div>
               {data.monthAbsorbed !== 0 && (
-                <div className="flex justify-between gap-3"><span className="text-gray-500">Recount adjustments · {data.monthLabel.split(" ")[0]}</span><span className="font-medium tabular-nums text-amber-600">−{fmt(data.monthAbsorbed)}</span></div>
+                <div className="flex justify-between gap-3"><span className="text-gray-500">{t("Recount adjustments · {month}", { month: monthName })}</span><span className="font-medium tabular-nums text-amber-600">−{fmt(data.monthAbsorbed)}</span></div>
               )}
               <div className="flex justify-between gap-3 border-t border-gray-200 pt-2 mt-1">
-                <span className="font-semibold text-gray-800">Should be in the drawer</span>
+                <span className="font-semibold text-gray-800">{t("Should be in the drawer")}</span>
                 <span className={cn("font-bold tabular-nums text-lg", data.expectedInDrawer < 0 ? "text-red-500" : "text-gray-900")}>{fmt(data.expectedInDrawer)}</span>
               </div>
             </div>
             <p className="text-[11px] text-gray-400 mt-2 leading-snug">
-              Only cash payments count - card, QRIS and transfers never touch the drawer. Count the drawer and tap &quot;Count cash&quot; to reconcile: any gap is logged.
+              {t('Only cash payments count - card, QRIS and transfers never touch the drawer. Count the drawer and tap "Count cash" to reconcile: any gap is logged.')}
             </p>
 
             {data.counts.length > 0 && (
               <div className="mt-3 border-t border-gray-100 pt-2">
-                <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1.5">Recounts</div>
+                <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1.5">{t("Recounts")}</div>
                 <div className="space-y-1.5">
                   {data.counts.map((c) => (
                     <div key={c.id} className="flex items-center justify-between gap-2 text-xs">
                       <span className="text-gray-500 min-w-0 truncate">
-                        {format(new Date(c.createdAt), "MMM d, HH:mm")} · counted {fmt(c.counted)}
+                        {format(new Date(c.createdAt), dateLocale ? "d MMM, HH:mm" : "MMM d, HH:mm", { locale: dateLocale })} · {t("counted {amount}", { amount: fmt(c.counted) })}
                         {c.note ? <span className="text-gray-400"> - {c.note}</span> : null}
                       </span>
                       <span className={cn("font-semibold tabular-nums flex-shrink-0",
                         c.difference > 0 ? "text-red-500" : c.difference < 0 ? "text-amber-600" : "text-green-600")}>
-                        {c.difference === 0 ? "matched" : c.difference > 0 ? `short ${fmt(c.difference)}` : `over ${fmt(-c.difference)}`}
+                        {c.difference === 0 ? t("matched") : c.difference > 0 ? t("short {amount}", { amount: fmt(c.difference) }) : t("over {amount}", { amount: fmt(-c.difference) })}
                       </span>
                     </div>
                   ))}
@@ -173,28 +182,28 @@ export default function CashFlowPage() {
           {/* INCOME */}
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-              <span className="font-semibold text-gray-800">Money in</span>
-              <span className="text-xs text-gray-400">{data.income.length} entries</span>
+              <span className="font-semibold text-gray-800">{t("Money in")}</span>
+              <span className="text-xs text-gray-400">{t("{n} entries", { n: data.income.length })}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[11px] uppercase tracking-wide text-gray-400 bg-gray-50">
-                    <th className="text-left font-semibold px-4 py-2">Date</th>
-                    <th className="text-left font-semibold px-4 py-2">Description</th>
-                    <th className="text-left font-semibold px-4 py-2 hidden sm:table-cell">By</th>
-                    {METHOD_COLS.map((m) => <th key={m.key} className="text-right font-semibold px-4 py-2">{m.label}</th>)}
+                    <th className="text-left font-semibold px-4 py-2">{t("Date")}</th>
+                    <th className="text-left font-semibold px-4 py-2">{t("Description")}</th>
+                    <th className="text-left font-semibold px-4 py-2 hidden sm:table-cell">{t("By")}</th>
+                    {METHOD_COLS.map((m) => <th key={m.key} className="text-right font-semibold px-4 py-2">{t(m.label)}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {data.income.length === 0 ? (
-                    <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">No income recorded this month.</td></tr>
+                    <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">{t("No income recorded this month.")}</td></tr>
                   ) : data.income.map((r) => (
                     <tr key={r.id} className="border-t border-gray-50">
-                      <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{format(new Date(r.date), "MMM d")}</td>
+                      <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{format(new Date(r.date), dateLocale ? "d MMM" : "MMM d", { locale: dateLocale })}</td>
                       <td className="px-4 py-2 text-gray-800">
                         {r.label}
-                        {r.kind === "membership" && <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-brand/10 text-brand">card</span>}
+                        {r.kind === "membership" && <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-brand/10 text-brand">{t("card")}</span>}
                       </td>
                       <td className="px-4 py-2 text-gray-400 hidden sm:table-cell">{r.responsible}</td>
                       {METHOD_COLS.map((m) => <td key={m.key} className="px-4 py-2 text-right tabular-nums text-gray-700">{r.method === m.key ? fmtCell(r.amount) : ""}</td>)}
@@ -208,7 +217,7 @@ export default function CashFlowPage() {
                         every method total one column to the right (Sveta's
                         "cash shows under EDC" report). Mirror the header:
                         span 2 always + one extra cell that hides with "By". */}
-                    <td className="px-4 py-2.5" colSpan={2}>TOTAL · {fmt(data.incomeTotals.total)}</td>
+                    <td className="px-4 py-2.5" colSpan={2}>{t("TOTAL")} · {fmt(data.incomeTotals.total)}</td>
                     <td className="hidden sm:table-cell" />
                     {METHOD_COLS.map((m) => <td key={m.key} className="px-4 py-2.5 text-right tabular-nums">{fmtCell(data.incomeTotals[m.key])}</td>)}
                   </tr>
@@ -220,34 +229,34 @@ export default function CashFlowPage() {
           {/* EXPENSES */}
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
-              <span className="font-semibold text-gray-800">Money out</span>
+              <span className="font-semibold text-gray-800">{t("Money out")}</span>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-400">{data.expenseRows.length} entries</span>
+                <span className="text-xs text-gray-400">{t("{n} entries", { n: data.expenseRows.length })}</span>
                 <button
                   onClick={() => setShowExpense(true)}
                   className="inline-flex items-center gap-1 rounded-full bg-brand/10 text-brand px-3 py-1.5 text-xs font-semibold hover:bg-brand/15 active:scale-95 transition touch-manipulation"
                 >
-                  <Plus size={13} /> Add expense
+                  <Plus size={13} /> {t("Add expense")}
                 </button>
               </div>
             </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wide text-gray-400 bg-gray-50">
-                  <th className="text-left font-semibold px-4 py-2">Date</th>
-                  <th className="text-left font-semibold px-4 py-2">Description</th>
-                  <th className="text-right font-semibold px-4 py-2">Cash out</th>
+                  <th className="text-left font-semibold px-4 py-2">{t("Date")}</th>
+                  <th className="text-left font-semibold px-4 py-2">{t("Description")}</th>
+                  <th className="text-right font-semibold px-4 py-2">{t("Cash out")}</th>
                 </tr>
               </thead>
               <tbody>
                 {data.expenseRows.length === 0 ? (
-                  <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-400">No expenses recorded this month.</td></tr>
+                  <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-400">{t("No expenses recorded this month.")}</td></tr>
                 ) : data.expenseRows.map((r) => (
                   <tr key={r.id} className="border-t border-gray-50">
-                    <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{format(new Date(r.date), "MMM d")}</td>
+                    <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{format(new Date(r.date), dateLocale ? "d MMM" : "MMM d", { locale: dateLocale })}</td>
                     <td className="px-4 py-2 text-gray-800">
                       {r.description}
-                      {r.kind === "payout" && <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">salary</span>}
+                      {r.kind === "payout" && <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">{t("salary")}</span>}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-gray-700">{fmtCell(r.amount)}</td>
                   </tr>
@@ -255,7 +264,7 @@ export default function CashFlowPage() {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-gray-200 bg-gray-50 font-bold text-gray-900">
-                  <td className="px-4 py-2.5" colSpan={2}>TOTAL</td>
+                  <td className="px-4 py-2.5" colSpan={2}>{t("TOTAL")}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{fmtCell(data.expenseTotal)}</td>
                 </tr>
               </tfoot>
@@ -263,9 +272,7 @@ export default function CashFlowPage() {
           </div>
 
           <p className="text-xs text-gray-400 px-2">
-            Money in = per-class payments (cash, EDC, QRIS, transfer) plus pass sales. Classes paid from a
-            pass are not counted again here. Money out = expenses (add them here or on the Salary page)
-            plus salary payouts.
+            {t("Money in = per-class payments (cash, EDC, QRIS, transfer) plus pass sales. Classes paid from a pass are not counted again here. Money out = expenses (add them here or on the Salary page) plus salary payouts.")}
           </p>
         </div>
       )}
@@ -279,16 +286,16 @@ export default function CashFlowPage() {
         <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 w-full max-w-sm shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-800">Count the drawer</h2>
-              <button onClick={() => setShowCount(false)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Close"><X size={18} /></button>
+              <h2 className="text-lg font-semibold text-gray-800">{t("Count the drawer")}</h2>
+              <button onClick={() => setShowCount(false)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label={t("Close")}><X size={18} /></button>
             </div>
             <div className="bg-gray-50 rounded-xl px-4 py-3 mb-4 text-sm flex justify-between">
-              <span className="text-gray-500">System expects</span>
+              <span className="text-gray-500">{t("System expects")}</span>
               <span className="font-semibold tabular-nums">{fmt(data.expectedInDrawer)}</span>
             </div>
             <form onSubmit={submitCount} className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Actually counted (IDR)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("Actually counted (IDR)")}</label>
                 <input
                   type="number" required min="0" step="any" value={countAmount}
                   onChange={(e) => setCountAmount(e.target.value)}
@@ -299,25 +306,25 @@ export default function CashFlowPage() {
                   const diff = data.expectedInDrawer - Number(countAmount)
                   return (
                     <p className={cn("text-xs mt-1 font-medium", diff > 0 ? "text-red-500" : diff < 0 ? "text-amber-600" : "text-green-600")}>
-                      {diff === 0 ? "Matches the system exactly." : diff > 0 ? `Short by ${fmt(diff)} - missing from the drawer.` : `Over by ${fmt(-diff)} - more than expected.`}
+                      {diff === 0 ? t("Matches the system exactly.") : diff > 0 ? t("Short by {amount} - missing from the drawer.", { amount: fmt(diff) }) : t("Over by {amount} - more than expected.", { amount: fmt(-diff) })}
                     </p>
                   )
                 })()}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Note (e.g. deposited to bank)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("Note (e.g. deposited to bank)")}</label>
                 <input
                   type="text" value={countNote}
                   onChange={(e) => setCountNote(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                  placeholder="Optional - explain any gap"
+                  placeholder={t("Optional - explain any gap")}
                 />
               </div>
               {countError && <div className="text-xs text-red-500">{countError}</div>}
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setShowCount(false)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
+                <button type="button" onClick={() => setShowCount(false)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">{t("Cancel")}</button>
                 <button type="submit" disabled={counting} className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
-                  {counting ? "Saving..." : "Save count"}
+                  {counting ? t("Saving...") : t("Save count")}
                 </button>
               </div>
             </form>

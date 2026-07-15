@@ -6,6 +6,7 @@ import { Banknote, MinusCircle, Scale, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { formatIDRCompact as formatIDR } from "@/lib/format"
+import { useT, useLocale } from "@/app/_components/LocaleProvider"
 
 // Trainer cash safes: how much cash each trainer's box should hold right now.
 // Inflow is derived from CASH payment records; this page records what LEAVES
@@ -23,6 +24,8 @@ const KIND_LABEL: Record<string, string> = {
 }
 
 export default function SafePage() {
+  const t = useT()
+  const { dateLocale } = useLocale()
   const [data, setData] = useState<SafeData | null>(null)
   const [loading, setLoading] = useState(true)
   const [disabled, setDisabled] = useState(false)
@@ -62,7 +65,7 @@ export default function SafePage() {
     // the signed delta so the balance lands exactly on Y.
     const amount = opKind === "withdrawal" ? Number(opAmount) : Number(opActual) - opFor.balance
     if (opKind === "correction" && amount === 0) {
-      setOpError("The safe already shows that amount - nothing to correct.")
+      setOpError(t("The safe already shows that amount - nothing to correct."))
       setSaving(false)
       return
     }
@@ -74,7 +77,7 @@ export default function SafePage() {
     setSaving(false)
     if (!res.ok) {
       const j = await res.json().catch(() => ({}))
-      setOpError(j.error ?? "Couldn't save - try again.")
+      setOpError(j.error ?? t("Couldn't save - try again."))
       return
     }
     setOpFor(null)
@@ -85,24 +88,24 @@ export default function SafePage() {
   if (disabled || !data) {
     return (
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Safes</h1>
-        <p className="text-sm text-gray-400">Cash-safe tracking is not enabled for this studio.</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">{t("Safes")}</h1>
+        <p className="text-sm text-gray-400">{t("Cash-safe tracking is not enabled for this studio.")}</p>
       </div>
     )
   }
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Safes</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">{t("Safes")}</h1>
       <p className="text-sm text-gray-400 mb-5">
-        Cash each trainer&apos;s safe should hold - built from cash payments minus what was taken out.
+        {t("Cash each trainer's safe should hold - built from cash payments minus what was taken out.")}
       </p>
 
       {/* Studio total */}
       <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 flex items-center gap-3">
         <span className="w-10 h-10 rounded-xl bg-brand/10 text-brand flex items-center justify-center"><Banknote size={20} /></span>
         <div>
-          <div className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Total cash in safes</div>
+          <div className="text-xs uppercase tracking-wide text-gray-400 font-semibold">{t("Total cash in safes")}</div>
           <div className="text-2xl font-bold text-gray-900">{formatIDR(data.total)}</div>
         </div>
       </div>
@@ -117,27 +120,27 @@ export default function SafePage() {
                 onClick={() => openOp(b)}
                 className="flex-shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:border-brand/40 touch-manipulation"
               >
-                Withdraw / Correct
+                {t("Withdraw / Correct")}
               </button>
             </div>
             <div className={cn("text-2xl font-bold mt-1", b.balance < 0 ? "text-red-500" : "text-gray-900")}>
               {formatIDR(b.balance)}
             </div>
             <div className="text-xs text-gray-400 mt-0.5">
-              {formatIDR(b.cashIn)} cash collected all time
+              {t("{amount} cash collected all time", { amount: formatIDR(b.cashIn) })}
             </div>
           </div>
         ))}
         {data.balances.length === 0 && (
-          <div className="text-sm text-gray-400 col-span-full">No active trainers.</div>
+          <div className="text-sm text-gray-400 col-span-full">{t("No active trainers.")}</div>
         )}
       </div>
 
       {/* Operations history */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 font-semibold text-gray-800">History</div>
+        <div className="px-5 py-3 border-b border-gray-100 font-semibold text-gray-800">{t("History")}</div>
         {data.operations.length === 0 ? (
-          <div className="px-5 py-6 text-sm text-gray-400">No operations yet - only incoming cash so far.</div>
+          <div className="px-5 py-6 text-sm text-gray-400">{t("No operations yet - only incoming cash so far.")}</div>
         ) : (
           <div className="divide-y divide-gray-50">
             {data.operations.map((o) => (
@@ -150,10 +153,10 @@ export default function SafePage() {
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="text-gray-800">
-                    {KIND_LABEL[o.kind] ?? o.kind} · {o.trainerName}
+                    {t(KIND_LABEL[o.kind] ?? o.kind)} · {o.trainerName}
                     {o.note && <span className="text-gray-400"> - {o.note}</span>}
                   </div>
-                  <div className="text-xs text-gray-400">{format(new Date(o.createdAt), "MMM d, HH:mm")}</div>
+                  <div className="text-xs text-gray-400">{format(new Date(o.createdAt), dateLocale ? "d MMM, HH:mm" : "MMM d, HH:mm", { locale: dateLocale })}</div>
                 </div>
                 <div className={cn("font-semibold tabular-nums", o.amount < 0 ? "text-red-500" : "text-green-600")}>
                   {o.amount < 0 ? "-" : "+"}{formatIDR(Math.abs(o.amount))}
@@ -170,10 +173,10 @@ export default function SafePage() {
           <div className="bg-white rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 w-full max-w-sm shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-gray-800">{opFor.trainerName}&apos;s safe</h2>
-                <p className="text-sm text-gray-400 mt-0.5">Now: {formatIDR(opFor.balance)}</p>
+                <h2 className="text-lg font-semibold text-gray-800">{t("{name}'s safe", { name: opFor.trainerName })}</h2>
+                <p className="text-sm text-gray-400 mt-0.5">{t("Now: {amount}", { amount: formatIDR(opFor.balance) })}</p>
               </div>
-              <button onClick={() => setOpFor(null)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Close">
+              <button onClick={() => setOpFor(null)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label={t("Close")}>
                 <X size={18} />
               </button>
             </div>
@@ -189,7 +192,7 @@ export default function SafePage() {
                     opKind === k ? "bg-white text-gray-800 shadow-sm" : "text-gray-500",
                   )}
                 >
-                  {k === "withdrawal" ? "Take cash out" : "Recount correction"}
+                  {k === "withdrawal" ? t("Take cash out") : t("Recount correction")}
                 </button>
               ))}
             </div>
@@ -197,7 +200,7 @@ export default function SafePage() {
             <form onSubmit={submitOp} className="space-y-3">
               {opKind === "withdrawal" ? (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount taken (IDR)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t("Amount taken (IDR)")}</label>
                   <input
                     type="number" required min="1" step="any" value={opAmount}
                     onChange={(e) => setOpAmount(e.target.value)}
@@ -207,36 +210,36 @@ export default function SafePage() {
                 </div>
               ) : (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">The safe actually holds (IDR)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t("The safe actually holds (IDR)")}</label>
                   <input
                     type="number" required min="0" step="any" value={opActual}
                     onChange={(e) => setOpActual(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                    placeholder="Counted amount"
+                    placeholder={t("Counted amount")}
                   />
                   {opActual !== "" && (
                     <p className="text-xs text-gray-400 mt-1">
-                      Correction: {Number(opActual) - opFor.balance >= 0 ? "+" : "-"}{formatIDR(Math.abs(Number(opActual) - opFor.balance))}
+                      {t("Correction:")} {Number(opActual) - opFor.balance >= 0 ? "+" : "-"}{formatIDR(Math.abs(Number(opActual) - opFor.balance))}
                     </p>
                   )}
                 </div>
               )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {opKind === "correction" ? "Reason (required)" : "Note (optional)"}
+                  {opKind === "correction" ? t("Reason (required)") : t("Note (optional)")}
                 </label>
                 <input
                   type="text" value={opNote} required={opKind === "correction"}
                   onChange={(e) => setOpNote(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                  placeholder={opKind === "correction" ? "e.g. Recount on July 6" : "e.g. Taken by owner"}
+                  placeholder={opKind === "correction" ? t("e.g. Recount on July 6") : t("e.g. Taken by owner")}
                 />
               </div>
               {opError && <div className="text-xs text-red-500">{opError}</div>}
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setOpFor(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
+                <button type="button" onClick={() => setOpFor(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">{t("Cancel")}</button>
                 <button type="submit" disabled={saving} className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
-                  {saving ? "Saving..." : opKind === "withdrawal" ? "Take out" : "Apply correction"}
+                  {saving ? t("Saving...") : opKind === "withdrawal" ? t("Take out") : t("Apply correction")}
                 </button>
               </div>
             </form>

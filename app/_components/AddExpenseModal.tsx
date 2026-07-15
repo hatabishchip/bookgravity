@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { format } from "date-fns"
 import { X } from "lucide-react"
+import { useT } from "@/app/_components/LocaleProvider"
 
 // "Add expense" modal — the same form the Salary page hosts, extracted so the
 // Cash Flow page can record money-out on the spot (Sveta's report: she looked
@@ -18,6 +19,7 @@ const PAY_METHODS = [
 ]
 
 export function AddExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const t = useT()
   const [form, setForm] = useState({
     amount: "",
     category: "Rent",
@@ -45,7 +47,7 @@ export function AddExpenseModal({ onClose, onSaved }: { onClose: () => void; onS
     })
     setSaving(false)
     if (!res.ok) {
-      setError("Couldn't save the expense - please try again.")
+      setError(t("Couldn't save the expense - please try again."))
       return
     }
     onSaved()
@@ -56,8 +58,8 @@ export function AddExpenseModal({ onClose, onSaved }: { onClose: () => void; onS
     <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-gray-800">Add Expense</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Close">
+          <h2 className="text-lg font-semibold text-gray-800">{t("Add Expense")}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg" aria-label={t("Close")}>
             <X size={18} />
           </button>
         </div>
@@ -65,7 +67,7 @@ export function AddExpenseModal({ onClose, onSaved }: { onClose: () => void; onS
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Amount (IDR)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("Amount (IDR)")}</label>
               <input
                 type="number"
                 required
@@ -78,7 +80,7 @@ export function AddExpenseModal({ onClose, onSaved }: { onClose: () => void; onS
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("Date")}</label>
               <input
                 type="date"
                 required
@@ -90,47 +92,47 @@ export function AddExpenseModal({ onClose, onSaved }: { onClose: () => void; onS
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("Category")}</label>
               <select
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
               >
                 {EXPENSE_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{t(c)}</option>
                 ))}
               </select>
             </div>
             <div>
               {/* Only CASH expenses come out of the register (drives Cash Flow
                   "cash on hand"). Default Cash; rent etc. → Transfer. */}
-              <label className="block text-sm font-medium text-gray-700 mb-1">Paid with</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("Paid with")}</label>
               <select
                 value={form.method}
                 onChange={(e) => setForm({ ...form, method: e.target.value })}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
               >
                 {PAY_METHODS.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
+                  <option key={m.value} value={m.value}>{t(m.label)}</option>
                 ))}
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("Description (optional)")}</label>
             <input
               type="text"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-              placeholder="e.g. Cash taken from register"
+              placeholder={t("e.g. Cash taken from register")}
             />
           </div>
           {error && <div className="text-xs text-red-500">{error}</div>}
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">{t("Cancel")}</button>
             <button type="submit" disabled={saving} className="flex-1 bg-brand text-white py-2.5 rounded-xl text-sm font-medium hover:bg-brand-dark disabled:opacity-60">
-              {saving ? "Saving..." : "Add Expense"}
+              {saving ? t("Saving...") : t("Add Expense")}
             </button>
           </div>
         </form>
