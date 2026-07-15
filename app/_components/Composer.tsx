@@ -521,11 +521,14 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               fire on `click` (not pointerdown) because the file input dialog
               must be invoked from a user-initiated click for iOS to allow it.
 
-              Shown for BOTH admin and trainer, but ONLY while the 24h window is
-              open — free-form media (like free text) can't reach the client
-              outside the window, so we swap it for the 👋 wave/template below
-              when the window is closed. */}
-          {windowOpen && onAttach && (
+              ADMIN: only while the 24h window is open — admin media goes as a
+              raw WhatsApp file, which can't reach a closed window.
+              TRAINER: always (owner 15.07) — trainer media rides the Google
+              Drive bridge, and the folder LINK is text that also delivers
+              through a closed window via the admin_message template. Media is
+              usually sent right AFTER a session, when the window is often
+              already closed. */}
+          {(windowOpen || role === "TRAINER") && onAttach && (
             <>
               <input
                 ref={fileInputRef}
