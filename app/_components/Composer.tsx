@@ -2,32 +2,25 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { CalendarX, Keyboard, Loader2, MessageSquareText, Send, Smile } from "lucide-react"
-import { format, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
 import VirtualKeyboard, { type VirtualKeyboardHandle } from "@/app/_components/VirtualKeyboard"
 import StickerPicker from "@/app/_components/StickerPicker"
 
-// Canned staff messages ("quick replies"). Picking one drops the text into the
-// composer so staff can tweak it (e.g. add the new time) before sending. When
-// the 24h customer-service window is CLOSED the send path wraps the text in the
-// approved `admin_message` template, so these still reach a client who has gone
-// quiet - which is exactly when a schedule change needs to be sent.
-type QuickReply = { id: string; label: string; text: string; needsTime?: boolean }
+// Canned staff messages ("quick replies"). Tapping one SENDS it straight to
+// the chat. The 24h window is closed when these matter, so the send path wraps
+// the text in the approved `admin_message` template ("Hello {name}! 🌿 …" -
+// that wrap already greets, so the template body itself doesn't).
+//
+// ONE template by design (owner 15.07): no times, no slot picking. The client
+// is asked to REPLY - their reply opens the 24h window and staff follow up
+// with the details as free text. Replaced the time-picker template pair.
+type QuickReply = { id: string; label: string; text: string }
 const QUICK_REPLIES: QuickReply[] = [
   {
     id: "schedule-update",
     label: "Schedule update",
-    // {time} is filled from a slot the trainer PICKS (no manual typing) - see
-    // the time picker. Wording change confirmed with the owner 14.07.
-    text: "Greetings!\n\nWe have a small schedule update. Your session has been moved to {time}. See you there!",
-    needsTime: true,
-  },
-  {
-    id: "schedule-update-tomorrow",
-    label: "Schedule update (tomorrow)",
-    // No time picker - for when the new time isn't settled yet. Text provided
-    // by the owner 15.07; sends straight on tap like every quick reply.
-    text: "Greetings!\n\nWe have a small schedule update. Tomorrow's session has been rescheduled to a different time.",
+    // Text approved by the owner 15.07 (variant 1).
+    text: "We have a small schedule update. Your session has been rescheduled. Please reply to this message and we will share the details.",
   },
 ]
 
@@ -113,12 +106,6 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
   const [emojiOpen, setEmojiOpen] = useState(false)
   // Quick-reply canned messages popover.
   const [qrOpen, setQrOpen] = useState(false)
-  // Time picker for a template with a {time} variable: the template being
-  // filled, the loaded upcoming slots, and the loading flag. Staff PICK a slot
-  // (never type the time) - owner 14.07.
-  const [qrPicking, setQrPicking] = useState<QuickReply | null>(null)
-  const [slots, setSlots] = useState<{ id: string; date: string; startTime: string }[] | null>(null)
-  const [slotsLoading, setSlotsLoading] = useState(false)
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px) and (pointer: fine)")
     const update = () => setDesktop(mq.matches)
@@ -127,14 +114,15 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     return () => mq.removeEventListener("change", update)
   }, [])
 
-  // The emoji toggle is hidden while the 24h window is closed — if the window
-  // flips closed mid-session, fall back out of the sticker/emoji panel so the
-  // user isn't stranded there with no button to leave.
+  // Window flips closed mid-session → leave the sticker panel AND close the
+  // on-screen keyboard: a closed window has no free typing at all (owner
+  // 15.07), only templates / wave / trainer "+".
   useEffect(() => {
     if (windowOpen) return
     setBottomPanel("keyboard")
     setEmojiOpen(false)
-  }, [windowOpen])
+    onKeyboardOpenChange?.(false)
+  }, [windowOpen, onKeyboardOpenChange])
 
   // Recompute the textarea's height (up to 3 lines, then internal scroll).
   // Read-then-write in the same task to avoid layout thrashing. Coalesced
@@ -249,62 +237,15 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
 
   // Quick reply -> send the canned template STRAIGHT to the chat (owner 14.07:
   // "at tap, send it to the chat, not into the input field"). On a closed window
-  // the server wraps it in the approved admin_message template. A template with
-  // a variable part (needsTime) opens a slot picker first so staff never type
-  // the value by hand - see qrPicking.
+  // the server wraps it in the approved admin_message template.
   const applyQuickReply = useCallback(
     (qr: (typeof QUICK_REPLIES)[number]) => {
-      if (qr.needsTime) {
-        setQrOpen(false)
-        setQrPicking(qr)
-        return
-      }
       if (sending) return
       setQrOpen(false)
       setSending(true)
       Promise.resolve(onSend(qr.text)).catch(() => {}).finally(() => setSending(false))
     },
     [onSend, sending],
-  )
-
-  // Load upcoming class slots when a time-picking template opens. Role-aware:
-  // trainers get their own reschedule options, admins the full studio slots.
-  // Both return { id, date, startTime, ... } so the picker renders uniformly.
-  useEffect(() => {
-    if (!qrPicking) return
-    let alive = true
-    setSlotsLoading(true)
-    setSlots(null)
-    const today = new Date().toISOString().slice(0, 10)
-    const horizon = new Date(Date.now() + 8 * 864e5).toISOString().slice(0, 10)
-    const url = role === "TRAINER"
-      ? "/api/trainer/reschedule-options"
-      : `/api/admin/slots?from=${today}&to=${horizon}`
-    fetch(url, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: Array<{ id: string; date: string; startTime: string }>) => {
-        if (!alive) return
-        setSlots(Array.isArray(data) ? data.map((s) => ({ id: s.id, date: s.date, startTime: s.startTime })).slice(0, 50) : [])
-      })
-      .catch(() => { if (alive) setSlots([]) })
-      .finally(() => { if (alive) setSlotsLoading(false) })
-    return () => { alive = false }
-  }, [qrPicking, role])
-
-  // Send a time-picking template with the chosen slot's time filled in.
-  const sendScheduled = useCallback(
-    (slot: { date: string; startTime: string }) => {
-      if (!qrPicking || sending) return
-      let when: string
-      try { when = `${format(parseISO(slot.date), "EEE, MMM d")} at ${slot.startTime}` }
-      catch { when = slot.startTime }
-      const text = qrPicking.text.replace("{time}", when)
-      setQrPicking(null)
-      setSlots(null)
-      setSending(true)
-      Promise.resolve(onSend(text)).catch(() => {}).finally(() => setSending(false))
-    },
-    [qrPicking, onSend, sending],
   )
 
   // VirtualKeyboard → backspace. If the user has a selection (e.g. they
@@ -474,49 +415,6 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
             )}
           </div>
           )}
-          {/* Time picker for a {time} template: pick an upcoming slot, no manual
-              typing. Full-screen sheet so the list is easy to tap. */}
-          {qrPicking && (
-            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setQrPicking(null)}>
-              <div className="absolute inset-0 bg-black/40" />
-              <div
-                className="relative w-full sm:max-w-sm max-h-[70vh] flex flex-col rounded-t-3xl sm:rounded-3xl bg-white dark:bg-[#233138] shadow-xl overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Pick the new time</div>
-                  <button type="button" onClick={() => setQrPicking(null)} className="p-1.5 -mr-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10" aria-label="Close">
-                    <span className="text-xl leading-none">×</span>
-                  </button>
-                </div>
-                <div className="px-4 pb-4 overflow-y-auto">
-                  {slotsLoading || slots === null ? (
-                    <div className="py-8 flex justify-center"><Loader2 size={22} className="animate-spin text-brand" /></div>
-                  ) : slots.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-gray-500 dark:text-[#8696A0]">No upcoming classes to pick.</div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {slots.map((s) => {
-                        let label: string
-                        try { label = `${format(parseISO(s.date), "EEE, MMM d")} - ${s.startTime}` }
-                        catch { label = s.startTime }
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => sendScheduled(s)}
-                            className="w-full text-left px-3.5 py-3 rounded-xl border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 active:bg-gray-100 dark:active:bg-white/10 text-sm text-gray-900 dark:text-white"
-                          >
-                            {label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
           {/* "+" attachment button — opens the native picker. We deliberately
               fire on `click` (not pointerdown) because the file input dialog
               must be invoked from a user-initiated click for iOS to allow it.
@@ -626,7 +524,11 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               // so the user can type. We use pointerDown (a real user gesture)
               // rather than focus, which also fires programmatically after each
               // emoji insert — that would close the picker after one pick.
+              // CLOSED window: no free typing at all (owner 15.07 - reversal
+              // of the 04.07 decision) - a tap must NOT open the keyboard.
+              // Staff reach a quiet client via templates / wave / trainer "+".
               onPointerDown={() => {
+                if (!windowOpen) return
                 if (desktop) setEmojiOpen(false)
                 else { setBottomPanel("keyboard"); onKeyboardOpenChange?.(true) }
               }}
@@ -663,12 +565,11 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               autoCorrect={desktop ? "on" : "off"}
               autoCapitalize={desktop ? "sentences" : "off"}
               spellCheck={desktop}
-              placeholder={windowOpen ? "Message" : "Message (sent as a template)"}
-              // Staff (admin + trainer) can type even when the 24h window is
-              // closed - the server delivers it via the approved admin_message
-              // template (free-form can't reach a cold chat, a template can).
-              // This is the fix for the "coach sick, must tell today's students"
-              // case (owner 2026-07-04) - trainers were stuck with just the wave.
+              placeholder={windowOpen ? "Message" : "Use a template or wave"}
+              // CLOSED window: the field is read-only (owner 15.07). Free text
+              // to a quiet client goes ONLY through the template popup - the
+              // client's reply then opens the window for normal typing.
+              readOnly={!windowOpen}
               disabled={sending}
               rows={1}
               className={cn(
