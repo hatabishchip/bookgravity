@@ -5,14 +5,18 @@ import { prisma } from "@/lib/prisma"
 import {
   uploadMediaToMeta,
   sendWhatsAppMedia,
+  sendWhatsAppText,
+  sendWhatsAppTemplate,
   getConfigFor,
 } from "@/lib/whatsapp-cloud"
 import {
   appendOutboundMessage,
   isInsideCustomerWindow,
+  markConversationHandled,
   trainerHasAccess,
 } from "@/lib/whatsapp-conversation"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
+import { driveConfigured, driveConnected, uploadClientMedia } from "@/lib/google-drive"
 
 // POST /api/whatsapp/conversations/[id]/media
 // multipart/form-data: file (required), caption (optional)
@@ -30,6 +34,10 @@ const MAX_BYTES = {
   // Stickers: 100 KB static / 500 KB animated. We accept up to 500 KB.
   sticker: 500 * 1024,
 } as const
+
+// What the client receives with their Drive folder link (trainer media
+// bridge). Client-facing text - change only with the owner's sign-off.
+const MEDIA_LINK_TEXT = "Here are your photos and videos from Gravity Stretching: {link}"
 
 function classifyMime(mime: string, filename: string): "image" | "video" | "audio" | "document" | "sticker" {
   // WhatsApp distinguishes sticker (webp, square, ≤500KB) from regular
@@ -72,10 +80,18 @@ export async function POST(
     fromTrainerId = trainer.id
   }
 
+  // Trainer media goes over the GOOGLE DRIVE BRIDGE when connected (owner
+  // 14.07): the original file lands in the owner's Drive and the client gets a
+  // LINK - which is plain text, so unlike raw media it also works through a
+  // CLOSED window (admin_message template). Window gating for the bridge
+  // happens inside the branch below; only the direct-to-WhatsApp path (admin,
+  // or trainer while Drive isn't connected) requires an open window.
+  const useDriveBridge = ctx.role === "TRAINER" && driveConfigured() && driveConnected()
+
   // Free-form media follows the same 24h-window rule as text. (Outside the
   // window only approved templates with media headers work, which we don't
   // support yet.)
-  if (!isInsideCustomerWindow(convo.lastInboundAt)) {
+  if (!useDriveBridge && !isInsideCustomerWindow(convo.lastInboundAt)) {
     return NextResponse.json(
       { error: "window_closed", code: "window_closed" },
       { status: 409 },
@@ -130,7 +146,9 @@ export async function POST(
   }
 
   const type = classifyMime(mimeType, fileName)
-  const limit = MAX_BYTES[type]
+  // Drive has no WhatsApp-style per-type caps - only a sanity ceiling so a
+  // giant file can't hang the function. The direct path keeps Meta's limits.
+  const limit = useDriveBridge ? 100 * 1024 * 1024 : MAX_BYTES[type]
   if (buffer.length > limit) {
     if (blobUrlToDelete) await del(blobUrlToDelete).catch(() => {})
     return NextResponse.json(
@@ -145,6 +163,65 @@ export async function POST(
     select: { whatsappPhoneNumberId: true, whatsappAccessToken: true },
   })
   const waConfig = getConfigFor(studioWA)
+
+  // ---------- Drive bridge (trainer) ----------
+  if (useDriveBridge) {
+    // Folder name: client name + last phone digits - stable, human, unique
+    // enough ("Anna 4627"). Slashes stripped so it stays a single folder.
+    const digits = convo.clientPhone.replace(/\D/g, "")
+    const clientKey = `${(convo.clientName ?? "").replace(/[\\/]/g, " ").trim() || "Client"} ${digits.slice(-4)}`.trim()
+    const up = await uploadClientMedia({
+      clientKey,
+      filename: fileName || `media-${Date.now()}.${type === "video" ? "mp4" : "jpg"}`,
+      mimeType,
+      bytes: buffer,
+    })
+    if (blobUrlToDelete) await del(blobUrlToDelete).catch(() => {})
+    if (!up.ok) {
+      return NextResponse.json({ error: `Drive upload failed: ${up.error}` }, { status: 502 })
+    }
+
+    // The client always gets the link to their whole FOLDER (they see all
+    // their media in one place); the folder is shared view-only by link.
+    const text = MEDIA_LINK_TEXT.replace("{link}", up.result.folderLink)
+    const windowOpen = isInsideCustomerWindow(convo.lastInboundAt)
+    let res: { ok: true; messageId: string } | { ok: false; error: string }
+    let templateName: string | null = null
+    if (windowOpen) {
+      res = await sendWhatsAppText(convo.clientPhone, text, waConfig)
+    } else {
+      // Closed window -> approved admin_message template, same wrap as typed
+      // staff text ({{1}} = first name, {{2}} = the message body).
+      templateName = process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message"
+      const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+      const clientFirstName = (convo.clientName ?? "").trim().split(/\s+/)[0] || "there"
+      res = await sendWhatsAppTemplate({
+        toPhone: convo.clientPhone,
+        templateName,
+        languageCode: lang,
+        variables: [clientFirstName, text],
+        config: waConfig,
+      })
+    }
+
+    // Persist as a TEXT-ish row whose body carries the link - the inbox
+    // linkifies it, so the trainer sees and can re-open the same folder.
+    const saved = await appendOutboundMessage({
+      conversationId: convo.id,
+      type: windowOpen ? "text" : "template",
+      body: text,
+      templateName,
+      waMessageId: res.ok ? res.messageId : null,
+      status: res.ok ? "sent" : "failed",
+      errorDetail: res.ok ? null : res.error,
+      fromTrainerId,
+    })
+    if (res.ok) await markConversationHandled(convo.id)
+    return NextResponse.json(
+      { message: saved, sendResult: res, ...(res.ok ? {} : { error: res.error }) },
+      { status: res.ok ? 201 : 502 },
+    )
+  }
 
   // 1. Upload bytes to Meta to get a media_id (on this studio's WABA).
   const upload = await uploadMediaToMeta(buffer, mimeType, fileName || `upload.${type}`, waConfig)
