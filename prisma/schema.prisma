@@ -585,6 +585,10 @@ model BookingOtp {
   waMessageId String?
   status      String  @default("sent")
   statusError String?
+  // Set when the utility-template fallback fired: Meta AUTH templates deliver
+  // ONLY to the primary device (linked-device security), so a code stuck in
+  // "sent" is re-sent once via admin_message, which reaches all devices.
+  fallbackAt  DateTime?
 
   @@index([studioId, phone])
   // Delivery-status webhooks update the OTP row by waMessageId (Meta sends up to

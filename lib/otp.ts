@@ -108,6 +108,52 @@ export async function sendBookingOtp(opts: {
   return { ok: true }
 }
 
+// How long a code may sit in "sent" before we conclude the AUTH template is
+// stuck (Meta delivers auth templates ONLY to the primary device - a client
+// whose WhatsApp lives on a linked device/web never gets it) and re-send the
+// same code via the admin_message utility template, which reaches ALL devices.
+// Normal auth delivery lands in 1-3s; 6s is comfortably past that but early
+// enough that the fallback arrives before the widget's ~12s no-code bypass.
+const FALLBACK_AFTER_MS = 6 * 1000
+
+/**
+ * One-shot utility-template fallback for a stuck auth code. Idempotent under
+ * the polling race: the caller must have already claimed the row by setting
+ * fallbackAt (updateMany with fallbackAt: null). Re-points waMessageId at the
+ * fallback message so the delivery webhook tracks the message that matters.
+ */
+export async function sendOtpFallback(opts: {
+  rowId: string
+  phone: string
+  code: string
+  config: CloudConfig | null
+}): Promise<void> {
+  if (!opts.config) return
+  const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+  const tpl = process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message"
+  const res = await sendWhatsAppTemplate({
+    toPhone: opts.phone,
+    templateName: tpl,
+    languageCode: lang,
+    variables: ["there", `${opts.code} is your booking confirmation code - enter it to confirm your class.`],
+    config: opts.config,
+  })
+  if (res.ok && res.messageId) {
+    await prisma.bookingOtp
+      .update({ where: { id: opts.rowId }, data: { waMessageId: res.messageId } })
+      .catch(() => {})
+  }
+}
+
+/** True when a code row has waited long enough to deserve the fallback. */
+export function otpFallbackDue(row: { status: string; createdAt: Date; fallbackAt: Date | null }): boolean {
+  return (
+    row.status === "sent" &&
+    row.fallbackAt === null &&
+    Date.now() - row.createdAt.getTime() > FALLBACK_AFTER_MS
+  )
+}
+
 export type VerifyOtpResult =
   | { ok: true }
   | { ok: false; error: "missing" | "expired" | "locked" | "wrong"; remaining?: number }
