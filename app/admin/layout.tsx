@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Landmark, Settings, ExternalLink, X, Menu, Megaphone, PiggyBank, Ticket } from "lucide-react"
+import { Bot, Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Landmark, Settings, ExternalLink, X, Menu, Megaphone, PiggyBank, Ticket } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { LocaleProvider, useT } from "@/app/_components/LocaleProvider"
 import FloatingInbox from "@/app/_components/FloatingInbox"
@@ -81,20 +81,27 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           Sign Out is always reachable even behind Android system navigation. */}
       <div className="flex-1 overflow-y-auto">
         <nav className="p-4 space-y-1">
-          {/* "Safes" shows only when the super-admin enabled cash-safe
-              tracking for this studio — slotted right after Cash Flow. */}
-          {(studio?.safeEnabled
-            ? (() => {
-                const items = [...navItems]
-                items.splice(items.findIndex((i) => i.href === "/admin/cashflow") + 1, 0, {
-                  href: "/admin/safe",
-                  label: "Safes",
-                  icon: PiggyBank,
-                })
-                return items
-              })()
-            : navItems
-          ).map(({ href, label, icon: Icon, beta }) => {
+          {/* Conditional items are spliced in per studio below. */}
+          {(() => {
+            const items = [...navItems]
+            // "Safes" shows only when cash-safe tracking is enabled.
+            if (studio?.safeEnabled) {
+              items.splice(items.findIndex((i) => i.href === "/admin/cashflow") + 1, 0, {
+                href: "/admin/safe",
+                label: "Safes",
+                icon: PiggyBank,
+              })
+            }
+            // AI sales agent stats - the agent runs only for Canggu (owner 15.07).
+            if (studio?.slug === "canggu") {
+              items.splice(items.findIndex((i) => i.href === "/admin/ad-analytics") + 1, 0, {
+                href: "/admin/agent-stats",
+                label: "Agent",
+                icon: Bot,
+              })
+            }
+            return items
+          })().map(({ href, label, icon: Icon, beta }) => {
             const active = pathname === href || pendingHref === href
             return (
               <Link key={href} href={href}

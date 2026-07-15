@@ -122,9 +122,11 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
   try {
     const convo = await prisma.whatsAppConversation.findUnique({
       where: { id: conversationId },
-      select: { id: true, clientName: true, lastInboundAt: true },
+      select: { id: true, clientName: true, lastInboundAt: true, studio: { select: { slug: true } } },
     })
     if (!convo) return
+    // Owner 15.07: the sales agent runs ONLY for the Canggu studio.
+    if (convo.studio?.slug !== "canggu") return
 
     // Skip if we already suggested for this inbound.
     const existing = await prisma.agentSuggestion.findFirst({

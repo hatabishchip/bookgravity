@@ -743,6 +743,7 @@ model WhatsAppConversation {
   messages          WhatsAppMessage[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  agentSuggestions  AgentSuggestion[]
 
   @@unique([studioId, clientPhone])
   @@index([studioId, lastMessageAt])
@@ -869,8 +870,9 @@ model SlotHandover {
 // from the inbox. BOOKING/ESCALATE rows carry no draft - just the flag that a
 // human is needed. Every status change is a training signal.
 model AgentSuggestion {
-  id               String   @id @default(cuid())
+  id               String               @id @default(cuid())
   conversationId   String
+  conversation     WhatsAppConversation @relation(fields: [conversationId], references: [id])
   inboundMessageId String?
   category         String // SAFE | BOOKING | ESCALATE
   draft            String? // suggested reply text (SAFE only)
