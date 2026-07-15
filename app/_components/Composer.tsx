@@ -22,6 +22,13 @@ const QUICK_REPLIES: QuickReply[] = [
     text: "Greetings!\n\nWe have a small schedule update. Your session has been moved to {time}. See you there!",
     needsTime: true,
   },
+  {
+    id: "schedule-update-tomorrow",
+    label: "Schedule update (tomorrow)",
+    // No time picker - for when the new time isn't settled yet. Text provided
+    // by the owner 15.07; sends straight on tap like every quick reply.
+    text: "Greetings!\n\nWe have a small schedule update. Tomorrow's session has been rescheduled to a different time.",
+  },
 ]
 
 // ---------------------------------------------------------------------------
