@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { CalendarX, Keyboard, Loader2, MessageSquareText, Send, Smile } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
-import VirtualKeyboard from "@/app/_components/VirtualKeyboard"
+import VirtualKeyboard, { type VirtualKeyboardHandle } from "@/app/_components/VirtualKeyboard"
 import StickerPicker from "@/app/_components/StickerPicker"
 
 // Canned staff messages ("quick replies"). Picking one drops the text into the
@@ -40,13 +40,13 @@ const QUICK_REPLIES: QuickReply[] = [
 export interface ComposerProps {
   /** Called when the Send button (or programmatic send) fires with non-empty text. */
   onSend: (text: string) => Promise<void> | void
-  /** Called when the user picks a photo/video via the "+" button OR sends a
-   *  sticker from the picker. Both go through the same media route. */
+  /** Called when the user picks a photo/video via the "+" button. */
   onAttach?: (file: File) => Promise<void> | void
   /** Current font scale for the composer text and 3-line cap calculations. */
   fontScale: number
-  /** Which user role is viewing — trainers don't get the photo/video "+"
-   *  button (admin-only feature), but they still get the sticker picker. */
+  /** Which user role is viewing — drives the default keyboard language
+   *  (admin ru, trainer en) and the trainer-only 👋 wave. Both roles get the
+   *  "+" attach button and the emoji/sticker picker. */
   role: "ADMIN" | "TRAINER"
   /** Send a Meta-approved template (works outside the 24h window). When
    *  provided, picking a quick-reply template sends it via this path instead
@@ -85,6 +85,12 @@ export interface ComposerProps {
 export default function Composer({ onSend, onAttach, fontScale, role, onSendTemplate, onWave, waveDisabled, windowOpen = true, keyboardOpen = true, onKeyboardOpenChange, onKbHeight, onClassAction }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // On-screen keyboard handle — we report the text before the caret after
+  // every mutation so it can arm auto-capitalization (start of message,
+  // after ". "). Imperative on purpose: no per-keystroke React re-renders.
+  const kbRef = useRef<VirtualKeyboardHandle>(null)
+  // Double-space → ". " window (mobile muscle memory).
+  const lastSpaceTsRef = useRef(0)
   // The on-screen keyboard panel — measured so the parent can size the shell
   // and drive the interactive drag. Absolutely positioned (out of flow), so we
   // read its rendered height with a ResizeObserver and report it up.
@@ -155,6 +161,17 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     updateHeightNow()
   }, [fontScale, updateHeightNow])
 
+  // Report the caret context to the on-screen keyboard (auto-capitalization).
+  // Cheap: a slice + an imperative call; the keyboard only setStates when the
+  // shift arming actually flips.
+  const syncKbContext = useCallback(() => {
+    const t = textareaRef.current
+    const kb = kbRef.current
+    if (!t || !kb) return
+    const pos = t.selectionStart ?? t.value.length
+    kb.syncContext(t.value.slice(0, pos))
+  }, [])
+
   // Helper: update hasText flag if the empty/non-empty state actually changed.
   // We deliberately do NOT call setState on every character because hasText
   // would only flip true/false a handful of times — most keystrokes leave the
@@ -177,6 +194,29 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
       const hasSelection = t.selectionStart !== null && t.selectionEnd !== null
       const start = hasSelection ? (t.selectionStart as number) : value.length
       const end = hasSelection ? (t.selectionEnd as number) : value.length
+      // Double-space = ". " (iOS/Android muscle memory): a second quick space
+      // right after "word " turns it into "word. ". Only when the previous
+      // char is a letter/digit, so ",  " or "  " never becomes "., ".
+      if (
+        ch === " " &&
+        start === end &&
+        start >= 2 &&
+        Date.now() - lastSpaceTsRef.current < 500 &&
+        value[start - 1] === " " &&
+        /[\p{L}\p{N}]/u.test(value[start - 2])
+      ) {
+        t.value = value.slice(0, start - 1) + ". " + value.slice(end)
+        const next = start + 1
+        try {
+          t.setSelectionRange(next, next)
+        } catch {}
+        lastSpaceTsRef.current = 0
+        updateHeight()
+        syncHasText()
+        syncKbContext()
+        return
+      }
+      lastSpaceTsRef.current = ch === " " ? Date.now() : 0
       t.value = value.slice(0, start) + ch + value.slice(end)
       const next = start + ch.length
       try {
@@ -186,8 +226,9 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
       }
       updateHeight()
       syncHasText()
+      syncKbContext()
     },
-    [updateHeight, syncHasText],
+    [updateHeight, syncHasText, syncKbContext],
   )
 
   // Quick reply -> send the canned template STRAIGHT to the chat (owner 14.07:
@@ -280,7 +321,8 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     }
     updateHeight()
     syncHasText()
-  }, [updateHeight, syncHasText])
+    syncKbContext()
+  }, [updateHeight, syncHasText, syncKbContext])
 
   // Send: read value from DOM, clear, call back. Optimistic UI lives in the
   // parent (Inbox.send) — we just hand it the text and reset locally.
@@ -293,6 +335,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
     t.value = ""
     updateHeight()
     setHasText(false)
+    syncKbContext() // empty field again → shift re-arms for the next message
     setSending(true)
     try {
       await onSend(draft)
@@ -303,7 +346,14 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
       // Re-focus the textarea so the caret keeps blinking.
       textareaRef.current?.focus({ preventScroll: true })
     }
-  }, [onSend, sending, updateHeight])
+  }, [onSend, sending, updateHeight, syncKbContext])
+
+  // Initial context report (again when the keyboard re-opens or the panel
+  // swaps back from stickers) so the very first letter of a message is
+  // capitalized.
+  useEffect(() => {
+    syncKbContext()
+  }, [keyboardOpen, bottomPanel, syncKbContext])
 
   // Initial focus — desktop only. On mobile the keyboard starts hidden
   // (WhatsApp-style: tap the field to open it), so we don't grab focus on mount.
@@ -487,39 +537,34 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               </button>
             </>
           )}
-          {/* Admin-only controls: stickers toggle + quick-reply templates.
-              Trainers get a single 👋 wave button instead (below). */}
-          {role === "ADMIN" && (
-            <>
-              {/* Sticker / keyboard toggle. The icon flips depending on which
-                  panel is currently shown below, mirroring WhatsApp. */}
-              <button
-                type="button"
-                tabIndex={-1}
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  if (desktop) {
-                    setEmojiOpen((v) => !v)
-                    textareaRef.current?.focus({ preventScroll: true })
-                  } else {
-                    // Opening the panel also un-hides the keyboard area on mobile.
-                    onKeyboardOpenChange?.(true)
-                    setBottomPanel((m) => (m === "keyboard" ? "stickers" : "keyboard"))
-                  }
-                }}
-                disabled={!onAttach}
-                className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 active:opacity-60",
-                  desktop && emojiOpen ? "text-brand dark:text-[#69B58F]" : "text-gray-600 dark:text-[#8696A0]",
-                )}
-                aria-label="Emoji"
-              >
-                {/* On desktop the icon is always the smiley (toggles an emoji
-                    panel); on mobile it flips between emoji + keyboard. */}
-                {desktop || bottomPanel === "keyboard" ? <Smile size={22} /> : <Keyboard size={22} />}
-              </button>
-            </>
-          )}
+          {/* Emoji / sticker toggle — BOTH roles (a trainer softens messages
+              with emoji just as much as an admin). Independent of onAttach:
+              emoji have nothing to do with file attachments. The icon flips
+              depending on which panel is shown below, mirroring WhatsApp. */}
+          <button
+            type="button"
+            tabIndex={-1}
+            onPointerDown={(e) => e.preventDefault()}
+            onClick={() => {
+              if (desktop) {
+                setEmojiOpen((v) => !v)
+                textareaRef.current?.focus({ preventScroll: true })
+              } else {
+                // Opening the panel also un-hides the keyboard area on mobile.
+                onKeyboardOpenChange?.(true)
+                setBottomPanel((m) => (m === "keyboard" ? "stickers" : "keyboard"))
+              }
+            }}
+            className={cn(
+              "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:opacity-60",
+              desktop && emojiOpen ? "text-brand dark:text-[#69B58F]" : "text-gray-600 dark:text-[#8696A0]",
+            )}
+            aria-label="Emoji"
+          >
+            {/* On desktop the icon is always the smiley (toggles an emoji
+                panel); on mobile it flips between emoji + keyboard. */}
+            {desktop || bottomPanel === "keyboard" ? <Smile size={22} /> : <Keyboard size={22} />}
+          </button>
 
           {/* Standalone 👋 wave — shown to BOTH admin and trainer, but ONLY
               when the 24h window is CLOSED (a cold chat). It sends an approved
@@ -565,6 +610,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
               onInput={() => {
                 updateHeight()
                 syncHasText()
+                syncKbContext()
               }}
               // Mobile only: the VirtualKeyboard drives input, so we keep the
               // textarea focused (re-grab focus if it's lost to <body>). On
@@ -658,7 +704,7 @@ export default function Composer({ onSend, onAttach, fontScale, role, onSendTemp
         <div className="kb-shell">
           <div ref={kbPanelRef} className="kb-panel">
             {bottomPanel === "keyboard" ? (
-              <VirtualKeyboard onInsert={insertText} onBackspace={backspace} inactive={!windowOpen} defaultLang={role === "TRAINER" ? "en" : "ru"} />
+              <VirtualKeyboard ref={kbRef} onInsert={insertText} onBackspace={backspace} inactive={!windowOpen} defaultLang={role === "TRAINER" ? "en" : "ru"} />
             ) : (
               <StickerPicker
                 onPick={(emoji) => {
