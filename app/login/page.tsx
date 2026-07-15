@@ -43,14 +43,15 @@ export default function LoginPage() {
     if (social) return
     setSocial(provider)
     setError("")
-    // Google forbids OAuth inside an embedded WebView ("disallowed_useragent").
-    // In the native app, hand the Google flow to the shell, which runs the whole
-    // thing in the system browser and bridges the session back via a deep link
-    // (see /native-return). Apple uses form_post and works in-WebView, so it
-    // stays on the normal path.
+    // In the native app, hand BOTH social flows to the shell, which runs the
+    // whole thing in the system browser and bridges the session back via a deep
+    // link (see /native-return). Google flat-out forbids OAuth in an embedded
+    // WebView ("disallowed_useragent"); Apple technically loads but is
+    // unreliable inside WKWebView (owner report 15.07: taps did nothing), so we
+    // route it through the same system-browser bridge.
     const w = window as unknown as { __GS_NATIVE__?: boolean; ReactNativeWebView?: { postMessage: (d: string) => void } }
-    if (provider === "google" && w.__GS_NATIVE__ && w.ReactNativeWebView) {
-      w.ReactNativeWebView.postMessage(JSON.stringify({ type: "social-login", provider: "google" }))
+    if ((provider === "google" || provider === "apple") && w.__GS_NATIVE__ && w.ReactNativeWebView) {
+      w.ReactNativeWebView.postMessage(JSON.stringify({ type: "social-login", provider }))
       // The shell drives it from here; drop the spinner shortly so the button is
       // usable again if the user dismisses the system browser.
       setTimeout(() => setSocial(null), 2000)
@@ -61,14 +62,16 @@ export default function LoginPage() {
     signIn(provider, { callbackUrl: "/login" })
   }
 
-  // Native Google bridge (system-browser side): the shell opens
-  // /login?social=google&nr=1 in the system browser. Run the full Google OAuth
-  // HERE (the pkce cookie lives in this browser), then land on /native-return,
-  // which mints a native token pair and deep-links it back into the app.
+  // Native social bridge (system-browser side): the shell opens
+  // /login?social=<google|apple>&nr=1 in the system browser. Run the full
+  // provider OAuth HERE (the pkce/session cookie lives in this browser), then
+  // land on /native-return, which mints a native token pair and deep-links it
+  // back into the app.
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search)
-    if (sp.get("social") === "google" && sp.get("nr") === "1") {
-      signIn("google", { callbackUrl: "/native-return" })
+    const social = sp.get("social")
+    if ((social === "google" || social === "apple") && sp.get("nr") === "1") {
+      signIn(social, { callbackUrl: "/native-return" })
     }
   }, [])
 

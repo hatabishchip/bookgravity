@@ -193,12 +193,14 @@ export default function AppWebView() {
     }
     if (msg.type === "native-auth" && msg.token && msg.refreshToken && msg.user) {
       void useAuth.getState().adoptWebLogin({ token: msg.token, refreshToken: msg.refreshToken, user: msg.user })
-    } else if (msg.type === "social-login" && msg.provider === "google") {
-      // Google forbids OAuth inside a WebView. Run the WHOLE flow in the system
-      // browser: it opens /login?social=google&nr=1, which does the OAuth there
-      // (pkce cookie lives in that browser) and, on success, deep-links a native
-      // token pair back to us via gravitystretching://auth (handled below).
-      Linking.openURL(`${API_BASE}/login?social=google&nr=1`).catch(() => {})
+    } else if (msg.type === "social-login" && (msg.provider === "google" || msg.provider === "apple")) {
+      // Social OAuth is unreliable inside a WebView (Google forbids it outright;
+      // Apple loads but taps often do nothing on WKWebView - owner report
+      // 15.07). Run the WHOLE flow in the system browser: it opens
+      // /login?social=<provider>&nr=1, does the OAuth there (the cookie lives in
+      // that browser) and, on success, deep-links a native token pair back to us
+      // via gravitystretching://auth (handled below).
+      Linking.openURL(`${API_BASE}/login?social=${msg.provider}&nr=1`).catch(() => {})
     } else if (msg.type === "open-notifications") {
       router.push("/(web)/notifications")
     }
