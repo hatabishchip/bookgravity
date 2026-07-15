@@ -98,6 +98,15 @@ type MessageRow = {
   createdAt: string
 }
 
+// Local media blobs for outbound photos/videos, keyed by message id (both the
+// tmp_ optimistic id and, after the send, the real server id). Lives OUTSIDE
+// React state on purpose: refreshDetail() replaces `detail` with the server
+// payload every 10s, which would otherwise wipe the client-only localMediaUrl
+// and make the freshly sent picture blank out until the proxy loads (the
+// "flicker/vanish" the owner filmed on 15.07). ChatMedia falls back to this
+// cache; entries are dropped once the proxy has taken over.
+const localMediaCache = new Map<string, string>()
+
 // Emoji the team can react with (long-press a message).
 // 🙏 added 06.07 - Sveta asked for a "thank you" hands option (business politeness).
 const REACTIONS = ["❤️", "👍", "🙏", "🔥", "🥰", "😌", "🤩", "😇", "🥳", "🤠", "🌞", "🤌"] as const
@@ -278,7 +287,10 @@ function ChatMedia({
   onImgTouchEnd: (e: React.TouchEvent, src: string) => void
 }) {
   const proxyUrl = `/api/whatsapp/media/${m.id}`
-  const hasLocal = !!m.localMediaUrl
+  // Client-only blob: from the row when present, else from the module cache -
+  // refreshDetail() swaps in raw server rows and would otherwise lose it.
+  const localUrl = m.localMediaUrl ?? localMediaCache.get(m.id) ?? null
+  const hasLocal = !!localUrl
   const busy = m.uploadPhase === "uploading" || m.uploadPhase === "processing"
   const isTmp = m.id.startsWith("tmp_")
   // If there's no local blob to fall back on, the proxy is the only source, so
@@ -300,13 +312,18 @@ function ChatMedia({
     img.src = proxyUrl
   }, [proxyReady, busy, isTmp, m.type, proxyUrl])
 
-  // Revoke the local blob shortly after the proxy takes over (paint has swapped).
+  // Revoke the local blob shortly after the proxy takes over (paint has
+  // swapped) and drop it from the cache so future refetches render the proxy.
   useEffect(() => {
-    if (!(proxyReady && m.localMediaUrl)) return
-    const u = m.localMediaUrl
-    const t = setTimeout(() => { try { URL.revokeObjectURL(u) } catch {} }, 1000)
+    if (!(proxyReady && localUrl) || m.id.startsWith("tmp_")) return
+    const u = localUrl
+    const id = m.id
+    const t = setTimeout(() => {
+      localMediaCache.delete(id)
+      try { URL.revokeObjectURL(u) } catch {}
+    }, 1500)
     return () => clearTimeout(t)
-  }, [proxyReady, m.localMediaUrl])
+  }, [proxyReady, localUrl, m.id])
 
   // Arm / disarm the "Still sending…" timer with the processing phase.
   useEffect(() => {
@@ -315,7 +332,7 @@ function ChatMedia({
     return () => clearTimeout(t)
   }, [m.uploadPhase])
 
-  const src = proxyReady ? proxyUrl : (m.localMediaUrl || proxyUrl)
+  const src = proxyReady ? proxyUrl : (localUrl || proxyUrl)
 
   const overlay = busy && (
     <div className="absolute inset-0 flex items-center justify-center bg-black/35 rounded-xl pointer-events-none">
@@ -995,8 +1012,23 @@ export default function Inbox({
     try {
       const r = await fetch(`/api/whatsapp/conversations/${id}`, { cache: "no-store" })
       if (r.ok) {
-        const d = await r.json()
-        setDetail(d)
+        const d = (await r.json()) as ConversationDetail
+        // MERGE, don't clobber: the server doesn't know about in-flight
+        // optimistic sends (tmp_ rows) and never carries client-only fields
+        // (localMediaUrl / upload progress). A raw setDetail(d) here used to
+        // vanish a just-sent photo mid-upload and blank it after the swap
+        // (owner's screen recording, 15.07).
+        setDetail((prev) => {
+          if (!prev || prev.id !== d.id) return d
+          const inFlight = prev.messages.filter(
+            (m) => m.id.startsWith("tmp_") && !d.messages.some((sm) => sm.id === m.id),
+          )
+          const merged = d.messages.map((sm) => {
+            const local = localMediaCache.get(sm.id)
+            return local ? { ...sm, localMediaUrl: local } : sm
+          })
+          return { ...d, messages: [...merged, ...inFlight] }
+        })
       } else if (r.status === 403 || r.status === 404) {
         setDetail(null)
       }
@@ -1357,6 +1389,7 @@ export default function Inbox({
       }
       const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
       const localUrl = URL.createObjectURL(file)
+      localMediaCache.set(tempId, localUrl)
       const optimistic: MessageRow = {
         id: tempId,
         direction: "OUTBOUND",
@@ -1468,6 +1501,8 @@ export default function Inbox({
           // Swap in the server row but CARRY the local blob so the on-screen
           // pixels don't blank while ChatMedia preloads the proxy. Overlay off.
           const serverMsg = { ...(data.message as MessageRow), localMediaUrl: localUrl, uploadPhase: undefined, uploadPct: undefined }
+          localMediaCache.set(serverMsg.id, localUrl)
+          localMediaCache.delete(tempId)
           setDetail((prev) =>
             prev ? { ...prev, messages: prev.messages.map((m) => (m.id === tempId ? serverMsg : m)) } : prev,
           )
