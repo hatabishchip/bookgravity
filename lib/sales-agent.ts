@@ -38,9 +38,33 @@ BRAND VOICE (Andrey - warm trainer, never a pushy seller):
 - Pair idea allowed only as a soft hint ("coming with a friend? we have a little surprise for pairs") - no concrete discount numbers yet.
 `.trim()
 
-const SYSTEM_PROMPT = `You are the sales assistant of the Gravity Stretching Canggu studio, answering client messages in its WhatsApp inbox. Your goal: make people feel welcome and gently guide them to their first class.
+// Lessons mined by the self-learning loop (AgentLesson table) are appended to
+// the prompt at generation time - a new lesson needs no deploy. Cached per
+// serverless instance for a minute to avoid a DB hit on every message.
+let lessonsCache: { at: number; block: string } | null = null
+async function activeLessonsBlock(): Promise<string> {
+  if (lessonsCache && Date.now() - lessonsCache.at < 60_000) return lessonsCache.block
+  let block = ""
+  try {
+    const rows = await prisma.agentLesson.findMany({
+      where: { active: true },
+      orderBy: { createdAt: "asc" },
+      select: { lesson: true },
+    })
+    if (rows.length) {
+      block = `\n\nLEARNED LESSONS (from trainer corrections and chat history - follow them):\n${rows
+        .map((r, i) => `${i + 1}. ${r.lesson}`)
+        .join("\n")}`
+    }
+  } catch {}
+  lessonsCache = { at: Date.now(), block }
+  return block
+}
 
-${KNOWLEDGE}
+async function buildSystemPrompt(): Promise<string> {
+  return `You are the sales assistant of the Gravity Stretching Canggu studio, answering client messages in its WhatsApp inbox. Your goal: make people feel welcome and gently guide them to their first class.
+
+${KNOWLEDGE}${await activeLessonsBlock()}
 
 HARD BOUNDARIES - these are NOT yours to answer (classify, do not draft):
 - BOOKING: anything about dates, times, schedule for a specific day, booking, rescheduling, running late, cancelling, "is the class on today", presence at the studio ("I am at the door").
@@ -50,10 +74,11 @@ Respond ONLY with strict JSON, no markdown fence:
 {"category":"SAFE"|"BOOKING"|"ESCALATE","draft":"<reply text, SAFE only, in the client's language>","reason":"<for BOOKING/ESCALATE: one short line for the trainer about what is needed>"}
 
 If the last client message needs no reply at all (pure emoji reaction, "ok thanks"), use category SAFE with an empty draft "".`
+}
 
 type Classification = { category: "SAFE" | "BOOKING" | "ESCALATE"; draft?: string; reason?: string }
 
-async function callLlm(userPrompt: string): Promise<string | null> {
+async function callLlm(systemPrompt: string, userPrompt: string): Promise<string | null> {
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const r = await fetch(ANTHROPIC_URL, {
@@ -66,7 +91,7 @@ async function callLlm(userPrompt: string): Promise<string | null> {
         body: JSON.stringify({
           model: ANTHROPIC_MODEL,
           max_tokens: 700,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt,
           messages: [{ role: "user", content: userPrompt }],
         }),
       })
@@ -85,7 +110,7 @@ async function callLlm(userPrompt: string): Promise<string | null> {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+            systemInstruction: { parts: [{ text: systemPrompt }] },
             contents: [{ role: "user", parts: [{ text: userPrompt }] }],
             generationConfig: { temperature: 0.4, maxOutputTokens: 900, thinkingConfig: { thinkingBudget: 0 } },
           }),
@@ -116,27 +141,35 @@ function parseClassification(raw: string): Classification | null {
   return null
 }
 
+export type SuggestionResult = { id: string; category: string; draft: string | null } | null
+
 /**
  * Generate a suggestion for the latest inbound message of a conversation.
  * Fire-and-forget from the webhook (inside `after()`); all failures are
  * silent - the inbox simply shows no suggestion, staff replies as before.
+ * Returns the created (or already existing) suggestion so the autopilot cron
+ * can decide whether to auto-send it.
  */
-export async function generateAgentSuggestion(conversationId: string, inboundMessageId: string): Promise<void> {
+export async function generateAgentSuggestion(conversationId: string, inboundMessageId: string): Promise<SuggestionResult> {
   try {
     const convo = await prisma.whatsAppConversation.findUnique({
       where: { id: conversationId },
       select: { id: true, clientName: true, lastInboundAt: true, studio: { select: { slug: true } } },
     })
-    if (!convo) return
+    if (!convo) return null
     // Owner 15.07: the sales agent runs ONLY for the Canggu studio.
-    if (convo.studio?.slug !== "canggu") return
+    if (convo.studio?.slug !== "canggu") return null
 
     // Skip if we already suggested for this inbound.
     const existing = await prisma.agentSuggestion.findFirst({
       where: { conversationId, inboundMessageId },
-      select: { id: true },
+      select: { id: true, category: true, draft: true, status: true },
     })
-    if (existing) return
+    if (existing) {
+      return existing.status === "pending"
+        ? { id: existing.id, category: existing.category, draft: existing.draft }
+        : null
+    }
 
     const history = await prisma.whatsAppMessage.findMany({
       where: { conversationId },
@@ -155,17 +188,17 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
 
     const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
 
-    const raw = await callLlm(userPrompt)
+    const raw = await callLlm(await buildSystemPrompt(), userPrompt)
     if (process.env.AGENT_DEBUG) console.log("[sales-agent] raw:", raw)
-    if (!raw) return
+    if (!raw) return null
     const parsed = parseClassification(raw)
     if (process.env.AGENT_DEBUG) console.log("[sales-agent] parsed:", JSON.stringify(parsed))
-    if (!parsed) return
+    if (!parsed) return null
 
     // Empty SAFE draft = nothing worth replying; don't create noise.
-    if (parsed.category === "SAFE" && !(parsed.draft && parsed.draft.trim())) return
+    if (parsed.category === "SAFE" && !(parsed.draft && parsed.draft.trim())) return null
 
-    await prisma.agentSuggestion.create({
+    const created = await prisma.agentSuggestion.create({
       data: {
         conversationId,
         inboundMessageId,
@@ -174,7 +207,95 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
         reason: parsed.category === "SAFE" ? null : (parsed.reason?.trim() || "Needs a human reply"),
       },
     })
+    return { id: created.id, category: created.category, draft: created.draft }
   } catch (err) {
     console.warn("[sales-agent] suggestion failed:", err)
+    return null
   }
+}
+
+// ---------------------------------------------------------------------------
+// Self-learning: mine trainer edits and dismissals for reusable lessons.
+// Called from the autopilot cron - never from a request path.
+// ---------------------------------------------------------------------------
+
+const LESSON_SYSTEM = `You maintain the knowledge base of a WhatsApp sales assistant for a stretching studio. You are shown one case where a human trainer corrected the assistant: either edited its draft before sending, or dismissed it entirely.
+
+Extract AT MOST ONE general, reusable lesson the assistant should follow next time. A lesson must generalize beyond this one client (tone, terminology, structure, facts, when to stay silent). If the correction is situational only (a date, a name, a one-off detail) there is NO lesson.
+
+Never duplicate an existing lesson from the provided list. Lessons are concise English imperatives, one sentence, plain hyphens only.
+
+Respond ONLY with strict JSON, no markdown fence:
+{"lesson":"<one sentence>"} or {"lesson":null}`
+
+/**
+ * Mine unprocessed edited_sent / dismissed suggestions into AgentLesson rows.
+ * Every examined row gets learnedAt stamped (even when no lesson came out) so
+ * it is never re-examined. Returns how many lessons were created.
+ */
+export async function extractLessons(limit = 10): Promise<number> {
+  let createdCount = 0
+  try {
+    const candidates = await prisma.agentSuggestion.findMany({
+      where: { status: { in: ["edited_sent", "dismissed"] }, learnedAt: null },
+      orderBy: { createdAt: "asc" },
+      take: limit,
+      select: {
+        id: true, status: true, category: true, draft: true, reason: true, sentText: true, conversationId: true,
+      },
+    })
+    if (!candidates.length) return 0
+    const existing = await prisma.agentLesson.findMany({
+      where: { active: true },
+      select: { lesson: true },
+      orderBy: { createdAt: "asc" },
+    })
+    let known = existing.map((l) => l.lesson)
+
+    for (const s of candidates) {
+      try {
+        // Short context: the inbound the suggestion answered + neighbours.
+        const history = await prisma.whatsAppMessage.findMany({
+          where: { conversationId: s.conversationId },
+          orderBy: { createdAt: "desc" },
+          take: 6,
+          select: { direction: true, body: true, fromAgent: true },
+        })
+        const transcript = history
+          .reverse()
+          .map((m) => `${m.direction === "INBOUND" ? "CLIENT" : m.fromAgent ? "AGENT" : "STUDIO"}: ${m.body ?? ""}`)
+          .join("\n")
+
+        const caseText =
+          s.status === "edited_sent"
+            ? `The trainer EDITED the draft before sending.\nASSISTANT DRAFT:\n${s.draft ?? ""}\n\nWHAT THE TRAINER ACTUALLY SENT:\n${s.sentText ?? ""}`
+            : `The trainer DISMISSED the ${s.category} suggestion without using it.\nASSISTANT DRAFT:\n${s.draft ?? s.reason ?? ""}`
+
+        const userPrompt = `EXISTING LESSONS (do not duplicate):\n${known.length ? known.map((l, i) => `${i + 1}. ${l}`).join("\n") : "(none)"}\n\nCONVERSATION TAIL:\n${transcript}\n\nCASE:\n${caseText}`
+
+        const raw = await callLlm(LESSON_SYSTEM, userPrompt)
+        let lesson: string | null = null
+        if (raw) {
+          try {
+            const j = JSON.parse(raw.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) as { lesson?: string | null }
+            if (j.lesson && j.lesson.trim().length > 8) lesson = j.lesson.trim().replace(/[—–]/g, "-")
+          } catch {}
+        }
+        if (lesson) {
+          await prisma.agentLesson.create({
+            data: { source: s.status, lesson, suggestionId: s.id },
+          })
+          known = [...known, lesson]
+          createdCount++
+          lessonsCache = null // next generation picks the new lesson up immediately
+        }
+        await prisma.agentSuggestion.update({ where: { id: s.id }, data: { learnedAt: new Date() } })
+      } catch (err) {
+        console.warn("[sales-agent] lesson mining failed for", s.id, err)
+      }
+    }
+  } catch (err) {
+    console.warn("[sales-agent] extractLessons failed:", err)
+  }
+  return createdCount
 }

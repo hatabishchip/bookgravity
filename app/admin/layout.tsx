@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { signOut, SessionProvider } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bot, Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Landmark, Settings, ExternalLink, X, Menu, Megaphone, PiggyBank, Ticket } from "lucide-react"
+import { Bot, Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Landmark, Settings, ExternalLink, X, Menu, Megaphone, PiggyBank, Ticket, ScrollText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { LocaleProvider, useT } from "@/app/_components/LocaleProvider"
 import FloatingInbox from "@/app/_components/FloatingInbox"
@@ -92,12 +92,16 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
                 icon: PiggyBank,
               })
             }
-            // AI sales agent stats - the agent runs only for Canggu (owner 15.07).
+            // AI sales agent stats + reply journal - Canggu only (owner 15.07).
             if (studio?.slug === "canggu") {
               items.splice(items.findIndex((i) => i.href === "/admin/ad-analytics") + 1, 0, {
                 href: "/admin/agent-stats",
                 label: "Agent",
                 icon: Bot,
+              }, {
+                href: "/admin/agent-log",
+                label: "Agent journal",
+                icon: ScrollText,
               })
             }
             return items

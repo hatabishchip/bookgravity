@@ -49,13 +49,19 @@ export async function GET(req: NextRequest) {
 
   // Aggregate in JS - suggestion volume is small (per-message, one studio).
   const byCategory = { SAFE: 0, BOOKING: 0, ESCALATE: 0 }
-  const byStatus = { pending: 0, sent: 0, edited_sent: 0, dismissed: 0 }
+  const byStatus = { pending: 0, sent: 0, edited_sent: 0, auto_sent: 0, dismissed: 0 }
   for (const s of suggestions) {
     if (s.category in byCategory) byCategory[s.category as keyof typeof byCategory]++
     if (s.status in byStatus) byStatus[s.status as keyof typeof byStatus]++
   }
   const decided = byStatus.sent + byStatus.edited_sent + byStatus.dismissed
   const accepted = byStatus.sent + byStatus.edited_sent
+
+  // Self-learning lessons (all of them - the list is short and curated).
+  const lessons = await prisma.agentLesson.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { id: true, createdAt: true, source: true, lesson: true, active: true },
+  })
 
   return NextResponse.json({
     preset,
@@ -75,6 +81,7 @@ export async function GET(req: NextRequest) {
       reason: s.reason,
       createdAt: s.createdAt,
     })),
+    lessons,
     generatedAt: new Date().toISOString(),
   })
 }

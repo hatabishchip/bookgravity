@@ -877,10 +877,35 @@ model AgentSuggestion {
   category         String // SAFE | BOOKING | ESCALATE
   draft            String? // suggested reply text (SAFE only)
   reason           String? // short why (escalations: what the human must handle)
-  status           String   @default("pending") // pending | sent | edited_sent | dismissed | expired
+  // pending | sent | edited_sent | auto_sent | dismissed | expired
+  // auto_sent = the autopilot cron sent the SAFE draft itself (owner 15.07).
+  status           String   @default("pending")
   sentText         String? // what was actually sent (for learning diffs)
+  // Russian translations for the owner's /admin/agent-log journal (filled by
+  // the autopilot cron sweep, best-effort): the client's question and our
+  // final answer.
+  questionRu       String?
+  answerRu         String?
+  // Set once the self-learning loop has mined this row (edited_sent /
+  // dismissed) for a lesson - processed rows are never mined twice.
+  learnedAt        DateTime?
   createdAt        DateTime @default(now())
 
   @@index([conversationId, createdAt])
   @@index([status, createdAt])
+}
+
+// Self-learning: one concise rule the agent must follow, mined from trainer
+// edits/dismissals, the Ubud chat history, or taught directly by the owner.
+// Active lessons are appended to the system prompt at generation time, so a
+// new lesson takes effect WITHOUT a deploy.
+model AgentLesson {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  source       String // edited_sent | dismissed | ubud_history | owner
+  lesson       String // the rule text (English, concise imperative)
+  active       Boolean  @default(true)
+  suggestionId String? // AgentSuggestion this was mined from (traceability)
+
+  @@index([active, createdAt])
 }
