@@ -193,6 +193,10 @@ model User {
   // null the moment the user changes their own password — that's the signal
   // that the super-admin no longer knows it (shown as "•••• changed").
   initialPassword     String?
+  // Admin UI language ("uk" = Ukrainian). Null/anything else = English.
+  // Per-user by design (owner 15.07): each admin flips it for themselves only;
+  // trainers/clients never see it.
+  locale              String?
   trainer             Trainer?
   passwordResetTokens PasswordResetToken[]
   pushTokens          NativePushToken[]

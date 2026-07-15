@@ -4,6 +4,7 @@ import { format } from "date-fns"
 import Link from "next/link"
 import { Calendar, Landmark, TrendingUp, AlertCircle } from "lucide-react"
 import { baliDateStr } from "@/lib/tz"
+import { getAdminT } from "@/lib/i18n"
 import SellMembershipButton from "@/app/_components/SellMembershipButton"
 
 export default async function AdminDashboard() {
@@ -11,6 +12,7 @@ export default async function AdminDashboard() {
   // the dashboard to tomorrow every evening Bali time).
   const today = baliDateStr(new Date())
   const studioId = await getCurrentUserStudioId()
+  const { t, dateLocale } = await getAdminT()
 
   // The old "Total Bookings (all time)" and "Trainers" cards were vanity
   // numbers; the cards now answer the admin's actual morning questions:
@@ -50,18 +52,18 @@ export default async function AdminDashboard() {
   return (
     <div>
       <div className="flex items-start justify-between gap-3 mb-1 lg:mb-2">
-        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Dashboard</h1>
+        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">{t("Dashboard")}</h1>
         <SellMembershipButton />
       </div>
-      <p className="text-gray-500 text-xs lg:text-sm mb-6 lg:mb-8">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
+      <p className="text-gray-500 text-xs lg:text-sm mb-6 lg:mb-8">{format(new Date(), dateLocale ? "EEEE, d MMMM yyyy" : "EEEE, MMMM d, yyyy", { locale: dateLocale })}</p>
 
       {/* Stats - working numbers, each one tappable to where the work is. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-8">
         {[
-          { label: "Today's Bookings", value: todayTotal, icon: Calendar, color: "text-brand", bg: "bg-brand/10", href: "/admin/bookings" },
-          { label: "Unpaid Today", value: unpaidToday, icon: AlertCircle, color: unpaidToday > 0 ? "text-amber-600" : "text-gray-400", bg: unpaidToday > 0 ? "bg-amber-50" : "bg-gray-50", href: "/admin/bookings?pay=unpaid" },
-          { label: "Bank to Link", value: bankToLink, icon: Landmark, color: bankToLink > 0 ? "text-emerald-600" : "text-gray-400", bg: bankToLink > 0 ? "bg-emerald-50" : "bg-gray-50", href: "/admin/payments" },
-          { label: "Sessions Today", value: todaySlots.length, icon: TrendingUp, color: "text-orange-600", bg: "bg-orange-50", href: `/admin/schedule?date=${today}` },
+          { label: t("Today's Bookings"), value: todayTotal, icon: Calendar, color: "text-brand", bg: "bg-brand/10", href: "/admin/bookings" },
+          { label: t("Unpaid Today"), value: unpaidToday, icon: AlertCircle, color: unpaidToday > 0 ? "text-amber-600" : "text-gray-400", bg: unpaidToday > 0 ? "bg-amber-50" : "bg-gray-50", href: "/admin/bookings?pay=unpaid" },
+          { label: t("Bank to Link"), value: bankToLink, icon: Landmark, color: bankToLink > 0 ? "text-emerald-600" : "text-gray-400", bg: bankToLink > 0 ? "bg-emerald-50" : "bg-gray-50", href: "/admin/payments" },
+          { label: t("Sessions Today"), value: todaySlots.length, icon: TrendingUp, color: "text-orange-600", bg: "bg-orange-50", href: `/admin/schedule?date=${today}` },
         ].map(({ label, value, icon: Icon, color, bg, href }) => (
           <Link key={label} href={href} className="bg-white rounded-2xl p-4 lg:p-5 shadow-sm hover:shadow transition-shadow">
             <div className={`w-9 h-9 lg:w-10 lg:h-10 ${bg} rounded-xl flex items-center justify-center mb-2 lg:mb-3`}>
@@ -77,11 +79,11 @@ export default async function AdminDashboard() {
         {/* Today's Schedule */}
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Today&apos;s Schedule</h2>
-            <Link href="/admin/schedule" className="text-sm text-brand hover:underline">Manage →</Link>
+            <h2 className="font-semibold text-gray-800">{t("Today's Schedule")}</h2>
+            <Link href="/admin/schedule" className="text-sm text-brand hover:underline">{t("Manage →")}</Link>
           </div>
           {todaySlots.length === 0 ? (
-            <p className="text-gray-400 text-sm py-4 text-center">No sessions today</p>
+            <p className="text-gray-400 text-sm py-4 text-center">{t("No sessions today")}</p>
           ) : (
             <div className="space-y-3">
               {todaySlots.map((slot) => (
@@ -96,7 +98,7 @@ export default async function AdminDashboard() {
                     <div className="text-sm font-semibold text-brand">
                       {slot._count.bookings}/{slot.maxCapacity}
                     </div>
-                    <div className="text-xs text-gray-400">booked</div>
+                    <div className="text-xs text-gray-400">{t("booked")}</div>
                   </div>
                 </Link>
               ))}
@@ -107,18 +109,18 @@ export default async function AdminDashboard() {
         {/* Upcoming Sessions */}
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Upcoming Sessions</h2>
-            <Link href="/admin/bookings" className="text-sm text-brand hover:underline">All →</Link>
+            <h2 className="font-semibold text-gray-800">{t("Upcoming Sessions")}</h2>
+            <Link href="/admin/bookings" className="text-sm text-brand hover:underline">{t("All →")}</Link>
           </div>
           {upcomingSlots.length === 0 ? (
-            <p className="text-gray-400 text-sm py-4 text-center">No upcoming sessions</p>
+            <p className="text-gray-400 text-sm py-4 text-center">{t("No upcoming sessions")}</p>
           ) : (
             <div className="space-y-3">
               {upcomingSlots.map((slot) => (
                 <Link key={slot.id} href={`/admin/schedule?date=${slot.date}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                   <div>
                     <div className="font-medium text-sm text-gray-800">
-                      {format(new Date(slot.date), "MMM d")} · {formatTime(slot.startTime)}
+                      {format(new Date(slot.date), dateLocale ? "d MMM" : "MMM d", { locale: dateLocale })} · {formatTime(slot.startTime)}
                     </div>
                     <div className="text-xs text-gray-400 mt-0.5">{slot.trainer?.name ?? "—"}</div>
                   </div>

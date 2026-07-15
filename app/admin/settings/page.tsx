@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
+import { useT, useLocale } from "@/app/_components/LocaleProvider"
 import { Upload, Trash2, ImageIcon, KeyRound, Languages, Monitor, Smartphone, ShieldCheck, Pencil, X, MapPin, Sun, Moon, Mail, Bell } from "lucide-react"
 import { useAdminTheme } from "@/lib/use-admin-theme"
 import { formatDistanceToNow, format } from "date-fns"
@@ -208,6 +210,8 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <AppearanceCard />
 
+          <InterfaceLanguageCard />
+
           <AssetCard
             title="Logo"
             description="Shown in the header of your public booking page, and used as the browser-tab icon (favicon). Best looks: PNG with transparent background, square or wide format."
@@ -388,6 +392,49 @@ function AssetCard({
             )}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// Admin UI language (owner 15.07). Per-user: saved on the account (and
+// mirrored to localStorage by LocaleProvider) - each admin flips it for
+// themselves; trainers and clients always see English.
+function InterfaceLanguageCard() {
+  const t = useT()
+  const { locale, setLocale } = useLocale()
+  const router = useRouter()
+  const options: { value: "en" | "uk"; label: string }[] = [
+    { value: "en", label: "English" },
+    { value: "uk", label: "\u0423\u043a\u0440\u0430\u0457\u043d\u0441\u044c\u043a\u0430" },
+  ]
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Languages size={16} className="text-brand" />
+        <h2 className="text-base font-semibold text-gray-900">{t("Interface language")}</h2>
+      </div>
+      <p className="text-xs text-gray-500 mb-4 max-w-md">
+        {t("Admin panel only. Trainers and clients always see English.")}
+      </p>
+      <div className="inline-flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+        {options.map((o) => {
+          const active = locale === o.value
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => { setLocale(o.value); router.refresh() }}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                active ? "bg-brand text-white shadow-sm" : "text-gray-600 hover:text-gray-900",
+              )}
+              aria-pressed={active}
+            >
+              {o.label}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

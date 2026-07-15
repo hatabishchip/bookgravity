@@ -6,6 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Calendar, BookOpen, Users, UserRound, Package, LayoutDashboard, LogOut, Banknote, ArrowLeftRight, Landmark, Settings, ExternalLink, X, Menu, Megaphone, PiggyBank, Ticket } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { LocaleProvider, useT } from "@/app/_components/LocaleProvider"
 import FloatingInbox from "@/app/_components/FloatingInbox"
 import WebPushManager from "@/app/_components/WebPushManager"
 import { NativeAuthBridge, NativeNotificationSettingsLink } from "@/app/_components/NativeAppBridge"
@@ -29,6 +30,7 @@ const navItems: { href: string; label: string; icon: React.ComponentType<{ size?
 ]
 
 function SidebarContent({ onClose }: { onClose: () => void }) {
+  const t = useT()
   const pathname = usePathname()
   const [studio, setStudio] = useState<{ name: string; slug: string; isDefault: boolean; safeEnabled?: boolean } | null>(null)
   // The just-tapped item lights up INSTANTLY (before the route resolves); the
@@ -65,11 +67,11 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="px-4 py-3 border-b border-gray-100 dark:border-white/10 flex items-center justify-between gap-2 flex-shrink-0">
-        <h1 className="font-semibold text-gray-700 dark:text-gray-200 text-sm">Admin Panel</h1>
+        <h1 className="font-semibold text-gray-700 dark:text-gray-200 text-sm">{t("Admin Panel")}</h1>
         <button
           onClick={onClose}
           className="lg:hidden p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 dark:text-gray-200 rounded-lg flex-shrink-0"
-          aria-label="Close menu"
+          aria-label={t("Close menu")}
         >
           <X size={18} />
         </button>
@@ -105,7 +107,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
                     : "text-gray-600 hover:bg-gray-50 active:bg-brand/10 active:text-brand dark:text-gray-300 dark:hover:bg-white/5 dark:active:bg-brand/20",
                 )}>
                 <Icon size={18} />
-                <span className="flex-1">{label}</span>
+                <span className="flex-1">{t(label)}</span>
                 {href === "/admin/payments" && bankToLink > 0 && (
                   <span className={cn(
                     "min-w-5 h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center",
@@ -119,7 +121,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
                     "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded",
                     active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300"
                   )}>
-                    Beta
+                    {t("Beta")}
                   </span>
                 )}
               </Link>
@@ -131,7 +133,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           <Link href={studio?.slug ? `/${studio.slug}` : "/"}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5">
             <ExternalLink size={18} />
-            <span className="flex-1">Booking page</span>
+            <span className="flex-1">{t("Booking page")}</span>
           </Link>
           <Link href="/admin/settings"
             onClick={() => setPendingHref("/admin/settings")}
@@ -143,7 +145,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
                 : "text-gray-600 hover:bg-gray-50 active:bg-brand/10 active:text-brand dark:text-gray-300 dark:hover:bg-white/5 dark:active:bg-brand/20",
             )}>
             <Settings size={18} />
-            Settings
+            {t("Settings")}
           </Link>
           {/* Native-app-only: opens the app's notification permission screen. */}
           <NativeNotificationSettingsLink />
@@ -158,7 +160,7 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
             }}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5 w-full">
             <LogOut size={18} />
-            Sign Out
+            {t("Sign Out")}
           </button>
           {/* Padding so Sign Out scrolls above Android system navigation bar. */}
           <div className="h-6" />
@@ -169,8 +171,9 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
 }
 
 function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
+  const t = useT()
   const pathname = usePathname()
-  const activeLabel = navItems.find((n) => n.href === pathname)?.label ?? "Admin"
+  const activeLabel = t(navItems.find((n) => n.href === pathname)?.label ?? "Admin")
   const [studio, setStudio] = useState<{ name: string } | null>(null)
 
   useEffect(() => {
@@ -182,7 +185,7 @@ function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
       <button
         onClick={onMenuClick}
         className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 dark:text-gray-200 rounded-lg"
-        aria-label="Open menu"
+        aria-label={t("Open menu")}
       >
         <Menu size={20} />
       </button>
@@ -221,6 +224,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <SessionProvider>
+      <LocaleProvider>
       {/* Inside the native app: hand the shell its token pair for push. */}
       <NativeAuthBridge />
       <div className="flex min-h-screen bg-sand dark:bg-[#0c0f14]">
@@ -249,6 +253,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <FloatingInbox role="ADMIN" />
         <WebPushManager />
       </div>
+      </LocaleProvider>
     </SessionProvider>
   )
 }
