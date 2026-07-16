@@ -28,7 +28,7 @@ const GROQ_MODEL = "llama-3.3-70b-versatile"
 // Short provider tag stored alongside each translation so the UI can show
 // which engine produced it: "gem" Gemini, "gro" Groq, "cla" Claude,
 // "dpl" DeepL, "goo" Google (dictionary).
-export type TranslateProvider = "cla" | "gem" | "gro" | "dpl" | "goo"
+export type TranslateProvider = "cla" | "gem" | "gro" | "cbr" | "dpl" | "goo"
 
 type TranslateOk = {
   ok: true
@@ -62,6 +62,7 @@ export async function translateAndDetect(opts: {
   if (process.env.ANTHROPIC_API_KEY) chain.push(() => viaClaude(text, target))
   if (process.env.GEMINI_API_KEY) chain.push(() => viaGemini(text, target))
   if (process.env.GROQ_API_KEY) chain.push(() => viaGroq(text, target))
+  if (process.env.CEREBRAS_API_KEY) chain.push(() => viaCerebras(text, target))
   if (process.env.DEEPL_API_KEY) chain.push(() => viaDeepL(text, target))
   // Keyless free endpoint is always the last resort.
   chain.push(() => translateViaGoogleFree(text, target))
@@ -223,6 +224,34 @@ async function viaGroq(text: string, target: string): Promise<Result> {
     if (r.status !== 429 && r.status < 500) break
   }
   return { ok: false, error: lastErr }
+}
+
+// ---------------------------------------------------------------------------
+// Provider: Cerebras (free tier, generous daily limits; OpenAI-compatible).
+// Third LLM in the cascade - added 16.07 after Gemini AND Groq both drained
+// their free daily quotas on the same day and translations went dark.
+// ---------------------------------------------------------------------------
+async function viaCerebras(text: string, target: string): Promise<Result> {
+  const apiKey = process.env.CEREBRAS_API_KEY
+  if (!apiKey) return { ok: false, error: "cerebras_no_key" }
+  const r = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: process.env.TRANSLATE_MODEL_CEREBRAS || "gpt-oss-120b",
+      temperature: 0.2,
+      max_tokens: 2048,
+      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: buildPrompt(text, target) }],
+    }),
+  })
+  if (!r.ok) return { ok: false, error: `cerebras HTTP ${r.status}: ${(await r.text()).slice(0, 200)}` }
+  const j = (await r.json()) as { choices?: { message?: { content?: string } }[] }
+  const raw = j.choices?.[0]?.message?.content?.trim() ?? ""
+  return parseLlmJson(raw, "cbr")
 }
 
 // ---------------------------------------------------------------------------

@@ -151,19 +151,32 @@ async function callLlm(systemPrompt: string, userPrompt: string): Promise<string
       }
     } catch {}
   }
-  // Groq fallback (same key already powering translation fallbacks): keeps the
-  // agent talking when the Gemini free-tier daily quota runs out (429 incident
-  // 16.07 - the agent went silent mid-day). Gemini stays primary for quality.
-  if (process.env.GROQ_API_KEY) {
+  // Fallback chain (both OpenAI-compatible): keeps the agent talking when the
+  // Gemini free-tier daily quota runs out (429 incident 16.07 - the agent went
+  // silent mid-day; Groq's daily token pool also drained the same day, hence
+  // TWO fallbacks). Gemini stays primary for quality.
+  const openAiCompat: { name: string; url: string; key?: string; model: string }[] = [
+    {
+      name: "groq",
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      key: process.env.GROQ_API_KEY,
+      model: "llama-3.3-70b-versatile",
+    },
+    {
+      name: "cerebras",
+      url: "https://api.cerebras.ai/v1/chat/completions",
+      key: process.env.CEREBRAS_API_KEY,
+      model: "gpt-oss-120b",
+    },
+  ]
+  for (const p of openAiCompat) {
+    if (!p.key) continue
     try {
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const r = await fetch(p.url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${p.key}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: p.model,
           temperature: 0.4,
           max_tokens: 900,
           messages: [
@@ -177,7 +190,7 @@ async function callLlm(systemPrompt: string, userPrompt: string): Promise<string
         const t = j.choices?.[0]?.message?.content
         if (t) return t
       } else if (process.env.AGENT_DEBUG) {
-        console.log("[sales-agent] groq HTTP", r.status, (await r.text()).slice(0, 300))
+        console.log(`[sales-agent] ${p.name} HTTP`, r.status, (await r.text()).slice(0, 300))
       }
     } catch {}
   }
