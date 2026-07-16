@@ -7,7 +7,7 @@ import {
   isInsideCustomerWindow,
   markConversationHandled,
 } from "@/lib/whatsapp-conversation"
-import { generateAgentSuggestion, extractLessons } from "@/lib/sales-agent"
+import { generateAgentSuggestion, extractLessons, isNewClient } from "@/lib/sales-agent"
 import { forwardClientReplyToTrainer } from "@/lib/whatsapp-messages"
 import { syncInstagramThreads, sendInstagramText, getIgToken, isIgConversationPhone } from "@/lib/instagram"
 import { syncFacebookThreads, sendFacebookText, getFbPageToken, isFbConversationPhone } from "@/lib/facebook"
@@ -176,7 +176,18 @@ export async function GET(req: NextRequest) {
       await notifyTrainer(convo, sug.id, lastMsg.body).catch((err) =>
         console.warn("[autopilot] trainer notify failed:", err),
       )
-      continue
+      // BOOKING bridge (owner 17.07): NEW clients (no bookings under their
+      // phone; all IG/FB leads) get one auto "book at bookgravity.com, a coach
+      // will follow up" reply per conversation, so nobody waits in silence.
+      // Returning clients stay coach-only. ESCALATE never auto-answers.
+      const bridgeable =
+        sug.category === "BOOKING" &&
+        !!sug.draft?.trim() &&
+        (await isNewClient(convo.clientPhone)) &&
+        (await prisma.agentSuggestion.count({
+          where: { conversationId: convo.id, category: "BOOKING", status: "auto_sent" },
+        })) === 0
+      if (!bridgeable) continue
     }
     if (!sug.draft?.trim()) continue
 

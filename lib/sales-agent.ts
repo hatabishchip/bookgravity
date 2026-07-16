@@ -85,9 +85,9 @@ WHAT YOU MAY ANSWER YOURSELF (SAFE):
 - How to book (the link), location, Instagram, what to wear or bring.
 - Keep replies under 120 words. If the message is off-topic for the studio (spam, another business, politics), use category SAFE with an empty draft "".
 
-HARD BOUNDARIES - these are NOT yours to answer (classify, do not draft):
-- BOOKING: a SPECIFIC booking action - booking a spot (also for a friend), a specific date or time availability, rescheduling, running late, cancelling, "is the class on today", help because booking on the site did not work, presence at the studio ("I am at the door").
-- ESCALATE: payments and money disputes, complaints, service failures, partnership/collab offers, job inquiries, medical details, anything you are unsure about.
+HARD BOUNDARIES - these are NOT yours to resolve (a coach handles them):
+- BOOKING: a SPECIFIC booking action - booking a spot (also for a friend), a specific date or time availability, rescheduling, running late, cancelling, "is the class on today", help because booking on the site did not work, presence at the studio ("I am at the door"). For BOOKING still write a draft, but ONLY a short "bridge" reply in the client's language: warmly point to the live schedule and booking at https://bookgravity.com and say a coach will follow up personally. NEVER confirm, promise or deny a specific spot, date or time; never say a booking is made, moved or cancelled.
+- ESCALATE: payments and money disputes, complaints, service failures, partnership/collab offers, job inquiries, medical details, anything you are unsure about. Do NOT draft for ESCALATE.
 
 EXAMPLES (tone and shape to follow):
 1) New lead: "Hi! What is this gravity stretching about?"
@@ -96,7 +96,7 @@ EXAMPLES (tone and shape to follow):
    Good reply: "So happy to hear that! 🙏 See you on the lianas again soon."
 
 Respond ONLY with strict JSON, no markdown fence:
-{"category":"SAFE"|"BOOKING"|"ESCALATE","draft":"<reply text, SAFE only, in the client's language>","reason":"<for BOOKING/ESCALATE: one short line for the trainer about what is needed>"}
+{"category":"SAFE"|"BOOKING"|"ESCALATE","draft":"<reply text - SAFE answer or BOOKING bridge, in the client's language; empty for ESCALATE>","reason":"<for BOOKING/ESCALATE: one short line for the trainer about what is needed>"}
 
 If the last client message needs no reply at all (pure emoji reaction, "ok thanks"), use category SAFE with an empty draft "".`
 }
@@ -259,7 +259,8 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
     let clientStatus = "new lead (no bookings yet)"
     try {
       const { phoneTail } = await import("@/lib/membership")
-      const tail = phoneTail(convo.clientPhone)
+      // ig:/fb: ids are all digits - phoneTail would false-match a real phone.
+      const tail = /^(ig|fb):/.test(convo.clientPhone) ? "" : phoneTail(convo.clientPhone)
       if (tail.length >= 6) {
         const bookings = await prisma.booking.count({
           where: { clientPhone: { endsWith: tail } },
@@ -285,7 +286,7 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
         conversationId,
         inboundMessageId,
         category: parsed.category,
-        draft: parsed.category === "SAFE" ? parsed.draft?.trim() : null,
+        draft: parsed.category === "ESCALATE" ? null : parsed.draft?.trim() || null,
         reason: parsed.category === "SAFE" ? null : (parsed.reason?.trim() || "Needs a human reply"),
       },
     })
@@ -293,6 +294,21 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
   } catch (err) {
     console.warn("[sales-agent] suggestion failed:", err)
     return null
+  }
+}
+
+// No confirmed bookings under this phone = new lead. IG/FB threads have no
+// phone at all, so they always count as new (owner 17.07: the BOOKING bridge
+// reply goes to new clients only - returning clients are handled by a coach).
+export async function isNewClient(clientPhone: string): Promise<boolean> {
+  if (/^(ig|fb):/.test(clientPhone)) return true
+  try {
+    const { phoneTail } = await import("@/lib/membership")
+    const tail = phoneTail(clientPhone)
+    if (tail.length < 6) return true
+    return (await prisma.booking.count({ where: { clientPhone: { endsWith: tail } } })) === 0
+  } catch {
+    return false
   }
 }
 
