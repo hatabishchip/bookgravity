@@ -151,6 +151,36 @@ async function callLlm(systemPrompt: string, userPrompt: string): Promise<string
       }
     } catch {}
   }
+  // Groq fallback (same key already powering translation fallbacks): keeps the
+  // agent talking when the Gemini free-tier daily quota runs out (429 incident
+  // 16.07 - the agent went silent mid-day). Gemini stays primary for quality.
+  if (process.env.GROQ_API_KEY) {
+    try {
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          temperature: 0.4,
+          max_tokens: 900,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+      })
+      if (r.ok) {
+        const j = (await r.json()) as { choices?: { message?: { content?: string } }[] }
+        const t = j.choices?.[0]?.message?.content
+        if (t) return t
+      } else if (process.env.AGENT_DEBUG) {
+        console.log("[sales-agent] groq HTTP", r.status, (await r.text()).slice(0, 300))
+      }
+    } catch {}
+  }
   return null
 }
 
