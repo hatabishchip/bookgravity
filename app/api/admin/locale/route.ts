@@ -12,11 +12,11 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   const ctx = await requireAdmin()
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const user = await prisma.user.findUnique({
-    where: { id: ctx.userId },
-    select: { locale: true, studio: { select: { slug: true } } },
-  })
-  return NextResponse.json({ locale: resolveAdminLocale(user?.locale, user?.studio?.slug) })
+  const [user, studio] = await Promise.all([
+    prisma.user.findUnique({ where: { id: ctx.userId }, select: { locale: true } }),
+    prisma.studio.findUnique({ where: { id: ctx.studioId }, select: { slug: true } }),
+  ])
+  return NextResponse.json({ locale: resolveAdminLocale(user?.locale, studio?.slug) })
 }
 
 export async function PATCH(req: NextRequest) {

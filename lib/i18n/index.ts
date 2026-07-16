@@ -38,12 +38,13 @@ export const getAdminLocale = cache(async (): Promise<AdminLocale> => {
     const session = await auth()
     const userId = (session?.user as { id?: string } | undefined)?.id
     if (!userId) return "en"
+    const studioId = (session?.user as { studioId?: string } | undefined)?.studioId
     const { prisma } = await import("@/lib/prisma")
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { locale: true, studio: { select: { slug: true } } },
-    })
-    return resolveAdminLocale(user?.locale, user?.studio?.slug)
+    const [user, studio] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { locale: true } }),
+      studioId ? prisma.studio.findUnique({ where: { id: studioId }, select: { slug: true } }) : null,
+    ])
+    return resolveAdminLocale(user?.locale, studio?.slug)
   } catch {
     return "en"
   }
