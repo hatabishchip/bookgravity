@@ -126,6 +126,8 @@ export async function GET(_req: NextRequest) {
             // see the snippet in their language.
             body: c.messages[0].translatedBody ?? c.messages[0].body,
             createdAt: c.messages[0].createdAt,
+            // Sidebar 🤖 badge: the last word in this chat is the agent's.
+            fromAgent: c.messages[0].fromAgent,
           }
         : null,
       }

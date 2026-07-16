@@ -8,6 +8,7 @@ import {
   markConversationHandled,
 } from "@/lib/whatsapp-conversation"
 import { generateAgentSuggestion, extractLessons } from "@/lib/sales-agent"
+import { forwardClientReplyToTrainer } from "@/lib/whatsapp-messages"
 import { translateAndDetect } from "@/lib/translate"
 import { elog, elogError } from "@/lib/elog"
 
@@ -59,6 +60,56 @@ export async function GET(req: NextRequest) {
   let checked = 0
   let autoSent = 0
   let failed = 0
+  let trainerPinged = 0
+
+  // One WhatsApp to the trainer per BOOKING/ESCALATE suggestion, ever.
+  // Recipient: the conversation's assigned trainer, else every studio trainer
+  // with notifyWhatsapp on. Quiet at Bali night (23:00-07:00, UTC+8).
+  const notifyTrainer = async (
+    convo: { id: string; clientName: string | null; clientPhone: string; assignedTrainerId: string | null },
+    suggestionId: string,
+    clientText: string | null,
+  ) => {
+    const baliHour = (new Date().getUTCHours() + 8) % 24
+    if (baliHour >= 23 || baliHour < 7) return
+    const sug = await prisma.agentSuggestion.findUnique({
+      where: { id: suggestionId },
+      select: { trainerNotifiedAt: true, reason: true },
+    })
+    if (!sug || sug.trainerNotifiedAt) return
+
+    const trainers = convo.assignedTrainerId
+      ? await prisma.trainer.findMany({
+          where: { id: convo.assignedTrainerId, notifyWhatsapp: true },
+          select: { whatsapp: true },
+        })
+      : await prisma.trainer.findMany({
+          where: { studioId: studio.id, notifyWhatsapp: true },
+          select: { whatsapp: true },
+        })
+    const phones = trainers.map((t) => t.whatsapp?.trim()).filter((p): p is string => !!p)
+    if (!phones.length) return
+
+    const summary = (sug.reason || clientText || "needs your reply").slice(0, 160)
+    let anyOk = false
+    for (const phone of phones) {
+      const res = await forwardClientReplyToTrainer({
+        trainerPhone: phone,
+        clientName: convo.clientName ?? convo.clientPhone,
+        type: "text",
+        body: `is waiting in the inbox (agent flagged): ${summary}`,
+        config: waConfig,
+      })
+      if (res.ok) anyOk = true
+    }
+    if (anyOk) {
+      trainerPinged++
+      await prisma.agentSuggestion.update({
+        where: { id: suggestionId },
+        data: { trainerNotifiedAt: new Date() },
+      })
+    }
+  }
 
   // ---- 1. Auto-send SAFE drafts -------------------------------------------
   const convos = await prisma.whatsAppConversation.findMany({
@@ -74,6 +125,7 @@ export async function GET(req: NextRequest) {
       clientName: true,
       lastInboundAt: true,
       pendingCancelBookingId: true,
+      assignedTrainerId: true,
     },
   })
 
@@ -96,7 +148,20 @@ export async function GET(req: NextRequest) {
     // Existing pending suggestion for this inbound, or generate one now
     // (also covers inbounds the webhook's after() missed).
     const sug = await generateAgentSuggestion(convo.id, lastMsg.id)
-    if (!sug || sug.category !== "SAFE" || !sug.draft?.trim()) continue
+    if (!sug) continue
+
+    // BOOKING / ESCALATE: never auto-send - instead WhatsApp the trainer once
+    // (owner 16.07: yellow cards were sitting unseen for hours). Uses the
+    // approved client_reply_to_trainer template, so the trainer's own 24h
+    // window doesn't matter. Skipped at Bali night (23:00-07:00) - the next
+    // morning sweep delivers it.
+    if (sug.category !== "SAFE") {
+      await notifyTrainer(convo, sug.id, lastMsg.body).catch((err) =>
+        console.warn("[autopilot] trainer notify failed:", err),
+      )
+      continue
+    }
+    if (!sug.draft?.trim()) continue
 
     const draft = sug.draft.trim()
     const windowOpen = isInsideCustomerWindow(convo.lastInboundAt)
@@ -212,7 +277,7 @@ export async function GET(req: NextRequest) {
     lessons = await extractLessons(5)
   }
 
-  const summary = { ok: true, checked, autoSent, failed, translatedQ, translatedA, lessons }
-  if (autoSent || failed || lessons) void elog("agent:autopilot", "sweep", summary)
+  const summary = { ok: true, checked, autoSent, failed, trainerPinged, translatedQ, translatedA, lessons }
+  if (autoSent || failed || lessons || trainerPinged) void elog("agent:autopilot", "sweep", summary)
   return NextResponse.json(summary)
 }

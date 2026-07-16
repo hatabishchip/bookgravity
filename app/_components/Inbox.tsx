@@ -58,6 +58,8 @@ type ConversationListItem = {
     type: string
     body: string | null
     createdAt: string
+    /** The last word in this chat is the agent's - sidebar 🤖 badge. */
+    fromAgent?: boolean
   } | null
 }
 
@@ -633,9 +635,13 @@ function MessageBubble({
         className={cn(
           "relative max-w-[78%] rounded-2xl leading-snug shadow-sm select-none",
           jumbo ? "px-2.5 py-1.5" : "px-3 py-2",
-          // WhatsApp bubble colors — light theme + dark theme via prefers-color-scheme
+          // WhatsApp bubble colors — light theme + dark theme via prefers-color-scheme.
+          // Agent replies get a violet tint (owner 16.07: staff must instantly
+          // see which bubbles the agent sent).
           isOut
-            ? "bg-[#DCF8C6] text-gray-900 dark:bg-[#005C4B] dark:text-white"
+            ? m.fromAgent
+              ? "bg-[#EDE4FA] text-gray-900 ring-1 ring-violet-300/60 dark:bg-[#3B2E58] dark:text-white dark:ring-violet-400/30"
+              : "bg-[#DCF8C6] text-gray-900 dark:bg-[#005C4B] dark:text-white"
             : "bg-white text-gray-900 border border-gray-100 dark:bg-[#1F2C34] dark:text-white dark:border-transparent",
           m.importedAt && "opacity-80",
         )}
@@ -1968,6 +1974,10 @@ export default function Inbox({
                         <>
                           {c.lastMessage?.direction === "OUTBOUND" && (
                             <CheckCheck size={14} className="text-gray-400 dark:text-[#8696A0] flex-shrink-0" />
+                          )}
+                          {/* Agent handled this chat last - staff sees it at a glance (owner 16.07). */}
+                          {c.lastMessage?.direction === "OUTBOUND" && c.lastMessage?.fromAgent && (
+                            <span className="flex-shrink-0 text-[11px]" title="Answered by the agent">🤖</span>
                           )}
                           <span className="truncate text-gray-500 dark:text-[#8696A0]">{previewText(c.lastMessage)}</span>
                         </>

@@ -889,6 +889,9 @@ model AgentSuggestion {
   // Set once the self-learning loop has mined this row (edited_sent /
   // dismissed) for a lesson - processed rows are never mined twice.
   learnedAt        DateTime?
+  // Set when the sweep notified the trainer about this BOOKING/ESCALATE
+  // suggestion via WhatsApp - one notification per suggestion, ever.
+  trainerNotifiedAt DateTime?
   createdAt        DateTime @default(now())
 
   @@index([conversationId, createdAt])
