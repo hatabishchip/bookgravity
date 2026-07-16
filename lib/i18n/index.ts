@@ -10,26 +10,9 @@ import uk from "./uk"
 import { uk as ukDate } from "date-fns/locale"
 import type { Locale as DateLocale } from "date-fns"
 
-export type AdminLocale = "en" | "uk"
-
-// Per-studio default admin-panel locale, applied when an admin has NOT picked a
-// language yet (User.locale is null). Studios not listed default to English.
-// Owner 15.07: studio "solar" runs its admin panel in Ukrainian by default.
-const STUDIO_DEFAULT_LOCALE: Record<string, AdminLocale> = { solar: "uk" }
-
-/**
- * Resolve an admin's effective locale. An explicit choice ("uk" or "en") always
- * wins - so a solar admin can still switch to English. Only when nothing was
- * chosen yet (null) does the studio default apply.
- */
-export function resolveAdminLocale(
-  userLocale: string | null | undefined,
-  studioSlug: string | null | undefined,
-): AdminLocale {
-  if (userLocale === "uk") return "uk"
-  if (userLocale === "en") return "en"
-  return (studioSlug && STUDIO_DEFAULT_LOCALE[studioSlug]) || "en"
-}
+export type { AdminLocale } from "@/lib/admin-locale"
+import { resolveAdminLocale, type AdminLocale } from "@/lib/admin-locale"
+export { resolveAdminLocale }
 
 export function translate(
   locale: AdminLocale,

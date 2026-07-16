@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
-import { resolveAdminLocale } from "@/lib/i18n"
+import { resolveAdminLocale } from "@/lib/admin-locale"
 
 export const dynamic = "force-dynamic"
 
