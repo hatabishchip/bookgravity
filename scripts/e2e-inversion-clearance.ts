@@ -39,7 +39,8 @@ async function cleanup() {
 }
 
 async function slotFromApi(slug: string, date: string, slotId: string) {
-  const res = await fetch(`${BASE}/api/slots?date=${date}&studio=${slug}`)
+  // s-maxage=60 on /api/slots - unique param busts the CDN cache between steps
+  const res = await fetch(`${BASE}/api/slots?date=${date}&studio=${slug}&e2e=${Date.now()}`)
   const list = (await res.json()) as { id: string; allowsInversions?: boolean }[]
   return list.find((s) => s.id === slotId)
 }
@@ -79,7 +80,7 @@ async function verify() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slotId: s.id, clientName: 'E2E Inversion Test', clientPhone: '+6281999000111',
+      slotId: s.id, clientName: 'E2E Inversion Test', clientPhone: '+6281999000111', clientEmail: 'e2e-inv@test.local',
       serviceIds: [serviceId], partySize: 1,
     }),
   })
