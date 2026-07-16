@@ -10,17 +10,13 @@ import { resolveAdminLocale } from "@/lib/admin-locale"
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  try {
-    const ctx = await requireAdmin()
-    if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    const [user, studio] = await Promise.all([
-      prisma.user.findUnique({ where: { id: ctx.userId }, select: { locale: true } }),
-      prisma.studio.findUnique({ where: { id: ctx.studioId }, select: { slug: true } }),
-    ])
-    return NextResponse.json({ locale: resolveAdminLocale(user?.locale, studio?.slug) })
-  } catch (e) {
-    return NextResponse.json({ __debug: (e as Error).message?.slice(0, 500), stack: (e as Error).stack?.slice(0, 400) }, { status: 500 })
-  }
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const [user, studio] = await Promise.all([
+    prisma.user.findUnique({ where: { id: ctx.userId }, select: { locale: true } }),
+    prisma.studio.findUnique({ where: { id: ctx.studioId }, select: { slug: true } }),
+  ])
+  return NextResponse.json({ locale: resolveAdminLocale(user?.locale, studio?.slug) })
 }
 
 export async function PATCH(req: NextRequest) {
