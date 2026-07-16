@@ -203,7 +203,7 @@ function parseClassification(raw: string): Classification | null {
     const j = JSON.parse(cleaned) as Classification
     // Owner rule: no em/en dashes in anything a client reads - enforce in
     // code, not just in the prompt.
-    if (j.draft) j.draft = j.draft.replace(/[\u2014\u2013]/g, "-")
+    if (j.draft) j.draft = j.draft.replace(/[\u2014\u2013\u2011\u2012\u2015]/g, "-")
     if (j.category === "SAFE" || j.category === "BOOKING" || j.category === "ESCALATE") return j
   } catch {}
   return null

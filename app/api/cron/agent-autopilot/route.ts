@@ -9,6 +9,7 @@ import {
 } from "@/lib/whatsapp-conversation"
 import { generateAgentSuggestion, extractLessons } from "@/lib/sales-agent"
 import { forwardClientReplyToTrainer } from "@/lib/whatsapp-messages"
+import { syncInstagramThreads, sendInstagramText, getIgToken, isIgConversationPhone } from "@/lib/instagram"
 import { translateAndDetect } from "@/lib/translate"
 import { elog, elogError } from "@/lib/elog"
 
@@ -111,6 +112,15 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ---- 0. Instagram DMs: mirror recent threads into the conversation tables
+  // (owner 16.07) so the same agent loop below answers them too. Best-effort.
+  let igImported = 0
+  try {
+    igImported = await syncInstagramThreads(studio.id)
+  } catch (err) {
+    console.warn("[autopilot] instagram sync failed:", err)
+  }
+
   // ---- 1. Auto-send SAFE drafts -------------------------------------------
   const convos = await prisma.whatsAppConversation.findMany({
     where: {
@@ -171,7 +181,18 @@ export async function GET(req: NextRequest) {
     let sentType = "text"
     let templateName: string | null = null
 
-    if (windowOpen) {
+    // Instagram thread: reply via the IG Graph API. Only inside the 24h
+    // messaging window (IG has no template fallback) - otherwise the pending
+    // suggestion simply stays for the trainer.
+    if (isIgConversationPhone(convo.clientPhone)) {
+      if (!windowOpen) continue
+      const igToken = await getIgToken()
+      if (!igToken) continue
+      const res = await sendInstagramText(convo.clientPhone.slice(3), draft, igToken)
+      ok = res.ok
+      waMessageId = res.ok ? res.messageId : null
+      errorDetail = res.ok ? null : res.error
+    } else if (windowOpen) {
       const res = await sendWhatsAppText(convo.clientPhone, draft, waConfig)
       ok = res.ok
       waMessageId = res.ok ? res.messageId : null
@@ -277,7 +298,7 @@ export async function GET(req: NextRequest) {
     lessons = await extractLessons(5)
   }
 
-  const summary = { ok: true, checked, autoSent, failed, trainerPinged, translatedQ, translatedA, lessons }
-  if (autoSent || failed || lessons || trainerPinged) void elog("agent:autopilot", "sweep", summary)
+  const summary = { ok: true, checked, autoSent, failed, trainerPinged, igImported, translatedQ, translatedA, lessons }
+  if (autoSent || failed || lessons || trainerPinged || igImported) void elog("agent:autopilot", "sweep", summary)
   return NextResponse.json(summary)
 }

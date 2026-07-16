@@ -11,6 +11,7 @@ import {
 } from "@/lib/whatsapp-conversation"
 import { translateAndDetect } from "@/lib/translate"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
+import { isIgConversationPhone, sendInstagramText, getIgToken } from "@/lib/instagram"
 
 // POST /api/whatsapp/conversations/[id]/messages
 // body: { text: string }  OR  { templateName: string, languageCode?: string, variables?: string[] }
@@ -217,6 +218,41 @@ export async function POST(
     } else if (!t.ok) {
       console.warn("[messages/POST] outbound translate failed:", t.error)
     }
+  }
+
+  // Instagram thread (clientPhone "ig:<igsid>"): staff replies go via the IG
+  // Graph API. Only within Instagram's 24h messaging window - IG has no
+  // template fallback like WhatsApp's admin_message.
+  if (isIgConversationPhone(convo.clientPhone)) {
+    if (!windowOpen) {
+      return NextResponse.json(
+        { error: "Instagram 24h messaging window is closed - wait for the client to write first.", code: "window_closed" },
+        { status: 409 },
+      )
+    }
+    const igToken = await getIgToken()
+    if (!igToken) {
+      return NextResponse.json({ error: "Instagram is not connected" }, { status: 502 })
+    }
+    const res = await sendInstagramText(convo.clientPhone.slice(3), textToSend, igToken)
+    const saved = await appendOutboundMessage({
+      conversationId: convo.id,
+      type: "text",
+      body: originalText,
+      translatedBody,
+      translatedVia,
+      detectedLang,
+      waMessageId: res.ok ? res.messageId : null,
+      status: res.ok ? "sent" : "failed",
+      errorDetail: res.ok ? null : res.error,
+      fromTrainerId,
+      fromAgent: !!parsed.data.agentSuggestionId,
+    })
+    if (res.ok) await markConversationHandled(convo.id)
+    if (res.ok && parsed.data.agentSuggestionId) {
+      await closeAgentSuggestion(parsed.data.agentSuggestionId, convo.id, parsed.data.text)
+    }
+    return NextResponse.json({ message: saved, sendResult: res }, { status: res.ok ? 201 : 502 })
   }
 
   // Closed-window template fallback for staff (admin + trainer). Wraps the
