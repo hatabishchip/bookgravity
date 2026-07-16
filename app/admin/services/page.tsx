@@ -7,7 +7,7 @@ import { PriceInput } from "@/app/_components/PriceInput"
 import { PetalSpinner } from "@/app/_components/PetalSpinner"
 import { useT } from "@/app/_components/LocaleProvider"
 
-type Service = { id: string; name: string; price: number; active: boolean }
+type Service = { id: string; name: string; price: number; active: boolean; requiresInversionClearance?: boolean }
 
 // Price stored in DB as full IDR (e.g. 50000). UI shows "K" units (e.g. 50).
 function priceToK(price: number) {
@@ -22,7 +22,7 @@ export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([])
   const [editing, setEditing] = useState<Service | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: "", priceK: "50" })
+  const [form, setForm] = useState({ name: "", priceK: "50", requiresClearance: false })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,20 +40,20 @@ export default function ServicesPage() {
 
   const openEdit = (service: Service) => {
     setEditing(service)
-    setForm({ name: service.name, priceK: String(priceToK(service.price)) })
+    setForm({ name: service.name, priceK: String(priceToK(service.price)), requiresClearance: !!service.requiresInversionClearance })
     setShowForm(true)
   }
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: "", priceK: "50" })
+    setForm({ name: "", priceK: "50", requiresClearance: false })
     setShowForm(true)
   }
 
   const closeModal = () => {
     setShowForm(false)
     setEditing(null)
-    setForm({ name: "", priceK: "50" })
+    setForm({ name: "", priceK: "50", requiresClearance: false })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,13 +66,13 @@ export default function ServicesPage() {
       await fetch("/api/admin/services", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editing.id, name: form.name, price }),
+        body: JSON.stringify({ id: editing.id, name: form.name, price, requiresInversionClearance: form.requiresClearance }),
       })
     } else {
       await fetch("/api/admin/services", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, price }),
+        body: JSON.stringify({ name: form.name, price, requiresInversionClearance: form.requiresClearance }),
       })
     }
 
@@ -262,6 +262,22 @@ export default function ServicesPage() {
                   = Rp {(parseInt(form.priceK, 10) || 0).toLocaleString("id-ID")}.000
                 </p>
               </div>
+
+              {/* Inversion clearance gate (Sveta 16.07): a marked service is
+                  bookable only in classes whose trainer or assistant has the
+                  "Inverted positions" clearance (Trainers page toggle). */}
+              <label className="flex items-start gap-3 rounded-xl border border-gray-200 px-4 py-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.requiresClearance}
+                  onChange={(e) => setForm({ ...form, requiresClearance: e.target.checked })}
+                  className="mt-0.5 w-4 h-4 accent-brand"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-700">{t("Requires trainer clearance (inversions)")}</span>
+                  <span className="block text-xs text-gray-400 mt-0.5">{t("Only offered in classes where the trainer or assistant is cleared for inverted positions.")}</span>
+                </span>
+              </label>
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={closeModal} className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl text-sm font-medium hover:bg-gray-50">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { slotAllowsInversions, INVERSION_BLOCKED_MSG } from "@/lib/inversion-clearance"
 import { notifyBookingCreated } from "@/lib/booking-notify"
 import { getStudioMembershipBalances, phoneTail } from "@/lib/membership"
 import { baliDateStr, addDaysStr } from "@/lib/tz"
@@ -29,7 +30,10 @@ export async function GET(request: NextRequest) {
     },
     include: {
       slot: {
-        include: { trainer: { select: { id: true, name: true } } },
+        include: {
+          trainer: { select: { id: true, name: true, permInvertedPositions: true } },
+          assistant: { select: { permInvertedPositions: true } },
+        },
       },
       services: { include: { service: true } },
       // Bank/QRIS payments linked to this booking → "confirmed by bank" badge.
@@ -43,6 +47,9 @@ export async function GET(request: NextRequest) {
   const balances = await getStudioMembershipBalances(ctx.studioId)
   const withBalance = bookings.map(({ bankPayments, ...b }) => ({
     ...b,
+    // Inversion add-ons are offered only when the class trainer or assistant
+    // holds the clearance (Sveta's rule, 16.07) - the UI hides gated chips.
+    slot: { ...b.slot, allowsInversions: !!(b.slot.trainer?.permInvertedPositions || b.slot.assistant?.permInvertedPositions) },
     membershipRemaining: balances.get(phoneTail(b.clientPhone)) ?? 0,
     bankConfirmed: bankPayments.length > 0,
   }))
@@ -88,10 +95,15 @@ export async function POST(request: NextRequest) {
   if (data.serviceIds?.length) {
     const services = await prisma.additionalService.findMany({
       where: { id: { in: data.serviceIds }, studioId: ctx.studioId },
-      select: { id: true },
+      select: { id: true, requiresInversionClearance: true },
     })
     if (services.length !== data.serviceIds.length) {
       return NextResponse.json({ error: "Invalid service" }, { status: 400 })
+    }
+    // Inversion add-ons need a cleared trainer or assistant on the slot
+    // (Sveta's rule, 16.07) - same gate as the public booking endpoint.
+    if (services.some((s) => s.requiresInversionClearance) && !(await slotAllowsInversions(data.slotId))) {
+      return NextResponse.json({ error: INVERSION_BLOCKED_MSG }, { status: 400 })
     }
   }
 

@@ -157,12 +157,16 @@ type Slot = {
   /** Class currently running (started, not yet finished). */
   started?: boolean
   price?: number
+  allowsInversions?: boolean
 }
 
 type Service = {
   id: string
   name: string
   price: number
+  /** Only offered when the selected slot's trainer/assistant holds the
+   *  inverted-positions clearance (Sveta 16.07). */
+  requiresInversionClearance?: boolean
 }
 
 type Step = "date" | "time" | "details" | "verify" | "done"
@@ -217,6 +221,16 @@ export default function BookingWidget({ services, studio, studioSlug }: {
   // shared "Group class" wording.
   const serviceLabel = studio?.country === "US" ? "Level 1 online session" : "Group class"
   const [selectedServices, setSelectedServices] = useState<string[]>([])
+  // Gate: inversion add-ons exist only in classes whose trainer/assistant is
+  // cleared for inverted positions (Sveta 16.07). Everything else passes.
+  const availableServices = services.filter(
+    (s) => !s.requiresInversionClearance || selectedSlot?.allowsInversions,
+  )
+  useEffect(() => {
+    // Deselect services that the newly chosen slot does not allow.
+    setSelectedServices((sel) => sel.filter((id) => availableServices.some((s) => s.id === id)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlot?.id])
   // Set when the API reports this phone already booked the slot - drives the
   // "are you sure?" confirmation before allowing a duplicate booking.
   const [dupWarn, setDupWarn] = useState<{ existingName: string | null } | null>(null)
@@ -1072,7 +1086,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               {(() => {
                 const perPerson = booking.slot.price ?? 300000
                 const sessionTotal = perPerson * partySize
-                const chosenServices = services.filter((s) => selectedServices.includes(s.id))
+                const chosenServices = availableServices.filter((s) => selectedServices.includes(s.id))
                 const servicesTotal = chosenServices.reduce((sum, s) => sum + s.price, 0)
                 const total = sessionTotal + servicesTotal
                 return (
@@ -1899,13 +1913,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
               </div>
             )}
 
-            {services.length > 0 && (
+            {availableServices.length > 0 && (
               <div>
                 {/* Tiny caption instead of the full "Additional Services
                     (optional)" label - the rows explain themselves. */}
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Add-ons</div>
                 <div className="space-y-1.5">
-                  {services.map((svc) => (
+                  {availableServices.map((svc) => (
                     <label key={svc.id} className="flex items-center justify-between px-3 py-2 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50">
                       <div className="flex items-center gap-3">
                         <input
@@ -1941,7 +1955,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
             {(() => {
               const perPerson = selectedSlot.price ?? 300000
               const sessionTotal = perPerson * partySize
-              const servicesTotal = services
+              const servicesTotal = availableServices
                 .filter((s) => selectedServices.includes(s.id))
                 .reduce((sum, s) => sum + s.price, 0)
               const total = sessionTotal + servicesTotal

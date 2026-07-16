@@ -26,6 +26,7 @@ type Booking = {
     startTime: string
     endTime: string
     trainer: { name: string } | null
+    allowsInversions?: boolean
   }
   services: { service: { id: string; name: string; price: number }; paymentType?: string | null }[]
   membershipRemaining?: number
@@ -88,7 +89,7 @@ function CopyButton({ value }: { value: string }) {
   )
 }
 
-type StudioService = { id: string; name: string; price: number }
+type StudioService = { id: string; name: string; price: number; requiresInversionClearance?: boolean }
 
 function BookingDetails({
   booking, isUpdating, onUpdate, onCancel, localCtx, services, onToggleService, onSetServiceMethod,
@@ -236,7 +237,7 @@ function BookingDetails({
         <div>
           <div className="text-xs font-medium text-gray-500 mb-1.5">{t("Services")}</div>
           <div className="flex flex-wrap gap-1.5">
-            {services.map((svc) => {
+            {services.filter((svc) => !svc.requiresInversionClearance || booking.slot.allowsInversions || booking.services.some((s) => s.service.id === svc.id)).map((svc) => {
               const on = booking.services.some((s) => s.service.id === svc.id)
               return (
                 <button

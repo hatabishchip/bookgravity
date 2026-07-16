@@ -79,7 +79,8 @@ export async function GET(request: NextRequest) {
     where: { studioId, date, trainerId: { not: null }, publicVisible: true, cancelledAt: null },
     include: {
       _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
-      trainer: { select: { name: true } },
+      trainer: { select: { name: true, permInvertedPositions: true } },
+      assistant: { select: { permInvertedPositions: true } },
     },
     orderBy: { startTime: "asc" },
   })
@@ -107,6 +108,9 @@ export async function GET(request: NextRequest) {
       // Class is currently running (started but not yet finished).
       started: slotStartMs(slot.date, slot.startTime, studioTz) <= nowMs,
       price: slot.price,
+      // Inversion add-ons are offered only when the class trainer OR assistant
+      // holds the inverted-positions clearance (Sveta 16.07).
+      allowsInversions: !!(slot.trainer?.permInvertedPositions || slot.assistant?.permInvertedPositions),
     }))
 
   // CDN cache (audit 2026-06-12): availability changes slowly; 60s shared

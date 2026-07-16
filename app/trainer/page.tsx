@@ -37,7 +37,7 @@ type Slot = {
   cancelledAt?: string | null
 }
 
-type Service = { id: string; name: string; price: number }
+type Service = { id: string; name: string; price: number; requiresInversionClearance?: boolean }
 
 type Booking = {
   id: string
@@ -59,7 +59,7 @@ type Booking = {
   // their own class (server-computed, null = frozen: admin-only correction).
   paymentEditableUntil?: string | null
   services: { service: Service; paymentType?: string | null }[]
-  slot: { id: string; price?: number }
+  slot: { id: string; price?: number; allowsInversions?: boolean }
   // Membership: how many classes the client has left at this studio, and the
   // pass id this booking was charged to (set when paymentType === "MEMBERSHIP").
   membershipRemaining?: number
@@ -1535,7 +1535,7 @@ export default function TrainerSchedulePage() {
                         <div className="mt-4">
                           <div className="text-xs text-gray-500 font-medium mb-2">Services</div>
                           <div className="rounded-xl border border-gray-200 p-2 space-y-1.5">
-                            {services.map((svc) => {
+                            {services.filter((svc) => !svc.requiresInversionClearance || b.slot.allowsInversions || b.services.some((s) => s.service.id === svc.id)).map((svc) => {
                               const chosen = b.services.find((s) => s.service.id === svc.id)
                               const hasService = !!chosen
                               // The session is on a pass → the add-on still needs

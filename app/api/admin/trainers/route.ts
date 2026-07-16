@@ -219,6 +219,9 @@ export async function PATCH(request: NextRequest) {
   // Delegated admin rights (Sveta 06.07.2026): the admin flips these per trainer.
   //   permBookAnyClass   — see the full studio schedule + add clients to any class.
   //   permManageBookings — reschedule / cancel any client booking.
+  if (body.permInvertedPositions !== undefined) {
+    updateData.permInvertedPositions = !!body.permInvertedPositions
+  }
   if (body.permBookAnyClass !== undefined) {
     updateData.permBookAnyClass = !!body.permBookAnyClass
   }

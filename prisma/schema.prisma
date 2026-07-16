@@ -304,6 +304,10 @@ model Trainer {
   //                        cancel client bookings.
   permBookAnyClass   Boolean      @default(false)
   permManageBookings Boolean      @default(false)
+  // Clearance to run INVERTED POSITIONS (Sveta 16.07: two panic attacks in a
+  // row happened upside-down - a new trainer must not offer inversions). A
+  // slot offers inversion add-ons only when its trainer OR assistant has this.
+  permInvertedPositions Boolean   @default(false)
   payments       TrainerPayment[]
   safeOperations SafeOperation[]
   assignedConversations WhatsAppConversation[] @relation("ConversationAssignedTrainer")
@@ -551,6 +555,10 @@ model AdditionalService {
   name     String
   price    Float
   active   Boolean          @default(true)
+  // Sveta 16.07: services like "Inverted position" may only be offered in a
+  // class whose trainer OR assistant holds permInvertedPositions. Lifting and
+  // toe stretch stay open to everyone (flag off).
+  requiresInversionClearance Boolean @default(false)
   studioId String
   studio   Studio           @relation(fields: [studioId], references: [id])
   bookings BookingService[]

@@ -43,7 +43,12 @@ export async function GET(request: NextRequest) {
       ...(slotId ? { slotId } : {}),
     },
     include: {
-      slot: true,
+      slot: {
+        include: {
+          trainer: { select: { permInvertedPositions: true } },
+          assistant: { select: { permInvertedPositions: true } },
+        },
+      },
       services: { include: { service: true } },
       // Bank/QRIS payments an admin linked to this booking → "confirmed by bank"
       // badge (staff-only). id-only keeps the payload small.
@@ -62,6 +67,9 @@ export async function GET(request: NextRequest) {
   })
   const withBalance = bookings.map(({ bankPayments, ...b }) => ({
     ...b,
+    // Inversion add-ons only when the class trainer or assistant holds the
+    // clearance (Sveta's rule, 16.07) - the roster hides gated services.
+    slot: { ...b.slot, allowsInversions: !!(b.slot.trainer?.permInvertedPositions || b.slot.assistant?.permInvertedPositions) },
     membershipRemaining: balances.get(phoneTail(b.clientPhone)) ?? 0,
     studioCountry: studio?.country ?? null,
     localPrice: studio?.localPrice ?? 200000,

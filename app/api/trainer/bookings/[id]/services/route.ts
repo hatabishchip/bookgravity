@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireTrainer } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { slotAllowsInversions, INVERSION_BLOCKED_MSG } from "@/lib/inversion-clearance"
 import { defaultServiceMethod } from "@/lib/booking-payment"
 
 async function getBookingForTrainer(bookingId: string, trainerId: string, studioId: string) {
@@ -37,6 +38,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     where: { id: serviceId, studioId: ctx.studioId },
   })
   if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 })
+  if (service.requiresInversionClearance && !(await slotAllowsInversions(booking.slotId))) {
+    return NextResponse.json({ error: INVERSION_BLOCKED_MSG }, { status: 400 })
+  }
 
   // No explicit method -> honest default (audit 12.07): inherit the class's
   // POS method when the class is paid, CASH on a membership class, else null

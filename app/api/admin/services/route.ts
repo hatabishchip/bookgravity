@@ -6,6 +6,9 @@ import { z } from "zod"
 const ServiceSchema = z.object({
   name: z.string().min(2),
   price: z.number().min(0),
+  // Marked services are bookable only in classes whose trainer or assistant
+  // holds the "Inverted positions" clearance (Sveta's rule, 16.07).
+  requiresInversionClearance: z.boolean().optional(),
 })
 
 export async function GET() {
@@ -36,6 +39,7 @@ const ServiceUpdateSchema = z.object({
   name: z.string().min(2).optional(),
   price: z.number().min(0).optional(),
   active: z.boolean().optional(),
+  requiresInversionClearance: z.boolean().optional(),
 })
 
 export async function PATCH(request: NextRequest) {

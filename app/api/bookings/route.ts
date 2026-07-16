@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server"
 import { format, parseISO } from "date-fns"
 import { prisma } from "@/lib/prisma"
+import { slotAllowsInversions, INVERSION_BLOCKED_MSG } from "@/lib/inversion-clearance"
 import { getPublicStudioId } from "@/lib/studio"
 import { isSlotBookableWithAttendees } from "@/lib/booking-cutoff"
 import { generateUniqueTicketCodes } from "@/lib/tickets"
@@ -108,10 +109,15 @@ export async function POST(request: NextRequest) {
     if (data.serviceIds?.length) {
       const services = await prisma.additionalService.findMany({
         where: { id: { in: data.serviceIds }, studioId },
-        select: { id: true },
+        select: { id: true, requiresInversionClearance: true },
       })
       if (services.length !== data.serviceIds.length) {
         return NextResponse.json({ error: "Invalid service" }, { status: 400 })
+      }
+      // Inversion add-ons only in classes with a cleared trainer/assistant
+      // (Sveta 16.07). UI hides them; this is the server-side guarantee.
+      if (services.some((sv) => sv.requiresInversionClearance) && !(await slotAllowsInversions(data.slotId))) {
+        return NextResponse.json({ error: INVERSION_BLOCKED_MSG }, { status: 400 })
       }
     }
 
