@@ -12,6 +12,7 @@ import {
 import { translateAndDetect } from "@/lib/translate"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { isIgConversationPhone, sendInstagramText, getIgToken } from "@/lib/instagram"
+import { isFbConversationPhone, sendFacebookText, getFbPageToken } from "@/lib/facebook"
 
 // POST /api/whatsapp/conversations/[id]/messages
 // body: { text: string }  OR  { templateName: string, languageCode?: string, variables?: string[] }
@@ -235,6 +236,39 @@ export async function POST(
       return NextResponse.json({ error: "Instagram is not connected" }, { status: 502 })
     }
     const res = await sendInstagramText(convo.clientPhone.slice(3), textToSend, igToken)
+    const saved = await appendOutboundMessage({
+      conversationId: convo.id,
+      type: "text",
+      body: originalText,
+      translatedBody,
+      translatedVia,
+      detectedLang,
+      waMessageId: res.ok ? res.messageId : null,
+      status: res.ok ? "sent" : "failed",
+      errorDetail: res.ok ? null : res.error,
+      fromTrainerId,
+      fromAgent: !!parsed.data.agentSuggestionId,
+    })
+    if (res.ok) await markConversationHandled(convo.id)
+    if (res.ok && parsed.data.agentSuggestionId) {
+      await closeAgentSuggestion(parsed.data.agentSuggestionId, convo.id, parsed.data.text)
+    }
+    return NextResponse.json({ message: saved, sendResult: res }, { status: res.ok ? 201 : 502 })
+  }
+
+  // Facebook Messenger thread (clientPhone "fb:<psid>"): same shape as IG.
+  if (isFbConversationPhone(convo.clientPhone)) {
+    if (!windowOpen) {
+      return NextResponse.json(
+        { error: "Facebook 24h messaging window is closed - wait for the client to write first.", code: "window_closed" },
+        { status: 409 },
+      )
+    }
+    const fbToken = getFbPageToken()
+    if (!fbToken) {
+      return NextResponse.json({ error: "Facebook Messenger is not connected" }, { status: 502 })
+    }
+    const res = await sendFacebookText(convo.clientPhone.slice(3), textToSend, fbToken)
     const saved = await appendOutboundMessage({
       conversationId: convo.id,
       type: "text",

@@ -10,6 +10,7 @@ import {
 import { generateAgentSuggestion, extractLessons } from "@/lib/sales-agent"
 import { forwardClientReplyToTrainer } from "@/lib/whatsapp-messages"
 import { syncInstagramThreads, sendInstagramText, getIgToken, isIgConversationPhone } from "@/lib/instagram"
+import { syncFacebookThreads, sendFacebookText, getFbPageToken, isFbConversationPhone } from "@/lib/facebook"
 import { translateAndDetect } from "@/lib/translate"
 import { elog, elogError } from "@/lib/elog"
 
@@ -120,6 +121,12 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.warn("[autopilot] instagram sync failed:", err)
   }
+  let fbImported = 0
+  try {
+    fbImported = await syncFacebookThreads(studio.id)
+  } catch (err) {
+    console.warn("[autopilot] facebook sync failed:", err)
+  }
 
   // ---- 1. Auto-send SAFE drafts -------------------------------------------
   const convos = await prisma.whatsAppConversation.findMany({
@@ -189,6 +196,15 @@ export async function GET(req: NextRequest) {
       const igToken = await getIgToken()
       if (!igToken) continue
       const res = await sendInstagramText(convo.clientPhone.slice(3), draft, igToken)
+      ok = res.ok
+      waMessageId = res.ok ? res.messageId : null
+      errorDetail = res.ok ? null : res.error
+    } else if (isFbConversationPhone(convo.clientPhone)) {
+      // Facebook Messenger: same 24h rule, no template fallback.
+      if (!windowOpen) continue
+      const fbToken = getFbPageToken()
+      if (!fbToken) continue
+      const res = await sendFacebookText(convo.clientPhone.slice(3), draft, fbToken)
       ok = res.ok
       waMessageId = res.ok ? res.messageId : null
       errorDetail = res.ok ? null : res.error
@@ -298,7 +314,7 @@ export async function GET(req: NextRequest) {
     lessons = await extractLessons(5)
   }
 
-  const summary = { ok: true, checked, autoSent, failed, trainerPinged, igImported, translatedQ, translatedA, lessons }
+  const summary = { ok: true, checked, autoSent, failed, trainerPinged, igImported, fbImported, translatedQ, translatedA, lessons }
   if (autoSent || failed || lessons || trainerPinged || igImported) void elog("agent:autopilot", "sweep", summary)
   return NextResponse.json(summary)
 }
