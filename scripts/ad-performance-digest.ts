@@ -45,6 +45,20 @@ async function fetchAds(preset: string): Promise<AdRow[]> {
   })
 }
 
+// Per-ad delivery status (ACTIVE / PAUSED / ...) so the digest marks ads that
+// aren't actually running - their lifetime numbers are historical, not live.
+async function fetchStatuses(): Promise<Map<string, string>> {
+  const url = `${BASE}/${NODE}/ads?fields=name,effective_status&limit=100&access_token=${TOKEN}`
+  try {
+    const res = await fetch(url, { cache: "no-store" as RequestCache })
+    if (!res.ok) return new Map()
+    const json = await res.json()
+    return new Map((json.data || []).map((r: { name?: string; effective_status?: string }) => [r.name || "?", r.effective_status || "?"]))
+  } catch {
+    return new Map()
+  }
+}
+
 // Short name: drop the "GRAVITY CTWA - " / "STRAP" boilerplate.
 function short(n: string): string {
   return n.replace(/GRAVITY CTWA\s*-\s*/i, "").replace(/\s*-\s*STRAP/i, "").replace(/Новое объявление.*/i, "Вовлечённость").slice(0, 18)
@@ -53,7 +67,7 @@ const money = (n: number) => "$" + n.toFixed(2)
 
 async function build(): Promise<string> {
   if (!TOKEN || !NODE) return "Реклама: не заданы FB_ADS_TOKEN / FB_ADS_CAMPAIGN_ID."
-  const [all, week] = await Promise.all([fetchAds("maximum"), fetchAds("last_7d")])
+  const [all, week, status] = await Promise.all([fetchAds("maximum"), fetchAds("last_7d"), fetchStatuses()])
   const weekBy = new Map(week.map((r) => [r.name, r]))
 
   const totAll = all.reduce((s, r) => s + r.spend, 0)
@@ -75,10 +89,13 @@ async function build(): Promise<string> {
     if (cpl != null && cplW != null && cplW > cpl * 1.4) flag = " ⚠️ дорожает"
     else if (cpl != null && cpl <= 1.5) flag = " ✅ дёшево"
     else if (cpl != null && cpl >= 5) flag = " ❌ дорого"
-    lines.push(`${short(r.name).padEnd(15)} лид ${r.leads}  CPL ${cpl ? money(cpl) : "-"}  CTR ${r.ctr.toFixed(1)}%${flag}`)
+    // Paused/inactive ad: its lifetime numbers are history, not live spend.
+    const st = status.get(r.name)
+    const paused = st && st !== "ACTIVE" ? " ⏸ пауза" : ""
+    lines.push(`${short(r.name).padEnd(15)} лид ${r.leads}  CPL ${cpl ? money(cpl) : "-"}  CTR ${r.ctr.toFixed(1)}%${paused}${flag}`)
   }
   lines.push("")
-  lines.push("✅ масштабировать · ⚠️ обновить креатив · ❌ отключить. Данные Meta, read-only.")
+  lines.push("⏸ на паузе (цифры историч.) · ✅ масштабировать · ⚠️ обновить креатив · ❌ отключить. Данные Meta, read-only.")
   return lines.join("\n")
 }
 
