@@ -15,7 +15,7 @@ import { homedir } from "os"
 import { join } from "path"
 import "dotenv/config"
 
-const WINDOW_H = Number(process.env.DIGEST_WINDOW_HOURS || 72) // "recent" cutoff
+const WINDOW_H = Number(process.env.DIGEST_WINDOW_HOURS || 336) // 14 days (owner 19.07: nothing unanswered may fall off the radar)
 // Owner's OWN studio only. Ubud (and USA/Almaty) are other people's studios -
 // the owner relays reminders to his Canggu coaches only. Override via env.
 const STUDIO_ID = process.env.DIGEST_STUDIO_ID || "studio_canggu_1778764028263" // Gravity Stretching Canggu
