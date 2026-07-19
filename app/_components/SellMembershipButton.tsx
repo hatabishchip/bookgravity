@@ -64,6 +64,9 @@ export function SellMembershipModal({
   // Membership pricing comes from the studio (per-class price x pass size).
   const [perClass, setPerClass] = useState(DEFAULT_PRICE)
   const [classes, setClasses] = useState<number>(DEFAULT_CLASSES)
+  // Admins additionally see the FREE option (gifted cards / cards paid long
+  // ago entered after the fact) - such sales never hit cashflow (Sveta 19.07).
+  const [isAdmin, setIsAdmin] = useState(false)
   // The name field unlocks only once the phone is "finished": either the
   // number hit its max length, or the seller left the phone field (blur) with
   // a valid number. Pre-filled numbers count as committed.
@@ -101,6 +104,7 @@ export function SellMembershipModal({
       .then((d) => {
         if (!d) return
         if (typeof d.membershipClassPrice === "number") setPerClass(d.membershipClassPrice)
+        if (d.isAdmin === true) setIsAdmin(true)
         if (typeof d.membershipClasses === "number" && PRODUCTS.some((pr) => pr.classes === d.membershipClasses)) {
           setClasses(d.membershipClasses)
         }
@@ -248,9 +252,9 @@ export function SellMembershipModal({
               </div>
             )}
 
-            {/* Payment method — chips, no label. */}
-            <div className="grid grid-cols-4 gap-1.5">
-              {PAYMENT_METHODS.map((pm) => (
+            {/* Payment method — chips, no label. FREE is admin-only. */}
+            <div className={cn("grid gap-1.5", isAdmin ? "grid-cols-5" : "grid-cols-4")}>
+              {(isAdmin ? [...PAYMENT_METHODS, { value: "FREE", label: "Free" }] : PAYMENT_METHODS).map((pm) => (
                 <button
                   key={pm.value}
                   type="button"
@@ -267,6 +271,12 @@ export function SellMembershipModal({
               ))}
             </div>
 
+            {payment === "FREE" && (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-700">
+                {t("Free card: a gift or a card paid earlier. It will NOT appear in cashflow.")}
+              </div>
+            )}
+
             {error && <div className="text-sm text-red-500">{error}</div>}
 
             <button
@@ -275,7 +285,7 @@ export function SellMembershipModal({
               onClick={submit}
               className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-3 rounded-xl"
             >
-              {submitting ? t("Saving…") : `${t("Sell Member card")} · ${fmtRp(perClass * classes)}`}
+              {submitting ? t("Saving…") : payment === "FREE" ? `${t("Sell Member card")} · ${t("Free")}` : `${t("Sell Member card")} · ${fmtRp(perClass * classes)}`}
             </button>
           </div>
         ) : (
