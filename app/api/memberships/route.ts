@@ -90,6 +90,47 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ clients: Array.from(groups.values()), ...pricing })
   }
 
+  // ?nameSearch=<q> - reverse lookup for the sell dialog (Sveta 19.07: "I have
+  // to hunt the phone manually - the name doesn't find the number"). Matches
+  // bookings, WhatsApp contacts and past member cards; dedup by phone tail.
+  const nameQ = searchParams.get("nameSearch")?.trim()
+  if (nameQ && nameQ.length >= 2) {
+    const [bk, wa, mem] = await Promise.all([
+      prisma.booking.findMany({
+        where: { clientName: { contains: nameQ }, slot: { studioId: ctx.studioId } },
+        orderBy: { createdAt: "desc" },
+        take: 25,
+        select: { clientName: true, clientPhone: true },
+      }),
+      prisma.whatsAppConversation.findMany({
+        where: { clientName: { contains: nameQ }, studioId: ctx.studioId },
+        orderBy: { lastMessageAt: "desc" },
+        take: 25,
+        select: { clientName: true, clientPhone: true },
+      }),
+      prisma.membership.findMany({
+        where: { clientName: { contains: nameQ }, studioId: ctx.studioId },
+        orderBy: { createdAt: "desc" },
+        take: 25,
+        select: { clientName: true, clientPhone: true },
+      }),
+    ])
+    const seen = new Map<string, { clientName: string; clientPhone: string }>()
+    for (const r of [...mem, ...bk, ...wa]) {
+      const digits = (r.clientPhone ?? "").replace(/\D/g, "")
+      // ig:/fb: threads have no dialable phone - useless for selling a card.
+      if (!digits || digits.length < 7 || /^(ig|fb):/.test(r.clientPhone ?? "")) continue
+      const key = phoneTail(digits)
+      if (!seen.has(key)) {
+        seen.set(key, {
+          clientName: (r.clientName ?? "").replace(/\s*\(\d+\/\d+\)$/, "").trim(),
+          clientPhone: digits,
+        })
+      }
+    }
+    return NextResponse.json({ candidates: Array.from(seen.values()).slice(0, 8), ...pricing })
+  }
+
   if (!phone) return NextResponse.json({ remaining: 0, memberships: [], ...pricing })
 
   const tail = phoneTail(phone)

@@ -727,6 +727,7 @@ const uk: Record<string, string> = {
   "No cards found": "Карт не знайдено",
   "Cancel this sale (mistake)": "Скасувати цей продаж (помилка)",
   "Deduct used classes": "Списати використані заняття",
+  "Find client by name…": "Знайти клієнта за іменем…",
   "Inversion add-ons are bookable only in classes whose trainer or assistant has this clearance.": "Послугу з перевернутими позиціями можна замовити лише в класах, де тренер або асистент має цей допуск.",
   "Requires trainer clearance (inversions)": "Потребує допуску тренера (перевернуті позиції)",
   "Only offered in classes where the trainer or assistant is cleared for inverted positions.": "Пропонується лише в класах, де тренер або асистент має допуск до перевернутих позицій.",

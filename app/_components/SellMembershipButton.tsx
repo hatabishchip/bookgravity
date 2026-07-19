@@ -73,6 +73,10 @@ export function SellMembershipModal({
   const [phoneCommitted, setPhoneCommitted] = useState(
     () => validatePhone(toPhoneValue(initialPhone)).kind === "ok",
   )
+  // Reverse lookup (Sveta 19.07): type a NAME, pick the client, the phone
+  // fills itself. Candidates come from bookings + WhatsApp + past cards.
+  const [nameQuery, setNameQuery] = useState("")
+  const [candidates, setCandidates] = useState<{ clientName: string; clientPhone: string }[]>([])
 
   // Freeze the page behind the modal so nothing scrolls/jumps with the keyboard.
   useBodyScrollLock(true)
@@ -132,6 +136,28 @@ export function SellMembershipModal({
       .catch(() => { setExisting(null); setHasWhatsApp(false) })
     return () => ctrl.abort()
   }, [phone, phoneOk])
+
+  useEffect(() => {
+    const q = nameQuery.trim()
+    if (q.length < 2) { setCandidates([]); return }
+    const ctrl = new AbortController()
+    const t = setTimeout(() => {
+      fetch(`/api/memberships?nameSearch=${encodeURIComponent(q)}`, { signal: ctrl.signal })
+        .then((r) => (r.ok ? r.json() : { candidates: [] }))
+        .then((d: { candidates?: { clientName: string; clientPhone: string }[] }) => setCandidates(d.candidates ?? []))
+        .catch(() => {})
+    }, 250)
+    return () => { ctrl.abort(); clearTimeout(t) }
+  }, [nameQuery])
+
+  function pickCandidate(c: { clientName: string; clientPhone: string }) {
+    setPhone(toPhoneValue(c.clientPhone))
+    setPhoneCommitted(true)
+    setName((prev) => (prev.trim() ? prev : c.clientName))
+    if (c.clientName) setName(c.clientName)
+    setNameQuery("")
+    setCandidates([])
+  }
 
   async function submit() {
     if (!phoneOk || submitting) return
@@ -207,6 +233,32 @@ export function SellMembershipModal({
                 <span className="text-[11px] text-gray-400">{t("{price} per class", { price: fmtRp(perClass) })}</span>
               </div>
               <span className="text-lg font-bold text-brand">{fmtRp(perClass * classes)}</span>
+            </div>
+
+            {/* Find an existing client by NAME - picking one fills the phone. */}
+            <div className="relative">
+              <input
+                type="text"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+                placeholder={t("Find client by name…")}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+              />
+              {candidates.length > 0 && (
+                <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                  {candidates.map((c) => (
+                    <button
+                      key={c.clientPhone}
+                      type="button"
+                      onClick={() => pickCandidate(c)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50"
+                    >
+                      <span className="text-sm font-medium text-gray-800 truncate">{c.clientName || t("Unknown client")}</span>
+                      <span className="text-xs text-gray-400 tabular-nums shrink-0 ml-3">+{c.clientPhone}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Phone — large, monospaced-feel digits for readability. */}
