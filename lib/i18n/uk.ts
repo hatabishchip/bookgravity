@@ -261,6 +261,8 @@ const uk: Record<string, string> = {
   "Sun": "Нд",
   "Blocked": "Заблоковано",
   "Block day": "Заблокувати день",
+  "Apply these changes to all future weeks of the repeating session too? OK - this and future weeks. Cancel - only this day.":
+    "Застосувати ці зміни й до всіх майбутніх тижнів повторюваного заняття? OK - цей і всі майбутні тижні. Скасувати - лише цей день.",
   "add": "додати",
   "Group class": "Групове заняття",
   "Kids class": "Дитяче заняття",

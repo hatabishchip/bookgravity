@@ -250,6 +250,11 @@ export async function PATCH(request: NextRequest) {
       // Before 2026-07-02 the checkbox on an existing slot was a silent no-op:
       // the client sent nothing and the admin believed 12 weeks were scheduled.
       repeatWeekly: z.boolean().optional(),
+      // When true on a slot that IS part of a series: copy the edited fields
+      // to every FUTURE occurrence too (Sveta 20.07.2026 - edits applied to
+      // one day only, future weeks silently kept the old settings and had to
+      // be re-checked by hand).
+      applyToSeries: z.boolean().optional(),
     }).parse(body)
 
     // Force capacity to 1 when type becomes PRIVATE
@@ -295,6 +300,39 @@ export async function PATCH(request: NextRequest) {
       },
       include: slotInclude,
     })
+
+    // Copy the edited fields to all FUTURE occurrences of the series. Capacity
+    // never shrinks below the seats already booked on a given week; startTime
+    // deliberately does not propagate (a time change is a per-day decision).
+    let seriesApplied = 0
+    if (data.applyToSeries && current.seriesId && !data.endSeries) {
+      const futures = await prisma.timeSlot.findMany({
+        where: {
+          seriesId: current.seriesId,
+          studioId: ctx.studioId,
+          date: { gt: current.date },
+          cancelledAt: null,
+        },
+        select: {
+          id: true,
+          _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
+        },
+      })
+      for (const f of futures) {
+        await prisma.timeSlot.update({
+          where: { id: f.id },
+          data: {
+            ...(data.trainerId !== undefined && { trainerId: data.trainerId ?? null }),
+            ...(data.assistantId !== undefined && { assistantId: data.assistantId ?? null }),
+            ...(data.classType !== undefined && { classType: data.classType }),
+            ...(data.publicVisible !== undefined && { publicVisible: data.publicVisible }),
+            ...(data.maxCapacity !== undefined && { maxCapacity: Math.max(data.maxCapacity, f._count.bookings) }),
+            ...(data.price !== undefined && { price: data.price }),
+          },
+        })
+        seriesApplied++
+      }
+    }
 
     // Newly assigned an assistant to this class? Ping them so they know to come
     // help (they don't book it themselves). Fire-and-forget; never block the save.
@@ -392,7 +430,7 @@ export async function PATCH(request: NextRequest) {
     // Reflect the edit in Google Calendar (best-effort, no-op if not connected).
     await syncSlotToGoogle(current.id).catch(() => {})
 
-    return NextResponse.json({ ...updated, _seriesEnded: seriesEnded, _seriesStarted: seriesStarted })
+    return NextResponse.json({ ...updated, _seriesEnded: seriesEnded, _seriesStarted: seriesStarted, _seriesApplied: seriesApplied || undefined })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues.map((e: { message: string }) => e.message).join("; ") }, { status: 400 })

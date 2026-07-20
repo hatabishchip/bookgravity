@@ -487,6 +487,9 @@ export default function SchedulePage() {
 
     type Req = { url: string; method: "POST" | "PATCH" | "DELETE"; body?: unknown }
     const payloads: Req[] = []
+    // PATCHes of slots that belong to a series (with "Repeat weekly" still on):
+    // the admin is asked once whether the edits go to future weeks too.
+    const seriesEditPayloads: { body: Record<string, unknown> }[] = []
     // New sessions are created via their own awaited routine (not the batch)
     // so we can read each created slot's id and then book any queued clients.
     const createSpecs: { startTime: string; body: Record<string, unknown>; clients: NewClient[] }[] = []
@@ -529,6 +532,10 @@ export default function SchedulePage() {
         a.classType !== currentType ||
         a.publicVisible !== currentVis ||
         desiredCap !== currentCap
+      // Editing a slot that is part of a series while "Repeat weekly" stays
+      // checked - candidate for propagating the change to future weeks
+      // (Sveta 20.07.2026: edits used to touch one day only).
+      const seriesEdit = fieldChanged && !!slot.seriesId && !!a.repeatWeekly && !endSeries
       if (fieldChanged || endSeries || startSeries) {
         const tr = a.trainerId ? trainers.find((x) => x.id === a.trainerId) : null
         const as = a.assistantId ? trainers.find((x) => x.id === a.assistantId) : null
@@ -542,9 +549,9 @@ export default function SchedulePage() {
           assistant: as ? { id: as.id, name: as.name, color: as.color } : null,
           seriesId: endSeries ? null : slot.seriesId,
         })
-        payloads.push({
+        const patchPayload = {
           url: `/api/admin/slots?id=${slot.id}`,
-          method: "PATCH",
+          method: "PATCH" as const,
           body: {
             trainerId: a.trainerId || null,
             assistantId: a.assistantId || null,
@@ -554,9 +561,21 @@ export default function SchedulePage() {
             price: priceForType(a.classType),
             ...(endSeries ? { endSeries: true } : {}),
             ...(startSeries ? { repeatWeekly: true } : {}),
-          },
-        })
+          } as Record<string, unknown>,
+        }
+        payloads.push(patchPayload)
+        if (seriesEdit) seriesEditPayloads.push(patchPayload)
       }
+    }
+
+    // One question for all series edits in this save (Sveta 20.07.2026):
+    // OK - the changes also apply to every future week of the series;
+    // Cancel - only this day changes, future weeks stay as they were.
+    if (seriesEditPayloads.length > 0) {
+      const applyAll = confirm(
+        t("Apply these changes to all future weeks of the repeating session too? OK - this and future weeks. Cancel - only this day."),
+      )
+      if (applyAll) for (const p of seriesEditPayloads) p.body.applyToSeries = true
     }
 
     for (const startTime of toCreate) {
@@ -952,7 +971,10 @@ export default function SchedulePage() {
                 </div>
               ) : (
               <div className="text-center relative mb-2.5">
-                <div className="lg:hidden text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
+                {/* Weekday under every date on ALL screens (was mobile-only) -
+                    Sveta 20.07.2026: on desktop she had to re-check which day
+                    each number was. */}
+                <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
                   {format(day, "EEE", { locale: dateLocale })}
                 </div>
                 <div className={cn("font-bold mx-auto flex items-center justify-center rounded-full text-lg w-8 h-8 mt-0.5",
