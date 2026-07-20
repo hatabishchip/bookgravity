@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             {
               error:
-                "This phone number cannot receive WhatsApp messages, and your booking confirmation and reminders arrive on WhatsApp. Please check the number and try again - or ask our team at the studio to book for you.",
+                "This number can't receive WhatsApp messages - booking works only via WhatsApp. Check the number or install WhatsApp, then try again.",
               otpUndeliverable: true,
             },
             { status: 401 },

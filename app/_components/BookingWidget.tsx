@@ -1741,8 +1741,8 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                     number WhatsApp can't reach means a blind booking (the
                     Xu Yao typo incident). The client fixes the number; only
                     staff can book without a code (their flow skips OTP). */}
-                <span className="font-semibold">⚠️ This number isn&apos;t on WhatsApp.</span>{" "}
-                Your booking confirmation and reminders arrive on WhatsApp, so please double-check the number above - one wrong digit is the usual cause. If the number has no WhatsApp, our team at the studio can book for you.
+                <span className="font-semibold">⚠️ This number isn&apos;t on WhatsApp</span>{" "}
+                - booking works only via WhatsApp. Check the number or install WhatsApp, then try again.
               </div>
             )}
 
