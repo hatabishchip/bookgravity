@@ -7,7 +7,7 @@ import {
   isInsideCustomerWindow,
   markConversationHandled,
 } from "@/lib/whatsapp-conversation"
-import { generateAgentSuggestion, extractLessons, isNewClient } from "@/lib/sales-agent"
+import { generateAgentSuggestion, extractLessons, isNewClient, FULL_AUTONOMY } from "@/lib/sales-agent"
 import { forwardClientReplyToTrainer } from "@/lib/whatsapp-messages"
 import { syncInstagramThreads, sendInstagramText, getIgToken, isIgConversationPhone } from "@/lib/instagram"
 import { syncFacebookThreads, sendFacebookText, getFbPageToken, isFbConversationPhone } from "@/lib/facebook"
@@ -170,12 +170,16 @@ export async function GET(req: NextRequest) {
     const sug = await generateAgentSuggestion(convo.id, lastMsg.id)
     if (!sug) continue
 
-    // BOOKING / ESCALATE: never auto-send - instead WhatsApp the trainer once
-    // (owner 16.07: yellow cards were sitting unseen for hours). Uses the
-    // approved client_reply_to_trainer template, so the trainer's own 24h
-    // window doesn't matter. Skipped at Bali night (23:00-07:00) - the next
-    // morning sweep delivers it.
-    if (sug.category !== "SAFE") {
+    // FULL AUTONOMY (owner 20.07, metaprompt META_agent_full_autonomy.md):
+    // every category with a draft auto-sends; trainers get NO pings from the
+    // agent - only booking notifications and today-reminder replies reach
+    // their personal WhatsApp. The legacy branch below stays for the
+    // pre-activation period (AGENT_FULL_AUTONOMY unset).
+    //
+    // Legacy: BOOKING / ESCALATE never auto-send - instead WhatsApp the
+    // trainer once (owner 16.07: yellow cards were sitting unseen for hours).
+    // Skipped at Bali night (23:00-07:00) - the next morning sweep delivers it.
+    if (!FULL_AUTONOMY && sug.category !== "SAFE") {
       await notifyTrainer(convo, sug.id, lastMsg.body).catch((err) =>
         console.warn("[autopilot] trainer notify failed:", err),
       )

@@ -2281,7 +2281,10 @@ export default function Inbox({
             itself - a person always presses Send. */}
         {detail?.suggestion && detail.suggestion.id !== hiddenSuggestionId && (
           <div className="mx-2 mb-1 rounded-xl border bg-white/95 dark:bg-[#1F2C34] shadow-sm border-gray-200 dark:border-white/10 px-3 py-2">
-            {detail.suggestion.category === "SAFE" && detail.suggestion.draft ? (
+            {/* Any category WITH a ready draft renders as a sendable card
+                (full-autonomy prep 20.07: MEDICAL/BUSINESS/BOOKING now carry
+                full drafts too); draftless ones stay a "needs a human" note. */}
+            {detail.suggestion.draft ? (
               <>
                 <div className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 mb-1">
                   🤖 Agent suggests a reply
