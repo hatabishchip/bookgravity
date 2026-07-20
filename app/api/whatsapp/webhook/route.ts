@@ -17,6 +17,7 @@ import { sendInboundWhatsAppCopy } from "@/lib/mailer"
 import { translateAndDetect } from "@/lib/translate"
 import { handleCancelBotMessage } from "@/lib/cancel-bot"
 import { pickNextLeadTrainer } from "@/lib/lead-rotation"
+import { isAgentStudio } from "@/lib/sales-agent"
 import { recordBankPayment } from "@/lib/bank-payment"
 import { sendPush } from "@/lib/expo-push"
 import { sendWebPush } from "@/lib/web-push"
@@ -116,6 +117,7 @@ async function resolveStudioByPhoneNumberId(phoneNumberId: string | null) {
     select: {
       id: true,
       name: true,
+      slug: true,
       isDefault: true,
       inboxLanguage: true,
       emailAdminWaCopy: true,
@@ -540,7 +542,11 @@ export async function POST(request: NextRequest) {
             // with this first message (they have no open 24h window, so via the
             // approved forward template). The chat itself already shows in their
             // cabinet inbox via assignedTrainerId.
-            if (leadTrainer && leadTrainer.whatsapp) {
+            // SKIP for agent studios (owner 20.07.2026): the sales agent auto-
+            // answers SAFE ad leads and the autopilot pings the trainer only
+            // for BOOKING/ESCALATE, so an immediate ping per lead just floods
+            // the trainer's personal WhatsApp (Seni's screenshot).
+            if (leadTrainer && leadTrainer.whatsapp && !isAgentStudio(studioRow?.slug)) {
               try {
                 const fwd = await forwardClientReplyToTrainer({
                   trainerPhone: leadTrainer.whatsapp,

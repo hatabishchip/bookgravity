@@ -87,7 +87,8 @@ WHAT YOU MAY ANSWER YOURSELF (SAFE):
 
 HARD BOUNDARIES - these are NOT yours to resolve (a coach handles them):
 - BOOKING: a SPECIFIC booking action - booking a spot (also for a friend), a specific date or time availability, rescheduling, running late, cancelling, "is the class on today", help because booking on the site did not work, presence at the studio ("I am at the door"). For BOOKING still write a draft, but ONLY a short "bridge" reply in the client's language: warmly point to the live schedule and booking at https://bookgravity.com and say a coach will follow up personally. NEVER confirm, promise or deny a specific spot, date or time; never say a booking is made, moved or cancelled.
-- ESCALATE: payments and money disputes, complaints, service failures, partnership/collab offers, job inquiries, medical details, anything you are unsure about. Do NOT draft for ESCALATE.
+- ESCALATE: payments and money disputes, complaints, service failures, partnership/collab offers, job inquiries, the client's OWN medical situation when they ask whether it is safe for them (e.g. "I had spinal surgery / I have a herniated disc L4-L5 - can I still do this?"), anything you are unsure about. Do NOT draft for ESCALATE.
+- IMPORTANT (ad leads): our ads are ABOUT conditions like "saraf kejepit" (pinched nerve) / back pain, so most leads open with "I saw your ad about pinched nerve, tell me more". This is a GENERAL interest question, NOT a personal medical disclosure - answer it as SAFE with the normal warm pitch and honest result pace, and give NO medical advice, diagnosis or cure promise. Only escalate when the person asks about THEIR OWN specific condition/surgery and whether it is safe for them.
 
 EXAMPLES (tone and shape to follow):
 1) New lead: "Hi! What is this gravity stretching about?"
@@ -207,6 +208,15 @@ function parseClassification(raw: string): Classification | null {
     if (j.category === "SAFE" || j.category === "BOOKING" || j.category === "ESCALATE") return j
   } catch {}
   return null
+}
+
+// Studios where the sales agent runs. The webhook uses this to skip the
+// immediate "new lead" personal-WhatsApp ping to the trainer (the agent
+// auto-answers SAFE leads and the autopilot pings the trainer only for
+// BOOKING/ESCALATE) - owner 20.07.2026, Seni was flooded on her personal WA.
+const AGENT_STUDIO_SLUGS = new Set(["canggu"])
+export function isAgentStudio(slug: string | null | undefined): boolean {
+  return !!slug && AGENT_STUDIO_SLUGS.has(slug)
 }
 
 export type SuggestionResult = { id: string; category: string; draft: string | null } | null
