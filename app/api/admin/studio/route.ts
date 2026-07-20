@@ -23,6 +23,10 @@ const StudioUpdateSchema = z.object({
   coverUrl: z.string().max(MAX_COVER_URL_LEN).nullable().optional(),
   // Maps/location link shown in the client's WhatsApp confirmation. Empty → null.
   locationUrl: z.string().trim().max(2000).nullable().optional(),
+  // Booking-page intro heading + paragraph, per studio. Empty → null → the
+  // built-in default (with {city}) is shown. Sveta 20.07.2026.
+  bookingPageTitle: z.string().trim().max(160).nullable().optional(),
+  bookingPageDescription: z.string().trim().max(1200).nullable().optional(),
   // Admin's WhatsApp number for booking alerts. Empty → null.
   bookingAlertWhatsapp: z.string().trim().max(40).nullable().optional(),
   groupPrice: z.number().min(0).optional(),
@@ -57,6 +61,8 @@ const STUDIO_SELECT = {
   faviconUrl: true,
   coverUrl: true,
   locationUrl: true,
+  bookingPageTitle: true,
+  bookingPageDescription: true,
   bookingAlertWhatsapp: true,
   isDefault: true,
   groupPrice: true,

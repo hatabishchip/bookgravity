@@ -15,6 +15,9 @@ export type StudioInfoData = {
   country: string | null
   currency: string | null
   locationUrl: string | null
+  /** Admin-editable booking-page intro (null → built-in default). */
+  bookingPageTitle: string | null
+  bookingPageDescription: string | null
 }
 
 export type ClassPricing = {
@@ -167,12 +170,15 @@ export default function StudioInfo({
         {/* Intro - carries the page's single h1 (keyword + city); the header
             above the widget shows the brand as a plain div. */}
         <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h1 className="text-lg font-bold text-gray-900">Stretching classes in {city}</h1>
-          <p className="mt-2 text-sm leading-relaxed text-gray-600">
-            Gravity Stretching in {city}. Experience Gravity Stretching - a unique way to
-            relax, release tension, improve mobility, and help your body recover naturally.
-            Sessions improve posture, release tight backs and joints, and simply feel
-            fantastic. Book your spot online in a few taps - no payment needed to reserve.
+          {/* Admin-editable per studio (Settings → Booking page text). Empty
+              falls back to the default heading/paragraph below. The custom
+              description keeps line breaks the admin typed. */}
+          <h1 className="text-lg font-bold text-gray-900">
+            {studio.bookingPageTitle?.trim() || `Stretching classes in ${city}`}
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-gray-600 whitespace-pre-line">
+            {studio.bookingPageDescription?.trim() ||
+              `Gravity Stretching in ${city}. Experience Gravity Stretching - a unique way to relax, release tension, improve mobility, and help your body recover naturally. Sessions improve posture, release tight backs and joints, and simply feel fantastic. Book your spot online in a few taps - no payment needed to reserve.`}
           </p>
         </div>
 

@@ -698,6 +698,13 @@ const uk: Record<string, string> = {
   "Status": "Статус",
   "Step-by-step guide to activate WhatsApp for a new studio": "Покрокова інструкція з активації WhatsApp для нової студії",
   "Studio location": "Локація студії",
+  "Booking page text": "Текст сторінки бронювання",
+  "Edit booking page text": "Редагувати текст сторінки бронювання",
+  "The heading and description shown at the top of your public booking page. Leave empty to use the default text. Each studio can have its own.":
+    "Заголовок і опис вгорі публічної сторінки бронювання. Залиште порожнім, щоб використати текст за замовчуванням. У кожної студії може бути свій.",
+  "Heading": "Заголовок",
+  "Stretching classes in your city": "Заняття зі стретчингу у вашому місті",
+  "Describe your studio and classes…": "Опишіть вашу студію та заняття…",
   "Studio photo": "Фото студії",
   "Supplies": "Витратні матеріали",
   "Sync this studio's classes into your own Google Calendar - created, edited and removed automatically. It's your account, separate from other studios.": "Синхронізація занять цієї студії у ваш власний Google Calendar - створення, редагування та видалення автоматично. Це ваш акаунт, окремий від інших студій.",

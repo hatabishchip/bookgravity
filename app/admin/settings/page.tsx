@@ -22,6 +22,9 @@ type Studio = {
   inboxLanguage: string | null
   /** Maps link to the studio, included in the client's WhatsApp confirmation. */
   locationUrl: string | null
+  /** Booking-page intro heading + paragraph (null → built-in default). */
+  bookingPageTitle: string | null
+  bookingPageDescription: string | null
   /** Admin WhatsApp number that also receives booking alerts. */
   bookingAlertWhatsapp: string | null
   /** ISO-2 country — drives the WhatsApp phone placeholder + dial prefix. */
@@ -252,6 +255,9 @@ export default function SettingsPage() {
             saving={saving === "location"}
             onSave={(url) => update({ locationUrl: url })}
           />
+
+          {/* Booking-page intro text, editable per studio (Sveta 20.07.2026). */}
+          <BookingTextCard studio={studio} onSaved={loadStudio} />
 
           <WhatsAppActivationCard
             studio={studio}
@@ -531,6 +537,133 @@ function InboxLanguageCard({
           <span className="text-xs text-brand font-medium">{t("Saved ✓")}</span>
         )}
       </div>
+    </div>
+  )
+}
+
+// Booking-page intro text (heading + description), editable per studio.
+// Empty falls back to the built-in default with the studio's city. Different
+// studios show different text (Sveta 20.07.2026).
+function BookingTextCard({ studio, onSaved }: { studio: Studio; onSaved: () => void }) {
+  const t = useT()
+  const [title, setTitle] = useState(studio.bookingPageTitle ?? "")
+  const [desc, setDesc] = useState(studio.bookingPageDescription ?? "")
+  const [editing, setEditing] = useState(!studio.bookingPageTitle && !studio.bookingPageDescription)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    setTitle(studio.bookingPageTitle ?? "")
+    setDesc(studio.bookingPageDescription ?? "")
+    setEditing(!studio.bookingPageTitle && !studio.bookingPageDescription)
+  }, [studio.bookingPageTitle, studio.bookingPageDescription])
+
+  const dirty =
+    title.trim() !== (studio.bookingPageTitle ?? "").trim() ||
+    desc.trim() !== (studio.bookingPageDescription ?? "").trim()
+
+  const save = async () => {
+    if (!dirty) { setEditing(false); return }
+    setSaving(true)
+    setErr(null)
+    const res = await fetch("/api/admin/studio", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bookingPageTitle: title.trim() === "" ? null : title.trim(),
+        bookingPageDescription: desc.trim() === "" ? null : desc.trim(),
+      }),
+    })
+    setSaving(false)
+    if (res.ok) {
+      onSaved()
+      setEditing(false)
+    } else {
+      const e = await res.json().catch(() => ({}))
+      setErr(e.error ?? t("Failed to save"))
+    }
+  }
+
+  const hasCustom = !!(studio.bookingPageTitle || studio.bookingPageDescription)
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <Pencil size={16} className="text-brand" />
+          <h2 className="text-base font-semibold text-gray-900">{t("Booking page text")}</h2>
+        </div>
+        {hasCustom && !editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label={t("Edit booking page text")}
+            className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-50"
+          >
+            <Pencil size={16} />
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-gray-500 mb-4 max-w-md">
+        {t("The heading and description shown at the top of your public booking page. Leave empty to use the default text. Each studio can have its own.")}
+      </p>
+
+      {editing ? (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t("Heading")}</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={t("Stretching classes in your city")}
+              maxLength={160}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t("Description")}</label>
+            <textarea
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder={t("Describe your studio and classes…")}
+              rows={5}
+              maxLength={1200}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-y"
+            />
+          </div>
+          {err && <p className="text-xs text-red-500">{err}</p>}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
+            >
+              {saving ? t("Saving…") : t("Save")}
+            </button>
+            {hasCustom && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTitle(studio.bookingPageTitle ?? "")
+                  setDesc(studio.bookingPageDescription ?? "")
+                  setEditing(false)
+                }}
+                disabled={saving}
+                className="px-3 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 disabled:opacity-50"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <div className="text-sm font-semibold text-gray-900">{studio.bookingPageTitle}</div>
+          <div className="text-sm text-gray-600 whitespace-pre-line">{studio.bookingPageDescription}</div>
+        </div>
+      )}
     </div>
   )
 }

@@ -34,6 +34,11 @@ model Studio {
   // Google Maps (or any) link to the studio's physical location. Shown in the
   // client's WhatsApp booking confirmation so they can navigate to the studio.
   locationUrl   String?
+  // Booking-page intro text, editable per studio in admin Settings (Sveta
+  // 20.07.2026). Null → the built-in default ("Stretching classes in <city>"
+  // + the standard paragraph) is shown. Different studios differ.
+  bookingPageTitle       String?
+  bookingPageDescription String?
   // Admin's WhatsApp number to receive a copy of every booking alert (in
   // addition to the assigned trainer). Empty = admin copy off.
   bookingAlertWhatsapp String?
