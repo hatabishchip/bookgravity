@@ -60,6 +60,8 @@ type ConversationListItem = {
     createdAt: string
     /** The last word in this chat is the agent's - sidebar 🤖 badge. */
     fromAgent?: boolean
+    /** Delivery status of the last message - "failed" powers the sidebar ⚠ badge. */
+    status?: string
   } | null
 }
 
@@ -137,6 +139,9 @@ type ConversationDetail = {
   lastMessageAt: string
   messages: MessageRow[]
   suggestion?: AgentSuggestion | null
+  /** Likely the same client's REAL chat when this one is a dead (typo'd)
+   *  number - see the twin-detection in the detail API (20.07.2026). */
+  possibleTwin?: { id: string; clientName: string | null; clientPhone: string } | null
 }
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
@@ -763,27 +768,41 @@ function MessageBubble({
             </button>
           )}
 
-        {/* Failed send. We deliberately DON'T surface Meta's raw error
-            ("An unknown error has occurred." etc.) — it's noise to staff.
-            A neutral "Not delivered" plus a one-tap re-send covers the real
-            cause (a transient Meta outage on an open window). Retry is text
-            only; templates/media re-send needs the original params we don't
-            keep on the bubble. The 24h-window-closed case never reaches here
-            because the composer disables typing while the window is shut. */}
-        {m.status === "failed" && (
-          <div className="mt-1 flex items-center gap-2">
-            <span className="text-[10px] text-red-500">Not delivered</span>
-            {onRetry && m.type === "text" && !!(m.body && m.body.trim()) && (
-              <button
-                type="button"
-                onClick={() => onRetry(m)}
-                className="text-[10px] text-brand hover:underline"
-              >
-                ↻ Send again
-              </button>
-            )}
-          </div>
-        )}
+        {/* Failed send. Superseding the old "hide the raw error" decision
+            (20.07.2026, Xu Yao typo incident: Seni resent into a dead number
+            with no clue why): map the Meta error to a one-line human hint so
+            staff know WHAT happened and WHAT to do. Retry is text only;
+            templates/media re-send needs the original params we don't keep
+            on the bubble. */}
+        {m.status === "failed" && (() => {
+          const e = m.errorDetail ?? ""
+          const hint = /undeliverab|not.*whatsapp|invalid.*(number|recipient)/i.test(e)
+            ? "this number is not on WhatsApp - likely a typo in the number"
+            : /unknown error/i.test(e)
+              ? "temporary WhatsApp glitch - try Send again"
+              : /re-?engagement|24 ?h|window/i.test(e)
+                ? "the 24h window is closed - use a template"
+                : e
+                  ? e.slice(0, 90)
+                  : null
+          return (
+            <div className="mt-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-red-500">Not delivered</span>
+                {onRetry && m.type === "text" && !!(m.body && m.body.trim()) && (
+                  <button
+                    type="button"
+                    onClick={() => onRetry(m)}
+                    className="text-[10px] text-brand hover:underline"
+                  >
+                    ↻ Send again
+                  </button>
+                )}
+              </div>
+              {hint && <div className="text-[10px] text-red-400 mt-0.5">{hint}</div>}
+            </div>
+          )
+        })()}
 
         <div className="flex items-center justify-end gap-1 mt-1 -mr-1">
           <span className="text-[11px] text-gray-500 dark:text-[#8696A0] tabular-nums">
@@ -1972,8 +1991,13 @@ export default function Inbox({
                         </>
                       ) : (
                         <>
-                          {c.lastMessage?.direction === "OUTBOUND" && (
+                          {c.lastMessage?.direction === "OUTBOUND" && c.lastMessage?.status !== "failed" && (
                             <CheckCheck size={14} className="text-gray-400 dark:text-[#8696A0] flex-shrink-0" />
+                          )}
+                          {/* The last message did NOT reach the client - make it
+                              impossible to miss in the list (20.07.2026). */}
+                          {c.lastMessage?.direction === "OUTBOUND" && c.lastMessage?.status === "failed" && (
+                            <span className="flex-shrink-0 text-[11px]" title="Last message was not delivered">⚠️</span>
                           )}
                           {/* Agent handled this chat last - staff sees it at a glance (owner 16.07). */}
                           {c.lastMessage?.direction === "OUTBOUND" && c.lastMessage?.fromAgent && (
@@ -2234,6 +2258,23 @@ export default function Inbox({
         {/* WhatsApp-style composer row: + on the left, pill input with the
             textarea, white circular Send button on the right. Sits over the
             chat doodle background, no separate border. */}
+        {/* Dead-number banner (20.07.2026): this chat's number is not on
+            WhatsApp (typo'd booking) and the client's REAL chat was likely
+            found - one tap jumps there instead of resending into a void. */}
+        {detail?.possibleTwin && (
+          <div className="mx-2 mb-1 rounded-xl border-2 border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-700 px-3 py-2">
+            <div className="text-[12px] text-amber-800 dark:text-amber-200">
+              ⚠️ <span className="font-semibold">This number is not on WhatsApp</span> - messages here cannot be delivered. It looks like the same client is chatting from another number:
+            </div>
+            <button
+              type="button"
+              onClick={() => openConvo(detail.possibleTwin!.id)}
+              className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-amber-400 bg-white dark:bg-transparent px-3 py-1.5 text-[12px] font-medium text-amber-800 dark:text-amber-200 hover:bg-amber-100"
+            >
+              Open chat: {detail.possibleTwin.clientName ?? "client"} (+{detail.possibleTwin.clientPhone})
+            </button>
+          </div>
+        )}
         {/* AI sales agent suggestion (suggest-mode, owner 15.07). SAFE ->
             ready draft with Send / Edit / Dismiss; BOOKING/ESCALATE -> a
             "needs a human" note for the trainer. The agent NEVER sends by

@@ -322,13 +322,73 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ---- 2c. Transient-failure auto-retry (owner 20.07.2026) ------------------
+  // ~1 in 5 failed sends is a Meta "unknown error" transient that succeeds on
+  // a plain retry, but nobody was retrying - the client just never got the
+  // message. Retry ONCE per failed free-form text (any studio): window still
+  // open, failed within 2h, EventLog wa:retry row is the once-ever lock.
+  let retriedOk = 0
+  if (timeLeft() > 6_000) {
+    const failedMsgs = await prisma.whatsAppMessage.findMany({
+      where: {
+        direction: "OUTBOUND",
+        status: "failed",
+        type: "text",
+        templateName: null,
+        createdAt: { gte: new Date(Date.now() - 2 * 3600_000) },
+        errorDetail: { contains: "unknown" },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: {
+        conversation: {
+          select: { id: true, clientPhone: true, lastInboundAt: true, studioId: true },
+        },
+      },
+    })
+    for (const m of failedMsgs) {
+      if (timeLeft() <= 4_000) break
+      const convo = m.conversation
+      if (!convo || !m.body?.trim()) continue
+      // WA free-form only: IG/FB have their own paths; window must be open.
+      if (isIgConversationPhone(convo.clientPhone) || isFbConversationPhone(convo.clientPhone)) continue
+      if (!isInsideCustomerWindow(convo.lastInboundAt)) continue
+      const already = await prisma.eventLog.findFirst({
+        where: { scope: "wa:retry", message: m.id },
+        select: { id: true },
+      })
+      if (already) continue
+      // Claim BEFORE sending - a second failure must not loop forever.
+      await prisma.eventLog.create({ data: { scope: "wa:retry", message: m.id } })
+      const cfgStudio = await prisma.studio.findUnique({
+        where: { id: convo.studioId },
+        select: { whatsappPhoneNumberId: true, whatsappAccessToken: true },
+      })
+      const cfg = getConfigFor(cfgStudio)
+      if (!cfg) continue
+      const res = await sendWhatsAppText(convo.clientPhone, m.body, cfg)
+      if (res.ok) {
+        await appendOutboundMessage({
+          conversationId: convo.id,
+          type: "text",
+          body: m.body,
+          waMessageId: res.messageId,
+          status: "sent",
+          fromAgent: m.fromAgent ?? false,
+          fromTrainerId: m.fromTrainerId ?? null,
+        })
+        retriedOk++
+      }
+    }
+  }
+
   // ---- 3. Self-learning ----------------------------------------------------
   let lessons = 0
   if (timeLeft() > 8_000) {
     lessons = await extractLessons(5)
   }
 
-  const summary = { ok: true, checked, autoSent, failed, trainerPinged, igImported, fbImported, translatedQ, translatedA, lessons }
+  const summary = { ok: true, checked, autoSent, failed, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons }
   if (autoSent || failed || lessons || trainerPinged || igImported) void elog("agent:autopilot", "sweep", summary)
   return NextResponse.json(summary)
 }

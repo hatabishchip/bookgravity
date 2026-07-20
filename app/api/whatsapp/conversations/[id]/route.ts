@@ -95,6 +95,43 @@ export async function GET(
     )
   }
 
+  // Dead-number twin detection (Xu Yao incident 20.07.2026): a chat where the
+  // client has NEVER written and at least one outbound came back undeliverable
+  // is almost always a typo'd phone from a self-service booking. Look for the
+  // client's REAL chat: same studio, client has written, and the number differs
+  // by 1-2 digits (insert/delete/replace) or the name matches. Surfaced as a
+  // banner so staff stop resending into a void.
+  let possibleTwin: { id: string; clientName: string | null; clientPhone: string } | null = null
+  if (!convo.lastInboundAt && !convo.clientPhone.startsWith("ig:") && !convo.clientPhone.startsWith("fb:")) {
+    const undeliverable = messages.some(
+      (m) => m.direction === "OUTBOUND" && m.status === "failed" && /undeliverab/i.test(m.errorDetail ?? ""),
+    )
+    if (undeliverable) {
+      const editDistance = (a: string, b: string): number => {
+        if (Math.abs(a.length - b.length) > 2) return 3
+        const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
+        for (let j = 0; j <= b.length; j++) dp[0][j] = j
+        for (let i = 1; i <= a.length; i++)
+          for (let j = 1; j <= b.length; j++)
+            dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+        return dp[a.length][b.length]
+      }
+      const norm = (s: string | null) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim()
+      const candidates = await prisma.whatsAppConversation.findMany({
+        where: { studioId: ctx.studioId, id: { not: convo.id }, lastInboundAt: { not: null } },
+        orderBy: { lastMessageAt: "desc" },
+        take: 300,
+        select: { id: true, clientName: true, clientPhone: true },
+      })
+      possibleTwin =
+        candidates.find(
+          (c) =>
+            editDistance(c.clientPhone.replace(/\D/g, ""), convo.clientPhone.replace(/\D/g, "")) <= 2 ||
+            (norm(c.clientName).length > 2 && norm(c.clientName) === norm(convo.clientName)),
+        ) ?? null
+    }
+  }
+
   // Pending AI agent suggestion for this chat (suggest-mode) - shown as a
   // card above the composer. Rides along with every detail refresh so the
   // inbox needs no extra polling endpoint.
@@ -116,6 +153,7 @@ export async function GET(
     lastMessageAt: convo.lastMessageAt,
     messages,
     suggestion,
+    possibleTwin,
   })
 }
 

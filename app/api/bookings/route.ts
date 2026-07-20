@@ -171,28 +171,35 @@ export async function POST(request: NextRequest) {
         code: data.otpCode ?? "",
       })
       if (!otp.ok) {
-        // Fallback: if the last code we sent to this number came back as
-        // undeliverable (status "failed" - number isn't on WhatsApp), the client
-        // can never receive a code. Rather than trap them, let the booking
-        // through and mark it phone-unverified. The per-IP rate limit still caps
-        // abuse, and staff see the badge. Owner decision 06.07.2026.
+        // Owner decision 20.07.2026 (supersedes the 06.07 fallback): a client
+        // whose number cannot receive WhatsApp does NOT get to book online -
+        // the whole flow (ticket, reminders, cancellation) rides on WhatsApp,
+        // so an unreachable number produces a "blind" booking (see the Xu Yao
+        // typo incident, ticket 585). Only staff (trainer/admin) may create
+        // bookings without a WhatsApp code - they skip this branch via staffOk.
         const lastOtp = await prisma.bookingOtp.findFirst({
           where: { studioId, phone: normalizeOtpPhone(data.clientPhone) },
           orderBy: { createdAt: "desc" },
           select: { status: true },
         })
         if (lastOtp?.status === "failed") {
-          phoneUnverified = true
-        } else {
           return NextResponse.json(
             {
-              error: "Confirmation code is incorrect or expired. Please re-enter the code from WhatsApp.",
-              otpError: otp.error,
-              otpRemaining: otp.remaining,
+              error:
+                "This phone number cannot receive WhatsApp messages, and your booking confirmation and reminders arrive on WhatsApp. Please check the number and try again - or ask our team at the studio to book for you.",
+              otpUndeliverable: true,
             },
             { status: 401 },
           )
         }
+        return NextResponse.json(
+          {
+            error: "Confirmation code is incorrect or expired. Please re-enter the code from WhatsApp.",
+            otpError: otp.error,
+            otpRemaining: otp.remaining,
+          },
+          { status: 401 },
+        )
       }
     }
 

@@ -128,6 +128,9 @@ export async function GET(_req: NextRequest) {
             createdAt: c.messages[0].createdAt,
             // Sidebar 🤖 badge: the last word in this chat is the agent's.
             fromAgent: c.messages[0].fromAgent,
+            // Sidebar ⚠ badge: the last message failed to deliver - staff
+            // should look before the client is left waiting (20.07.2026).
+            status: c.messages[0].status,
           }
         : null,
       }

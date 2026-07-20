@@ -1736,20 +1736,13 @@ export default function BookingWidget({ services, studio, studioSlug }: {
                 the failed status arrived, we still show this and hide the code. */}
             {otpSent && !otpVerified && otpDelivery === "failed" && (
               <div className="rounded-xl border-2 border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                <div>
-                  <span className="font-semibold">⚠️ This number isn&apos;t on WhatsApp.</span>{" "}
-                  Change it above to a WhatsApp number and we&apos;ll send the code - or continue without confirmation.
-                </div>
-                {/* Escape hatch: a client whose number genuinely has no WhatsApp
-                    (e.g. some Chinese numbers) can still book. The booking is
-                    flagged phone-unverified so staff double-check contact. */}
-                <button
-                  type="button"
-                  onClick={() => { setOtpVerified(true); setOtpUnconfirmed(true); setOtpError("") }}
-                  className="mt-2 inline-flex items-center rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
-                >
-                  Continue without WhatsApp confirmation
-                </button>
+                {/* No escape hatch (owner decision 20.07.2026): the ticket,
+                    reminders and cancellation all arrive on WhatsApp, so a
+                    number WhatsApp can't reach means a blind booking (the
+                    Xu Yao typo incident). The client fixes the number; only
+                    staff can book without a code (their flow skips OTP). */}
+                <span className="font-semibold">⚠️ This number isn&apos;t on WhatsApp.</span>{" "}
+                Your booking confirmation and reminders arrive on WhatsApp, so please double-check the number above - one wrong digit is the usual cause. If the number has no WhatsApp, our team at the studio can book for you.
               </div>
             )}
 
