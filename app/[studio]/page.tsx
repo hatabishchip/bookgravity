@@ -65,31 +65,28 @@ export default async function StudioBookingPage({
 
   const studio = await prisma.studio.findFirst({
     where: { slug },
-    select: { id: true, name: true, slug: true, country: true, city: true, logoUrl: true, coverUrl: true, locationUrl: true, bookingPageTitle: true, bookingPageDescription: true, whatsappEnabled: true, currency: true, groupPrice: true, whatsappDisplayPhone: true },
+    select: { id: true, name: true, slug: true, country: true, city: true, logoUrl: true, coverUrl: true, locationUrl: true, bookingPageTitle: true, bookingPageDescription: true, whatsappEnabled: true, currency: true, groupPrice: true, privatePrice: true, kidsPrice: true, whatsappDisplayPhone: true },
   })
   if (!studio) notFound()
 
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const [services, allStudios, session, upcomingSlots] = await Promise.all([
+  const [services, allStudios, session] = await Promise.all([
     prisma.additionalService.findMany({
       where: { active: true, studioId: studio.id },
       orderBy: { name: "asc" },
     }),
     getAllStudios(),
     auth(),
-    // Real upcoming prices feed the content block + schema, so the page never
-    // advertises a number the calendar doesn't actually offer.
-    prisma.timeSlot.findMany({
-      where: { studioId: studio.id, publicVisible: true, date: { gte: todayStr }, price: { gt: 0 }, cancelledAt: null },
-      select: { classType: true, price: true },
-    }),
   ])
 
-  const minPrice = (type: string) => {
-    const prices = upcomingSlots.filter((s) => s.classType === type).map((s) => s.price)
-    return prices.length ? Math.min(...prices) : undefined
+  // Prices shown on the public page come from the studio's admin-editable price
+  // fields (admin → Services), so staff set them directly and the number here
+  // always matches what they configured. 0 / unset → hide that line.
+  const shownPrice = (n: number | null | undefined) => (n && n > 0 ? n : undefined)
+  const pricing = {
+    group: shownPrice(studio.groupPrice),
+    private: shownPrice(studio.privatePrice),
+    kids: shownPrice(studio.kidsPrice),
   }
-  const pricing = { group: minPrice("GROUP"), private: minPrice("PRIVATE"), kids: minPrice("KIDS") }
 
   const role = session?.user?.role
   // SUPER_ADMIN (platform owner) acts as an admin everywhere - proxy.ts lets
