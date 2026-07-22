@@ -419,7 +419,7 @@ function MessageBubble({
   onCopied,
   onImageClick,
   onRetry,
-  showBahasaToggle = false,
+  langToggle,
 }: {
   m: MessageRow
   role: "ADMIN" | "TRAINER"
@@ -428,11 +428,13 @@ function MessageBubble({
   translating?: boolean
   /** Re-send a failed message (text only). Shown as "↻ Send again". */
   onRetry?: (m: MessageRow) => void
-  /** Canggu trainers (Indonesian): show an Original/ID toggle on inbound client
-   *  text messages so they can read what the client wrote in Bahasa on demand.
-   *  Display-only - nothing is sent or stored. Only passed as true for INBOUND
-   *  text messages in the trainer's Canggu inbox. */
-  showBahasaToggle?: boolean
+  /** Per-message "Original / <lang>" reading toggle on inbound client text.
+   *  Canggu trainers (Indonesian) get {target:"id",label:"ID"}; Canggu admin
+   *  (Ukrainian owner) gets {target:"uk",label:"UA"}. Display-only - nothing is
+   *  sent or stored, and it forces the default view to the client's ORIGINAL
+   *  text (for admin this replaces the auto-EN translation on these messages).
+   *  Only passed for INBOUND text messages in the Canggu inbox. */
+  langToggle?: { target: string; label: string }
   onReact?: (messageId: string, emoji: string) => void
   /** Reactions only on CLIENT messages while the 24h window is open — a
    *  reaction outside the window never reaches the client (silent collision),
@@ -540,32 +542,35 @@ function MessageBubble({
   const hasTranslation =
     role === "ADMIN" &&
     !!m.translatedBody && m.translatedBody.trim() !== (m.body ?? "").trim()
-  // Canggu-trainer Bahasa toggle (display-only). `bahasaShown` flips the client
-  // message body between the original (default) and an on-demand Bahasa render.
-  const [bahasaShown, setBahasaShown] = useState(false)
-  const [bahasaText, setBahasaText] = useState<string | null>(null)
-  const [bahasaLoading, setBahasaLoading] = useState(false)
-  const showBahasa = useCallback(async () => {
-    setBahasaShown(true)
-    if (bahasaText != null || !m.body) return
-    setBahasaLoading(true)
+  // Per-message reading toggle (display-only). `altShown` flips the client
+  // message body between the original (default) and an on-demand translation
+  // into langToggle.target (Bahasa for trainers, Ukrainian for the admin).
+  const [altShown, setAltShown] = useState(false)
+  const [altText, setAltText] = useState<string | null>(null)
+  const [altLoading, setAltLoading] = useState(false)
+  const showAlt = useCallback(async () => {
+    setAltShown(true)
+    if (altText != null || !m.body || !langToggle) return
+    setAltLoading(true)
     try {
       const r = await fetch("/api/whatsapp/translate-preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: m.body, targetLang: "id" }),
+        body: JSON.stringify({ text: m.body, targetLang: langToggle.target }),
       })
       const j = await r.json()
-      setBahasaText(typeof j?.translated === "string" ? j.translated : m.body)
+      setAltText(typeof j?.translated === "string" ? j.translated : m.body)
     } catch {
-      setBahasaText(m.body)
+      setAltText(m.body)
     } finally {
-      setBahasaLoading(false)
+      setAltLoading(false)
     }
-  }, [bahasaText, m.body])
-  const baseText = hasTranslation ? m.translatedBody : m.body
+  }, [altText, m.body, langToggle])
+  // When the toggle is active, the default view is ALWAYS the client's original
+  // (for admin this replaces the auto-EN translation on these inbound messages).
+  const baseText = langToggle ? m.body : hasTranslation ? m.translatedBody : m.body
   const primaryText =
-    showBahasaToggle && bahasaShown ? (bahasaLoading && bahasaText == null ? "…" : (bahasaText ?? m.body)) : baseText
+    langToggle && altShown ? (altLoading && altText == null ? "…" : (altText ?? m.body)) : baseText
   const jumbo = isEmojiOnly(primaryText)
   const jumboScale = jumbo
     ? emojiCount(primaryText || "") <= 3
@@ -745,28 +750,29 @@ function MessageBubble({
           </div>
         )}
 
-        {/* Canggu-trainer Original/ID toggle (owner 22.07). Lets an Indonesian
-            trainer read the client's message in Bahasa without leaving the chat.
-            Display-only: nothing is sent or stored. Only shown for inbound text. */}
-        {showBahasaToggle && (
+        {/* Original / <lang> reading toggle (owner 22.07). Lets a Canggu trainer
+            read the client's message in Bahasa, or the Canggu admin in Ukrainian,
+            without leaving the chat. Display-only: nothing is sent or stored.
+            Only shown for inbound client text. */}
+        {langToggle && (
           <div className="mt-1 inline-flex rounded-full border border-gray-300 dark:border-white/20 overflow-hidden text-[10px] font-medium" role="radiogroup" aria-label="Message language">
             <button
               type="button"
               role="radio"
-              aria-checked={!bahasaShown}
-              onClick={() => setBahasaShown(false)}
-              className={`px-2 py-0.5 active:scale-95 ${!bahasaShown ? "bg-brand text-white" : "text-gray-600 dark:text-gray-300"}`}
+              aria-checked={!altShown}
+              onClick={() => setAltShown(false)}
+              className={`px-2 py-0.5 active:scale-95 ${!altShown ? "bg-brand text-white" : "text-gray-600 dark:text-gray-300"}`}
             >
               Original
             </button>
             <button
               type="button"
               role="radio"
-              aria-checked={bahasaShown}
-              onClick={() => void showBahasa()}
-              className={`px-2 py-0.5 active:scale-95 border-l border-gray-300 dark:border-white/20 ${bahasaShown ? "bg-brand text-white" : "text-gray-600 dark:text-gray-300"}`}
+              aria-checked={altShown}
+              onClick={() => void showAlt()}
+              className={`px-2 py-0.5 active:scale-95 border-l border-gray-300 dark:border-white/20 ${altShown ? "bg-brand text-white" : "text-gray-600 dark:text-gray-300"}`}
             >
-              ID
+              {langToggle.label}
             </button>
           </div>
         )}
@@ -776,7 +782,7 @@ function MessageBubble({
             detected language. For outbound this surfaces what the client
             actually received in their language; for inbound it surfaces
             what the client wrote before translation. */}
-        {hasTranslation && m.body && (
+        {hasTranslation && m.body && !langToggle && (
           <div
             className={cn(
               "mt-1 text-[11px] whitespace-pre-wrap break-words border-t pt-1",
@@ -812,7 +818,7 @@ function MessageBubble({
 
         {/* On-demand translate for client (inbound) messages — admin only.
             Hidden once a translation exists (it's already shown above). */}
-        {!isOut && role === "ADMIN" && onTranslate && !hasTranslation &&
+        {!isOut && role === "ADMIN" && onTranslate && !hasTranslation && !langToggle &&
           (m.type === "text" || m.type === "image" || m.type === "video") &&
           !!(m.body && m.body.trim()) && (
             <button
@@ -2314,12 +2320,15 @@ export default function Inbox({
                       onCopied={() => setCopiedAt(Date.now())}
                       onImageClick={setLightboxSrc}
                       onRetry={retryMessage}
-                      showBahasaToggle={
-                        role === "TRAINER" &&
+                      langToggle={
                         studioSlug === "canggu" &&
                         m.direction === "INBOUND" &&
                         m.type === "text" &&
                         !!(m.body && m.body.trim())
+                          ? role === "TRAINER"
+                            ? { target: "id", label: "ID" }
+                            : { target: "uk", label: "UA" }
+                          : undefined
                       }
                     />
                   ))}

@@ -15,12 +15,12 @@ export default async function AdminInboxPage() {
   const studioId = ctx.studioId
   const studio = await prisma.studio.findUnique({
     where: { id: studioId },
-    select: { whatsappEnabled: true },
+    select: { whatsappEnabled: true, slug: true },
   })
   if (!studio?.whatsappEnabled) redirect("/admin")
   return (
     <Suspense fallback={<div className="p-4 text-sm text-gray-400">Loading…</div>}>
-      <Inbox role="ADMIN" />
+      <Inbox role="ADMIN" studioSlug={studio.slug} />
     </Suspense>
   )
 }
