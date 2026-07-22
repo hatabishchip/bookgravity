@@ -135,11 +135,12 @@ ${METHOD_DEPTH}
 
 ANSWER RULES:
 - Answer EVERYTHING yourself, in ONE message. NEVER say "I'll ask the team", "a coach will contact you", "someone will follow up personally" - nobody else replies in this chat, and empty promises break trust.
-- THIS IS A MESSENGER, NOT EMAIL (owner 23.07). Answer ONLY what was asked - do not dump every fact you know. A normal reply is 1-3 short sentences, under 40 words. Health situations and "how does a first class go" may take up to 80-100 words. Never repeat facts already given earlier in this conversation.
-- Greet only in your FIRST message of a conversation. Mid-conversation replies start straight with the answer - no "Hi X!", no "Thanks for reaching out" again.
+- THIS IS A MESSENGER, NOT EMAIL (owner 23.07). Answer ONLY what was asked - do not dump every fact you know. A normal reply is 1-3 short sentences, under 40 words plus the greeting. Health situations and "how does a first class go" may take up to 80-100 words. Never repeat facts already given earlier in this conversation. Do not add adjacent facts the client did not ask about (payment methods, equipment, what to bring, class length) - one extra detail maximum when it truly helps.
+- Your FIRST reply of a conversation opens with a warm time-of-day greeting - "Good morning!" / "Good afternoon!" / "Good evening!" (Bali local time is given in the message) - then the answer. Mid-conversation replies skip greetings entirely and start straight with the answer - no "Hi X!", no "Thanks for reaching out" again.
+- Warm and inviting, never curt (owner 23.07): the facts stay short, but the delivery is kind - a soft welcoming touch is always appropriate ("we'd love to see you").
 - No fixed template - vary how replies start and end. End with a question ONLY when it is natural; most short answers need none.
 - Prices short and human: 300k, 250k, 1.3M IDR - never "300,000 IDR".
-- Links: at most ONE per message, and only when it directly serves the need (how to book -> booking link; where are you -> map link). Never send both links together; never attach a link "just in case".
+- Links: at most ONE per message, and only when it directly serves the need. Introduce the booking link as an invitation - "the schedule and booking are here: https://bookgravity.com" - never a bare URL dropped at the end. Never send both links together; never attach a link "just in case".
 - Explain the method through an image (gravity presses down - hanging stretches you; the disc is a sponge) at most ONCE per conversation, usually in the first pitch. Do not re-pitch the method in every reply.
 - Light emojis (0-2). ALWAYS write the draft in English (studio staff language shown to the trainer for review), regardless of the client's language or the thread history. The client automatically receives the reply translated into their own language (English/Russian/Bahasa/etc.) on send.
 
@@ -290,6 +291,14 @@ function parseClassification(raw: string): Classification | null {
   return null
 }
 
+// Bali wall-clock for the time-of-day greeting rule (owner 23.07).
+function baliTimeLine(): string {
+  const d = new Date(Date.now() + 8 * 3600_000)
+  const hh = d.getUTCHours()
+  const part = hh >= 5 && hh < 11 ? "morning" : hh >= 11 && hh < 17 ? "afternoon" : hh >= 17 && hh < 23 ? "evening" : "late night - still greet with Good evening"
+  return `Bali local time: ${String(hh).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")} (${part})`
+}
+
 // Live schedule context (owner 23.07): availability questions get FACTS
 // ("2 spots left tomorrow 11:00") instead of a bare "check the site" -
 // half of the BOOKING waits in the 10-day sample were availability asks.
@@ -329,7 +338,7 @@ export async function classifyForQa(
   message: string,
   clientStatus = "new lead (no bookings yet)",
 ): Promise<Classification | null> {
-  const userPrompt = `Client name: QA Test\nClient status: ${clientStatus}${await liveScheduleBlock()}\n\nConversation (oldest first):\nCLIENT: ${message}\n\nClassify the LAST client message and draft the reply per the rules.`
+  const userPrompt = `Client name: QA Test\nClient status: ${clientStatus}\n${baliTimeLine()}${await liveScheduleBlock()}\n\nConversation (oldest first):\nCLIENT: ${message}\n\nClassify the LAST client message and draft the reply per the rules.`
   const raw = await callLlm(await buildSystemPrompt(), userPrompt)
   if (!raw) return null
   return parseClassification(raw)
@@ -414,7 +423,7 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
 
     const scheduleBlock = await liveScheduleBlock()
 
-    const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}${scheduleBlock}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
+    const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}\n${baliTimeLine()}${scheduleBlock}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
 
     const raw = await callLlm(await buildSystemPrompt(), userPrompt)
     if (process.env.AGENT_DEBUG) console.log("[sales-agent] raw:", raw)
