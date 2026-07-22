@@ -6,14 +6,13 @@
 // NEVER touches dates, bookings, reschedules, payments, complaints or
 // medical topics: those become an escalation flag for the trainer instead.
 //
-// Model: Anthropic Claude when ANTHROPIC_API_KEY is present, else Gemini
-// Flash (the key already powering inbox translation). Every status change on
+// Model: Claude Sonnet 5 ONLY (owner 23.07) - no fallback models; failures
+// are logged to EventLog and the sweep retries. Every status change on
 // a suggestion is a future training signal (see agent/sales-agent-knowledge.md).
 import { prisma } from "@/lib/prisma"
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 const ANTHROPIC_MODEL = "claude-sonnet-5"
-const GEMINI_MODEL = "gemini-2.5-flash"
 
 // Living knowledge base (mirrored for humans in agent/sales-agent-knowledge.md).
 // Owner-taught lessons get appended here by the learning loop.
@@ -179,7 +178,18 @@ Respond ONLY with strict JSON, no markdown fence:
 type Classification = { category: "SAFE" | "BOOKING" | "ESCALATE" | "MEDICAL" | "BUSINESS"; draft?: string; reason?: string }
 
 async function callLlm(systemPrompt: string, userPrompt: string): Promise<string | null> {
-  if (process.env.ANTHROPIC_API_KEY) {
+  // Sonnet 5 ONLY (owner 23.07: "оставь только сонет, остальные отключай").
+  // The old Gemini -> Groq -> Cerebras fallback chain is removed: reply
+  // quality must never silently degrade to a weaker model. Resilience comes
+  // from an in-call retry (transients hit 2/16 in the QA run) plus the sweep
+  // itself retrying the inbound on its next pass. A hard Anthropic outage is
+  // logged loudly instead of masked.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn("[sales-agent] ANTHROPIC_API_KEY missing - agent cannot answer")
+    return null
+  }
+  let lastErr = ""
+  for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const r = await fetch(ANTHROPIC_URL, {
         method: "POST",
@@ -199,76 +209,23 @@ async function callLlm(systemPrompt: string, userPrompt: string): Promise<string
         const j = (await r.json()) as { content?: { text?: string }[] }
         const t = j.content?.[0]?.text
         if (t) return t
+        lastErr = "empty content"
+      } else {
+        lastErr = `HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`
+        // 4xx (bad key / out of credit) won't heal on retry - fail fast & loud.
+        if (r.status >= 400 && r.status < 500 && r.status !== 429) break
       }
-    } catch {}
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : String(err)
+    }
+    if (attempt === 1) await new Promise((res) => setTimeout(res, 1500))
   }
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-            generationConfig: { temperature: 0.4, maxOutputTokens: 900, thinkingConfig: { thinkingBudget: 0 } },
-          }),
-        },
-      )
-      if (r.ok) {
-        const j = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
-        const t = j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("")
-        if (t) return t
-        if (process.env.AGENT_DEBUG) console.log("[sales-agent] gemini empty:", JSON.stringify(j).slice(0, 400))
-      } else if (process.env.AGENT_DEBUG) {
-        console.log("[sales-agent] gemini HTTP", r.status, (await r.text()).slice(0, 300))
-      }
-    } catch {}
-  }
-  // Fallback chain (both OpenAI-compatible): keeps the agent talking when the
-  // Gemini free-tier daily quota runs out (429 incident 16.07 - the agent went
-  // silent mid-day; Groq's daily token pool also drained the same day, hence
-  // TWO fallbacks). Gemini stays primary for quality.
-  const openAiCompat: { name: string; url: string; key?: string; model: string }[] = [
-    {
-      name: "groq",
-      url: "https://api.groq.com/openai/v1/chat/completions",
-      key: process.env.GROQ_API_KEY,
-      model: "llama-3.3-70b-versatile",
-    },
-    {
-      name: "cerebras",
-      url: "https://api.cerebras.ai/v1/chat/completions",
-      key: process.env.CEREBRAS_API_KEY,
-      model: "gpt-oss-120b",
-    },
-  ]
-  for (const p of openAiCompat) {
-    if (!p.key) continue
-    try {
-      const r = await fetch(p.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${p.key}` },
-        body: JSON.stringify({
-          model: p.model,
-          temperature: 0.4,
-          max_tokens: 900,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-      })
-      if (r.ok) {
-        const j = (await r.json()) as { choices?: { message?: { content?: string } }[] }
-        const t = j.choices?.[0]?.message?.content
-        if (t) return t
-      } else if (process.env.AGENT_DEBUG) {
-        console.log(`[sales-agent] ${p.name} HTTP`, r.status, (await r.text()).slice(0, 300))
-      }
-    } catch {}
-  }
+  // Loud trail: the agent has NO fallback model - staff must see why it went
+  // quiet (e.g. Anthropic credit ran out) instead of a silent client queue.
+  try {
+    const { elogError } = await import("@/lib/elog")
+    void elogError("sales-agent", "anthropic call failed (no fallback by owner rule)", { error: lastErr })
+  } catch {}
   return null
 }
 
