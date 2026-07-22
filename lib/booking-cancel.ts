@@ -8,6 +8,7 @@ import { restoreMembershipClass } from "@/lib/membership"
 import { isStudioWhatsAppEnabled } from "@/lib/whatsapp-feature"
 import { getConfigFor, sendWhatsAppTemplate } from "@/lib/whatsapp-cloud"
 import { upsertConversation, appendOutboundMessage } from "@/lib/whatsapp-conversation"
+import { translateAndDetect } from "@/lib/translate"
 import { syncSlotToGoogle } from "@/lib/google-calendar"
 
 // Mirrors the approved no-variable UTILITY template `booking_canceled`
@@ -184,20 +185,31 @@ export async function afterStaffCancellation(booking: {
   }
 }
 
+// Client-facing no-show note (owner approved 23.07.2026). Sent as {{2}} of
+// the admin_message template ({{1}} carries the name), so it reaches clients
+// outside the 24h window too. Auto-translated to the client's language.
+const NO_SHOW_TEXT =
+  "We missed you at class today. No worries - it happens. " +
+  "Want to pick a new time? Book here: bookgravity.com. See you soon!"
+
 /**
  * Run after a booking row is marked NO_SHOW by staff (Seni 22.07: late
- * clients who never returned). Unlike a cancel this is SILENT - the client
- * gets no cancellation notice (they simply didn't come; a warm "your booking
- * was cancelled" template reads wrong and re-opens the conversation). A
- * membership class is still returned - owner policy 21.06.2026: a no-show
- * must not burn the pass. Google Calendar is re-synced because the roster
- * shrank (an event with zero live bookings disappears, Sveta's rule).
- * Best-effort: never throws.
+ * clients who never returned). Unlike a cancel there is NO cancellation
+ * template (a warm "your booking was cancelled" reads wrong after a silent
+ * no-show) - instead the client gets a soft "we missed you, want to rebook?"
+ * note (owner approved 23.07). A membership class is still returned - owner
+ * policy 21.06.2026: a no-show must not burn the pass. Google Calendar is
+ * re-synced because the roster shrank (an event with zero live bookings
+ * disappears, Sveta's rule). Best-effort: never throws.
  */
 export async function afterStaffNoShow(booking: {
   id: string
+  clientName: string
+  clientPhone: string
   membershipId: string | null
   slotId?: string
+  slot: { studioId: string }
+  noShowByTrainerId?: string | null
 }): Promise<void> {
   try {
     if (booking.membershipId) {
@@ -212,6 +224,64 @@ export async function afterStaffNoShow(booking: {
   } catch (err) {
     console.error("[booking-cancel] no-show membership restore failed:", err)
   }
+
+  // Soft "we missed you" note. WhatsApp numbers only (bookings never carry
+  // ig:/fb: pseudo-phones, but guard anyway).
+  try {
+    const studioId = booking.slot.studioId
+    if (
+      (await isStudioWhatsAppEnabled(studioId)) &&
+      !booking.clientPhone.includes(":")
+    ) {
+      const studio = await prisma.studio.findUnique({
+        where: { id: studioId },
+        select: { whatsappPhoneNumberId: true, whatsappAccessToken: true },
+      })
+      const cfg = getConfigFor(studio ?? { whatsappPhoneNumberId: null, whatsappAccessToken: null })
+      if (cfg) {
+        const convo = await upsertConversation({
+          studioId,
+          clientPhone: booking.clientPhone,
+          clientName: booking.clientName,
+        })
+        // Deliver in the client's language (same mechanism as every other
+        // outbound path); English original stays in `body` for the inbox.
+        let textOut = NO_SHOW_TEXT
+        let translatedBody: string | null = null
+        const clientLang = convo.clientLanguage
+        if (clientLang && clientLang !== "en") {
+          const t = await translateAndDetect({ text: NO_SHOW_TEXT, targetLang: clientLang })
+          if (t.ok && t.translated.trim() && t.sourceLang !== clientLang) {
+            textOut = t.translated.trim()
+            translatedBody = textOut
+          }
+        }
+        const templateName = process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message"
+        const firstName = (booking.clientName ?? "").trim().split(/\s+/)[0] || "there"
+        const r = await sendWhatsAppTemplate({
+          toPhone: booking.clientPhone,
+          templateName,
+          languageCode: process.env.WHATSAPP_TEMPLATE_LANG || "en",
+          variables: [firstName, textOut],
+          config: cfg,
+        })
+        await appendOutboundMessage({
+          conversationId: convo.id,
+          type: "template",
+          body: NO_SHOW_TEXT,
+          translatedBody,
+          templateName,
+          waMessageId: r.ok ? r.messageId : null,
+          status: r.ok ? "sent" : "failed",
+          errorDetail: r.ok ? null : r.error,
+          fromTrainerId: booking.noShowByTrainerId ?? null,
+        })
+      }
+    }
+  } catch (err) {
+    console.error("[booking-cancel] no-show note failed:", err)
+  }
+
   if (booking.slotId) {
     await syncSlotToGoogle(booking.slotId).catch(() => {})
   }

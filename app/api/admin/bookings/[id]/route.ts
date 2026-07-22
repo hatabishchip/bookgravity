@@ -183,8 +183,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (data.status === "NO_SHOW" && existing.status === "CONFIRMED") {
     await afterStaffNoShow({
       id: booking.id,
+      clientName: booking.clientName,
+      clientPhone: booking.clientPhone,
       membershipId: booking.membershipId,
       slotId: booking.slotId,
+      slot: { studioId: ctx.studioId },
     })
   }
 
