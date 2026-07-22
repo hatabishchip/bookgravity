@@ -419,6 +419,7 @@ function MessageBubble({
   onCopied,
   onImageClick,
   onRetry,
+  showBahasaToggle = false,
 }: {
   m: MessageRow
   role: "ADMIN" | "TRAINER"
@@ -427,6 +428,11 @@ function MessageBubble({
   translating?: boolean
   /** Re-send a failed message (text only). Shown as "↻ Send again". */
   onRetry?: (m: MessageRow) => void
+  /** Canggu trainers (Indonesian): show an Original/ID toggle on inbound client
+   *  text messages so they can read what the client wrote in Bahasa on demand.
+   *  Display-only - nothing is sent or stored. Only passed as true for INBOUND
+   *  text messages in the trainer's Canggu inbox. */
+  showBahasaToggle?: boolean
   onReact?: (messageId: string, emoji: string) => void
   /** Reactions only on CLIENT messages while the 24h window is open — a
    *  reaction outside the window never reaches the client (silent collision),
@@ -534,7 +540,32 @@ function MessageBubble({
   const hasTranslation =
     role === "ADMIN" &&
     !!m.translatedBody && m.translatedBody.trim() !== (m.body ?? "").trim()
-  const primaryText = hasTranslation ? m.translatedBody : m.body
+  // Canggu-trainer Bahasa toggle (display-only). `bahasaShown` flips the client
+  // message body between the original (default) and an on-demand Bahasa render.
+  const [bahasaShown, setBahasaShown] = useState(false)
+  const [bahasaText, setBahasaText] = useState<string | null>(null)
+  const [bahasaLoading, setBahasaLoading] = useState(false)
+  const showBahasa = useCallback(async () => {
+    setBahasaShown(true)
+    if (bahasaText != null || !m.body) return
+    setBahasaLoading(true)
+    try {
+      const r = await fetch("/api/whatsapp/translate-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: m.body, targetLang: "id" }),
+      })
+      const j = await r.json()
+      setBahasaText(typeof j?.translated === "string" ? j.translated : m.body)
+    } catch {
+      setBahasaText(m.body)
+    } finally {
+      setBahasaLoading(false)
+    }
+  }, [bahasaText, m.body])
+  const baseText = hasTranslation ? m.translatedBody : m.body
+  const primaryText =
+    showBahasaToggle && bahasaShown ? (bahasaLoading && bahasaText == null ? "…" : (bahasaText ?? m.body)) : baseText
   const jumbo = isEmojiOnly(primaryText)
   const jumboScale = jumbo
     ? emojiCount(primaryText || "") <= 3
@@ -714,6 +745,32 @@ function MessageBubble({
           </div>
         )}
 
+        {/* Canggu-trainer Original/ID toggle (owner 22.07). Lets an Indonesian
+            trainer read the client's message in Bahasa without leaving the chat.
+            Display-only: nothing is sent or stored. Only shown for inbound text. */}
+        {showBahasaToggle && (
+          <div className="mt-1 inline-flex rounded-full border border-gray-300 dark:border-white/20 overflow-hidden text-[10px] font-medium" role="radiogroup" aria-label="Message language">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!bahasaShown}
+              onClick={() => setBahasaShown(false)}
+              className={`px-2 py-0.5 active:scale-95 ${!bahasaShown ? "bg-brand text-white" : "text-gray-600 dark:text-gray-300"}`}
+            >
+              Original
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={bahasaShown}
+              onClick={() => void showBahasa()}
+              className={`px-2 py-0.5 active:scale-95 border-l border-gray-300 dark:border-white/20 ${bahasaShown ? "bg-brand text-white" : "text-gray-600 dark:text-gray-300"}`}
+            >
+              ID
+            </button>
+          </div>
+        )}
+
         {/* Translation footer: if the server translated this message we
             show the original underneath in muted text, labelled with the
             detected language. For outbound this surfaces what the client
@@ -854,8 +911,12 @@ export default function Inbox({
   embedded = false,
   onClose,
   initialSelectedId = null,
+  studioSlug,
 }: {
   role: "ADMIN" | "TRAINER"
+  /** Slug of the logged-in staff member's studio. Used to gate the Canggu-only
+   *  trainer Original/ID message toggle (Indonesian trainers). */
+  studioSlug?: string
   /** When true, the Inbox tracks its own selection in component state and
    *  doesn't write to the URL. Use this when the Inbox lives inside a modal
    *  that may be closed/reopened independently of navigation. */
@@ -2253,6 +2314,13 @@ export default function Inbox({
                       onCopied={() => setCopiedAt(Date.now())}
                       onImageClick={setLightboxSrc}
                       onRetry={retryMessage}
+                      showBahasaToggle={
+                        role === "TRAINER" &&
+                        studioSlug === "canggu" &&
+                        m.direction === "INBOUND" &&
+                        m.type === "text" &&
+                        !!(m.body && m.body.trim())
+                      }
                     />
                   ))}
                 </div>

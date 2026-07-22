@@ -12,12 +12,12 @@ export default async function TrainerInboxPage() {
   const studioId = ctx.studioId
   const studio = await prisma.studio.findUnique({
     where: { id: studioId },
-    select: { whatsappEnabled: true },
+    select: { whatsappEnabled: true, slug: true },
   })
   if (!studio?.whatsappEnabled) redirect("/trainer")
   return (
     <Suspense fallback={<PetalSpinner />}>
-      <Inbox role="TRAINER" />
+      <Inbox role="TRAINER" studioSlug={studio.slug} />
     </Suspense>
   )
 }
