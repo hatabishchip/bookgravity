@@ -200,16 +200,24 @@ async function callLlm(systemPrompt: string, userPrompt: string): Promise<string
         },
         body: JSON.stringify({
           model: ANTHROPIC_MODEL,
-          max_tokens: 700,
+          // 700 was too tight: a reasoning block could eat the budget and
+          // leave no text at all ("empty content" storm, 22.07 18:00).
+          max_tokens: 2000,
           system: systemPrompt,
           messages: [{ role: "user", content: userPrompt }],
         }),
       })
       if (r.ok) {
-        const j = (await r.json()) as { content?: { text?: string }[] }
-        const t = j.content?.[0]?.text
+        const j = (await r.json()) as {
+          content?: { type?: string; text?: string }[]
+          stop_reason?: string
+        }
+        // Take the first TEXT block - content[0] is not guaranteed to be the
+        // answer (a reasoning block can come first).
+        const t = j.content?.find((c) => c.type === "text" && c.text?.trim())?.text
+          ?? j.content?.map((c) => c.text ?? "").join("").trim()
         if (t) return t
-        lastErr = "empty content"
+        lastErr = `empty content (stop_reason=${j.stop_reason ?? "?"}, blocks=${j.content?.map((c) => c.type).join(",") ?? "none"})`
       } else {
         lastErr = `HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`
         // 4xx (bad key / out of credit) won't heal on retry - fail fast & loud.
