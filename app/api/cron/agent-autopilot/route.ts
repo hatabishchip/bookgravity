@@ -7,7 +7,7 @@ import {
   isInsideCustomerWindow,
   markConversationHandled,
 } from "@/lib/whatsapp-conversation"
-import { generateAgentSuggestion, extractLessons, isNewClient, FULL_AUTONOMY } from "@/lib/sales-agent"
+import { generateAgentSuggestion, extractLessons, FULL_AUTONOMY } from "@/lib/sales-agent"
 import { forwardClientReplyToTrainer } from "@/lib/whatsapp-messages"
 import { syncInstagramThreads, sendInstagramText, getIgToken, isIgConversationPhone } from "@/lib/instagram"
 import { syncFacebookThreads, sendFacebookText, getFbPageToken, isFbConversationPhone } from "@/lib/facebook"
@@ -132,6 +132,13 @@ export async function GET(req: NextRequest) {
   }
 
   // ---- 1. Auto-send SAFE drafts -------------------------------------------
+  // Self-heal: a sweep that crashed mid-send can strand a suggestion in the
+  // transient "sending" state - release anything older than 5 minutes.
+  await prisma.agentSuggestion.updateMany({
+    where: { status: "sending", createdAt: { lt: new Date(Date.now() - 5 * 60_000) } },
+    data: { status: "pending" },
+  })
+
   const convos = await prisma.whatsAppConversation.findMany({
     where: {
       studioId: studio.id,
@@ -146,6 +153,7 @@ export async function GET(req: NextRequest) {
       lastInboundAt: true,
       pendingCancelBookingId: true,
       assignedTrainerId: true,
+      clientLanguage: true,
     },
   })
 
@@ -183,14 +191,14 @@ export async function GET(req: NextRequest) {
       await notifyTrainer(convo, sug.id, lastMsg.body).catch((err) =>
         console.warn("[autopilot] trainer notify failed:", err),
       )
-      // BOOKING bridge (owner 17.07): NEW clients (no bookings under their
-      // phone; all IG/FB leads) get one auto "book at bookgravity.com, a coach
-      // will follow up" reply per conversation, so nobody waits in silence.
-      // Returning clients stay coach-only. ESCALATE never auto-answers.
+      // BOOKING bridge (owner 17.07; widened to ALL clients 22.07 after the
+      // Yao case - 4 drafts expired while a returning client waited in
+      // silence): every client with a BOOKING question gets one auto "book at
+      // bookgravity.com, a coach will follow up" reply per conversation, so
+      // nobody waits in silence. ESCALATE never auto-answers.
       const bridgeable =
         sug.category === "BOOKING" &&
         !!sug.draft?.trim() &&
-        (await isNewClient(convo.clientPhone)) &&
         (await prisma.agentSuggestion.count({
           where: { conversationId: convo.id, category: "BOOKING", status: "auto_sent" },
         })) === 0
@@ -200,34 +208,71 @@ export async function GET(req: NextRequest) {
 
     const draft = sug.draft.trim()
     const windowOpen = isInsideCustomerWindow(convo.lastInboundAt)
+
+    // Channel pre-checks BEFORE the concurrency claim below, so a skipped
+    // send can never strand a suggestion in the transient "sending" state.
+    // IG/FB have no template fallback - outside the 24h window the pending
+    // suggestion simply stays for the trainer.
+    const isIg = isIgConversationPhone(convo.clientPhone)
+    const isFb = isFbConversationPhone(convo.clientPhone)
+    let igToken: string | null = null
+    let fbToken: string | null = null
+    if (isIg) {
+      if (!windowOpen) continue
+      igToken = await getIgToken()
+      if (!igToken) continue
+    } else if (isFb) {
+      if (!windowOpen) continue
+      fbToken = getFbPageToken()
+      if (!fbToken) continue
+    }
+
+    // Concurrency claim: two schedulers may fire this sweep at once (Hermes
+    // cron + Vercel cron backup). Only the sweep that flips pending->sending
+    // owns the send; the loser skips. Reverted to pending on failure below so
+    // the trainer card survives a failed delivery.
+    const claimed = await prisma.agentSuggestion.updateMany({
+      where: { id: sug.id, status: "pending" },
+      data: { status: "sending" },
+    })
+    if (claimed.count === 0) continue
+
+    // Drafts are always English (staff review language, 3e2c2bc) - deliver in
+    // the client's detected language, mirroring the staff send path in
+    // conversations/[id]/messages/route.ts.
+    let textOut = draft
+    let translatedBody: string | null = null
+    const clientLang = convo.clientLanguage
+    if (clientLang && clientLang !== "en") {
+      const t = await translateAndDetect({ text: draft, targetLang: clientLang })
+      if (t.ok && t.translated.trim() && t.sourceLang !== clientLang) {
+        textOut = t.translated.trim()
+        translatedBody = textOut
+      } else if (!t.ok) {
+        console.warn("[autopilot] outbound translate failed:", t.error)
+      }
+    }
     let ok = false
     let waMessageId: string | null = null
     let errorDetail: string | null = null
     let sentType = "text"
     let templateName: string | null = null
 
-    // Instagram thread: reply via the IG Graph API. Only inside the 24h
-    // messaging window (IG has no template fallback) - otherwise the pending
-    // suggestion simply stays for the trainer.
-    if (isIgConversationPhone(convo.clientPhone)) {
-      if (!windowOpen) continue
-      const igToken = await getIgToken()
-      if (!igToken) continue
-      const res = await sendInstagramText(convo.clientPhone.slice(3), draft, igToken)
+    // Instagram thread: reply via the IG Graph API (window/token verified in
+    // the pre-checks above).
+    if (isIg) {
+      const res = await sendInstagramText(convo.clientPhone.slice(3), textOut, igToken!)
       ok = res.ok
       waMessageId = res.ok ? res.messageId : null
       errorDetail = res.ok ? null : res.error
-    } else if (isFbConversationPhone(convo.clientPhone)) {
+    } else if (isFb) {
       // Facebook Messenger: same 24h rule, no template fallback.
-      if (!windowOpen) continue
-      const fbToken = getFbPageToken()
-      if (!fbToken) continue
-      const res = await sendFacebookText(convo.clientPhone.slice(3), draft, fbToken)
+      const res = await sendFacebookText(convo.clientPhone.slice(3), textOut, fbToken!)
       ok = res.ok
       waMessageId = res.ok ? res.messageId : null
       errorDetail = res.ok ? null : res.error
     } else if (windowOpen) {
-      const res = await sendWhatsAppText(convo.clientPhone, draft, waConfig)
+      const res = await sendWhatsAppText(convo.clientPhone, textOut, waConfig)
       ok = res.ok
       waMessageId = res.ok ? res.messageId : null
       errorDetail = res.ok ? null : res.error
@@ -241,7 +286,7 @@ export async function GET(req: NextRequest) {
         toPhone: convo.clientPhone,
         templateName,
         languageCode: process.env.WHATSAPP_TEMPLATE_LANG || "en",
-        variables: [firstName, draft],
+        variables: [firstName, textOut],
         config: waConfig,
       })
       ok = res.ok
@@ -252,7 +297,11 @@ export async function GET(req: NextRequest) {
     await appendOutboundMessage({
       conversationId: convo.id,
       type: sentType,
+      // Staff-path shape: body = the English draft, translatedBody = what the
+      // client actually received (inbox bubble shows both).
       body: draft,
+      translatedBody,
+      detectedLang: translatedBody ? "en" : null,
       templateName,
       waMessageId,
       status: ok ? "sent" : "failed",
@@ -274,6 +323,11 @@ export async function GET(req: NextRequest) {
       await markConversationHandled(convo.id)
     } else {
       failed++
+      // Release the concurrency claim so the trainer card stays actionable.
+      await prisma.agentSuggestion.updateMany({
+        where: { id: sug.id, status: "sending" },
+        data: { status: "pending" },
+      })
       void elogError("agent:autopilot", "auto-send failed", {
         conversationId: convo.id,
         error: errorDetail,
@@ -393,6 +447,8 @@ export async function GET(req: NextRequest) {
   }
 
   const summary = { ok: true, checked, autoSent, failed, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons }
-  if (autoSent || failed || lessons || trainerPinged || igImported) void elog("agent:autopilot", "sweep", summary)
+  // Always log - quiet sweeps included. This row is the liveness heartbeat the
+  // sweep-watcher reads; gaps in it mean the cron genuinely did not complete.
+  void elog("agent:autopilot", "sweep", summary)
   return NextResponse.json(summary)
 }

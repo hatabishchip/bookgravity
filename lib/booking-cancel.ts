@@ -185,6 +185,39 @@ export async function afterStaffCancellation(booking: {
 }
 
 /**
+ * Run after a booking row is marked NO_SHOW by staff (Seni 22.07: late
+ * clients who never returned). Unlike a cancel this is SILENT - the client
+ * gets no cancellation notice (they simply didn't come; a warm "your booking
+ * was cancelled" template reads wrong and re-opens the conversation). A
+ * membership class is still returned - owner policy 21.06.2026: a no-show
+ * must not burn the pass. Google Calendar is re-synced because the roster
+ * shrank (an event with zero live bookings disappears, Sveta's rule).
+ * Best-effort: never throws.
+ */
+export async function afterStaffNoShow(booking: {
+  id: string
+  membershipId: string | null
+  slotId?: string
+}): Promise<void> {
+  try {
+    if (booking.membershipId) {
+      await restoreMembershipClass(booking.membershipId)
+      // Same one-shot guard as the cancel path: clear the link so a later
+      // edit can't restore the same class twice.
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { membershipId: null },
+      })
+    }
+  } catch (err) {
+    console.error("[booking-cancel] no-show membership restore failed:", err)
+  }
+  if (booking.slotId) {
+    await syncSlotToGoogle(booking.slotId).catch(() => {})
+  }
+}
+
+/**
  * Restore membership classes for a batch of bookings that are about to be
  * hard-deleted together with their slot (admin deletes a class). Without this
  * a membership-paid client silently loses the class forever.

@@ -3,6 +3,9 @@
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 10
+    },
+    "app/api/cron/agent-autopilot/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -13,6 +16,10 @@
     {
       "path": "/api/cron/db-backup",
       "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/agent-autopilot",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

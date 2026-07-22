@@ -92,12 +92,13 @@ function CopyButton({ value }: { value: string }) {
 type StudioService = { id: string; name: string; price: number; requiresInversionClearance?: boolean }
 
 function BookingDetails({
-  booking, isUpdating, onUpdate, onCancel, localCtx, services, onToggleService, onSetServiceMethod,
+  booking, isUpdating, onUpdate, onCancel, onNoShow, localCtx, services, onToggleService, onSetServiceMethod,
 }: {
   booking: Booking
   isUpdating: boolean
   onUpdate: (data: Record<string, string | boolean>) => Promise<void> | void
   onCancel: () => void
+  onNoShow: () => void
   localCtx: { country: string | null; localPrice: number }
   services: StudioService[]
   onToggleService: (bookingId: string, serviceId: string, currentlyOn: boolean) => Promise<void>
@@ -310,6 +311,15 @@ function BookingDetails({
           client has paid for the class (a paid booking can't be cancelled here). */}
       {booking.paymentStatus !== "PAID" && (
         <div className="flex justify-end items-center gap-2 pt-1">
+          <button
+            type="button"
+            disabled={isUpdating}
+            onClick={onNoShow}
+            title={t("Client didn't come - close quietly, no message")}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-amber-50 text-amber-600 hover:bg-amber-100 active:scale-95 transition disabled:opacity-50"
+          >
+            {t("No-show")}
+          </button>
           <button
             type="button"
             disabled={isUpdating}
@@ -551,6 +561,29 @@ export default function BookingsPage() {
     }
   }
 
+  // No-show - quiet close (no client message, membership class returned).
+  const noShowBooking = async (id: string, name: string) => {
+    const cleanName = name.replace(/\s*\(\d+\/\d+\)$/, "")
+    if (!confirm(t("Mark {name} as no-show? The client gets no message; a membership class (if used) is returned.", { name: cleanName }))) return
+    setBookings((prev) => prev.filter((b) => b.id !== id))
+    setExpandedId(null)
+    try {
+      const res = await fetch(`/api/admin/bookings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "NO_SHOW" }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        alert(e.error ?? t("Couldn't update the booking. Please try again."))
+        fetchBookings()
+      }
+    } catch {
+      alert(t("Network error - couldn't update the booking. Please try again."))
+      fetchBookings()
+    }
+  }
+
   // Date-range bounds (studio-local class dates as yyyy-MM-dd strings).
   const todayStr = format(new Date(), "yyyy-MM-dd")
   const tomorrowStr = format(addDays(new Date(), 1), "yyyy-MM-dd")
@@ -569,7 +602,7 @@ export default function BookingsPage() {
       b.clientName.toLowerCase().includes(search.toLowerCase()) ||
       b.clientPhone.includes(search)) &&
     inRange(b.slot.date) &&
-    (!unpaidOnly || (b.paymentStatus !== "PAID" && b.status !== "CANCELLED"))
+    (!unpaidOnly || (b.paymentStatus !== "PAID" && b.status !== "CANCELLED" && b.status !== "NO_SHOW"))
   )
 
   const RANGES: { value: typeof range; label: string }[] = [
@@ -776,6 +809,7 @@ export default function BookingsPage() {
                       isUpdating={updating === b.id}
                       onUpdate={(data) => updateBooking(b.id, data)}
                       onCancel={() => cancelBooking(b.id, b.clientName)}
+                      onNoShow={() => noShowBooking(b.id, b.clientName)}
                       localCtx={localCtx}
                       services={services}
                       onToggleService={toggleBookingService}

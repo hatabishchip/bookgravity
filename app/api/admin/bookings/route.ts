@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     where: {
       // Cancelled bookings must not show up in the Bookings list (or the
       // Schedule client lists) — otherwise a cancel looks like it did nothing.
-      status: { not: "CANCELLED" },
+      status: { notIn: ["CANCELLED", "NO_SHOW"] },
       slot: {
         studioId: ctx.studioId,
         // No explicit date → rolling window (60 days back + all future):

@@ -559,6 +559,36 @@ export default function TrainerSchedulePage() {
     }
   }
 
+  // No-show (Seni 22.07: late clients who never returned): closes the booking
+  // QUIETLY - no WhatsApp goes to the client (a warm cancel notice reads wrong
+  // after a silent no-show), a membership class (if used) is still returned
+  // (owner policy 21.06: a no-show must not burn the pass), and the booking
+  // drops from the roster / unpaid nag / salary exactly like a cancel.
+  const noShowBooking = async (booking: Booking): Promise<boolean> => {
+    if (!confirm(`Mark ${booking.clientName} as no-show? The booking closes quietly - the client gets NO message. A membership class (if used) returns to the client.`)) return false
+    setSyncingIds((prev) => new Set(prev).add(booking.id))
+    try {
+      const res = await fetch(`/api/trainer/bookings/${booking.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "NO_SHOW" }),
+      })
+      if (!res.ok) {
+        alert("Couldn't mark this booking as no-show. Please try again.")
+        return false
+      }
+      if (selectedSlot) fetchBookingsForSlot(selectedSlot.id)
+      refreshPending()
+      fetchSalary()
+      return true
+    } catch {
+      alert("Couldn't mark this booking as no-show. Please try again.")
+      return false
+    } finally {
+      setSyncingIds((prev) => { const n = new Set(prev); n.delete(booking.id); return n })
+    }
+  }
+
   // Price tier (Indonesia only): the coach picks Full / Member / Local so the
   // 20% commission is computed off the right base. Optimistic, then synced.
   // Keeps localResident in lockstep so legacy displays stay correct.
@@ -1324,6 +1354,14 @@ export default function TrainerSchedulePage() {
                             <button
                               type="button"
                               disabled={syncingIds.has(b.id)}
+                              onClick={() => noShowBooking(b)}
+                              className="w-full py-2 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 disabled:opacity-50 touch-manipulation"
+                            >
+                              No-show (didn&apos;t come)
+                            </button>
+                            <button
+                              type="button"
+                              disabled={syncingIds.has(b.id)}
                               onClick={() => cancelBooking(b)}
                               className="w-full py-2 rounded-xl border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 touch-manipulation"
                             >
@@ -1681,6 +1719,18 @@ export default function TrainerSchedulePage() {
                           onMove={(slotId) => moveBooking(b.id, slotId)}
                         />
                       </div>
+
+                      {/* No-show — client silently didn't come (late / never
+                          returned). Quiet close: NO client message, membership
+                          class returned, drops from salary and the unpaid nag. */}
+                      <button
+                        type="button"
+                        disabled={syncingIds.has(b.id)}
+                        onClick={() => noShowBooking(b)}
+                        className="mt-3 w-full py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 disabled:opacity-50 touch-manipulation"
+                      >
+                        No-show (didn&apos;t come)
+                      </button>
 
                       {/* Cancel — for a client who cancelled or never came.
                           Returns the membership class, notifies the client and

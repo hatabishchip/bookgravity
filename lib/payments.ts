@@ -34,10 +34,14 @@ export const PAYMENT_STATUSES = ["PAID", "UNPAID"] as const
 // 06.07 rule stands: recorded payments are corrected by an admin only.
 export const PAYMENT_EDIT_WINDOW_MS = 30 * 60 * 1000
 
-// CANCELLED = client cancelled or never came. The trainer/admin cancel returns
-// any membership class used and notifies the client. (A separate "no-show"
-// state that burned the pass was removed - owner decision 21.06.2026.)
-export const BOOKING_STATUSES = ["CONFIRMED", "CANCELLED"] as const
+// CANCELLED = client cancelled (or staff cancelled for them): returns any
+// membership class used AND sends the client the cancellation notice.
+// NO_SHOW = client silently didn't turn up (Seni 22.07: two clients arrived
+// 25+ min late, promised to return to the next class, never did): closes the
+// booking WITHOUT the warm cancellation notice, still returns a membership
+// class (owner policy 21.06.2026 - a no-show must not burn the pass), and
+// drops it from the roster / salary / unpaid nag like a cancel does.
+export const BOOKING_STATUSES = ["CONFIRMED", "CANCELLED", "NO_SHOW"] as const
 
 export const zBookingPaymentType = z.enum(BOOKING_PAYMENT_TYPES)
 export const zPosPaymentMethod = z.enum(POS_PAYMENT_METHODS)

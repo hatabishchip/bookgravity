@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
-import { afterStaffCancellation } from "@/lib/booking-cancel"
+import { afterStaffCancellation, afterStaffNoShow } from "@/lib/booking-cancel"
 import { notifyBookingCreated } from "@/lib/booking-notify"
 import { syncSlotToGoogle } from "@/lib/google-calendar"
 import { applyPaymentSwitch, syncServicePaymentsWithClass } from "@/lib/booking-payment"
@@ -43,8 +43,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   // A cancelled booking is settled - block payment-type edits (switching it away
   // from MEMBERSHIP would double-restore a class afterStaffCancellation returned).
-  if (existing.status === "CANCELLED" && data.paymentType !== undefined) {
-    return NextResponse.json({ error: "Cannot change payment on a cancelled booking" }, { status: 400 })
+  if ((existing.status === "CANCELLED" || existing.status === "NO_SHOW") && data.paymentType !== undefined) {
+    return NextResponse.json({ error: "Cannot change payment on a closed booking" }, { status: 400 })
   }
 
   // Moving to another slot: the target must be in this studio, have a trainer,
@@ -78,6 +78,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // Cancellation attribution: record who flipped it and when (the 04.07
   // incident could not name the actor because nothing wrote this down).
   if (data.status === "CANCELLED" && existing.status !== "CANCELLED") {
+    updateData.cancelledAt = new Date()
+    updateData.cancelledByUserId = ctx.userId
+    updateData.cancelledByRole = "admin"
+  }
+  // No-show (silent close, membership returned, no client notice) - only a
+  // live booking can be marked as one.
+  if (data.status === "NO_SHOW") {
+    if (existing.status !== "CONFIRMED") {
+      return NextResponse.json({ error: "Only a confirmed booking can be marked as no-show" }, { status: 400 })
+    }
     updateData.cancelledAt = new Date()
     updateData.cancelledByUserId = ctx.userId
     updateData.cancelledByRole = "admin"
@@ -165,6 +175,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       membershipId: booking.membershipId,
       slotId: booking.slotId,
       slot: { studioId: ctx.studioId },
+    })
+  }
+
+  // No-show side-effects: silent - membership class returned, NO client
+  // notification (afterStaffNoShow).
+  if (data.status === "NO_SHOW" && existing.status === "CONFIRMED") {
+    await afterStaffNoShow({
+      id: booking.id,
+      membershipId: booking.membershipId,
+      slotId: booking.slotId,
     })
   }
 

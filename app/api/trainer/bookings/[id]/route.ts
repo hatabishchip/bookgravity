@@ -7,7 +7,7 @@ import { applyPaymentSwitch, syncServicePaymentsWithClass } from "@/lib/booking-
 import { zBookingPaymentType, zPaymentStatus, zBookingStatus, zPriceTier, PAYMENT_EDIT_WINDOW_MS } from "@/lib/payments"
 import { notifyBookingCreated } from "@/lib/booking-notify"
 import { syncSlotToGoogle } from "@/lib/google-calendar"
-import { afterStaffCancellation } from "@/lib/booking-cancel"
+import { afterStaffCancellation, afterStaffNoShow } from "@/lib/booking-cancel"
 import { baliDateStr } from "@/lib/tz"
 
 // Reschedule/cancel notifications add WhatsApp round-trips beyond 10s.
@@ -66,8 +66,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // A cancelled booking is settled - block payment-type edits on it, otherwise
   // switching it away from MEMBERSHIP would restore a class that afterStaff-
   // Cancellation already returned (double-restore).
-  if (booking.status === "CANCELLED" && data.paymentType !== undefined) {
-    return NextResponse.json({ error: "Cannot change payment on a cancelled booking" }, { status: 400 })
+  if ((booking.status === "CANCELLED" || booking.status === "NO_SHOW") && data.paymentType !== undefined) {
+    return NextResponse.json({ error: "Cannot change payment on a closed booking" }, { status: 400 })
   }
 
   // Sveta 06.07.2026: a trainer RECORDS a payment once, but must not RE-EDIT an
@@ -129,6 +129,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // Cancellation attribution: record who flipped it and when (the 04.07
   // incident could not name the actor because nothing wrote this down).
   if (data.status === "CANCELLED" && booking.status !== "CANCELLED") {
+    updateData.cancelledAt = new Date()
+    updateData.cancelledByUserId = ctx.userId
+    updateData.cancelledByRole = "trainer"
+  }
+  // No-show: only a live booking can be marked as one (a cancelled booking
+  // was already resolved). Same attribution trail as a cancel.
+  if (data.status === "NO_SHOW") {
+    if (booking.status !== "CONFIRMED") {
+      return NextResponse.json({ error: "Only a confirmed booking can be marked as no-show" }, { status: 400 })
+    }
     updateData.cancelledAt = new Date()
     updateData.cancelledByUserId = ctx.userId
     updateData.cancelledByRole = "trainer"
@@ -224,6 +234,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       slotId: updated.slotId,
       slot: { studioId: ctx.studioId },
       cancelledByTrainerId: trainer.id,
+    })
+  }
+
+  // No-show side-effects: silent close - membership class returned, NO client
+  // notification (see afterStaffNoShow).
+  if (data.status === "NO_SHOW" && booking.status === "CONFIRMED") {
+    await afterStaffNoShow({
+      id: updated.id,
+      membershipId: updated.membershipId,
+      slotId: updated.slotId,
     })
   }
 
