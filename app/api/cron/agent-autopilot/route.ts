@@ -34,10 +34,11 @@ export const maxDuration = 60
 // last word must be the client's), never mid cancel-bot flow, only text
 // inbounds, hard cap per sweep.
 
-// 7 days (owner 19.07: unanswered chats older than the old 72h window fell off
-// the radar forever - e.g. @beduinheart at 71h). Dedup by inboundMessageId and
-// the once-ever trainer ping keep the wider window from spamming anyone.
-const SWEEP_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+// 10 days (was 7; owner 19.07 widened from 72h). The Mumun case (23.07):
+// a job inquiry sat pending for exactly 7 days waiting for full autonomy to
+// activate, then dropped out of the sweep the same day the agent finally
+// could answer it. Dedup by inboundMessageId keeps the window safe to widen.
+const SWEEP_WINDOW_MS = 10 * 24 * 60 * 60 * 1000
 const MAX_AUTO_SENDS = 30
 const MAX_TRANSLATIONS = 15 // per kind (questions / answers) per sweep
 const TIME_BUDGET_MS = 45_000 // stop starting new work after this
