@@ -424,12 +424,16 @@ export async function GET(req: NextRequest) {
       })
       const cfg = getConfigFor(cfgStudio)
       if (!cfg) continue
-      const res = await sendWhatsAppText(convo.clientPhone, m.body, cfg)
+      // Resend what the client was MEANT to receive: translatedBody when the
+      // original send was translated (body holds the staff-language original).
+      const resendText = m.translatedBody?.trim() || m.body
+      const res = await sendWhatsAppText(convo.clientPhone, resendText, cfg)
       if (res.ok) {
         await appendOutboundMessage({
           conversationId: convo.id,
           type: "text",
           body: m.body,
+          translatedBody: m.translatedBody ?? null,
           waMessageId: res.messageId,
           status: "sent",
           fromAgent: m.fromAgent ?? false,
