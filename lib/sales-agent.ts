@@ -150,6 +150,7 @@ BOOKING playbook (label BOOKING - still answer fully):
 - Cancel or reschedule: the Cancel button in the WhatsApp booking confirmation (free up to 2 hours before class), then simply book a new time on the site.
 - "The site doesn't work": help step by step - the number must have WhatsApp, request the code again, open the link fresh.
 - Running late: "no problem, come - the trainer will meet you". "I am at the door": "come in, the studio is open".
+- Availability ("is tomorrow 11:00 free?", "spots for 4 people?"): answer with FACTS from the LIVE SCHEDULE block in the message - exact classes and spots left. If the requested time is full or not listed, say so honestly and offer the nearest listed alternatives. NEVER invent classes or spots that are not in the block.
 - NEVER claim a booking is made, moved or cancelled - you don't create bookings; you guide the client to do it themselves in two taps.
 
 MEDICAL playbook (label MEDICAL - answer it yourself, with care):
@@ -285,6 +286,38 @@ function parseClassification(raw: string): Classification | null {
   return null
 }
 
+// Live schedule context (owner 23.07): availability questions get FACTS
+// ("2 spots left tomorrow 11:00") instead of a bare "check the site" -
+// half of the BOOKING waits in the 10-day sample were availability asks.
+async function liveScheduleBlock(): Promise<string> {
+  try {
+    const { baliDateStr } = await import("@/lib/tz")
+    const today = baliDateStr(new Date())
+    const end = baliDateStr(new Date(Date.now() + 7 * 86400_000))
+    const slots = await prisma.timeSlot.findMany({
+      where: { studio: { slug: "canggu" }, cancelledAt: null, date: { gte: today, lte: end } },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      select: {
+        date: true,
+        startTime: true,
+        endTime: true,
+        maxCapacity: true,
+        trainer: { select: { name: true } },
+        _count: { select: { bookings: { where: { status: "CONFIRMED" } } } },
+      },
+    })
+    if (!slots.length) return ""
+    const lines = slots.map((s) => {
+      const left = Math.max(0, s.maxCapacity - s._count.bookings)
+      const who = s.trainer?.name ? ` with ${s.trainer.name}` : ""
+      return `${s.date} ${s.startTime}-${s.endTime}${who}: ${left === 0 ? "FULL" : `${left} spot${left === 1 ? "" : "s"} free`}`
+    })
+    return `\n\nLIVE SCHEDULE (next 7 days, Bali time, real-time data; today is ${today}). Answer availability questions with these facts. A class not listed here does not exist. Booking stays self-service at https://bookgravity.com:\n${lines.join("\n")}`
+  } catch {
+    return ""
+  }
+}
+
 // QA helper (scripts/qa-full-autonomy.ts): run one client message through the
 // EXACT production prompt (incl. live lessons) without touching the DB or
 // sending anything. Used for the owner's acceptance run before activation.
@@ -292,7 +325,7 @@ export async function classifyForQa(
   message: string,
   clientStatus = "new lead (no bookings yet)",
 ): Promise<Classification | null> {
-  const userPrompt = `Client name: QA Test\nClient status: ${clientStatus}\n\nConversation (oldest first):\nCLIENT: ${message}\n\nClassify the LAST client message and draft the reply per the rules.`
+  const userPrompt = `Client name: QA Test\nClient status: ${clientStatus}${await liveScheduleBlock()}\n\nConversation (oldest first):\nCLIENT: ${message}\n\nClassify the LAST client message and draft the reply per the rules.`
   const raw = await callLlm(await buildSystemPrompt(), userPrompt)
   if (!raw) return null
   return parseClassification(raw)
@@ -367,7 +400,9 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
       }
     } catch {}
 
-    const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
+    const scheduleBlock = await liveScheduleBlock()
+
+    const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}${scheduleBlock}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
 
     const raw = await callLlm(await buildSystemPrompt(), userPrompt)
     if (process.env.AGENT_DEBUG) console.log("[sales-agent] raw:", raw)
