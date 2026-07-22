@@ -928,6 +928,37 @@ export default function Inbox({
   const [hiddenSuggestionId, setHiddenSuggestionId] = useState<string | null>(null)
   const [composerPrefill, setComposerPrefill] = useState<{ text: string; nonce: number } | null>(null)
   const pendingSuggestionIdRef = useRef<string | null>(null)
+  // Suggestion preview language toggle (owner 22.07): Indonesian trainers can
+  // flip the agent's English draft to Bahasa just to READ it. Display-only -
+  // Edit/Send always use the English draft; the client still receives the
+  // message in their own language (send-time translation). Cache the Bahasa
+  // render so re-toggling is instant; reset whenever the suggestion changes.
+  const [suggestionPreviewLang, setSuggestionPreviewLang] = useState<"en" | "id">("en")
+  const [suggestionBahasa, setSuggestionBahasa] = useState<string | null>(null)
+  const [suggestionTranslating, setSuggestionTranslating] = useState(false)
+  useEffect(() => {
+    setSuggestionPreviewLang("en")
+    setSuggestionBahasa(null)
+    setSuggestionTranslating(false)
+  }, [detail?.suggestion?.id])
+  const previewSuggestionBahasa = useCallback(async (draft: string) => {
+    setSuggestionPreviewLang("id")
+    if (suggestionBahasa != null) return
+    setSuggestionTranslating(true)
+    try {
+      const r = await fetch("/api/whatsapp/translate-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: draft, targetLang: "id" }),
+      })
+      const j = await r.json()
+      setSuggestionBahasa(typeof j?.translated === "string" ? j.translated : draft)
+    } catch {
+      setSuggestionBahasa(draft)
+    } finally {
+      setSuggestionTranslating(false)
+    }
+  }, [suggestionBahasa])
 
   const dismissSuggestion = useCallback(async (sug: AgentSuggestion) => {
     setHiddenSuggestionId(sug.id)
@@ -2290,7 +2321,11 @@ export default function Inbox({
                   🤖 Agent suggests a reply
                 </div>
                 <div className="text-[13px] whitespace-pre-wrap break-words text-gray-800 dark:text-gray-100 max-h-40 overflow-y-auto">
-                  {detail.suggestion.draft}
+                  {suggestionPreviewLang === "id"
+                    ? (suggestionTranslating && suggestionBahasa == null
+                        ? "…"
+                        : (suggestionBahasa ?? detail.suggestion.draft))
+                    : detail.suggestion.draft}
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <button
@@ -2307,6 +2342,29 @@ export default function Inbox({
                   >
                     Edit
                   </button>
+                  {/* Display-only language toggle for the trainer (owner 22.07).
+                      Radio-style: exactly one of EN/ID active. Never affects
+                      what is sent - Send/Edit always use the English draft. */}
+                  <div className="inline-flex rounded-full border border-gray-300 dark:border-white/20 overflow-hidden text-[11px] font-medium" role="radiogroup" aria-label="Preview language">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={suggestionPreviewLang === "en"}
+                      onClick={() => setSuggestionPreviewLang("en")}
+                      className={`px-2.5 py-1.5 active:scale-95 ${suggestionPreviewLang === "en" ? "bg-emerald-600 text-white" : "text-gray-600 dark:text-gray-300"}`}
+                    >
+                      EN
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={suggestionPreviewLang === "id"}
+                      onClick={() => void previewSuggestionBahasa(detail.suggestion!.draft!)}
+                      className={`px-2.5 py-1.5 active:scale-95 border-l border-gray-300 dark:border-white/20 ${suggestionPreviewLang === "id" ? "bg-emerald-600 text-white" : "text-gray-600 dark:text-gray-300"}`}
+                    >
+                      ID
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={() => void dismissSuggestion(detail.suggestion!)}
