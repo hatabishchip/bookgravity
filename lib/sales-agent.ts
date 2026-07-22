@@ -134,10 +134,14 @@ ${KNOWLEDGE}${await activeLessonsBlock()}
 ${METHOD_DEPTH}
 
 ANSWER RULES:
-- Answer EVERYTHING yourself, completely, in ONE message. NEVER say "I'll ask the team", "a coach will contact you", "someone will follow up personally" - nobody else replies in this chat, and empty promises break trust.
-- Usual answer up to 120 words. Complex topics (health situations, "how does a class go") up to 250 words in short paragraphs.
-- ALWAYS write the draft in English (studio staff language shown to the trainer for review), regardless of the client's language or the thread history. Never switch to the client's language. The client automatically receives the reply translated into their own language (English/Russian/Bahasa/etc.) on send.
-- Structure: acknowledge -> simple explanation through an image (gravity presses down - hanging stretches you; the disc is a sponge) -> concrete facts -> links (schedule and booking https://bookgravity.com, location link) -> ONE warm question at the end. Light emojis (1-3).
+- Answer EVERYTHING yourself, in ONE message. NEVER say "I'll ask the team", "a coach will contact you", "someone will follow up personally" - nobody else replies in this chat, and empty promises break trust.
+- THIS IS A MESSENGER, NOT EMAIL (owner 23.07). Answer ONLY what was asked - do not dump every fact you know. A normal reply is 1-3 short sentences, under 40 words. Health situations and "how does a first class go" may take up to 80-100 words. Never repeat facts already given earlier in this conversation.
+- Greet only in your FIRST message of a conversation. Mid-conversation replies start straight with the answer - no "Hi X!", no "Thanks for reaching out" again.
+- No fixed template - vary how replies start and end. End with a question ONLY when it is natural; most short answers need none.
+- Prices short and human: 300k, 250k, 1.3M IDR - never "300,000 IDR".
+- Links: at most ONE per message, and only when it directly serves the need (how to book -> booking link; where are you -> map link). Never send both links together; never attach a link "just in case".
+- Explain the method through an image (gravity presses down - hanging stretches you; the disc is a sponge) at most ONCE per conversation, usually in the first pitch. Do not re-pitch the method in every reply.
+- Light emojis (0-2). ALWAYS write the draft in English (studio staff language shown to the trainer for review), regardless of the client's language or the thread history. The client automatically receives the reply translated into their own language (English/Russian/Bahasa/etc.) on send.
 
 CATEGORY LABELS (statistics only - you ALWAYS write the full reply in draft):
 - SAFE: general questions - the method, prices, schedule, facilities, what to bring, kids, Instagram.
@@ -364,10 +368,18 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
       where: { conversationId, inboundMessageId },
       select: { id: true, category: true, draft: true, status: true },
     })
+    // Full autonomy: a legacy pending card with NO draft (old ESCALATE "wait
+    // for the trainer") would block this inbound forever - the autopilot skips
+    // draft-less suggestions. Regenerate a full answer into the SAME row.
+    let regenerateId: string | null = null
     if (existing) {
-      return existing.status === "pending"
-        ? { id: existing.id, category: existing.category, draft: existing.draft }
-        : null
+      if (FULL_AUTONOMY && existing.status === "pending" && !existing.draft?.trim()) {
+        regenerateId = existing.id
+      } else if (existing.status === "pending") {
+        return { id: existing.id, category: existing.category, draft: existing.draft }
+      } else {
+        return null
+      }
     }
 
     const history = await prisma.whatsAppMessage.findMany({
@@ -414,16 +426,15 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
     // Empty SAFE draft = nothing worth replying; don't create noise.
     if (parsed.category === "SAFE" && !(parsed.draft && parsed.draft.trim())) return null
 
-    const created = await prisma.agentSuggestion.create({
-      data: {
-        conversationId,
-        inboundMessageId,
-        category: parsed.category,
-        draft: parsed.category === "ESCALATE" ? null : parsed.draft?.trim() || null,
-        reason: parsed.category === "SAFE" ? null : (parsed.reason?.trim() || "Needs a human reply"),
-      },
-    })
-    return { id: created.id, category: created.category, draft: created.draft }
+    const data = {
+      category: parsed.category,
+      draft: parsed.category === "ESCALATE" ? null : parsed.draft?.trim() || null,
+      reason: parsed.category === "SAFE" ? null : (parsed.reason?.trim() || "Needs a human reply"),
+    }
+    const saved = regenerateId
+      ? await prisma.agentSuggestion.update({ where: { id: regenerateId }, data })
+      : await prisma.agentSuggestion.create({ data: { conversationId, inboundMessageId, ...data } })
+    return { id: saved.id, category: saved.category, draft: saved.draft }
   } catch (err) {
     console.warn("[sales-agent] suggestion failed:", err)
     return null

@@ -450,7 +450,7 @@ export async function GET(req: NextRequest) {
     lessons = await extractLessons(5)
   }
 
-  const summary = { ok: true, checked, autoSent, failed, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons }
+  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons }
   // Always log - quiet sweeps included. This row is the liveness heartbeat the
   // sweep-watcher reads; gaps in it mean the cron genuinely did not complete.
   void elog("agent:autopilot", "sweep", summary)
