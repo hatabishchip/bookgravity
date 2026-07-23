@@ -217,7 +217,11 @@ export async function GET(req: NextRequest) {
         })) === 0
       if (!bridgeable) continue
     }
-    if (!sug.draft?.trim()) continue
+    if (!sug.draft?.trim()) {
+      // Deliberate silence (spam / "ok thanks" needs no reply) is not a stuck chat.
+      if (staleInbound) unanswered--
+      continue
+    }
 
     const draft = sug.draft.trim()
     const windowOpen = isInsideCustomerWindow(convo.lastInboundAt)
