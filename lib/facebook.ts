@@ -44,8 +44,10 @@ export async function fetchFbThreads(token: string, pageId: string): Promise<FbT
   for (const c of j.data ?? []) {
     const peer = (c.participants?.data ?? []).find((p) => p.id && p.id !== pageId)
     if (!peer?.id) continue
+    // Keep attachment-only messages (stickers, photos, shares arrive with an
+    // empty `message`) - same blindness fix as the IG channel (owner 23.07).
     const messages = (c.messages?.data ?? [])
-      .filter((m) => m.id && (m.message ?? "").length > 0)
+      .filter((m) => !!m.id)
       .map((m) => ({
         id: m.id,
         fromId: m.from?.id ?? "",
@@ -105,19 +107,22 @@ export async function syncFacebookThreads(studioId: string): Promise<number> {
       }
       // Oldest first so timestamps line up.
       for (const m of [...t.messages].reverse()) {
+        const inbound = m.fromId !== pageId
+        const at = m.createdTime ? new Date(m.createdTime) : new Date()
+        // Attachment-only: import fresh ones with a placeholder, skip stale
+        // ones (same rule as the IG sync).
+        if (!m.text && Date.now() - at.getTime() > 10 * 24 * 3600 * 1000) continue
         const exists = await prisma.whatsAppMessage.findFirst({
           where: { waMessageId: m.id },
           select: { id: true },
         })
         if (exists) continue
-        const inbound = m.fromId !== pageId
-        const at = m.createdTime ? new Date(m.createdTime) : new Date()
         await prisma.whatsAppMessage.create({
           data: {
             conversationId: convo.id,
             direction: inbound ? "INBOUND" : "OUTBOUND",
-            type: "text",
-            body: m.text,
+            type: m.text ? "text" : "media",
+            body: m.text || "[attachment]",
             waMessageId: m.id,
             status: inbound ? "delivered" : "sent",
             createdAt: at,
