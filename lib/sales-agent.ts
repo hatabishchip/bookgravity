@@ -208,7 +208,12 @@ async function callLlm(systemPrompt: string, userPrompt: string): Promise<string
           // 700 was too tight: a reasoning block could eat the budget and
           // leave no text at all ("empty content" storm, 22.07 18:00).
           max_tokens: 2000,
-          system: systemPrompt,
+          // Prompt caching (owner 24.07): the ~5k-token system prompt was 75%
+          // of API cost - repeat calls within the hour now read it at ~10% of
+          // the input price. Byte-identical prefix reuse only; quality and the
+          // prompt the model sees are unchanged. The short LESSON_SYSTEM is
+          // below the cacheable minimum and silently skips caching - fine.
+          system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral", ttl: "1h" } }],
           messages: [{ role: "user", content: userPrompt }],
         }),
       })
