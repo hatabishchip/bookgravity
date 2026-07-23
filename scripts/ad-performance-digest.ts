@@ -59,9 +59,19 @@ async function fetchStatuses(): Promise<Map<string, string>> {
   }
 }
 
-// Short name: drop the "GRAVITY CTWA - " / "STRAP" boilerplate.
+// Short name: drop boilerplate but KEEP the language marker (BH/EN/RU) - the
+// same creative runs per language and only one of them usually carries the
+// leads, so "pain1 L5S1 · BH" must not collapse into the same row as its EN twin.
 function short(n: string): string {
-  return n.replace(/GRAVITY CTWA\s*-\s*/i, "").replace(/\s*-\s*STRAP/i, "").replace(/Новое объявление.*/i, "Вовлечённость").slice(0, 18)
+  return n
+    .replace(/^GRAVITY\s+CTWA\s*-\s*/i, "")
+    .replace(/^GRAVITY\s+/i, "")
+    .replace(/\s*-\s*STRAP\b/i, "")
+    .replace(/\s*-\s*[A-Za-z]{3}\d{1,2}\s*$/, "")          // trailing date: " - Jul19"
+    .replace(/Новое объявление.*/i, "Вовлечённость")
+    .replace(/\s*-\s*(BH|EN|RU|ID)\b/i, (_m, l: string) => ` · ${l.toUpperCase()}`)
+    .trim()
+    .slice(0, 22)
 }
 const money = (n: number) => "$" + n.toFixed(2)
 
@@ -92,7 +102,7 @@ async function build(): Promise<string> {
     // Paused/inactive ad: its lifetime numbers are history, not live spend.
     const st = status.get(r.name)
     const paused = st && st !== "ACTIVE" ? " ⏸ пауза" : ""
-    lines.push(`${short(r.name).padEnd(15)} лид ${r.leads}  CPL ${cpl ? money(cpl) : "-"}  CTR ${r.ctr.toFixed(1)}%${paused}${flag}`)
+    lines.push(`${short(r.name).padEnd(20)} лид ${r.leads}  CPL ${cpl ? money(cpl) : "-"}  CTR ${r.ctr.toFixed(1)}%${paused}${flag}`)
   }
   lines.push("")
   lines.push("⏸ на паузе (цифры историч.) · ✅ масштабировать · ⚠️ обновить креатив · ❌ отключить. Данные Meta, read-only.")
