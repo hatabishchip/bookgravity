@@ -477,13 +477,91 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ---- 2d. One follow-up to silent ad leads (owner 23.07) -------------------
+  // 36 of 44 July ad leads sent only the ad autofill text and went quiet after
+  // our reply - and the 24h window then expired unused. While it is still
+  // open (18-23h after their message), send ONE gentle nudge with the nearest
+  // concrete Canggu slots. EventLog scope "ad:followup" is the once-ever lock
+  // per conversation; WhatsApp leads only (IG/FB windows work differently).
+  let followedUp = 0
+  if (timeLeft() > 10_000) {
+    const nudgeFrom = new Date(Date.now() - 23 * 3600_000)
+    const nudgeTo = new Date(Date.now() - 18 * 3600_000)
+    const silent = await prisma.whatsAppConversation.findMany({
+      where: {
+        studioId: studio.id,
+        adReferralAt: { not: null },
+        lastInboundAt: { gte: nudgeFrom, lte: nudgeTo },
+        NOT: [{ clientPhone: { startsWith: "ig:" } }, { clientPhone: { startsWith: "fb:" } }],
+      },
+      select: { id: true, clientPhone: true, clientLanguage: true },
+      take: 20,
+    })
+    for (const convo of silent) {
+      if (timeLeft() < 8_000) break
+      const [inboundCount, lastMsg, locked] = await Promise.all([
+        prisma.whatsAppMessage.count({ where: { conversationId: convo.id, direction: "INBOUND" } }),
+        prisma.whatsAppMessage.findFirst({ where: { conversationId: convo.id }, orderBy: { createdAt: "desc" }, select: { fromAgent: true, direction: true } }),
+        prisma.eventLog.findFirst({ where: { scope: "ad:followup", message: convo.id }, select: { id: true } }),
+      ])
+      // Only the "autofill + our reply + silence" shape; anyone who wrote a
+      // second message is a live dialog, not a nudge target.
+      if (locked || inboundCount !== 1 || !lastMsg || lastMsg.direction !== "OUTBOUND" || !lastMsg.fromAgent) continue
+      // Nearest free Canggu slots (up to 2) for a concrete invitation.
+      const { baliDateStr } = await import("@/lib/tz")
+      const today = baliDateStr(new Date())
+      const slots = (
+        await prisma.timeSlot.findMany({
+          where: { studio: { slug: "canggu" }, cancelledAt: null, date: { gte: today } },
+          orderBy: [{ date: "asc" }, { startTime: "asc" }],
+          take: 12,
+          select: { date: true, startTime: true, maxCapacity: true, _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
+        })
+      )
+        .filter((s) => s.maxCapacity - s._count.bookings > 0)
+        .slice(0, 2)
+      if (!slots.length) continue
+      const dayName = (d: string) => ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date(`${d}T00:00:00Z`).getUTCDay()]
+      const tomorrow = baliDateStr(new Date(Date.now() + 86400_000))
+      const when = (s: { date: string; startTime: string }) => (s.date === today ? `today at ${s.startTime}` : s.date === tomorrow ? `tomorrow at ${s.startTime}` : `${dayName(s.date)} at ${s.startTime}`)
+      const slotLine = slots.length === 2 && slots[0].date === slots[1].date ? `${when(slots[0])} or ${slots[1].startTime}` : slots.map(when).join(" or ")
+      const draft = `Hi! Just checking in - we have ${slotLine} free at the Canggu studio. The first class is the easiest way to feel how it works for your back 🌿 Want to grab a spot? https://bookgravity.com`
+      // Lock BEFORE sending so a racing sweep can never double-nudge.
+      await prisma.eventLog.create({ data: { scope: "ad:followup", message: convo.id } })
+      let textOut = draft
+      let translatedBody: string | null = null
+      if (convo.clientLanguage && convo.clientLanguage !== "en") {
+        const t = await translateAndDetect({ text: draft, targetLang: convo.clientLanguage })
+        if (t.ok && t.translated.trim()) {
+          textOut = t.translated.trim()
+          translatedBody = textOut
+        }
+      }
+      const res = await sendWhatsAppText(convo.clientPhone, textOut, waConfig)
+      await appendOutboundMessage({
+        conversationId: convo.id,
+        type: "text",
+        body: draft,
+        translatedBody,
+        detectedLang: translatedBody ? "en" : null,
+        templateName: null,
+        waMessageId: res.ok ? res.messageId : null,
+        status: res.ok ? "sent" : "failed",
+        errorDetail: res.ok ? null : res.error,
+        fromAgent: true,
+      })
+      if (res.ok) followedUp++
+      else void elogError("agent:autopilot", "ad follow-up failed", { conversationId: convo.id, error: res.error })
+    }
+  }
+
   // ---- 3. Self-learning ----------------------------------------------------
   let lessons = 0
   if (timeLeft() > 8_000) {
     lessons = await extractLessons(5)
   }
 
-  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, unanswered, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons }
+  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, unanswered, followedUp, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons }
   // Always log - quiet sweeps included. This row is the liveness heartbeat the
   // sweep-watcher reads; gaps in it mean the cron genuinely did not complete.
   void elog("agent:autopilot", "sweep", summary)

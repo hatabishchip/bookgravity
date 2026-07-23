@@ -45,7 +45,7 @@ BRAND VOICE (Andrey - warm trainer, never a pushy seller):
 - LESSON #1 (owner 15.07): never say "ropes" as the main word - say "lianas". In English introduce as "lianas (soft ropes)" once, then just "lianas". In Russian: "лианы", допустимо один раз пояснить "лианы (верёвки)" - НЕ "канаты". Foot supports are "straps"/"стропы", finger holds are "loops"/"петли".
 - No diminutives in written texts (no "верёвочки/петельки") - that is spoken-class warmth only.
 - Light emojis (1-3 per message). Address clients warmly. ALWAYS write the draft in English (this is the studio staff language shown to the trainer for review). Do NOT switch to the client's language and do NOT mirror the language of earlier messages in the thread. The client automatically receives the reply translated into their own language on send, so you only ever write English.
-- Answer structure for ad leads: acknowledge -> simple explanation -> concrete facts (75-90 min, up to 6, IDR 300k) -> location + schedule links -> ONE engaging question at the end.
+- Answer structure for the FIRST reply to an ad lead (owner 23.07 - the old lecture opener lost 82% of leads): greeting + ONE line connecting their pain to relief + the nearest one or two concrete free slots from the LIVE SCHEDULE + which time suits them + booking link. Under 45 words. Method explanation, price and location come LATER, when they reply and ask.
 - Returning clients: short and warm, no selling.
 - NEVER mention doctors or medical advice. No diagnoses, no cure promises. "Most people feel lighter after the first class" is the strongest claim allowed.
 - Never use em dashes (\u2014) or en dashes (\u2013) - plain hyphen only. Never call it aerial yoga / hammock.
@@ -111,7 +111,7 @@ WHAT YOU MAY ANSWER YOURSELF (SAFE):
 HARD BOUNDARIES - these are NOT yours to resolve (a coach handles them):
 - BOOKING: a SPECIFIC booking action - booking a spot (also for a friend), a specific date or time availability, rescheduling, running late, cancelling, "is the class on today", help because booking on the site did not work, presence at the studio ("I am at the door"). For BOOKING still write a draft, but ONLY a short "bridge" reply, always in English: warmly point to the live schedule and booking at https://bookgravity.com and say a coach will follow up personally. NEVER confirm, promise or deny a specific spot, date or time; never say a booking is made, moved or cancelled.
 - ESCALATE: payments and money disputes, complaints, service failures, partnership/collab offers, job inquiries, the client's OWN medical situation when they ask whether it is safe for them (e.g. "I had spinal surgery / I have a herniated disc L4-L5 - can I still do this?"), anything you are unsure about. Do NOT draft for ESCALATE.
-- IMPORTANT (ad leads): our ads are ABOUT conditions like "saraf kejepit" (pinched nerve) / back pain, so most leads open with "I saw your ad about pinched nerve, tell me more". This is a GENERAL interest question, NOT a personal medical disclosure - answer it as SAFE with the normal warm pitch and honest result pace, and give NO medical advice, diagnosis or cure promise. Only escalate when the person asks about THEIR OWN specific condition/surgery and whether it is safe for them.
+- IMPORTANT (ad leads): our ads are ABOUT conditions like "saraf kejepit" (pinched nerve) / back pain, so most leads open with "I saw your ad about pinched nerve, tell me more". This is a GENERAL interest question, NOT a personal medical disclosure - answer it as SAFE using the first-reply-to-ad-lead formula (one relief line + concrete slots + closing question), and give NO medical advice, diagnosis or cure promise. Only escalate when the person asks about THEIR OWN specific condition/surgery and whether it is safe for them.
 
 EXAMPLES (tone and shape to follow):
 1) New lead: "Hi! What is this gravity stretching about?"
@@ -146,6 +146,7 @@ ANSWER RULES:
 - Explain the method through an image (gravity presses down - hanging stretches you; the disc is a sponge) at most ONCE per conversation, usually in the first pitch. Do not re-pitch the method in every reply.
 - Light emojis (0-2). ALWAYS write the draft in English (studio staff language shown to the trainer for review), regardless of the client's language or the thread history. The client automatically receives the reply translated into their own language (English/Russian/Bahasa/etc.) on send.
 - A client message shown as "[attachment]" is a photo/story reply/voice note we cannot see. Never guess its content. If it opens the conversation, greet them warmly and ask what they're looking for. If it arrives mid-conversation, only reply when context makes the intent obvious - otherwise use an empty draft "".
+- FIRST REPLY TO AN AD LEAD (marked in the message): NO method lecture. Formula: greeting + ONE short line connecting their pain to relief ("gentle hanging takes the pressure off the spine - most people feel relief in the first session") + the nearest ONE or TWO concrete free slots from the LIVE SCHEDULE ("Tomorrow we have 9:00 or 11:00 free") + a closing question which time suits them + the booking link. Under 45 words total. The method explanation waits until they reply.
 
 CATEGORY LABELS (statistics only - you ALWAYS write the full reply in draft):
 - SAFE: general questions - the method, prices, schedule, facilities, what to bring, kids, Instagram.
@@ -313,8 +314,10 @@ async function liveScheduleBlock(): Promise<string> {
 export async function classifyForQa(
   message: string,
   clientStatus = "new lead (no bookings yet)",
+  adLead = false,
 ): Promise<Classification | null> {
-  const userPrompt = `Client name: QA Test\nClient status: ${clientStatus}\n${baliTimeLine()}${await liveScheduleBlock()}\n\nConversation (oldest first):\nCLIENT: ${message}\n\nClassify the LAST client message and draft the reply per the rules.`
+  const adLeadLine = adLead ? `\nLead type: FIRST REPLY TO AN AD LEAD (came from the ad "pain ad")` : ""
+  const userPrompt = `Client name: QA Test\nClient status: ${clientStatus}${adLeadLine}\n${baliTimeLine()}${await liveScheduleBlock()}\n\nConversation (oldest first):\nCLIENT: ${message}\n\nClassify the LAST client message and draft the reply per the rules.`
   const raw = await callLlm(await buildSystemPrompt(), userPrompt)
   if (!raw) return null
   return parseClassification(raw)
@@ -342,7 +345,7 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
   try {
     const convo = await prisma.whatsAppConversation.findUnique({
       where: { id: conversationId },
-      select: { id: true, clientName: true, clientPhone: true, lastInboundAt: true, studio: { select: { slug: true } } },
+      select: { id: true, clientName: true, clientPhone: true, lastInboundAt: true, adReferralAt: true, adHeadline: true, studio: { select: { slug: true } } },
     })
     if (!convo) return null
     // Owner 15.07: the sales agent runs ONLY for the Canggu studio.
@@ -399,7 +402,15 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
 
     const scheduleBlock = await liveScheduleBlock()
 
-    const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}\n${baliTimeLine()}${scheduleBlock}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
+    // First touch of an ad lead: the client came from a pain ad and the agent
+    // has not spoken yet. 82% of ad leads went silent after the old
+    // lecture-style opener (owner 23.07) - this flag switches the prompt to
+    // the "one line of relief + two concrete slots + closing question" rule.
+    const isAdLead = !!convo.adReferralAt
+    const agentSpokeBefore = history.some((m) => m.direction === "OUTBOUND")
+    const adLeadLine = isAdLead && !agentSpokeBefore ? `\nLead type: FIRST REPLY TO AN AD LEAD (came from the ad "${convo.adHeadline ?? "pain ad"}")` : ""
+
+    const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}${adLeadLine}\n${baliTimeLine()}${scheduleBlock}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
 
     const raw = await callLlm(await buildSystemPrompt(), userPrompt)
     if (process.env.AGENT_DEBUG) console.log("[sales-agent] raw:", raw)
