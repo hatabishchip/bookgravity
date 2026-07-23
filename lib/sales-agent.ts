@@ -416,9 +416,29 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
       draft: parsed.category === "ESCALATE" ? null : parsed.draft?.trim() || null,
       reason: parsed.category === "SAFE" ? null : (parsed.reason?.trim() || "Needs a human reply"),
     }
-    const saved = regenerateId
-      ? await prisma.agentSuggestion.update({ where: { id: regenerateId }, data })
-      : await prisma.agentSuggestion.create({ data: { conversationId, inboundMessageId, ...data } })
+    // Both schedulers (Vercel cron + Hermes cron) fire the sweep seconds apart,
+    // so two runs can pass the "already suggested?" check above at the same
+    // time and each create a card for the SAME inbound - the client then gets
+    // the identical reply twice (3 clients hit this on 23.07). A unique index
+    // on (conversationId, inboundMessageId) makes the loser's insert fail;
+    // it takes over the winner's card instead of sending a second answer.
+    let saved
+    if (regenerateId) {
+      saved = await prisma.agentSuggestion.update({ where: { id: regenerateId }, data })
+    } else {
+      try {
+        saved = await prisma.agentSuggestion.create({ data: { conversationId, inboundMessageId, ...data } })
+      } catch {
+        const winner = await prisma.agentSuggestion.findFirst({
+          where: { conversationId, inboundMessageId },
+          select: { id: true, category: true, draft: true, status: true },
+        })
+        if (!winner) throw new Error("suggestion insert lost the race but no row found")
+        // Only the pending card is still ours to send; anything already sent
+        // means the other sweep delivered the answer - stay silent.
+        return winner.status === "pending" ? { id: winner.id, category: winner.category, draft: winner.draft } : null
+      }
+    }
     return { id: saved.id, category: saved.category, draft: saved.draft }
   } catch (err) {
     console.warn("[sales-agent] suggestion failed:", err)

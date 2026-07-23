@@ -909,6 +909,11 @@ model AgentSuggestion {
 
   @@index([conversationId, createdAt])
   @@index([status, createdAt])
+  // One card per inbound, ever: both schedulers race the sweep and would
+  // otherwise each answer the same message (owner 23.07, 3 clients got the
+  // reply twice). Applied to prod as a partial index (inboundMessageId not
+  // null) so legacy null rows stay valid.
+  @@unique([conversationId, inboundMessageId])
 }
 
 // Self-learning: one concise rule the agent must follow, mined from trainer
