@@ -17,14 +17,15 @@ import { elog, elogError } from "@/lib/elog"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-// Sales-agent AUTOPILOT sweep (owner 15.07.2026, meta docs/META_agent_autopilot.md).
+// Sales-agent AUTOPILOT sweep (owner 15.07.2026, meta docs/META_agent_autopilot.md;
+// full autonomy since 23.07 - docs/META_agent_full_autonomy.md).
 //
-// Every 30 minutes (external pinger; Vercel Hobby crons are daily-only):
+// Every 15 minutes (Vercel cron in vercel.json + Hermes cron as backup; the
+// pending->sending claim below makes the two schedulers safe together):
 //  1. Canggu conversations where the CLIENT has the last word get a suggestion
-//     (if the webhook missed it) and pending SAFE drafts are AUTO-SENT by the
-//     agent - open window as free-form text, closed window via the approved
-//     admin_message template. BOOKING / ESCALATE never auto-send: they stay as
-//     the yellow "needs your reply" flag for the trainer.
+//     (if the webhook missed it) and pending drafts of EVERY category are
+//     AUTO-SENT - open window as free-form text, closed window via the
+//     approved admin_message template (WhatsApp; IG/FB are window-only).
 //  2. RU journal backfill: questionRu / answerRu translations for
 //     /admin/agent-log (best-effort, capped per sweep).
 //  3. Self-learning: mine edited_sent / dismissed suggestions into lessons.

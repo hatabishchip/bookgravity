@@ -1,10 +1,13 @@
-// AI sales agent for the WhatsApp inbox - SUGGEST MODE (owner 15.07.2026).
+// AI sales agent for the WhatsApp + Instagram + Facebook inbox.
 //
-// On every inbound client message the agent classifies it and, for SAFE info
-// questions, drafts a warm reply in Andrey's voice. The draft lands in the
-// inbox as a suggestion card - staff sends / edits / dismisses it. The agent
-// NEVER touches dates, bookings, reschedules, payments, complaints or
-// medical topics: those become an escalation flag for the trainer instead.
+// FULL AUTONOMY since 23.07.2026 (metaprompt docs/META_agent_full_autonomy.md):
+// the agent answers EVERY inbound itself - method questions, prices, live
+// schedule availability, medical situations (Andrey-voice playbook, no
+// diagnoses), complaints, partnerships, job inquiries. It never CREATES
+// bookings - it guides clients to self-service at bookgravity.com. Trainers
+// get no pings from the agent. Messenger-style replies (short, greet once,
+// prices as 300k). Legacy suggest-mode prompt remains below for the
+// AGENT_FULL_AUTONOMY-off fallback.
 //
 // Model: Claude Sonnet 5 ONLY (owner 23.07) - no fallback models; failures
 // are logged to EventLog and the sweep retries. Every status change on

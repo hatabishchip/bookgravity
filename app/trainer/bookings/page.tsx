@@ -152,8 +152,8 @@ export default function TrainerBookingsPage() {
       // Pull back authoritative fields (membership balance after a deduction).
       if (res.ok) {
         const saved = await res.json()
-        // A cancelled booking leaves the list immediately (GET filters CONFIRMED).
-        if (saved.status === "CANCELLED") {
+        // A cancelled or no-show booking leaves the list immediately (GET filters CONFIRMED).
+        if (saved.status === "CANCELLED" || saved.status === "NO_SHOW") {
           setBookings((prev) => prev.filter((b) => b.id !== id))
           return true
         }
@@ -531,6 +531,24 @@ function BookingDetails({
           </div>
           <p className="text-sm text-gray-700 whitespace-pre-wrap">{booking.notes}</p>
         </div>
+      )}
+
+      {/* No-show — client silently didn't come (Seni 22.07). Quiet close:
+          soft "we missed you" note instead of the cancel template, membership
+          class returned, drops from salary and the unpaid nag. */}
+      {!editLocked && (
+        <button
+          type="button"
+          disabled={isUpdating}
+          onClick={async () => {
+            if (!confirm(`Mark ${booking.clientName} as no-show? A membership class (if used) returns to the client.`)) return
+            const ok = await onUpdate({ status: "NO_SHOW" })
+            if (ok !== false) onDone()
+          }}
+          className="w-full py-2.5 rounded-xl border border-amber-300 text-amber-600 text-sm font-semibold hover:bg-amber-50 disabled:opacity-50 touch-manipulation"
+        >
+          No-show (didn&apos;t come)
+        </button>
       )}
 
       {/* Cancel — same side-effects as the admin cancel: the membership
