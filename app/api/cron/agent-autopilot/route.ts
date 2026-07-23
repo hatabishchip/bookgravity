@@ -125,12 +125,14 @@ export async function GET(req: NextRequest) {
     igImported = await syncInstagramThreads(studio.id)
   } catch (err) {
     console.warn("[autopilot] instagram sync failed:", err)
+    void elogError("ig:sync", "instagram sync failed", { error: err instanceof Error ? err.message : String(err) })
   }
   let fbImported = 0
   try {
     fbImported = await syncFacebookThreads(studio.id)
   } catch (err) {
     console.warn("[autopilot] facebook sync failed:", err)
+    void elogError("fb:sync", "facebook sync failed", { error: err instanceof Error ? err.message : String(err) })
   }
 
   // ---- 1. Auto-send SAFE drafts -------------------------------------------
@@ -219,8 +221,23 @@ export async function GET(req: NextRequest) {
     const isFb = isFbConversationPhone(convo.clientPhone)
     let igToken: string | null = null
     let fbToken: string | null = null
+    let igTag: "HUMAN_AGENT" | undefined
     if (isIg) {
-      if (!windowOpen) continue
+      if (!windowOpen) {
+        // 24h window closed - try ONCE with the HUMAN_AGENT tag (7-day
+        // window; owner 23.07 after a client's story-reply sat unanswered
+        // for 2 days). The EventLog row is a once-ever lock per inbound so
+        // a rejected tag (permission not granted) can't retry every sweep.
+        const ageMs = Date.now() - new Date(convo.lastInboundAt ?? 0).getTime()
+        if (ageMs > 7 * 24 * 3600 * 1000) continue
+        const tried = await prisma.eventLog.findFirst({
+          where: { scope: "ig:human-agent", message: lastMsg.id },
+          select: { id: true },
+        })
+        if (tried) continue
+        await prisma.eventLog.create({ data: { scope: "ig:human-agent", message: lastMsg.id } })
+        igTag = "HUMAN_AGENT"
+      }
       igToken = await getIgToken()
       if (!igToken) continue
     } else if (isFb) {
@@ -263,7 +280,7 @@ export async function GET(req: NextRequest) {
     // Instagram thread: reply via the IG Graph API (window/token verified in
     // the pre-checks above).
     if (isIg) {
-      const res = await sendInstagramText(convo.clientPhone.slice(3), textOut, igToken!)
+      const res = await sendInstagramText(convo.clientPhone.slice(3), textOut, igToken!, igTag)
       ok = res.ok
       waMessageId = res.ok ? res.messageId : null
       errorDetail = res.ok ? null : res.error

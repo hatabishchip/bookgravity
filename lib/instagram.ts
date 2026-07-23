@@ -63,7 +63,15 @@ export async function fetchIgThreads(token: string, selfId: string): Promise<IgT
   const url = `${IG_GRAPH}/me/conversations?fields=participants,messages.limit(10)%7Bid,from,message,created_time%7D&limit=25&access_token=${token}`
   const r = await fetch(url)
   if (!r.ok) {
-    console.warn("[instagram] conversations fetch failed:", r.status, (await r.text()).slice(0, 200))
+    const detail = (await r.text()).slice(0, 200)
+    console.warn("[instagram] conversations fetch failed:", r.status, detail)
+    // Surface in EventLog too - a silently dying token looked like "no new
+    // messages" from the outside (owner 23.07).
+    try {
+      await prisma.eventLog.create({
+        data: { scope: "ig:sync", level: "warn", message: `conversations fetch failed: HTTP ${r.status}`, data: detail },
+      })
+    } catch {}
     return []
   }
   const j = (await r.json()) as {
@@ -76,8 +84,12 @@ export async function fetchIgThreads(token: string, selfId: string): Promise<IgT
   for (const c of j.data ?? []) {
     const peer = (c.participants?.data ?? []).find((p) => p.id && p.id !== selfId)
     if (!peer?.id) continue
+    // Keep attachment-only messages too (story replies, reels, photos, voice
+    // come through with an empty `message`) - dropping them made the agent
+    // blind to real clients (owner 23.07: 4 unanswered IG chats). The sync
+    // below imports them with an "[attachment]" placeholder body.
     const messages = (c.messages?.data ?? [])
-      .filter((m) => m.id && (m.message ?? "").length > 0)
+      .filter((m) => !!m.id)
       .map((m) => ({
         id: m.id,
         fromId: m.from?.id ?? "",
@@ -90,17 +102,24 @@ export async function fetchIgThreads(token: string, selfId: string): Promise<IgT
   return threads
 }
 
-/** Send a DM text reply. Works within Instagram's 24h messaging window. */
+/** Send a DM text reply. Works within Instagram's 24h messaging window;
+ *  pass tag "HUMAN_AGENT" to reach the extended 7-day window. */
 export async function sendInstagramText(
   peerIgsid: string,
   text: string,
   token: string,
+  tag?: "HUMAN_AGENT",
 ): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
   try {
+    const payload: Record<string, unknown> = { recipient: { id: peerIgsid }, message: { text } }
+    if (tag) {
+      payload.messaging_type = "MESSAGE_TAG"
+      payload.tag = tag
+    }
     const r = await fetch(`${IG_GRAPH}/me/messages?access_token=${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient: { id: peerIgsid }, message: { text } }),
+      body: JSON.stringify(payload),
     })
     const j = (await r.json()) as { message_id?: string; error?: { message?: string } }
     if (r.ok && j.message_id) return { ok: true, messageId: j.message_id }
@@ -138,19 +157,23 @@ export async function syncInstagramThreads(studioId: string): Promise<number> {
       }
       // Oldest first so timestamps line up.
       for (const m of [...t.messages].reverse()) {
+        const inbound = m.fromId !== selfId
+        const at = m.createdTime ? new Date(m.createdTime) : new Date()
+        // Attachment-only (no text): import fresh ones with a placeholder so
+        // the agent can greet and ask; skip stale ones - they'd only flood
+        // the inbox with months-old unread rows.
+        if (!m.text && Date.now() - at.getTime() > 10 * 24 * 3600 * 1000) continue
         const exists = await prisma.whatsAppMessage.findFirst({
           where: { waMessageId: m.id },
           select: { id: true },
         })
         if (exists) continue
-        const inbound = m.fromId !== selfId
-        const at = m.createdTime ? new Date(m.createdTime) : new Date()
         await prisma.whatsAppMessage.create({
           data: {
             conversationId: convo.id,
             direction: inbound ? "INBOUND" : "OUTBOUND",
-            type: "text",
-            body: m.text,
+            type: m.text ? "text" : "media",
+            body: m.text || "[attachment]",
             waMessageId: m.id,
             status: inbound ? "delivered" : "sent",
             createdAt: at,
