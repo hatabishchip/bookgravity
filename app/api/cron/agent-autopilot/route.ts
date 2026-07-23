@@ -68,6 +68,11 @@ export async function GET(req: NextRequest) {
   let autoSent = 0
   let failed = 0
   let trainerPinged = 0
+  // Conversations whose last word is a client message older than 30 min that
+  // this sweep still could not answer (closed IG/FB window, empty draft,
+  // failed send). Surfaced in the summary so a stuck chat is visible in the
+  // journal instead of waiting for the owner to notice (owner 23.07).
+  let unanswered = 0
 
   // One WhatsApp to the trainer per BOOKING/ESCALATE suggestion, ever.
   // Recipient: the conversation's assigned trainer, else every studio trainer
@@ -174,6 +179,10 @@ export async function GET(req: NextRequest) {
       select: { id: true, direction: true, type: true, body: true },
     })
     if (!lastMsg || lastMsg.direction !== "INBOUND") continue
+    // Count as unanswered up front; a successful send below takes it back.
+    const staleInbound =
+      !!convo.lastInboundAt && Date.now() - new Date(convo.lastInboundAt).getTime() > 30 * 60_000
+    if (staleInbound) unanswered++
     // Only auto-answer text (a voice note / image answered generically reads wrong).
     if (!lastMsg.body?.trim()) continue
 
@@ -330,6 +339,7 @@ export async function GET(req: NextRequest) {
 
     if (ok) {
       autoSent++
+      if (staleInbound) unanswered--
       await prisma.agentSuggestion.update({
         where: { id: sug.id },
         data: { status: "auto_sent", sentText: draft },
@@ -469,7 +479,7 @@ export async function GET(req: NextRequest) {
     lessons = await extractLessons(5)
   }
 
-  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons }
+  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, unanswered, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons }
   // Always log - quiet sweeps included. This row is the liveness heartbeat the
   // sweep-watcher reads; gaps in it mean the cron genuinely did not complete.
   void elog("agent:autopilot", "sweep", summary)

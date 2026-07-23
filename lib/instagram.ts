@@ -44,10 +44,16 @@ export async function maybeRefreshIgToken(): Promise<void> {
     const token = await getIgToken()
     if (!token) return
     const r = await fetch(`${IG_GRAPH.replace("/v21.0", "")}/refresh_access_token?grant_type=ig_refresh_token&access_token=${token}`)
-    const j = (await r.json()) as { access_token?: string }
+    const j = (await r.json()) as { access_token?: string; error?: { message?: string } }
     if (r.ok && j.access_token) {
       await prisma.eventLog.create({
         data: { scope: "ig:token", level: "info", message: j.access_token, data: JSON.stringify({ refreshedAt: new Date().toISOString() }) },
+      })
+    } else {
+      // A refresh that keeps failing means the 60-day token will die silently
+      // - make it visible in the journal long before that.
+      await prisma.eventLog.create({
+        data: { scope: "ig:sync", level: "warn", message: "token refresh failed", data: JSON.stringify({ status: r.status, error: j.error?.message ?? null }) },
       })
     }
   } catch (err) {
