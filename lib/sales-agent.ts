@@ -285,12 +285,19 @@ async function liveScheduleBlock(): Promise<string> {
       },
     })
     if (!slots.length) return ""
+    // Weekday spelled out per line - the model guessed it from the date and
+    // told a client "tomorrow (Thursday)" when tomorrow was Friday (23.07).
+    const dayName = (d: string) =>
+      // Parse as UTC midnight of the DATE ITSELF: parsing Bali midnight and
+      // reading getUTCDay() yields the previous day (caught in QA 23.07 -
+      // "today is Wednesday" on a Thursday).
+      ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(`${d}T00:00:00Z`).getUTCDay()]
     const lines = slots.map((s) => {
       const left = Math.max(0, s.maxCapacity - s._count.bookings)
       const who = s.trainer?.name ? ` with ${s.trainer.name}` : ""
-      return `${s.date} ${s.startTime}-${s.endTime}${who}: ${left === 0 ? "FULL" : `${left} spot${left === 1 ? "" : "s"} free`}`
+      return `${s.date} (${dayName(s.date)}) ${s.startTime}-${s.endTime}${who}: ${left === 0 ? "FULL" : `${left} spot${left === 1 ? "" : "s"} free`}`
     })
-    return `\n\nLIVE SCHEDULE (next 7 days, Bali time, real-time data; today is ${today}). Answer availability questions with these facts. A class not listed here does not exist. Booking stays self-service at https://bookgravity.com:\n${lines.join("\n")}`
+    return `\n\nLIVE SCHEDULE (next 7 days, Bali time, real-time data; today is ${today} (${dayName(today)})). Answer availability questions with these facts. A class not listed here does not exist. Booking stays self-service at https://bookgravity.com:\n${lines.join("\n")}`
   } catch {
     return ""
   }
