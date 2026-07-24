@@ -56,3 +56,5 @@ mobile/*.aab
 mobile/*.ipa
 mobile/build/
 mobile/dist/
+mobile/credentials/
+mobile/credentials.json

@@ -4,6 +4,7 @@ import { put, list, del } from "@vercel/blob"
 import { gzipSync } from "zlib"
 import { assertCronAuth } from "@/lib/cron-auth"
 import { elog, elogError } from "@/lib/elog"
+import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
 // A full dump walks every table; give it room beyond the default 10s.
@@ -66,12 +67,32 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Housekeeping piggybacked on the daily backup (audit 25.07): EventLog
+    // grew ~4k rows/month with no cleanup anywhere, and BookingOtp only ever
+    // cleaned per-phone. Locks (partial-unique scopes) are kept much longer -
+    // deleting a lock re-arms a once-ever client nudge.
+    let cleaned = 0
+    try {
+      const cutoff30 = new Date(Date.now() - 30 * 24 * 3600_000)
+      const lockScopes = ["rebook:nudge", "ad:followup", "ig:human-agent", "wa:retry", "ig:token"]
+      const r1 = await prisma.eventLog.deleteMany({
+        where: { createdAt: { lt: cutoff30 }, scope: { notIn: lockScopes } },
+      })
+      const r2 = await prisma.bookingOtp.deleteMany({
+        where: { expiresAt: { lt: new Date(Date.now() - 7 * 24 * 3600_000) } },
+      })
+      cleaned = r1.count + r2.count
+    } catch (err) {
+      console.warn("[db-backup] cleanup failed:", err)
+    }
+
     void elog("cron:db-backup", "daily dump stored", {
       day,
       tables: tables.length,
       rows: totalRows,
       bytes: body.length,
       removed,
+      cleaned,
     })
     return NextResponse.json({ ok: true, day, tables: tables.length, rows: totalRows, bytes: body.length, url: blob.url, removed })
   } catch (err) {
