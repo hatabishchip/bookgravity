@@ -569,9 +569,71 @@ export async function GET(req: NextRequest) {
     lessons = await extractLessons(5)
   }
 
-  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, unanswered, followedUp, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons }
+  // ---- 4. Staff reachability ----------------------------------------------
+  // A trainer whose WhatsApp number is mistyped silently stops receiving every
+  // booking notification: the send succeeds, Meta reports "Undeliverable" hours
+  // later into the event log, and nobody reads it. One trainer lost 6 weeks of
+  // notifications that way (118 failures, one digit missing in his number).
+  // Client typos in the booking form fail the same way and are pure noise, so
+  // only failures to a STAFF number are counted here - a non-zero value in the
+  // sweep summary means a real person is not being reached.
+  const staffUnreachable = await countStaffDeliveryFailures()
+
+  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, unanswered, followedUp, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons, staffUnreachable }
   // Always log - quiet sweeps included. This row is the liveness heartbeat the
   // sweep-watcher reads; gaps in it mean the cron genuinely did not complete.
   void elog("agent:autopilot", "sweep", summary)
   return NextResponse.json(summary)
+}
+
+/**
+ * Trainers whose WhatsApp number Meta could not deliver to in the last 24h.
+ * Returns the count and names them in the event log so the broken number is
+ * identifiable without digging through raw status callbacks.
+ */
+async function countStaffDeliveryFailures(): Promise<number> {
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const [rows, trainers] = await Promise.all([
+      prisma.eventLog.findMany({
+        where: { scope: "webhook:status", level: "error", createdAt: { gte: since } },
+        select: { data: true },
+      }),
+      prisma.trainer.findMany({
+        where: { archived: false, notifyWhatsapp: true },
+        select: { name: true, whatsapp: true },
+      }),
+    ])
+    if (!rows.length || !trainers.length) return 0
+
+    // Same shape the send path produces: digits only, and a national trunk "0"
+    // written after the country code (a common way staff numbers get typed) is
+    // dropped, because that is what Meta receives.
+    const wire = (raw: string) => {
+      const d = raw.replace(/\D/g, "")
+      return d.startsWith("620") ? `62${d.slice(3)}` : d
+    }
+    const staff = new Map(trainers.filter((t) => t.whatsapp).map((t) => [wire(t.whatsapp as string), t.name]))
+
+    const hitByName = new Map<string, number>()
+    for (const r of rows) {
+      // `data` is a JSON string column, not a JSON type - parse, don't cast.
+      let recipient: string | undefined
+      try {
+        recipient = (JSON.parse(r.data ?? "{}") as { recipient?: string }).recipient
+      } catch {
+        continue
+      }
+      if (!recipient) continue
+      const name = staff.get(recipient)
+      if (name) hitByName.set(name, (hitByName.get(name) ?? 0) + 1)
+    }
+    if (!hitByName.size) return 0
+
+    const detail = [...hitByName.entries()].map(([name, n]) => `${name} x${n}`).join(", ")
+    void elogError("agent:autopilot", "trainer WhatsApp undeliverable - check the number", { detail })
+    return [...hitByName.values()].reduce((a, b) => a + b, 0)
+  } catch {
+    return 0
+  }
 }
