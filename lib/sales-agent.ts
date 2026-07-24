@@ -135,12 +135,10 @@ ${KNOWLEDGE}${await activeLessonsBlock()}
 
 ${METHOD_DEPTH}
 
-PAIR OFFER EXPERIMENT (owner 24.07 - three "come together" offers are being A/B tested):
-The message tells you which ONE offer this client is assigned ("Pair offer: A/B/C"). Mention ONLY that offer, and ONLY when it naturally fits: the client asks about coming with a friend/partner/spouse, asks the price for two, books or asks about 2+ spots, or hesitates about coming alone. Never open a conversation with the offer, never bolt it onto an unrelated answer, at most ONCE per conversation. When you mention it, keep it to one short sentence and add that it is applied right away - just say so at the studio.
-- Offer A: come together in one booking - each pays 270k instead of 300k.
-- Offer B: bring a friend who is new to the studio - the friend's first class is 150k (half price).
-- Offer C: a booking for two is 550k total instead of 600k.
-If no "Pair offer" line is present in the message, there is no offer - never invent a discount.
+REFERRAL OFFER (owner 24.07, mechanic chosen after marketing research):
+The offer, in the client's words: bring a friend who is new to the studio - the friend's first class is 150k (half price), and once your friend buys a class package, you get one free class as a thank-you. Both parts are handled right at the studio - just mention it there.
+Mention it ONLY when the message contains the "Referral offer: ON" line, and ONLY at a natural moment: the client asks about coming with a friend/partner/spouse, asks the price for two, books or asks about 2+ spots, hesitates about coming alone, shares that a class went well / says thank you after visiting, or buys or asks about a class package. Never open a conversation with it, never bolt it onto an unrelated answer, at most ONCE per conversation, one short sentence.
+If no "Referral offer: ON" line is present, the offer does not exist - never invent discounts or free classes.
 
 ANSWER RULES:
 - Answer EVERYTHING yourself, in ONE message. NEVER say "I'll ask the team", "a coach will contact you", "someone will follow up personally" - nobody else replies in this chat, and empty promises break trust.
@@ -353,11 +351,12 @@ export async function classifyForQa(
   clientStatus = "new lead (no bookings yet)",
   adLead = false,
   image?: LlmImage,
-  pairArm: "A" | "B" | "C" = "A",
+  referralOffer = true,
 ): Promise<Classification | null> {
   const adLeadLine = adLead ? `\nLead type: FIRST REPLY TO AN AD LEAD (came from the ad "pain ad")` : ""
   const attachedNote = image ? `\n(The client's last message is a photo - it is attached as the image in this request.)` : ""
-  const userPrompt = `Client name: QA Test\nClient status: ${clientStatus}\nPair offer: ${pairArm}${adLeadLine}${attachedNote}\n${baliTimeLine()}${await liveScheduleBlock()}\n\nConversation (oldest first):\nCLIENT: ${message}\n\nClassify the LAST client message and draft the reply per the rules.`
+  const promoLine = referralOffer ? `\nReferral offer: ON` : ""
+  const userPrompt = `Client name: QA Test\nClient status: ${clientStatus}${promoLine}${adLeadLine}${attachedNote}\n${baliTimeLine()}${await liveScheduleBlock()}\n\nConversation (oldest first):\nCLIENT: ${message}\n\nClassify the LAST client message and draft the reply per the rules.`
   const raw = await callLlm(await buildSystemPrompt(), userPrompt, image)
   if (!raw) return null
   return parseClassification(raw)
@@ -365,16 +364,6 @@ export async function classifyForQa(
 
 // Pair-offer A/B/C experiment (owner 24.07): every client is deterministically
 // assigned one of three "come together" offers by a phone hash - stable within
-// a conversation, evenly split across clients. The offer texts live in the
-// SYSTEM prompt (cacheable); only this one-letter line varies per client.
-// Outcome metric (weekly report): share of each arm's clients who reach a
-// 2+ seat party booking within 14 days.
-export function pairPromoArm(clientPhone: string): "A" | "B" | "C" {
-  let h = 0
-  for (const c of clientPhone) h = (h * 31 + c.charCodeAt(0)) >>> 0
-  return (["A", "B", "C"] as const)[h % 3]
-}
-
 // Studios where the sales agent runs. The webhook uses this to skip the
 // immediate "new lead" personal-WhatsApp ping to the trainer (the agent
 // auto-answers SAFE leads and the autopilot pings the trainer only for
@@ -522,10 +511,10 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
     const adLeadLine = isAdLead && !agentSpokeBefore ? `\nLead type: FIRST REPLY TO AN AD LEAD (came from the ad "${convo.adHeadline ?? "pain ad"}")` : ""
 
     const attachedNote = imageBlock ? `\n(The client's last message is a photo - it is attached as the image in this request.)` : ""
-    // Pair-offer experiment is armed but DARK until the owner picks the design
-    // after the marketing research (24.07): no PAIR_PROMO=1 in env - no "Pair
-    // offer" line - the system prompt rule forbids inventing a discount.
-    const promoLine = process.env.PAIR_PROMO === "1" ? `\nPair offer: ${pairPromoArm(convo.clientPhone)}` : ""
+    // Referral offer (research-backed mechanic, owner 24.07) stays DARK until
+    // PAIR_PROMO=1 is set in env: no "Referral offer: ON" line - the system
+    // prompt rule forbids inventing a discount.
+    const promoLine = process.env.PAIR_PROMO === "1" ? `\nReferral offer: ON` : ""
     const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}${promoLine}${adLeadLine}${attachedNote}\n${baliTimeLine()}${scheduleBlock}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
 
     const raw = await callLlm(await buildSystemPrompt(), userPrompt, imageBlock)

@@ -1,57 +1,77 @@
-// Weekly report for the pair-offer A/B/C experiment (owner approved 24.07.2026).
-// Per arm: clients the agent talked to since the experiment start, and how many
-// of them reached a 2+ seat party booking (same slot, same phone tail) within
-// 14 days of their first contact. Read-only; output goes to the owner's bot
-// via the bg-pair-promo-weekly routine.
+// Weekly report for the REFERRAL offer (research-backed mechanic, owner
+// 24.07.2026: friend's first class 150k, referrer gets a free class once the
+// friend buys a package). Filename kept from the earlier A/B/C draft so the
+// bg-pair-promo-weekly routine keeps working. Read-only; output goes to the
+// owner's bot.
+//
+// The research prescribes three success metrics:
+// 1. referred first visits - new clients who first appear inside a party
+//    booking alongside an existing client (our closest automatic proxy for
+//    "brought by a friend");
+// 2. friend -> package conversion - how many of those new clients later book
+//    again (a repeat booking is the observable step toward a package);
+// 3. full-price share - party bookings must not eat the full-price base.
 import "dotenv/config"
 import { prisma } from "../lib/prisma"
-import { pairPromoArm } from "../lib/sales-agent"
 
 const START = new Date("2026-07-24T12:00:00Z")
 
+const tail = (p: string) => p.replace(/\D/g, "").slice(-9) || p
+
 async function main() {
-  const convos = await prisma.whatsAppConversation.findMany({
-    where: {
-      studio: { slug: "canggu" },
-      lastInboundAt: { gte: START },
-      // the agent only runs on real phones + ig/fb ids; keep all - arms hash any string
-    },
-    select: { clientPhone: true, createdAt: true },
-  })
-  const arms: Record<string, { clients: Set<string>; converted: Set<string> }> = {
-    A: { clients: new Set(), converted: new Set() },
-    B: { clients: new Set(), converted: new Set() },
-    C: { clients: new Set(), converted: new Set() },
-  }
-  const tail = (p: string) => p.replace(/\D/g, "").slice(-9)
-  for (const c of convos) {
-    const arm = pairPromoArm(c.clientPhone)
-    arms[arm].clients.add(tail(c.clientPhone) || c.clientPhone)
-  }
-  // Party bookings since start: same slot + same phone tail, 2+ seats.
   const bookings = await prisma.booking.findMany({
-    // Booking CREATION is the conversion event (status is a plain string:
-    // CONFIRMED / CANCELLED / NO_SHOW) - a later no-show still means the offer
-    // led to a pair booking; only cancellations drop out.
-    where: { createdAt: { gte: START }, status: { not: "CANCELLED" } },
-    select: { slotId: true, clientPhone: true },
+    where: { createdAt: { gte: START }, status: { not: "CANCELLED" }, slot: { studio: { slug: "canggu" } } },
+    orderBy: { createdAt: "asc" },
+    select: { slotId: true, clientPhone: true, createdAt: true },
   })
-  const bySlotPhone = new Map<string, number>()
+  const totalBookings = bookings.length
+
+  // "Came together" = 2+ bookings on the same slot created within 10 minutes
+  // of each other (covers both one party booking and a friend booking right
+  // after being invited).
+  const bySlot = new Map<string, { phone: string; at: number }[]>()
   for (const b of bookings) {
-    const k = `${b.slotId}:${tail(b.clientPhone)}`
-    bySlotPhone.set(k, (bySlotPhone.get(k) ?? 0) + 1)
+    const list = bySlot.get(b.slotId) ?? []
+    list.push({ phone: tail(b.clientPhone), at: b.createdAt.getTime() })
+    bySlot.set(b.slotId, list)
   }
-  for (const [k, n] of bySlotPhone) {
-    if (n < 2) continue
-    const t = k.split(":")[1]
-    for (const arm of Object.values(arms)) if (arm.clients.has(t)) arm.converted.add(t)
+
+  // Phones with any booking BEFORE the experiment = existing clients.
+  const old = await prisma.booking.findMany({
+    where: { createdAt: { lt: START }, slot: { studio: { slug: "canggu" } } },
+    select: { clientPhone: true },
+  })
+  const existing = new Set(old.map((b) => tail(b.clientPhone)))
+
+  const referredNew = new Set<string>() // new phone that came together with an existing client
+  const partySeen = new Set<string>() // slot:phone pairs inside a party
+  for (const [slotId, list] of bySlot) {
+    for (const a of list) {
+      const together = list.filter((x) => Math.abs(x.at - a.at) < 10 * 60_000)
+      if (together.length < 2) continue
+      partySeen.add(`${slotId}:${a.phone}`)
+      const withExisting = together.some((x) => x.phone !== a.phone && existing.has(x.phone))
+      if (withExisting && !existing.has(a.phone)) referredNew.add(a.phone)
+    }
   }
-  console.log(`Парная скидка A/B/C - отчёт с ${START.toISOString().slice(0, 10)}`)
-  for (const [k, v] of Object.entries(arms)) {
-    const label = k === "A" ? "-10% каждому (270k)" : k === "B" ? "друг-новичок 150k" : "пара 550k"
-    const pct = v.clients.size ? Math.round((100 * v.converted.size) / v.clients.size) : 0
-    console.log(`${k} ${label}: клиентов ${v.clients.size}, парных броней ${v.converted.size} (${pct}%)`)
+  const partyBookings = partySeen.size
+
+  // Referred newcomers who came back for another slot = on the path to a package.
+  const byPhone = new Map<string, Set<string>>()
+  for (const b of bookings) {
+    const t = tail(b.clientPhone)
+    const s = byPhone.get(t) ?? new Set()
+    s.add(b.slotId)
+    byPhone.set(t, s)
   }
+  const repeat = [...referredNew].filter((p) => (byPhone.get(p)?.size ?? 0) >= 2).length
+
+  const partyShare = totalBookings ? Math.round((100 * partyBookings) / totalBookings) : 0
+  console.log(`Referral-оффер - отчёт с ${START.toISOString().slice(0, 10)}`)
+  console.log(`Броней всего: ${totalBookings}, из них пришли вместе: ${partyBookings} (${partyShare}%)`)
+  console.log(`Новички, пришедшие с существующим клиентом (referred): ${referredNew.size}`)
+  console.log(`Из них забронировали повторно: ${repeat}`)
+  console.log(`Доля броней по полной цене (вне парных приходов): ${100 - partyShare}%`)
 }
 
 main().finally(() => prisma.$disconnect())
