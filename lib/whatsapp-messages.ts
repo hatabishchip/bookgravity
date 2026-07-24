@@ -179,7 +179,31 @@ export async function sendClassReminderWA(opts: {
   studioName?: string | null
   /** The class's studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
+  /** Booking ticket code — binds the v7 template's "Confirm" / "Cancel booking"
+   *  quick-reply buttons to THIS exact booking (payloads CONFIRM:<code> /
+   *  CANCEL:<code>). Only used by the v7 path; omitted → falls through to a
+   *  button-less template. */
+  ticketCode?: string
 }): Promise<SendResult> {
+  // v7 (owner 24.07.2026): same wording as v5, plus two quick-reply buttons so
+  // the client can confirm attendance or cancel in one tap. Needs the ticket
+  // code (to bind the buttons) and the studio city + start time (same body as
+  // v5). Env-gated on WHATSAPP_TEMPLATE_CLASS_REMINDER_V7 — set only after Meta
+  // approves it; until then we fall through to the button-less v5 path below.
+  const lang0 = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+  const city0 = studioCityFromName(opts.studioName)
+  const v7Template = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_V7
+  if (v7Template && opts.ticketCode && city0 && opts.startTime) {
+    return sendWhatsAppTemplate({
+      toPhone: opts.clientPhone,
+      templateName: v7Template,
+      languageCode: lang0,
+      variables: [clientStartTime12(opts.startTime), city0],
+      buttonPayloads: [`CONFIRM:${opts.ticketCode}`, `CANCEL:${opts.ticketCode}`],
+      config: getConfigFor(opts.studioWA),
+    })
+  }
+
   // Template routing (current = v5, owner-approved 13.06.2026):
   //  • v5 (WHATSAPP_TEMPLATE_CLASS_REMINDER_V5) — no header; body names the
   //    studio inline ("...in the {{2}} Studio") and shows ONLY the start time
@@ -247,8 +271,28 @@ export async function sendClassTodayConfirmWA(opts: {
   locationUrl?: string | null
   /** The class's studio's own WhatsApp config (per-studio number). */
   studioWA?: StudioWA
+  /** Booking ticket code — binds the v5 template's "Confirm" / "Cancel booking"
+   *  quick-reply buttons to THIS booking (CONFIRM:<code> / CANCEL:<code>).
+   *  Only used by the v5 path; omitted → button-less v2/v1. */
+  ticketCode?: string
 }): Promise<SendResult> {
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
+  // v5 (owner 24.07.2026): same body as v2 (location {{1}}), plus two
+  // quick-reply buttons — Confirm attendance / Cancel booking. Needs the ticket
+  // code + a location; env-gated on WHATSAPP_TEMPLATE_TODAY_CONFIRM_V5 until
+  // Meta approves it, then falls through to the button-less v2/v1 below.
+  const v5 = process.env.WHATSAPP_TEMPLATE_TODAY_CONFIRM_V5
+  const locV5 = opts.locationUrl?.trim()
+  if (v5 && opts.ticketCode && locV5) {
+    return sendWhatsAppTemplate({
+      toPhone: opts.clientPhone,
+      templateName: v5,
+      languageCode: lang,
+      variables: [locV5],
+      buttonPayloads: [`CONFIRM:${opts.ticketCode}`, `CANCEL:${opts.ticketCode}`],
+      config: getConfigFor(opts.studioWA),
+    })
+  }
   // v2 appends the studio location as the last line ({{1}} = maps link).
   // Env-gated and needs a location on file; otherwise the variable-free v1.
   const v2 = process.env.WHATSAPP_TEMPLATE_TODAY_CONFIRM_V2

@@ -526,6 +526,15 @@ model Booking {
   // was sent — ~2.5h before the class. Null = not yet. Guards the frequent
   // today-reminder cron against double-sending.
   todayReminderSentAt DateTime?
+  // When the client tapped "Confirm" on a reminder (day-before or same-day),
+  // one-tap attendance confirmation. Null = not confirmed / no reply yet. Used
+  // by the pre-class trainer roster summary to show who's coming. A cancel
+  // still lands in cancelledAt; these two are independent.
+  attendanceConfirmedAt DateTime?
+  // When the pre-class roster summary for THIS booking's slot was sent to the
+  // trainer — actually stamped on every booking of the slot at once so the
+  // summary fires only once per class. Null = not sent yet.
+  rosterSummarySentAt DateTime?
   // Cancellation attribution — who flipped this booking to CANCELLED and when.
   // The 04.07 incident could not name the actor because nothing recorded it.
   // cancelledByRole: "client" | "trainer" | "admin" | "system".

@@ -101,6 +101,7 @@ export async function GET(req: NextRequest) {
       studioSlug: b.slot.studio.slug,
       studioName: b.slot.studio.name,
       studioWA: b.slot.studio,
+      ticketCode: b.ticketCode,
     })
 
     if (res.ok) {

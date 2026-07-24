@@ -1,9 +1,17 @@
 import { prisma } from "@/lib/prisma"
-import { sendClassTodayConfirmWA } from "@/lib/whatsapp-cloud"
+import { sendClassTodayConfirmWA, sendWhatsAppTemplate, getConfigFor } from "@/lib/whatsapp-cloud"
 import { appendOutboundMessage, upsertConversation } from "@/lib/whatsapp-conversation"
 import { phoneTail } from "@/lib/membership"
 import { elog, elogError } from "@/lib/elog"
 import { baliDateStr } from "@/lib/tz"
+
+// Pre-class roster summary to the trainer (owner 24.07.2026): ONE message per
+// class, ~1h before it starts, listing who confirmed / hasn't replied /
+// cancelled. Fires in a tighter window than the check-in so confirmations have
+// time to land. Env-gated on WHATSAPP_TEMPLATE_TRAINER_ROSTER (a trainer has no
+// open 24h window, so it must be an approved template).
+const ROSTER_MAX_MIN = 90
+const ROSTER_MIN_MIN = 30
 
 // Same-day "are you still coming to today's class?" check-in — core logic.
 //
@@ -123,6 +131,7 @@ export async function runTodayReminders(trigger: string): Promise<TodayReminders
       clientPhone: b.clientPhone,
       locationUrl: b.slot.studio.locationUrl,
       studioWA: b.slot.studio,
+      ticketCode: b.ticketCode,
     })
 
     if (!res.ok) {
@@ -209,8 +218,121 @@ export async function runTodayReminders(trigger: string): Promise<TodayReminders
     skippedNoWA,
     failed,
   }
+  // Pre-class roster to trainers (best-effort, never blocks the check-in run).
+  try {
+    const rosters = await sendPreClassRosters(now, todayBali)
+    if (rosters) (summary as TodayRemindersSummary & { rosters?: number }).rosters = rosters
+  } catch (err) {
+    console.error("[today-reminders] roster pass failed:", err)
+  }
+
   // One run-summary row per invocation — this is the heartbeat that proves
   // the job ran at all (the thing we were blind to during the incident).
   await elog("reminders:today", `run via ${trigger}`, summary)
   return summary
+}
+
+/**
+ * Send each trainer ONE roster summary ~1h before their class: who confirmed
+ * (tapped Confirm), who hasn't replied, who cancelled. One message per class,
+ * claimed via rosterSummarySentAt so it never repeats. Returns how many were
+ * sent. No-ops entirely until WHATSAPP_TEMPLATE_TRAINER_ROSTER is set (the
+ * template must be Meta-approved first).
+ */
+async function sendPreClassRosters(now: Date, todayBali: string): Promise<number> {
+  const rosterTemplate = process.env.WHATSAPP_TEMPLATE_TRAINER_ROSTER
+  if (!rosterTemplate) return 0
+
+  // Every booking of today's classes (any status), so the roster can name
+  // cancellations too. Not-yet-summarised is decided per slot below.
+  const rows = await prisma.booking.findMany({
+    where: { slot: { date: todayBali } },
+    select: {
+      id: true, clientName: true, status: true,
+      attendanceConfirmedAt: true, rosterSummarySentAt: true, slotId: true,
+      slot: {
+        select: {
+          startTime: true, studioId: true,
+          trainer: { select: { whatsapp: true, notifyWhatsapp: true } },
+          studio: {
+            select: {
+              whatsappEnabled: true, remindToday: true,
+              whatsappPhoneNumberId: true, whatsappAccessToken: true,
+            },
+          },
+        },
+      },
+    },
+  })
+
+  // Group by slot; keep only slots inside the roster window and not yet sent.
+  const bySlot = new Map<string, typeof rows>()
+  for (const b of rows) {
+    const g = bySlot.get(b.slotId)
+    if (g) g.push(b)
+    else bySlot.set(b.slotId, [b])
+  }
+
+  let rosterSent = 0
+  for (const [slotId, list] of bySlot) {
+    const first = list[0]
+    const st = first.slot
+    if (!st.studio.whatsappEnabled || st.studio.remindToday === false) continue
+    const trainerWA = st.trainer?.whatsapp?.trim()
+    if (!st.trainer?.notifyWhatsapp || !trainerWA) continue
+
+    const startMs = Date.parse(`${todayBali}T${st.startTime}:00+08:00`)
+    if (!Number.isFinite(startMs)) continue
+    const minutesUntil = (startMs - now.getTime()) / 60000
+    if (minutesUntil > ROSTER_MAX_MIN || minutesUntil < ROSTER_MIN_MIN) continue
+
+    // A CONFIRMED booking not yet folded into a roster is the trigger; if all
+    // live bookings are already summarised, skip.
+    const liveUnsummarised = list.filter(
+      (b) => b.status === "CONFIRMED" && !b.rosterSummarySentAt,
+    )
+    if (liveUnsummarised.length === 0) continue
+
+    // Atomically claim ALL of this slot's bookings so only one run sends it.
+    const claim = await prisma.booking.updateMany({
+      where: { slotId, rosterSummarySentAt: null },
+      data: { rosterSummarySentAt: new Date() },
+    })
+    if (claim.count === 0) continue
+
+    // Build the three lines from the freshest view of the slot.
+    const confirmed = list.filter((b) => b.status === "CONFIRMED" && b.attendanceConfirmedAt)
+    const silent = list.filter((b) => b.status === "CONFIRMED" && !b.attendanceConfirmedAt)
+    const cancelled = list.filter((b) => b.status === "CANCELLED")
+    const nm = (b: (typeof list)[number]) => (b.clientName?.trim() || "Guest")
+    const lines: string[] = []
+    lines.push(`✅ Confirmed (${confirmed.length})${confirmed.length ? ": " + confirmed.map(nm).join(", ") : ""}`)
+    lines.push(`⏳ No reply (${silent.length})${silent.length ? ": " + silent.map(nm).join(", ") : ""}`)
+    if (cancelled.length) lines.push(`❌ Cancelled (${cancelled.length}): ${cancelled.map(nm).join(", ")}`)
+
+    const res = await sendWhatsAppTemplate({
+      toPhone: trainerWA,
+      templateName: rosterTemplate,
+      languageCode: process.env.WHATSAPP_TEMPLATE_LANG || "en",
+      variables: [st.startTime, lines.join("\n")],
+      config: getConfigFor(st.studio),
+    })
+    if (res.ok) {
+      rosterSent++
+      await elog("reminders:today", "sent pre-class roster to trainer", {
+        slotId, classTime: `${todayBali} ${st.startTime}`,
+        confirmed: confirmed.length, silent: silent.length, cancelled: cancelled.length,
+      })
+    } else {
+      // Release the claim so the next run can retry the roster.
+      await prisma.booking.updateMany({
+        where: { slotId },
+        data: { rosterSummarySentAt: null },
+      })
+      await elogError("reminders:today", "roster send failed — claim released", {
+        slotId, error: res.error,
+      })
+    }
+  }
+  return rosterSent
 }

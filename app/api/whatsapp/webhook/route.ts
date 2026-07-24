@@ -16,6 +16,7 @@ import {
 import { sendInboundWhatsAppCopy } from "@/lib/mailer"
 import { translateAndDetect } from "@/lib/translate"
 import { handleCancelBotMessage } from "@/lib/cancel-bot"
+import { handleAttendanceConfirm } from "@/lib/attendance-confirm"
 import { pickNextLeadTrainer } from "@/lib/lead-rotation"
 import { isAgentStudio } from "@/lib/sales-agent"
 import { recordBankPayment } from "@/lib/bank-payment"
@@ -562,18 +563,38 @@ export async function POST(request: NextRequest) {
               }
             }
 
-            // Self-service cancellation bot. No-ops unless the text is a
-            // 3-digit ticket code or a pending "1"/"0" reply, so it's safe to
-            // run on every inbound. Awaited so the reply is sent before we 200.
+            // One-tap attendance confirm: the reminder templates' "Confirm"
+            // button sends a CONFIRM:<code> payload. Mark the booking as coming
+            // and ack the client. Handled BEFORE the cancel bot and skips the
+            // rest of the inbound handling for this tap (it is neither a cancel
+            // nor a free-text reply the trainer needs forwarded).
+            let handledConfirm = false
             try {
-              await handleCancelBotMessage({
+              handledConfirm = await handleAttendanceConfirm({
                 studioId,
                 conversationId: convo.id,
                 clientPhone: phone,
+                clientLanguage: convo.clientLanguage,
                 text: msgBody,
               })
             } catch (err) {
-              console.error("[whatsapp-webhook] cancel bot failed:", err)
+              console.error("[whatsapp-webhook] attendance confirm failed:", err)
+            }
+
+            // Self-service cancellation bot. No-ops unless the text is a
+            // 3-digit ticket code or a pending "1"/"0" reply, so it's safe to
+            // run on every inbound. Awaited so the reply is sent before we 200.
+            if (!handledConfirm) {
+              try {
+                await handleCancelBotMessage({
+                  studioId,
+                  conversationId: convo.id,
+                  clientPhone: phone,
+                  text: msgBody,
+                })
+              } catch (err) {
+                console.error("[whatsapp-webhook] cancel bot failed:", err)
+              }
             }
 
             // Forward the client's FIRST reply to the same-day class reminder
@@ -582,7 +603,9 @@ export async function POST(request: NextRequest) {
             // trainer's number on the conversation; we clear it on a successful
             // forward so only the first reply reaches the trainer. Trainers
             // have no open 24h window, so this goes via an approved template.
-            if (convo.pendingReminderTrainerPhone) {
+            // A CONFIRM tap is NOT a reply to forward - the pre-class roster
+            // summary reports confirmations instead, so skip it here.
+            if (!handledConfirm && convo.pendingReminderTrainerPhone) {
               try {
                 const clientName =
                   convo.clientName ?? contactName ?? recentBooking?.clientName ?? "A client"
