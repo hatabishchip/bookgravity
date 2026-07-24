@@ -519,7 +519,11 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
     const adLeadLine = isAdLead && !agentSpokeBefore ? `\nLead type: FIRST REPLY TO AN AD LEAD (came from the ad "${convo.adHeadline ?? "pain ad"}")` : ""
 
     const attachedNote = imageBlock ? `\n(The client's last message is a photo - it is attached as the image in this request.)` : ""
-    const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}\nPair offer: ${pairPromoArm(convo.clientPhone)}${adLeadLine}${attachedNote}\n${baliTimeLine()}${scheduleBlock}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
+    // Pair-offer experiment is armed but DARK until the owner picks the design
+    // after the marketing research (24.07): no PAIR_PROMO=1 in env - no "Pair
+    // offer" line - the system prompt rule forbids inventing a discount.
+    const promoLine = process.env.PAIR_PROMO === "1" ? `\nPair offer: ${pairPromoArm(convo.clientPhone)}` : ""
+    const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}${promoLine}${adLeadLine}${attachedNote}\n${baliTimeLine()}${scheduleBlock}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
 
     const raw = await callLlm(await buildSystemPrompt(), userPrompt, imageBlock)
     if (process.env.AGENT_DEBUG) console.log("[sales-agent] raw:", raw)
