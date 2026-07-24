@@ -591,10 +591,16 @@ export async function GET(req: NextRequest) {
         take: 20,
       })
       const NUDGE = "Hi! We'd love to see you back on the lianas 🌿 There are open spots this week - pick any time that suits you: bookgravity.com"
+      // ONE nudge per PERSON, not per booking: a party is N bookings on one
+      // phone, and the per-booking lock alone sent Veronika (2 seats) two
+      // identical messages on the first live run (24.07). Dedupe by phone tail
+      // within the pass, and lock every sibling booking below.
+      const nudgedTails = new Set<string>()
       for (const b of lapsed) {
         if (timeLeft() < 8_000) break
         const tail = phoneTail(b.clientPhone)
         if (tail.length < 6) continue
+        if (nudgedTails.has(tail)) continue
         // Once-ever per booking.
         const locked = await prisma.eventLog.findFirst({
           where: { scope: "rebook:nudge", message: b.id }, select: { id: true },
@@ -617,8 +623,14 @@ export async function GET(req: NextRequest) {
             select: { id: true, clientPhone: true, clientLanguage: true },
           })
         ).find((c) => phoneTail(c.clientPhone) === tail)
-        // Lock BEFORE sending so a racing sweep can never double-nudge.
-        await prisma.eventLog.create({ data: { scope: "rebook:nudge", message: b.id } })
+        // Lock BEFORE sending so a racing sweep can never double-nudge - and
+        // lock the person's ENTIRE lapsed party (all sibling bookings on this
+        // phone in this batch), not just the one row that triggered.
+        nudgedTails.add(tail)
+        const siblings = lapsed.filter((x) => phoneTail(x.clientPhone) === tail)
+        await prisma.eventLog.createMany({
+          data: siblings.map((s) => ({ scope: "rebook:nudge", message: s.id })),
+        })
         let textOut = NUDGE
         let translatedBody: string | null = null
         if (convo?.clientLanguage && convo.clientLanguage !== "en") {
