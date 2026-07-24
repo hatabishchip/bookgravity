@@ -723,6 +723,89 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ---- 2c. Package offer after the FIRST paid visit (owner 25.07) ---------
+  // Zero packs sold in July while repeat clients are the whole LTV: 2-6 hours
+  // after a newcomer's first PAID class, one warm message in Andrey's voice
+  // offers the 5-class pack. Dark until PACKAGE_NUDGE=1 (text pending owner
+  // approval). Once-ever per client (EventLog lock on the phone tail).
+  let packageOffered = 0
+  if (process.env.PACKAGE_NUDGE === "1" && timeLeft() > 10_000 && baliHourNow >= 9 && baliHourNow < 20) {
+    try {
+      const OFFER =
+        "So glad you came to class! 🌿 The body loves what you gave it today - and regularity matters more than intensity: usually 1-2 classes a week. That's exactly what our 5-class pack is for: 1.25M instead of 1.5M, so each class is 250k. Just mention it to the trainer at your next visit 🙏"
+      // First-paid-visit candidates: PAID booking on a Canggu slot that ended
+      // 2-6 hours ago, and this phone has no OTHER paid booking and no pack.
+      const { baliDateStr } = await import("@/lib/tz")
+      const today = baliDateStr(new Date())
+      const recent = await prisma.booking.findMany({
+        where: {
+          status: "CONFIRMED",
+          paymentStatus: "PAID",
+          slot: { studio: { slug: "canggu" }, date: today, cancelledAt: null },
+        },
+        select: { id: true, clientPhone: true, clientName: true, slot: { select: { date: true, startTime: true, endTime: true } } },
+        take: 30,
+      })
+      for (const b of recent) {
+        if (timeLeft() < 8_000 || packageOffered >= 5) break
+        const endMs = Date.parse(`${b.slot.date}T${b.slot.endTime}:00+08:00`)
+        const hoursSince = (Date.now() - endMs) / 3600_000
+        if (hoursSince < 2 || hoursSince > 6) continue
+        const tail = phoneTail(b.clientPhone)
+        if (!tail || tail.length < 6) continue
+        const [locked, paidCount, hasPack] = await Promise.all([
+          prisma.eventLog.findFirst({ where: { scope: "pkg:offer", message: tail }, select: { id: true } }),
+          prisma.booking.count({ where: { clientPhone: { endsWith: tail }, paymentStatus: "PAID" } }),
+          prisma.membership.findFirst({ where: { clientPhone: { endsWith: tail } }, select: { id: true } }),
+        ])
+        if (locked || paidCount !== 1 || hasPack) continue
+        try {
+          await prisma.eventLog.create({ data: { scope: "pkg:offer", message: tail } })
+        } catch { continue }
+        const convo = await prisma.whatsAppConversation.findFirst({
+          where: { studioId: studio.id, clientPhone: { endsWith: tail } },
+          select: { id: true, clientPhone: true, clientLanguage: true },
+        })
+        const toPhone = convo?.clientPhone ?? b.clientPhone.replace(/\D/g, "")
+        let textOut = OFFER
+        let translatedBody: string | null = null
+        if (convo?.clientLanguage && convo.clientLanguage !== "en") {
+          const tr = await translateAndDetect({ text: OFFER, targetLang: convo.clientLanguage })
+          if (tr.ok && tr.translated.trim()) {
+            textOut = tr.translated.trim()
+            translatedBody = textOut
+          }
+        }
+        const firstName = (b.clientName ?? "").trim().split(/\s+/)[0] || "there"
+        const res = await sendWhatsAppTemplate({
+          toPhone,
+          templateName: process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message",
+          languageCode: process.env.WHATSAPP_TEMPLATE_LANG || "en",
+          variables: [firstName, textOut],
+          config: waConfig,
+        })
+        if (convo) {
+          await appendOutboundMessage({
+            conversationId: convo.id,
+            type: "template",
+            body: OFFER,
+            translatedBody,
+            detectedLang: translatedBody ? "en" : null,
+            templateName: process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message",
+            waMessageId: res.ok ? res.messageId : null,
+            status: res.ok ? "sent" : "failed",
+            errorDetail: res.ok ? null : res.error,
+            fromAgent: true,
+          })
+        }
+        if (res.ok) packageOffered++
+        else void elogError("agent:autopilot", "package offer failed", { bookingId: b.id, error: res.error })
+      }
+    } catch (err) {
+      console.warn("[autopilot] package-offer pass failed:", err)
+    }
+  }
+
   // ---- 3. Self-learning ----------------------------------------------------
   let lessons = 0
   if (timeLeft() > 8_000) {
@@ -739,7 +822,7 @@ export async function GET(req: NextRequest) {
   // sweep summary means a real person is not being reached.
   const staffUnreachable = await countStaffDeliveryFailures()
 
-  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, unanswered, followedUp, rebooked, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons, staffUnreachable }
+  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, unanswered, followedUp, rebooked, packageOffered, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons, staffUnreachable }
   // Always log - quiet sweeps included. This row is the liveness heartbeat the
   // sweep-watcher reads; gaps in it mean the cron genuinely did not complete.
   void elog("agent:autopilot", "sweep", summary)
