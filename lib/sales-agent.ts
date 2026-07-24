@@ -337,7 +337,18 @@ export function isAgentStudio(slug: string | null | undefined): boolean {
   return !!slug && AGENT_STUDIO_SLUGS.has(slug)
 }
 
-export type SuggestionResult = { id: string; category: string; draft: string | null } | null
+// `null` means the answer did NOT happen (LLM failed, bad JSON, crash) - the
+// autopilot keeps counting that inbound as unanswered so a stuck chat stays
+// visible. `noReplyNeeded` means the opposite: the agent looked and decided
+// nothing is owed ("ok thanks" / spam), or the twin sweep already replied.
+// Without this split, deliberate silence surfaced in the sweep summary as
+// unanswered:1 and read like a stuck client (owner asked about it twice).
+export type SuggestionResult =
+  | { id: string; category: string; draft: string | null; noReplyNeeded?: false }
+  | { id: null; category: string; draft: null; noReplyNeeded: true }
+  | null
+
+const NO_REPLY_NEEDED = { id: null, category: "SAFE", draft: null, noReplyNeeded: true } as const
 
 /**
  * Generate a suggestion for the latest inbound message of a conversation.
@@ -425,7 +436,7 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
     if (!parsed) return null
 
     // Empty SAFE draft = nothing worth replying; don't create noise.
-    if (parsed.category === "SAFE" && !(parsed.draft && parsed.draft.trim())) return null
+    if (parsed.category === "SAFE" && !(parsed.draft && parsed.draft.trim())) return NO_REPLY_NEEDED
 
     const data = {
       category: parsed.category,
@@ -452,7 +463,9 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
         if (!winner) throw new Error("suggestion insert lost the race but no row found")
         // Only the pending card is still ours to send; anything already sent
         // means the other sweep delivered the answer - stay silent.
-        return winner.status === "pending" ? { id: winner.id, category: winner.category, draft: winner.draft } : null
+        return winner.status === "pending"
+          ? { id: winner.id, category: winner.category, draft: winner.draft }
+          : NO_REPLY_NEEDED
       }
     }
     return { id: saved.id, category: saved.category, draft: saved.draft }

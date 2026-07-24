@@ -189,7 +189,15 @@ export async function GET(req: NextRequest) {
     // Existing pending suggestion for this inbound, or generate one now
     // (also covers inbounds the webhook's after() missed).
     const sug = await generateAgentSuggestion(convo.id, lastMsg.id)
+    // null = the answer never happened (LLM down, bad JSON) - keep it counted so
+    // a genuinely stuck chat stays visible in the summary.
     if (!sug) continue
+    // The agent looked and decided nothing is owed ("ok thanks", spam), or the
+    // twin sweep already answered. Not a stuck chat - take it back off the count.
+    if (sug.noReplyNeeded) {
+      if (staleInbound) unanswered--
+      continue
+    }
 
     // FULL AUTONOMY (owner 20.07, metaprompt META_agent_full_autonomy.md):
     // every category with a draft auto-sends; trainers get NO pings from the
