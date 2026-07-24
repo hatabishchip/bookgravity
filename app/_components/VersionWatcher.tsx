@@ -73,6 +73,12 @@ export default function VersionWatcher() {
     const onVisible = () => { if (document.visibilityState === "visible") check() }
     document.addEventListener("visibilitychange", onVisible)
     window.addEventListener("focus", check)
+    // Poll while the app simply stays open. Every trigger below is an event -
+    // focus, visibility, bfcache resume - so a user who never leaves the app
+    // learned about a deploy only by walking into a deleted route chunk and
+    // getting a white page (Sveta, 24.07: two deploys ten minutes apart while
+    // she was working). One tiny request a minute closes that window.
+    const poll = setInterval(check, 60_000)
     // bfcache restore (Android WebView / iOS resume from a frozen page) fires
     // pageshow with persisted=true and NO normal load event - the exact resume
     // that leaves a stale page on screen. Re-check the version on it too.
@@ -81,6 +87,7 @@ export default function VersionWatcher() {
     // One check on first mount too (covers a tab that was left open across a deploy).
     check()
     return () => {
+      clearInterval(poll)
       document.removeEventListener("visibilitychange", onVisible)
       window.removeEventListener("focus", check)
       window.removeEventListener("pageshow", onPageShow)

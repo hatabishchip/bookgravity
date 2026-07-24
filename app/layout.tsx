@@ -115,12 +115,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{
-var B=${JSON.stringify(process.env.NEXT_PUBLIC_BUILD_ID || "dev")},K="gs-heal-"+B,healing=false;
+var B=${JSON.stringify(process.env.NEXT_PUBLIC_BUILD_ID || "dev")},K="gs-heal-"+B,healing=false,told=false;
 function report(m){try{var p=JSON.stringify({message:m,kind:"recovery",platform:"web",appVersion:B,stack:location.pathname});
 if(navigator.sendBeacon){navigator.sendBeacon("/api/native/log-crash",new Blob([p],{type:"application/json"}))}}catch(e){}}
 function heal(reason){try{
-if(healing)return;var n=parseInt(localStorage.getItem(K)||"0",10);if(n>=2)return;
-healing=true;localStorage.setItem(K,String(n+1));report("web-self-heal: "+reason);
+if(healing)return;
+/* The old cap was two attempts per build FOREVER, and hitting it returned in
+   silence: the device stayed white with no telemetry at all, which is exactly
+   how Sveta's app looked on 24.07 (white pages, zero beacons for two days).
+   The counter now carries a timestamp and decays, so a device can never be
+   bricked permanently, and a suppressed heal still reports once - a stuck
+   client shows up in the log instead of going quiet. */
+var QUIET=1800000,raw=localStorage.getItem(K)||"",parts=raw.split(":"),
+n=parseInt(parts[0]||"0",10)||0,t=parseInt(parts[1]||"0",10)||0,now=Date.now();
+if(!t||now-t>QUIET)n=0;
+if(n>=2){if(!told){told=true;report("web-self-heal SUPPRESSED (cap reached, still broken): "+reason)}return}
+healing=true;localStorage.setItem(K,(n+1)+":"+now);report("web-self-heal: "+reason);
 var done=function(){var u=location.pathname+location.search;u+=(u.indexOf("?")>=0?"&":"?")+"gsheal="+(n+1);location.replace(u)};
 var ps=[];
 if(window.caches&&caches.keys){ps.push(caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}))}
