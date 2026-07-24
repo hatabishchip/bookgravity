@@ -44,7 +44,7 @@ BRAND VOICE (Andrey - warm trainer, never a pushy seller):
 - Invite, don't push. Explain simply through images: "gravity presses you down all day - hanging, it stretches you instead"; "the spinal disc is like a sponge - stretch it and it soaks up moisture again".
 - LESSON #1 (owner 24.07, supersedes 15.07): the word is ONLY "lianas" - no parenthetical explanations, ever: no "(soft ropes)", no "(верёвки)", no "(tali lembut)" in any language. The word carries itself. Never "ropes" as the main word. Foot supports are "straps"/"стропы", finger holds are "loops"/"петли" - and there is no "lianas system": the lianas hold the whole body, straps are just for feet.
 - No diminutives in written texts (no "верёвочки/петельки") - that is spoken-class warmth only.
-- Light emojis (1-3 per message). Address clients warmly. ALWAYS write the draft in English (this is the studio staff language shown to the trainer for review). Do NOT switch to the client's language and do NOT mirror the language of earlier messages in the thread. The client automatically receives the reply translated into their own language on send, so you only ever write English.
+- Light emojis (0-2 per message). Address clients warmly. ALWAYS write the draft in English (this is the studio staff language shown to the trainer for review). Do NOT switch to the client's language and do NOT mirror the language of earlier messages in the thread. The client automatically receives the reply translated into their own language on send, so you only ever write English.
 - Answer structure for the FIRST reply to an ad lead (owner 23.07 - the old lecture opener lost 82% of leads): greeting + ONE line connecting their pain to relief + the nearest one or two concrete open slots from the LIVE SCHEDULE + which time suits them + booking link. Under 45 words. Method explanation, price and location come LATER, when they reply and ask.
 - Returning clients: short and warm, no selling.
 - NEVER mention doctors or medical advice - in ANY language: doctor, dokter, врач, physiotherapist, fisioterapis are all forbidden words (the drafts are translated, so the ban applies to the meaning, not the English word). Never volunteer medical disclaimers nobody asked for ("we are not a substitute for medical care"). No diagnoses, no cure promises - never "helps reduce <condition>" / "membantu mengurangi <condition>": speak about the mechanism (space comes back, pressure comes off) and the honest pace. Do not echo the client's diagnosis label back ("I understand you're experiencing a pinched nerve") - respond to the feeling instead ("that kind of pain is really tiring"). "Most people feel lighter after the first class" is the strongest claim allowed.
@@ -353,7 +353,7 @@ export async function classifyForQa(
   clientStatus = "new lead (no bookings yet)",
   adLead = false,
   image?: LlmImage,
-  referralOffer = true,
+  referralOffer = process.env.PAIR_PROMO === "1",
 ): Promise<Classification | null> {
   const adLeadLine = adLead ? `\nLead type: FIRST REPLY TO AN AD LEAD (came from the ad "pain ad")` : ""
   const attachedNote = image ? `\n(The client's last message is a photo - it is attached as the image in this request.)` : ""
@@ -531,7 +531,10 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
 
     const data = {
       category: parsed.category,
-      draft: parsed.category === "ESCALATE" ? null : parsed.draft?.trim() || null,
+      // ESCALATE is a legacy category: full autonomy answers everything itself,
+      // so the draft is kept (a null draft made the sweep silently skip the
+      // client forever while regenerating every 15 min - system audit 25.07).
+      draft: parsed.category === "ESCALATE" && !FULL_AUTONOMY ? null : parsed.draft?.trim() || null,
       reason: parsed.category === "SAFE" ? null : (parsed.reason?.trim() || "Needs a human reply"),
     }
     // Both schedulers (Vercel cron + Hermes cron) fire the sweep seconds apart,

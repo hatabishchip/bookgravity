@@ -374,7 +374,17 @@ export async function moveClassSlot(opts: {
         patched.push({ id: b.id, ticketCode: code })
         await tx.booking.update({
           where: { id: b.id },
-          data: { slotId: targetSlotId, ticketCode: code },
+          // Reminder flags reset so the moved booking re-enters the reminder
+          // chain for its NEW date (audit 25.07: flags travelled with the
+          // booking and the day-before reminder never fired again).
+          data: {
+            slotId: targetSlotId,
+            ticketCode: code,
+            reminderSentAt: null,
+            todayReminderSentAt: null,
+            attendanceConfirmedAt: null,
+            rosterSummarySentAt: null,
+          },
         })
       }
       await tx.timeSlot.update({

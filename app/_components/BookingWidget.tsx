@@ -770,6 +770,7 @@ export default function BookingWidget({ services, studio, studioSlug }: {
 
   const submitBooking = async (confirmDuplicate: boolean, codeOverride?: string) => {
     if (!selectedSlot) return
+    if (submitting) return // double-tap guard: two fast taps used to create two bookings (audit 25.07)
     setSubmitting(true)
     setError("")
     try {
@@ -832,6 +833,11 @@ export default function BookingWidget({ services, studio, studioSlug }: {
         localStorage.setItem("bg_active_ticket", JSON.stringify(persisted))
       } catch {}
       setStep("done")
+    } catch {
+      // Network dropped mid-POST (Bali reality): without this the spinner just
+      // vanished and the client never learned whether the booking was created
+      // (audit 25.07).
+      setError("No connection - please check your internet and try again")
     } finally {
       setSubmitting(false)
     }

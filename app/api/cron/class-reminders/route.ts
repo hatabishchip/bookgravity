@@ -92,6 +92,14 @@ export async function GET(req: NextRequest) {
     // Client-facing time = 1.5h (real slot is 2h with trainer buffer).
     const time = clientClassRange(b.slot.startTime)
 
+    // Claim BEFORE sending (same pattern as today-reminders): mark the whole
+    // phone group first so a concurrent/retried run can never double-send;
+    // release the claim if the send fails (audit 25.07).
+    const claimStamp = new Date()
+    await prisma.booking.updateMany({
+      where: { id: { in: group.map((g) => g.id) }, reminderSentAt: null },
+      data: { reminderSentAt: claimStamp },
+    })
     const res = await sendClassReminderWA({
       clientPhone: b.clientPhone,
       trainerName,
@@ -113,11 +121,7 @@ export async function GET(req: NextRequest) {
         phoneTail: phoneTail(b.clientPhone),
         classTime: `${b.slot.date} ${b.slot.startTime}`,
       })
-      // Mark the WHOLE phone group as reminded - one message covered them all.
-      await prisma.booking.updateMany({
-        where: { id: { in: group.map((g) => g.id) } },
-        data: { reminderSentAt: new Date() },
-      })
+      // Already claimed above - nothing to mark here.
       // Best-effort: log the reminder in the client's conversation thread so
       // the trainer/admin can see it in the inbox. Booking phones are stored
       // FORMATTED ("+62 812 …") while conversation phones are Meta's bare
@@ -179,6 +183,11 @@ export async function GET(req: NextRequest) {
         bookingId: b.id,
         phoneTail: phoneTail(b.clientPhone),
         error: res.error,
+      })
+      // Release only OUR claim so the next run retries this group.
+      await prisma.booking.updateMany({
+        where: { id: { in: group.map((g) => g.id) }, reminderSentAt: claimStamp },
+        data: { reminderSentAt: null },
       })
     }
   }

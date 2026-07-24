@@ -31,7 +31,12 @@ export async function fetchFbThreads(token: string, pageId: string): Promise<FbT
   const url = `${FB_GRAPH}/${pageId}/conversations?fields=participants,messages.limit(10)%7Bid,from,message,created_time%7D&limit=25&access_token=${token}`
   const r = await fetch(url)
   if (!r.ok) {
-    console.warn("[facebook] conversations fetch failed:", r.status, (await r.text()).slice(0, 200))
+    const errText = (await r.text()).slice(0, 200)
+    console.warn("[facebook] conversations fetch failed:", r.status, errText)
+    try {
+      const { elogError } = await import("@/lib/elog")
+      void elogError("fb:sync", `conversations fetch failed HTTP ${r.status}`, { error: errText })
+    } catch {}
     return []
   }
   const j = (await r.json()) as {
@@ -130,6 +135,21 @@ export async function syncFacebookThreads(studioId: string): Promise<number> {
         })
         if (inbound) {
           imported++
+          // Language detect on the client's text (audit 25.07): without it the
+          // sweep saw clientLanguage NULL for every IG/FB thread and answered
+          // Indonesians/Russians in English. Best-effort, first text only.
+          if (m.text && m.text.trim().length > 2) {
+            try {
+              const { translateAndDetect } = await import("@/lib/translate")
+              const d = await translateAndDetect({ text: m.text, targetLang: "en" })
+              if (d.ok && d.sourceLang && d.sourceLang !== "und") {
+                await prisma.whatsAppConversation.update({
+                  where: { id: convo.id },
+                  data: { clientLanguage: d.sourceLang },
+                })
+              }
+            } catch {}
+          }
           await prisma.whatsAppConversation.update({
             where: { id: convo.id },
             data: {

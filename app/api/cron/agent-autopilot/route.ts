@@ -189,6 +189,10 @@ export async function GET(req: NextRequest) {
     // the polite ask for text). Other body-less types (stickers, documents)
     // still skip - answering those generically reads wrong.
     if (!lastMsg.body?.trim() && lastMsg.type !== "image" && lastMsg.type !== "audio") continue
+    // A document's body is just its FILENAME (webhook stores it that way) -
+    // answering "MRI_scan.pdf" as if it were the client's words is answering
+    // blind (system audit 25.07). Documents wait for a human.
+    if (lastMsg.type === "document") continue
 
     // Voice note the webhook didn't transcribe (missed after(), key added
     // later): one more try before the agent answers.
@@ -267,7 +271,9 @@ export async function GET(req: NextRequest) {
           select: { id: true },
         })
         if (tried) continue
-        await prisma.eventLog.create({ data: { scope: "ig:human-agent", message: lastMsg.id } })
+        try {
+          await prisma.eventLog.create({ data: { scope: "ig:human-agent", message: lastMsg.id } })
+        } catch { continue } // unique index: another sweep claimed it first
         igTag = "HUMAN_AGENT"
       }
       igToken = await getIgToken()
@@ -293,7 +299,18 @@ export async function GET(req: NextRequest) {
     // conversations/[id]/messages/route.ts.
     let textOut = draft
     let translatedBody: string | null = null
-    const clientLang = convo.clientLanguage
+    let clientLang = convo.clientLanguage
+    // Safety net for the webhook race (fixed 25.07 but old rows remain): if
+    // the language was never recorded, detect it from the client's last text
+    // right now - a dozen Indonesian leads got English replies because the
+    // sweep saw NULL here.
+    if (!clientLang && lastMsg.type === "text" && lastMsg.body && !isIg && !isFb) {
+      const d = await translateAndDetect({ text: lastMsg.body, targetLang: "en" })
+      if (d.ok && d.sourceLang && d.sourceLang !== "und") {
+        clientLang = d.sourceLang
+        await prisma.whatsAppConversation.update({ where: { id: convo.id }, data: { clientLanguage: clientLang } })
+      }
+    }
     if (clientLang && clientLang !== "en") {
       const t = await translateAndDetect({ text: draft, targetLang: clientLang })
       if (t.ok && t.translated.trim() && t.sourceLang !== clientLang) {
@@ -469,7 +486,9 @@ export async function GET(req: NextRequest) {
       })
       if (already) continue
       // Claim BEFORE sending - a second failure must not loop forever.
-      await prisma.eventLog.create({ data: { scope: "wa:retry", message: m.id } })
+      try {
+        await prisma.eventLog.create({ data: { scope: "wa:retry", message: m.id } })
+      } catch { continue } // unique index: another sweep claimed it first
       const cfgStudio = await prisma.studio.findUnique({
         where: { id: convo.studioId },
         select: { whatsappPhoneNumberId: true, whatsappAccessToken: true },
@@ -503,8 +522,13 @@ export async function GET(req: NextRequest) {
   // concrete Canggu slots. EventLog scope "ad:followup" is the once-ever lock
   // per conversation; WhatsApp leads only (IG/FB windows work differently).
   let followedUp = 0
-  if (timeLeft() > 10_000) {
-    const nudgeFrom = new Date(Date.now() - 23 * 3600_000)
+  // Nudges go out only in waking hours (09-20 Bali): 3 of the first 4 nudges
+  // fired at 01:45-06:00 WITA and burned the single follow-up touch (audit
+  // 25.07). A lead whose 18-23h window falls at night gets the nudge next
+  // morning - the lock keys on the conversation, not the hour.
+  const baliHourNow = (new Date().getUTCHours() + 8) % 24
+  if (timeLeft() > 10_000 && baliHourNow >= 9 && baliHourNow < 20) {
+    const nudgeFrom = new Date(Date.now() - 36 * 3600_000)
     const nudgeTo = new Date(Date.now() - 18 * 3600_000)
     const silent = await prisma.whatsAppConversation.findMany({
       where: {
@@ -548,7 +572,9 @@ export async function GET(req: NextRequest) {
       // class and had to be walked back twice (owner-approved fix 24.07).
       const draft = `Hi! Just checking in - we have ${slotLine} open at the Canggu studio. The first class is the easiest way to feel it - most people leave feeling lighter 🌿 Want to grab a spot? https://bookgravity.com`
       // Lock BEFORE sending so a racing sweep can never double-nudge.
-      await prisma.eventLog.create({ data: { scope: "ad:followup", message: convo.id } })
+      try {
+        await prisma.eventLog.create({ data: { scope: "ad:followup", message: convo.id } })
+      } catch { continue } // unique index: another sweep claimed it first
       let textOut = draft
       let translatedBody: string | null = null
       if (convo.clientLanguage && convo.clientLanguage !== "en") {
@@ -624,23 +650,40 @@ export async function GET(req: NextRequest) {
           })
         ).some((x) => phoneTail(x.clientPhone) === tail)
         if (upcoming) {
-          await prisma.eventLog.create({ data: { scope: "rebook:nudge", message: b.id } })
+          try {
+            await prisma.eventLog.create({ data: { scope: "rebook:nudge", message: b.id } })
+          } catch { continue } // unique index: another sweep claimed it first
           continue
         }
-        const convo = (
+        let convo = (
           await prisma.whatsAppConversation.findMany({
             where: { studioId: studio.id },
             select: { id: true, clientPhone: true, clientLanguage: true },
           })
         ).find((c) => phoneTail(c.clientPhone) === tail)
+        // A client who booked without ever chatting has no conversation - the
+        // nudge then vanished from every inbox and their reply landed in a
+        // context-free thread (audit 25.07). Create the thread first.
+        if (!convo) {
+          const created = await prisma.whatsAppConversation.create({
+            data: { studioId: studio.id, clientPhone: b.clientPhone, clientName: b.clientName ?? null },
+            select: { id: true, clientPhone: true, clientLanguage: true },
+          })
+          convo = created
+        }
         // Lock BEFORE sending so a racing sweep can never double-nudge - and
         // lock the person's ENTIRE lapsed party (all sibling bookings on this
         // phone in this batch), not just the one row that triggered.
         nudgedTails.add(tail)
         const siblings = lapsed.filter((x) => phoneTail(x.clientPhone) === tail)
-        await prisma.eventLog.createMany({
-          data: siblings.map((s) => ({ scope: "rebook:nudge", message: s.id })),
-        })
+        let claimedAny = false
+        for (const s of siblings) {
+          try {
+            await prisma.eventLog.create({ data: { scope: "rebook:nudge", message: s.id } })
+            claimedAny = true
+          } catch {} // unique index: that sibling already locked
+        }
+        if (!claimedAny) continue // a racing sweep owns this whole party
         let textOut = NUDGE
         let translatedBody: string | null = null
         if (convo?.clientLanguage && convo.clientLanguage !== "en") {
@@ -658,7 +701,7 @@ export async function GET(req: NextRequest) {
           variables: [firstName, textOut],
           config: waConfig,
         })
-        if (convo) {
+        {
           await appendOutboundMessage({
             conversationId: convo.id,
             type: "template",

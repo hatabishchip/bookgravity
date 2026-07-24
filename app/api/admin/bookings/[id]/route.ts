@@ -46,6 +46,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ((existing.status === "CANCELLED" || existing.status === "NO_SHOW") && data.paymentType !== undefined) {
     return NextResponse.json({ error: "Cannot change payment on a closed booking" }, { status: 400 })
   }
+  // Status matrix (audit 25.07): a closed booking cannot be silently revived -
+  // un-cancel skipped the capacity check and the membership re-charge (the
+  // pass class was already refunded on cancel), and NO_SHOW->CANCELLED would
+  // send a confusing second closure message. Revival = create a new booking.
+  if (data.status === "CONFIRMED" && (existing.status === "CANCELLED" || existing.status === "NO_SHOW")) {
+    return NextResponse.json({ error: "A cancelled/no-show booking cannot be re-confirmed - create a new booking instead" }, { status: 400 })
+  }
+  if (data.status === "CANCELLED" && existing.status === "NO_SHOW") {
+    return NextResponse.json({ error: "A no-show booking is already closed" }, { status: 400 })
+  }
 
   // Moving to another slot: the target must be in this studio, have a trainer,
   // not be in the past, and not be full (mirrors the trainer endpoint's guards -
@@ -60,7 +70,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!target.trainerId) {
       return NextResponse.json({ error: "Target class has no trainer assigned" }, { status: 400 })
     }
-    if (target.date < baliDateStr(new Date())) {
+    // Compare by class START TIME, not just date: a same-day move into an
+    // already-finished class used to pass (audit 25.07).
+    if (Date.parse(`${target.date}T${target.startTime}:00+08:00`) < Date.now()) {
       return NextResponse.json({ error: "Target class is in the past" }, { status: 400 })
     }
     if (target._count.bookings >= target.maxCapacity) {
@@ -71,6 +83,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // Membership handling: charge/refund a pass class when switching to/from
   // MEMBERSHIP (same shared rules as the trainer endpoint).
   const updateData: Record<string, unknown> = { ...data }
+  // A moved booking must re-enter the reminder chain for its NEW date: the
+  // old flags travelled with it and the day-before reminder never fired again
+  // (audit 25.07). Confirm-status also resets - it referred to the old time.
+  if (data.slotId && data.slotId !== existing.slotId) {
+    Object.assign(updateData, {
+      reminderSentAt: null,
+      todayReminderSentAt: null,
+      attendanceConfirmedAt: null,
+      rosterSummarySentAt: null,
+    })
+  }
   // Keep the legacy localResident flag in lockstep with the tier.
   if (data.priceTier !== undefined) {
     updateData.localResident = data.priceTier === "LOCAL"

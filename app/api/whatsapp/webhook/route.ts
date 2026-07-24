@@ -465,7 +465,11 @@ export async function POST(request: NextRequest) {
             // Images and voice notes go through too (24.07): the agent SEES a
             // photo (downloaded and attached to the model call) and politely
             // asks for text on a voice note - both used to sit unanswered.
-            if ((type === "text" && msgBody) || type === "image" || type === "audio") {
+            // Button-tap payloads (CONFIRM:xxx / CANCEL:xxx / CANCELALL:xxx) are
+            // machine text handled by their own flows - never worth an LLM call
+            // (audit 25.07).
+            const isButtonPayload = type === "text" && /^(CONFIRM|CANCEL|CANCELALL):/i.test((msgBody ?? "").trim())
+            if (((type === "text" && msgBody) || type === "image" || type === "audio") && !isButtonPayload) {
               after(async () => {
                 // Voice notes are transcribed FIRST (Deepgram, 24.07) so the
                 // agent answers the actual words; a failed/dark transcription
@@ -660,7 +664,11 @@ export async function POST(request: NextRequest) {
               msgBody.trim().length > 0 &&
               (type === "text" || type === "image" || type === "video")
             ) {
-              void (async () => {
+              // after(), not fire-and-forget: Vercel freezes the instance once
+              // the response is out, so a bare void-IIFE often died before
+              // writing clientLanguage - the sweep then saw NULL and answered
+              // Indonesian clients in English (system audit 25.07).
+              after(async () => {
                 try {
                   const t = await translateAndDetect({
                     text: msgBody,
@@ -697,7 +705,7 @@ export async function POST(request: NextRequest) {
                 } catch (err) {
                   console.error("[whatsapp-webhook] translate threw:", err)
                 }
-              })()
+              })
             }
 
             // Fire-and-forget WhatsApp copy to owner's personal number via
@@ -777,7 +785,16 @@ export async function POST(request: NextRequest) {
               }
             })()
           } catch (err) {
+            // A lost inbound is the worst silent failure this system has: the
+            // client wrote and nobody will ever know. Log it durably (audit
+            // 25.07) - Vercel console logs expire, EventLog does not.
             console.error("[whatsapp-webhook] persist inbound failed:", err)
+            void elogError("webhook:persist", "inbound message LOST - persist failed", {
+              from: msg.from,
+              type: msg.type,
+              waMessageId: msg.id,
+              error: err instanceof Error ? err.message : String(err),
+            })
           }
         }
 

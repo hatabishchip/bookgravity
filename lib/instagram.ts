@@ -187,6 +187,21 @@ export async function syncInstagramThreads(studioId: string): Promise<number> {
         })
         if (inbound) {
           imported++
+          // Language detect on the client's text (audit 25.07): without it the
+          // sweep saw clientLanguage NULL for every IG/FB thread and answered
+          // Indonesians/Russians in English. Best-effort, first text only.
+          if (m.text && m.text.trim().length > 2) {
+            try {
+              const { translateAndDetect } = await import("@/lib/translate")
+              const d = await translateAndDetect({ text: m.text, targetLang: "en" })
+              if (d.ok && d.sourceLang && d.sourceLang !== "und") {
+                await prisma.whatsAppConversation.update({
+                  where: { id: convo.id },
+                  data: { clientLanguage: d.sourceLang },
+                })
+              }
+            } catch {}
+          }
           await prisma.whatsAppConversation.update({
             where: { id: convo.id },
             data: {

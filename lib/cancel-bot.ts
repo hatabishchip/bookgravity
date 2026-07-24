@@ -385,7 +385,10 @@ export async function handleCancelBotMessage(opts: {
   // The booking confirmation's quick-reply button sends this text. With no
   // ticket code to go on, we target the client's NEAREST upcoming booking in
   // this studio and ask them to confirm.
-  if (/^cancel booking$/i.test(text) || /отмен/i.test(text)) {
+  // Explicit cancel intents only: the old bare /отмен/ substring also fired
+  // on "не отменяйте, приду" and started a cancel dialog for a client who
+  // asked NOT to cancel (audit 25.07).
+  if (/^cancel booking$/i.test(text) || (/(отмени|отменить|отмена)/i.test(text) && !/не\s+отмен/i.test(text))) {
     const tail = phoneTail(opts.clientPhone)
     if (tail.length < 6) return
     // See the ticket-code branch above — same reason we filter in JS, not SQL.

@@ -132,6 +132,16 @@ export async function appendInboundMessage(opts: {
   waMessageId?: string | null
   receivedAt: Date
 }) {
+  // Dedupe on Meta's message id: Meta re-delivers webhooks it considers slow,
+  // and a re-delivered inbound used to become a second row (and a second agent
+  // reply). IG/FB syncs already check - this closes the WA path (audit 25.07).
+  if (opts.waMessageId) {
+    const existing = await prisma.whatsAppMessage.findFirst({
+      where: { waMessageId: opts.waMessageId, direction: "INBOUND" },
+      select: { id: true },
+    })
+    if (existing) return prisma.whatsAppMessage.findUniqueOrThrow({ where: { id: existing.id } })
+  }
   const msg = await prisma.whatsAppMessage.create({
     data: {
       conversationId: opts.conversationId,

@@ -1,10 +1,18 @@
 {
-  "regions": ["sin1"],
+  "regions": [
+    "sin1"
+  ],
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 10
     },
     "app/api/cron/agent-autopilot/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/cron/class-reminders/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/cron/today-reminders/route.ts": {
       "maxDuration": 60
     }
   },

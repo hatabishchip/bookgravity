@@ -260,7 +260,10 @@ export async function PATCH(request: NextRequest) {
     // Force capacity to 1 when type becomes PRIVATE
     if (data.classType === "PRIVATE") data.maxCapacity = 1
 
-    const current = await prisma.timeSlot.findFirst({ where: { id, studioId: ctx.studioId } })
+    const current = await prisma.timeSlot.findFirst({
+      where: { id, studioId: ctx.studioId },
+      include: { _count: { select: { bookings: { where: { status: "CONFIRMED" } } } } },
+    })
     if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     // Recompute end time + check conflicts only if startTime is changing
@@ -295,7 +298,9 @@ export async function PATCH(request: NextRequest) {
         ...(data.assistantId !== undefined && { assistantId: data.assistantId ?? null }),
         ...(data.classType !== undefined && { classType: data.classType }),
         ...(data.publicVisible !== undefined && { publicVisible: data.publicVisible }),
-        ...(data.maxCapacity !== undefined && { maxCapacity: data.maxCapacity }),
+        // Never shrink below already-confirmed bookings (same guard as the
+        // series branch - the direct branch allowed "7/4 booked", audit 25.07).
+        ...(data.maxCapacity !== undefined && { maxCapacity: Math.max(data.maxCapacity, current._count.bookings) }),
         ...(data.price !== undefined && { price: data.price }),
       },
       include: slotInclude,
