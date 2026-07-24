@@ -184,8 +184,11 @@ export async function GET(req: NextRequest) {
     const staleInbound =
       !!convo.lastInboundAt && Date.now() - new Date(convo.lastInboundAt).getTime() > 30 * 60_000
     if (staleInbound) unanswered++
-    // Only auto-answer text (a voice note / image answered generically reads wrong).
-    if (!lastMsg.body?.trim()) continue
+    // Text goes through; so do images (the agent downloads the photo and SEES
+    // it, 24.07) and voice notes (the agent politely asks for text). Other
+    // body-less types (stickers, documents) still skip - answering those
+    // generically reads wrong.
+    if (!lastMsg.body?.trim() && lastMsg.type !== "image" && lastMsg.type !== "audio") continue
 
     // Existing pending suggestion for this inbound, or generate one now
     // (also covers inbounds the webhook's after() missed).

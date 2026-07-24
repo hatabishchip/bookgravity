@@ -148,7 +148,9 @@ ANSWER RULES:
 - The same principle covers EVERY negative the client has not raised (owner 24.07): do not volunteer injuries, contraindications, cancellation ("you can cancel anytime" invites cancelling - explain cancellation only when they ask about it), age or fitness doubts, or pain beyond what the client themselves described. Answer what was raised; never seed a worry.
 - Word choice: a slot is "open" or "available" - NEVER "free" (a client read "9:00 free" as a free-of-charge class, 23.07). Name only the class START time ("at 9:00"), never a range like "9:00-11:00".
 - Light emojis (0-2). ALWAYS write the draft in English (studio staff language shown to the trainer for review), regardless of the client's language or the thread history. The client automatically receives the reply translated into their own language (English/Russian/Bahasa/etc.) on send.
-- A client message shown as "[attachment]" is a photo/story reply/voice note we cannot see. Never guess its content. If it opens the conversation, greet them warmly and ask what they're looking for. If it arrives mid-conversation, only reply when context makes the intent obvious - otherwise use an empty draft "".
+- A client message shown as "[attachment]" is an Instagram photo/story reply we cannot see. Never guess its content. If it opens the conversation, greet them warmly and ask what they're looking for. If it arrives mid-conversation, only reply when context makes the intent obvious - otherwise use an empty draft "".
+- When the client's LAST message is a photo, the actual image is attached to this request - look at it and answer what it really shows (a screenshot of the booking page, a location pin, a product). If the photo is a medical scan (MRI/X-ray/ultrasound) or shows an injury, the MEDICAL rules apply in full: never diagnose, never name or describe what the scan shows, respond with the standard medical formula. A photo shown as "[image]" EARLIER in the thread was not attached - treat it like "[attachment]": never guess.
+- A client message shown as "[voice note]" is a voice message we cannot listen to. Warmly ask them to type it instead ("So sorry - I can't listen to voice messages here. Could you type it out?"). If your PREVIOUS reply already asked them to type, do not ask again - use an empty draft "".
 - FIRST REPLY TO AN AD LEAD (marked in the message): NO method lecture. Formula: greeting + ONE short line connecting their pain to relief + the nearest ONE or TWO concrete open slots from the LIVE SCHEDULE ("Tomorrow we have 9:00 or 11:00 open") + a closing question which time suits them + the booking link. Under 45 words total. The method explanation waits until they reply. VARY the relief line - do not repeat one stock phrase to every lead (live replies 24.07: six leads in a row got the identical sentence). Rotate angles like: "hanging gently takes the pressure off the spine", "in the lianas the back finally gets to lengthen and rest", "a gentle hang gives the discs room again - most feel lighter after one class".
 
 CATEGORY LABELS (statistics only - you ALWAYS write the full reply in draft):
@@ -185,7 +187,12 @@ Respond ONLY with strict JSON, no markdown fence:
 
 type Classification = { category: "SAFE" | "BOOKING" | "ESCALATE" | "MEDICAL" | "BUSINESS"; draft?: string; reason?: string }
 
-async function callLlm(systemPrompt: string, userPrompt: string): Promise<string | null> {
+// A photo the client just sent, passed to the model as an image block so the
+// agent answers what the picture actually shows (screenshots of the booking
+// page, location pins, MRI shots). Only the LAST inbound is ever attached.
+export type LlmImage = { mediaType: string; base64: string }
+
+async function callLlm(systemPrompt: string, userPrompt: string, image?: LlmImage): Promise<string | null> {
   // Sonnet 5 ONLY (owner 23.07: "оставь только сонет, остальные отключай").
   // The old Gemini -> Groq -> Cerebras fallback chain is removed: reply
   // quality must never silently degrade to a weaker model. Resilience comes
@@ -217,7 +224,17 @@ async function callLlm(systemPrompt: string, userPrompt: string): Promise<string
           // prompt the model sees are unchanged. The short LESSON_SYSTEM is
           // below the cacheable minimum and silently skips caching - fine.
           system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral", ttl: "1h" } }],
-          messages: [{ role: "user", content: userPrompt }],
+          messages: [
+            {
+              role: "user",
+              content: image
+                ? [
+                    { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.base64 } },
+                    { type: "text", text: userPrompt },
+                  ]
+                : userPrompt,
+            },
+          ],
         }),
       })
       if (r.ok) {
@@ -328,10 +345,12 @@ export async function classifyForQa(
   message: string,
   clientStatus = "new lead (no bookings yet)",
   adLead = false,
+  image?: LlmImage,
 ): Promise<Classification | null> {
   const adLeadLine = adLead ? `\nLead type: FIRST REPLY TO AN AD LEAD (came from the ad "pain ad")` : ""
-  const userPrompt = `Client name: QA Test\nClient status: ${clientStatus}${adLeadLine}\n${baliTimeLine()}${await liveScheduleBlock()}\n\nConversation (oldest first):\nCLIENT: ${message}\n\nClassify the LAST client message and draft the reply per the rules.`
-  const raw = await callLlm(await buildSystemPrompt(), userPrompt)
+  const attachedNote = image ? `\n(The client's last message is a photo - it is attached as the image in this request.)` : ""
+  const userPrompt = `Client name: QA Test\nClient status: ${clientStatus}${adLeadLine}${attachedNote}\n${baliTimeLine()}${await liveScheduleBlock()}\n\nConversation (oldest first):\nCLIENT: ${message}\n\nClassify the LAST client message and draft the reply per the rules.`
+  const raw = await callLlm(await buildSystemPrompt(), userPrompt, image)
   if (!raw) return null
   return parseClassification(raw)
 }
@@ -369,7 +388,17 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
   try {
     const convo = await prisma.whatsAppConversation.findUnique({
       where: { id: conversationId },
-      select: { id: true, clientName: true, clientPhone: true, lastInboundAt: true, adReferralAt: true, adHeadline: true, studio: { select: { slug: true } } },
+      select: {
+        id: true,
+        clientName: true,
+        clientPhone: true,
+        lastInboundAt: true,
+        adReferralAt: true,
+        adHeadline: true,
+        // phoneNumberId + token feed getConfigFor() when the last inbound is a
+        // photo we download from Meta to show the model.
+        studio: { select: { slug: true, isDefault: true, whatsappPhoneNumberId: true, whatsappAccessToken: true } },
+      },
     })
     if (!convo) return null
     // Owner 15.07: the sales agent runs ONLY for the Canggu studio.
@@ -398,16 +427,51 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
       where: { conversationId },
       orderBy: { createdAt: "desc" },
       take: 12,
-      select: { direction: true, type: true, body: true, translatedBody: true, fromAgent: true },
+      select: { id: true, direction: true, type: true, body: true, translatedBody: true, fromAgent: true, mediaUrl: true, mediaMime: true },
     })
     const transcript = history
       .reverse()
       .map((m) => {
         const who = m.direction === "INBOUND" ? "CLIENT" : m.fromAgent ? "AGENT" : "STUDIO"
-        const text = m.body || `[${m.type}]`
+        // Media placeholders match the prompt rules: "[voice note]" triggers the
+        // type-it-out ask, "[image] <caption>" keeps the caption visible while
+        // flagging there was a photo.
+        const text =
+          m.type === "audio"
+            ? "[voice note]"
+            : m.type === "image"
+              ? m.body
+                ? `[image] ${m.body}`
+                : "[image]"
+              : m.body || `[${m.type}]`
         return `${who}: ${text}`
       })
       .join("\n")
+
+    // The photo itself: when the inbound we are answering is an image, download
+    // it from Meta and attach it to the model call - the agent answers what the
+    // picture actually shows instead of guessing (owner tail from Part_10).
+    // Fail-open: any download problem just means the transcript's "[image]"
+    // placeholder stands alone, same behaviour as before this feature.
+    let imageBlock: LlmImage | undefined
+    const inboundMsg = history.find((m) => m.id === inboundMessageId)
+    if (inboundMsg?.type === "image" && inboundMsg.mediaUrl) {
+      try {
+        const { fetchMetaMedia, getConfigFor } = await import("@/lib/whatsapp-cloud")
+        const fetched = await fetchMetaMedia(inboundMsg.mediaUrl, getConfigFor(convo.studio))
+        if (fetched.ok) {
+          const mediaType = fetched.mimeType || inboundMsg.mediaMime || ""
+          const supported = ["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mediaType)
+          // Anthropic caps images at ~5 MB; WhatsApp photos are re-encoded well
+          // under that, but originals forwarded as documents can exceed it.
+          if (supported && fetched.bytes.byteLength <= 4_500_000) {
+            imageBlock = { mediaType, base64: Buffer.from(fetched.bytes).toString("base64") }
+          }
+        }
+      } catch (err) {
+        console.warn("[sales-agent] image fetch failed:", err)
+      }
+    }
 
     // New lead vs existing client - the tone differs (leads get the pitch,
     // clients get short warmth). Matched by phone tail like the rest of the app.
@@ -434,9 +498,10 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
     const agentSpokeBefore = history.some((m) => m.direction === "OUTBOUND")
     const adLeadLine = isAdLead && !agentSpokeBefore ? `\nLead type: FIRST REPLY TO AN AD LEAD (came from the ad "${convo.adHeadline ?? "pain ad"}")` : ""
 
-    const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}${adLeadLine}\n${baliTimeLine()}${scheduleBlock}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
+    const attachedNote = imageBlock ? `\n(The client's last message is a photo - it is attached as the image in this request.)` : ""
+    const userPrompt = `Client name: ${convo.clientName ?? "unknown"}\nClient status: ${clientStatus}${adLeadLine}${attachedNote}\n${baliTimeLine()}${scheduleBlock}\n\nConversation (oldest first):\n${transcript}\n\nClassify the LAST client message and draft the reply per the rules.`
 
-    const raw = await callLlm(await buildSystemPrompt(), userPrompt)
+    const raw = await callLlm(await buildSystemPrompt(), userPrompt, imageBlock)
     if (process.env.AGENT_DEBUG) console.log("[sales-agent] raw:", raw)
     if (!raw) return null
     const parsed = parseClassification(raw)

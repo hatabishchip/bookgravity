@@ -462,7 +462,10 @@ export async function POST(request: NextRequest) {
             // AI sales agent (suggest-mode, owner 15.07): classify this inbound
             // and draft a reply suggestion for the inbox. Deferred + silent on
             // failure - never blocks the webhook 200 to Meta.
-            if (type === "text" && msgBody) {
+            // Images and voice notes go through too (24.07): the agent SEES a
+            // photo (downloaded and attached to the model call) and politely
+            // asks for text on a voice note - both used to sit unanswered.
+            if ((type === "text" && msgBody) || type === "image" || type === "audio") {
               after(async () => {
                 const { generateAgentSuggestion } = await import("@/lib/sales-agent")
                 await generateAgentSuggestion(convo.id, saved.id)
