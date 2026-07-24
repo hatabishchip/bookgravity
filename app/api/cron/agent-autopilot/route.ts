@@ -546,7 +546,7 @@ export async function GET(req: NextRequest) {
       const slotLine = slots.length === 2 && slots[0].date === slots[1].date ? `${when(slots[0])} or ${slots[1].startTime}` : slots.map(when).join(" or ")
       // "open", not "free": Julien (23.07) read "free" as a free-of-charge
       // class and had to be walked back twice (owner-approved fix 24.07).
-      const draft = `Hi! Just checking in - we have ${slotLine} open at the Canggu studio. The first class is the easiest way to feel how it works for your back 🌿 Want to grab a spot? https://bookgravity.com`
+      const draft = `Hi! Just checking in - we have ${slotLine} open at the Canggu studio. The first class is the easiest way to feel it - most people leave feeling lighter 🌿 Want to grab a spot? https://bookgravity.com`
       // Lock BEFORE sending so a racing sweep can never double-nudge.
       await prisma.eventLog.create({ data: { scope: "ad:followup", message: convo.id } })
       let textOut = draft

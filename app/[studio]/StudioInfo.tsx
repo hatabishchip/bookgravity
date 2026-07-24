@@ -48,11 +48,11 @@ function buildFaq(city: string, pricing: ClassPricing, currency: string | null, 
   const faq: { q: string; a: string }[] = [
     {
       q: "How long is a stretching class?",
-      a: "Each class is 75-90 minutes: a guided warm-up, gravity stretching with the trainer, and a calm cool-down.",
+      a: "Each class is 75-90 minutes: a gentle warm-up, gravity stretching with the trainer - slow, supported, never into pain - and a calm wind-down with long, easy breathing.",
     },
     {
       q: "Do I need any experience or flexibility to join?",
-      a: "No. Classes suit complete beginners and athletes alike - the trainer adjusts every stretch to your current range, so you work at your own depth.",
+      a: "No. Classes suit complete beginners and athletes alike - we go from simple to complex, and the trainer adjusts everything to your body. There is no task to exhaust yourself - only to feel better.",
     },
     {
       q: "What should I wear or bring?",
@@ -152,7 +152,7 @@ export default function StudioInfo({
           title: "Private 1-on-1",
           desc: `A full session focused entirely on your body and goals${
             pricing.private ? ` - from ${formatPrice(pricing.private, studio.currency, studio.country)}` : ""
-          }. Ideal for deep progress or specific issues.`,
+          }. Ideal when you want the whole class focused just on your body.`,
         },
         {
           icon: Clock,
@@ -178,7 +178,7 @@ export default function StudioInfo({
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-gray-600 whitespace-pre-line">
             {studio.bookingPageDescription?.trim() ||
-              `Gravity Stretching in ${city}. Experience Gravity Stretching - a unique way to relax, release tension, improve mobility, and help your body recover naturally. Sessions improve posture, release tight backs and joints, and simply feel fantastic. Book your spot online in a few taps - no payment needed to reserve.`}
+              `Gravity Stretching in ${city}. Experience Gravity Stretching - a gentle hang on the lianas. The body decompresses: space comes back to the spine, pressure comes off, tension melts away, and the body recovers naturally. Sessions release the tight, clenched places, improve posture - and the whole body simply feels lighter. Book your spot online in a few taps - no payment needed to reserve.`}
           </p>
         </div>
 
