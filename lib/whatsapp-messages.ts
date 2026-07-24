@@ -184,6 +184,12 @@ export async function sendClassReminderWA(opts: {
    *  CANCEL:<code>). Only used by the v7 path; omitted → falls through to a
    *  button-less template. */
   ticketCode?: string
+  /** True when this ONE reminder covers a party of several bookings on the
+   *  same phone (the caller groups them). The Cancel button then carries
+   *  CANCELALL:<lead code> so a tap cancels the WHOLE group — mirroring the
+   *  party booking-confirmation button — instead of silently dropping just
+   *  one seat. Confirm needs no variant: its handler cascades by phone+slot. */
+  party?: boolean
 }): Promise<SendResult> {
   // v7 (owner 24.07.2026): same wording as v5, plus two quick-reply buttons so
   // the client can confirm attendance or cancel in one tap. Needs the ticket
@@ -194,12 +200,13 @@ export async function sendClassReminderWA(opts: {
   const city0 = studioCityFromName(opts.studioName)
   const v7Template = process.env.WHATSAPP_TEMPLATE_CLASS_REMINDER_V7
   if (v7Template && opts.ticketCode && city0 && opts.startTime) {
+    const cancelPayload = opts.party ? `CANCELALL:${opts.ticketCode}` : `CANCEL:${opts.ticketCode}`
     return sendWhatsAppTemplate({
       toPhone: opts.clientPhone,
       templateName: v7Template,
       languageCode: lang0,
       variables: [clientStartTime12(opts.startTime), city0],
-      buttonPayloads: [`CONFIRM:${opts.ticketCode}`, `CANCEL:${opts.ticketCode}`],
+      buttonPayloads: [`CONFIRM:${opts.ticketCode}`, cancelPayload],
       config: getConfigFor(opts.studioWA),
     })
   }
@@ -275,6 +282,9 @@ export async function sendClassTodayConfirmWA(opts: {
    *  quick-reply buttons to THIS booking (CONFIRM:<code> / CANCEL:<code>).
    *  Only used by the v5 path; omitted → button-less v2/v1. */
   ticketCode?: string
+  /** One reminder covering a party — Cancel carries CANCELALL:<lead code> so a
+   *  tap cancels the whole group (see sendClassReminderWA.party). */
+  party?: boolean
 }): Promise<SendResult> {
   const lang = process.env.WHATSAPP_TEMPLATE_LANG || "en"
   // v5 (owner 24.07.2026): same body as v2 (location {{1}}), plus two
@@ -284,12 +294,13 @@ export async function sendClassTodayConfirmWA(opts: {
   const v5 = process.env.WHATSAPP_TEMPLATE_TODAY_CONFIRM_V5
   const locV5 = opts.locationUrl?.trim()
   if (v5 && opts.ticketCode && locV5) {
+    const cancelPayload = opts.party ? `CANCELALL:${opts.ticketCode}` : `CANCEL:${opts.ticketCode}`
     return sendWhatsAppTemplate({
       toPhone: opts.clientPhone,
       templateName: v5,
       languageCode: lang,
       variables: [locV5],
-      buttonPayloads: [`CONFIRM:${opts.ticketCode}`, `CANCEL:${opts.ticketCode}`],
+      buttonPayloads: [`CONFIRM:${opts.ticketCode}`, cancelPayload],
       config: getConfigFor(opts.studioWA),
     })
   }

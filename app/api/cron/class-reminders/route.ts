@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
       studioName: b.slot.studio.name,
       studioWA: b.slot.studio,
       ticketCode: b.ticketCode,
+      party: group.length > 1,
     })
 
     if (res.ok) {

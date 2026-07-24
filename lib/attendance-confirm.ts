@@ -41,7 +41,7 @@ export async function handleAttendanceConfirm(opts: {
         clientPhone: { endsWith: tail },
         slot: { studioId: opts.studioId },
       },
-      select: { id: true, attendanceConfirmedAt: true },
+      select: { id: true, slotId: true, attendanceConfirmedAt: true },
       orderBy: { createdAt: "desc" },
     })
 
@@ -54,10 +54,22 @@ export async function handleAttendanceConfirm(opts: {
     // Already confirmed, or no live booking (cancelled / wrong code): still ack
     // warmly so the tap never feels ignored, but skip a duplicate DB write.
     if (booking && !booking.attendanceConfirmedAt) {
-      await prisma.booking.update({
-        where: { id: booking.id },
+      // A party books N bookings on ONE phone but gets ONE reminder (bound to
+      // the lead ticket), so a single Confirm tap must confirm the WHOLE
+      // group - same phone, same class - or the trainer roster shows phantom
+      // "no reply" guests (mirrors the cancel bot's CANCELALL semantics).
+      const stamped = await prisma.booking.updateMany({
+        where: {
+          slotId: booking.slotId,
+          status: "CONFIRMED",
+          attendanceConfirmedAt: null,
+          clientPhone: { endsWith: tail },
+        },
         data: { attendanceConfirmedAt: new Date() },
       })
+      if (stamped.count > 1) {
+        console.log("[attendance-confirm] party confirm:", stamped.count, "bookings on slot", booking.slotId)
+      }
     }
 
     let out = CONFIRM_ACK

@@ -12,6 +12,7 @@ import { forwardClientReplyToTrainer } from "@/lib/whatsapp-messages"
 import { syncInstagramThreads, sendInstagramText, getIgToken, isIgConversationPhone } from "@/lib/instagram"
 import { syncFacebookThreads, sendFacebookText, getFbPageToken, isFbConversationPhone } from "@/lib/facebook"
 import { translateAndDetect } from "@/lib/translate"
+import { phoneTail } from "@/lib/membership"
 import { elog, elogError } from "@/lib/elog"
 
 export const dynamic = "force-dynamic"
@@ -533,7 +534,9 @@ export async function GET(req: NextRequest) {
       const tomorrow = baliDateStr(new Date(Date.now() + 86400_000))
       const when = (s: { date: string; startTime: string }) => (s.date === today ? `today at ${s.startTime}` : s.date === tomorrow ? `tomorrow at ${s.startTime}` : `${dayName(s.date)} at ${s.startTime}`)
       const slotLine = slots.length === 2 && slots[0].date === slots[1].date ? `${when(slots[0])} or ${slots[1].startTime}` : slots.map(when).join(" or ")
-      const draft = `Hi! Just checking in - we have ${slotLine} free at the Canggu studio. The first class is the easiest way to feel how it works for your back 🌿 Want to grab a spot? https://bookgravity.com`
+      // "open", not "free": Julien (23.07) read "free" as a free-of-charge
+      // class and had to be walked back twice (owner-approved fix 24.07).
+      const draft = `Hi! Just checking in - we have ${slotLine} open at the Canggu studio. The first class is the easiest way to feel how it works for your back 🌿 Want to grab a spot? https://bookgravity.com`
       // Lock BEFORE sending so a racing sweep can never double-nudge.
       await prisma.eventLog.create({ data: { scope: "ad:followup", message: convo.id } })
       let textOut = draft
@@ -563,6 +566,98 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ---- 2b. Re-book nudge after a no-show / client cancellation -------------
+  // (owner-approved 24.07, text approved verbatim). Two days after a NO_SHOW
+  // or a client-side cancel, IF the person has no upcoming CONFIRMED booking,
+  // send ONE warm invitation to pick a new time. EventLog scope "rebook:nudge"
+  // with the booking id is the once-ever lock. Window is long closed by then,
+  // so it rides the approved admin_message template, translated per client.
+  let rebooked = 0
+  if (FULL_AUTONOMY && timeLeft() > 12_000) {
+    try {
+      const { baliDateStr } = await import("@/lib/tz")
+      const twoDaysAgo = baliDateStr(new Date(Date.now() - 2 * 86400_000))
+      const threeDaysAgo = baliDateStr(new Date(Date.now() - 3 * 86400_000))
+      const today = baliDateStr(new Date())
+      const lapsed = await prisma.booking.findMany({
+        where: {
+          slot: { studioId: studio.id, date: { gte: threeDaysAgo, lte: twoDaysAgo } },
+          OR: [
+            { status: "NO_SHOW" },
+            { status: "CANCELLED", cancelledByRole: "client" },
+          ],
+        },
+        select: { id: true, clientPhone: true, clientName: true },
+        take: 20,
+      })
+      const NUDGE = "Hi! We'd love to see you back on the lianas 🌿 There are open spots this week - pick any time that suits you: bookgravity.com"
+      for (const b of lapsed) {
+        if (timeLeft() < 8_000) break
+        const tail = phoneTail(b.clientPhone)
+        if (tail.length < 6) continue
+        // Once-ever per booking.
+        const locked = await prisma.eventLog.findFirst({
+          where: { scope: "rebook:nudge", message: b.id }, select: { id: true },
+        })
+        if (locked) continue
+        // Already re-booked (any upcoming CONFIRMED booking on this phone) → skip.
+        const upcoming = (
+          await prisma.booking.findMany({
+            where: { status: "CONFIRMED", slot: { date: { gte: today } } },
+            select: { clientPhone: true },
+          })
+        ).some((x) => phoneTail(x.clientPhone) === tail)
+        if (upcoming) {
+          await prisma.eventLog.create({ data: { scope: "rebook:nudge", message: b.id } })
+          continue
+        }
+        const convo = (
+          await prisma.whatsAppConversation.findMany({
+            where: { studioId: studio.id },
+            select: { id: true, clientPhone: true, clientLanguage: true },
+          })
+        ).find((c) => phoneTail(c.clientPhone) === tail)
+        // Lock BEFORE sending so a racing sweep can never double-nudge.
+        await prisma.eventLog.create({ data: { scope: "rebook:nudge", message: b.id } })
+        let textOut = NUDGE
+        let translatedBody: string | null = null
+        if (convo?.clientLanguage && convo.clientLanguage !== "en") {
+          const t = await translateAndDetect({ text: NUDGE, targetLang: convo.clientLanguage })
+          if (t.ok && t.translated.trim()) {
+            textOut = t.translated.trim()
+            translatedBody = textOut
+          }
+        }
+        const firstName = (b.clientName ?? "").trim().split(/\s+/)[0] || "there"
+        const res = await sendWhatsAppTemplate({
+          toPhone: b.clientPhone,
+          templateName: process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message",
+          languageCode: process.env.WHATSAPP_TEMPLATE_LANG || "en",
+          variables: [firstName, textOut],
+          config: waConfig,
+        })
+        if (convo) {
+          await appendOutboundMessage({
+            conversationId: convo.id,
+            type: "template",
+            body: NUDGE,
+            translatedBody,
+            detectedLang: translatedBody ? "en" : null,
+            templateName: process.env.WHATSAPP_TEMPLATE_ADMIN_MESSAGE || "admin_message",
+            waMessageId: res.ok ? res.messageId : null,
+            status: res.ok ? "sent" : "failed",
+            errorDetail: res.ok ? null : res.error,
+            fromAgent: true,
+          })
+        }
+        if (res.ok) rebooked++
+        else void elogError("agent:autopilot", "rebook nudge failed", { bookingId: b.id, error: res.error })
+      }
+    } catch (err) {
+      console.warn("[autopilot] rebook pass failed:", err)
+    }
+  }
+
   // ---- 3. Self-learning ----------------------------------------------------
   let lessons = 0
   if (timeLeft() > 8_000) {
@@ -579,7 +674,7 @@ export async function GET(req: NextRequest) {
   // sweep summary means a real person is not being reached.
   const staffUnreachable = await countStaffDeliveryFailures()
 
-  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, unanswered, followedUp, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons, staffUnreachable }
+  const summary = { ok: true, fullAutonomy: FULL_AUTONOMY, checked, autoSent, failed, unanswered, followedUp, rebooked, trainerPinged, igImported, fbImported, translatedQ, translatedA, retriedOk, lessons, staffUnreachable }
   // Always log - quiet sweeps included. This row is the liveness heartbeat the
   // sweep-watcher reads; gaps in it mean the cron genuinely did not complete.
   void elog("agent:autopilot", "sweep", summary)

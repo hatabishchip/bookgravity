@@ -10,7 +10,10 @@ import { baliDateStr } from "@/lib/tz"
 // cancelled. Fires in a tighter window than the check-in so confirmations have
 // time to land. Env-gated on WHATSAPP_TEMPLATE_TRAINER_ROSTER (a trainer has no
 // open 24h window, so it must be an approved template).
-const ROSTER_MAX_MIN = 90
+// 30-60 (not 90): the same-day check-in can go out as late as ~20 min before
+// class, so a roster fired at 90 min would miss late confirmations. Closer to
+// the class = truer picture (owner audit 24.07).
+const ROSTER_MAX_MIN = 60
 const ROSTER_MIN_MIN = 30
 
 // Same-day "are you still coming to today's class?" check-in — core logic.
@@ -119,6 +122,20 @@ export async function runTodayReminders(trigger: string): Promise<TodayReminders
   for (const { list: group, minutesUntil } of groups.values()) {
     const b = group[0]
 
+    // Already confirmed via the day-before reminder's Confirm button (whole
+    // group) → don't ask "are you still able to join us?" AGAIN a few hours
+    // later - the client answered once and a repeat reads as not listening
+    // (owner 24.07). Claim the group silently so no later run re-considers it;
+    // the pre-class roster reports them as confirmed either way.
+    if (group.every((g) => g.attendanceConfirmedAt)) {
+      await prisma.booking.updateMany({
+        where: { id: { in: group.map((g) => g.id) }, todayReminderSentAt: null },
+        data: { todayReminderSentAt: new Date() },
+      })
+      skippedFresh++ // counted with "no check-in needed" skips in the summary
+      continue
+    }
+
     // Atomically CLAIM the whole group before sending — only one concurrent
     // run wins; the others see count===0 and skip, so no duplicates.
     const claim = await prisma.booking.updateMany({
@@ -132,6 +149,7 @@ export async function runTodayReminders(trigger: string): Promise<TodayReminders
       locationUrl: b.slot.studio.locationUrl,
       studioWA: b.slot.studio,
       ticketCode: b.ticketCode,
+      party: group.length > 1,
     })
 
     if (!res.ok) {
