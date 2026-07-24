@@ -467,6 +467,13 @@ export async function POST(request: NextRequest) {
             // asks for text on a voice note - both used to sit unanswered.
             if ((type === "text" && msgBody) || type === "image" || type === "audio") {
               after(async () => {
+                // Voice notes are transcribed FIRST (Deepgram, 24.07) so the
+                // agent answers the actual words; a failed/dark transcription
+                // leaves body empty and the agent politely asks for text.
+                if (type === "audio") {
+                  const { transcribeVoiceMessage } = await import("@/lib/transcribe")
+                  await transcribeVoiceMessage(saved.id)
+                }
                 const { generateAgentSuggestion } = await import("@/lib/sales-agent")
                 await generateAgentSuggestion(convo.id, saved.id)
               })

@@ -157,7 +157,7 @@ ANSWER RULES:
 - Light emojis (0-2). ALWAYS write the draft in English (studio staff language shown to the trainer for review), regardless of the client's language or the thread history. The client automatically receives the reply translated into their own language (English/Russian/Bahasa/etc.) on send.
 - A client message shown as "[attachment]" is an Instagram photo/story reply we cannot see. Never guess its content. If it opens the conversation, greet them warmly and ask what they're looking for. If it arrives mid-conversation, only reply when context makes the intent obvious - otherwise use an empty draft "".
 - When the client's LAST message is a photo, the actual image is attached to this request - look at it and answer what it really shows (a screenshot of the booking page, a location pin, a product). If the photo is a medical scan (MRI/X-ray/ultrasound) or shows an injury, the MEDICAL rules apply in full: never diagnose, never name or describe what the scan shows, respond with the standard medical formula. A photo shown as "[image]" EARLIER in the thread was not attached - treat it like "[attachment]": never guess.
-- A client message shown as "[voice note]" is a voice message we cannot listen to. Warmly ask them to type it instead ("So sorry - I can't listen to voice messages here. Could you type it out?"). If your PREVIOUS reply already asked them to type, do not ask again - use an empty draft "".
+- A client message shown as "[voice note transcript] <text>" is a voice message we transcribed - treat the text as the client's words and answer in full, exactly like a typed message (never mention the transcription). A bare "[voice note]" without a transcript is one we could not make out - warmly ask them to type it instead ("So sorry - I couldn't make out your voice message. Could you type it out?"). If your PREVIOUS reply already asked them to type, do not ask again - use an empty draft "".
 - FIRST REPLY TO AN AD LEAD (marked in the message): NO method lecture. Formula: greeting + ONE short line connecting their pain to relief + the nearest ONE or TWO concrete open slots from the LIVE SCHEDULE ("Tomorrow we have 9:00 or 11:00 open") + a closing question which time suits them + the booking link. Under 45 words total. The method explanation waits until they reply. VARY the relief line - do not repeat one stock phrase to every lead (live replies 24.07: six leads in a row got the identical sentence). Rotate angles like: "hanging gently takes the pressure off the spine", "in the lianas the back finally gets to lengthen and rest", "a gentle hang gives the discs room again - most feel lighter after one class".
 
 CATEGORY LABELS (statistics only - you ALWAYS write the full reply in draft):
@@ -453,12 +453,15 @@ export async function generateAgentSuggestion(conversationId: string, inboundMes
       .reverse()
       .map((m) => {
         const who = m.direction === "INBOUND" ? "CLIENT" : m.fromAgent ? "AGENT" : "STUDIO"
-        // Media placeholders match the prompt rules: "[voice note]" triggers the
-        // type-it-out ask, "[image] <caption>" keeps the caption visible while
-        // flagging there was a photo.
+        // Media placeholders match the prompt rules: a transcribed voice note
+        // carries its text (answer in full), a bare "[voice note]" triggers
+        // the type-it-out ask, "[image] <caption>" keeps the caption visible
+        // while flagging there was a photo.
         const text =
           m.type === "audio"
-            ? "[voice note]"
+            ? m.body?.trim()
+              ? `[voice note transcript] ${m.body}`
+              : "[voice note]"
             : m.type === "image"
               ? m.body
                 ? `[image] ${m.body}`

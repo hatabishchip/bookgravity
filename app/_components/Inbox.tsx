@@ -167,7 +167,7 @@ function previewText(m: ConversationListItem["lastMessage"]): string {
   if (m.type === "text" && m.body) return m.body
   if (m.type === "template" && m.body) return m.body
   if (m.type === "image") return "📷 Image" + (m.body ? `: ${m.body}` : "")
-  if (m.type === "audio") return "🎤 Voice message"
+  if (m.type === "audio") return "🎤 " + (m.body ? m.body : "Voice message")
   if (m.type === "video") return "🎬 Video"
   if (m.type === "document") return "📄 " + (m.body ?? "Document")
   if (m.type === "sticker") return "Sticker"
